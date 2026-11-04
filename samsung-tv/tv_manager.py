@@ -756,14 +756,72 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
+
+def check(ip: str | None) -> None:
+    """Explain step by step why a TV is (not) reachable."""
+    import platform
+
+    ok = lambda b: "✔" if b else "✘"
+    me = local_ipv4()
+    print(f"نظام الحاسوب: {platform.system()}  |  عنوان هذا الحاسوب: {me or 'غير معروف'}")
+    if not me:
+        print("✘ الحاسوب غير متصل بأي شبكة.")
+        return
+    if not ipaddress.ip_address(me).is_private:
+        print("✘ عنوان الحاسوب ليس عنوان شبكة منزلية - هل يعمل VPN؟ أوقفه وأعد المحاولة.")
+    if not ip:
+        print("\nالبحث التلقائي…")
+        tvs = discover()
+        if tvs:
+            for tv in tvs:
+                print(f"✔ وُجد: {tv['ip']}  {tv['name']}  [{tv['model']}]")
+            return
+        print("✘ لم يُعثر على تلفاز تلقائياً.")
+        print("  أدخل عنوان التلفاز يدوياً:  python3 tv_manager.py --check 192.168.1.50")
+        print("  (على التلفاز: الإعدادات ← عام ← الشبكة ← حالة الشبكة ← إعدادات IP)")
+        return
+    ip = valid_ip(ip)
+    same = ipaddress.ip_address(ip) in ipaddress.ip_network(f"{me}/24", strict=False)
+    print(f"\nالتلفاز: {ip}")
+    print(f"{ok(same)} نفس الشبكة الفرعية" + ("" if same else
+          " - التلفاز والحاسوب على شبكتين مختلفتين (شبكة ضيوف؟ موسّع شبكة؟ راوترين؟)"))
+    p8001, p8002, psdb = (port_open(ip, prt, 1.5) for prt in (REST_PORT, WSS_PORT, SDB_PORT))
+    print(f"{ok(p8001)} منفذ 8001 (معلومات التلفاز)")
+    print(f"{ok(p8002)} منفذ 8002 (التحكم عن بُعد)")
+    print(f"{ok(psdb)} منفذ 26101 (وضع المطوّر / Tizen)")
+    info = get_device_info(ip, 3) if p8001 else None
+    if info:
+        print(f"✔ تلفاز سامسونغ: {info['name']} [{info['model']}]")
+        dev_ok = info["developer_mode"]
+        print(f"{ok(dev_ok)} وضع المطوّر " + ("مفعّل" if dev_ok else "غير مفعّل"))
+        if dev_ok and info["developer_ip"] and info["developer_ip"] != me:
+            print(f"✘ وضع المطوّر مضبوط على عنوان آخر ({info['developer_ip']}) وليس {me}"
+                  " - غيّره في التلفاز (Apps ← 12345) ثم أعد تشغيل التلفاز.")
+        print("\nكل شيء جاهز ✔  شغّل: python3 tv_manager.py")
+        return
+    print("\nالتشخيص:")
+    if not (p8001 or p8002 or psdb):
+        print(" • التلفاز لا يردّ إطلاقاً. تأكد أنه مُشغَّل (وليس في وضع الاستعداد)، وأن العنوان صحيح.")
+        print(" • فعّل في التلفاز: الإعدادات ← عام ← مدير الأجهزة الخارجية ← إعدادات اتصال الجهاز ← الوصول = تشغيل.")
+        print(" • فعّل: الإعدادات ← عام ← الشبكة ← إعدادات الخبير ← التشغيل عبر الشبكة/الجوال (Power On with Mobile).")
+        print(" • في الراوتر أوقف «عزل العملاء / AP Isolation» ولا تستخدم شبكة الضيوف.")
+        print(" • أوقف VPN على الحاسوب، واسمح لـ Python في جدار حماية ويندوز (شبكة خاصة).")
+    elif psdb and not p8001:
+        print(" • وضع المطوّر يعمل لكن واجهة التحكم مغلقة - أعد تشغيل التلفاز.")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Samsung TV Manager")
     parser.add_argument("--host", default="127.0.0.1", help="listen address")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--scan", action="store_true", help="discover TVs and exit")
+    parser.add_argument("--check", nargs="?", const="", metavar="TV_IP",
+                        help="diagnose why the TV is not found")
     args = parser.parse_args()
 
+    if args.check is not None:
+        return check(args.check or None)
     if args.scan:
         tvs = discover()
         if not tvs:
