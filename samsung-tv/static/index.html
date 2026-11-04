@@ -213,7 +213,7 @@ pre{background:#07090d;border:1px solid var(--line);padding:12px;border-radius:1
         <p class="sub" style="margin:0">مواقيت الصلاة وتطبيقاتك المفضّلة فقط — بدون إعلانات أو إضافات.</p></div>
         <div class="clock"><b id="clockTime">--:--</b><span id="clockDate"></span></div>
       </div>
-      <div class="skins" id="skins"></div>
+      <div class="row" style="justify-content:space-between;margin-bottom:18px"><div class="skins" id="skins" style="margin:0"></div><button class="btn primary" id="showTv" style="font-size:16px">📺 اعرض شاشة البيت على التلفاز</button></div>
       <div class="hero" id="hero"></div>
       <div class="prayer" id="prayer">
         <div class="prayer-head">
@@ -271,6 +271,8 @@ pre{background:#07090d;border:1px solid var(--line);padding:12px;border-radius:1
           <option value="hidden">المخفيّة</option>
         </select>
         <button class="btn" id="hideBloat">إخفاء كل غير الضروري</button>
+        <input type="text" id="addAppId" placeholder="إضافة تطبيق بمعرّفه (مثل 111299001912)" style="min-width:220px;direction:ltr;text-align:right">
+        <button class="btn" id="addAppBtn">إضافة</button>
       </div>
       <div id="appList" class="app-list"><div class="empty">اختر جهازاً أولاً ثم اضغط «تحميل التطبيقات». في أول مرة سيظهر على التلفاز طلب «سماح / Allow» — وافق عليه.</div></div>
     </section>
@@ -664,6 +666,27 @@ function tickClock(){
   $('#clockDate').textContent = d.toLocaleDateString('ar-u-nu-latn', { weekday:'long', day:'numeric', month:'long' }) + hijri;
 }
 applySkin(store.get('skin', 'islamic')); tickClock(); setInterval(tickClock, 1000);
+
+
+// ---------- show home screen on the TV ----------
+$('#showTv').onclick = async () => {
+  if (!tv) return toast('اختر تلفازاً أولاً', true);
+  const b = $('#showTv'); b.disabled = true;
+  try {
+    const r = await api('/api/showtv', { ip: tv.ip });
+    toast('جارٍ فتح شاشة البيت في متصفح التلفاز…\nإن لم تُفتح، افتح متصفح Internet على التلفاز واكتب:\n' + r.url);
+  } catch(e){ toast(e.message, true); }
+  finally { b.disabled = false; }
+};
+$('#addAppBtn').onclick = async () => {
+  if (!tv) return toast('اختر تلفازاً أولاً', true);
+  const id = $('#addAppId').value.trim(); if (!id) return;
+  try {
+    const r = await api('/api/addapp', { ip: tv.ip, appId: id });
+    apps = [...apps.filter(a => a.appId !== r.app.appId), r.app].sort((a, b) => a.name.localeCompare(b.name));
+    store.set('apps:' + tv.ip, apps); renderApps(); $('#addAppId').value = ''; toast('تمت إضافة ' + r.app.name);
+  } catch(e){ toast(e.message, true); }
+};
 
 // ---------- init ----------
 renderCurrent(); renderChecklist(); previewBl();

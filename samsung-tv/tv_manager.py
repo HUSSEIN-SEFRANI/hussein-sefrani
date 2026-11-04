@@ -40,6 +40,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+import display
 import prayer
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -570,38 +571,115 @@ def open_developer_dialog(ip: str) -> None:
     send_keys(ip, ["KEY_1", "KEY_2", "KEY_3", "KEY_4", "KEY_5"], delay=0.15)
 
 
-def list_apps(ip: str) -> list[dict]:
-    ws = open_channel(ip)
+# Well-known Tizen app ids. Used when the TV does not answer the
+# "installed apps" request (2024+ firmware). Each id is checked on the TV,
+# so wrong or missing ids are simply skipped; names come from the TV.
+KNOWN_APPS = {
+    "111299001912": "YouTube",
+    "3201907018807": "Netflix",
+    "11101200001": "Netflix",
+    "3201910019365": "Prime Video",
+    "3201512006785": "Prime Video",
+    "3201901017640": "Disney+",
+    "3201606009684": "Spotify",
+    "3201807016597": "Apple TV",
+    "3201512006963": "Plex",
+    "3201808016802": "Pluto TV",
+    "3201806016390": "DAZN",
+    "3201511006428": "Rakuten TV",
+    "3201608010191": "Deezer",
+    "11091000000": "Facebook Watch",
+    "3202008021577": "TikTok",
+    "3201702011851": "Steam Link",
+    "3202203026841": "Xbox",
+    "3201710015067": "Samsung TV Plus",
+    "3201710015037": "Samsung TV Plus",
+    "3201509005146": "Samsung Health",
+    "3201710015016": "Gallery",
+    "3202105023919": "Gaming Hub",
+    "3201710015046": "Universal Guide",
+    "3201910019378": "SmartThings",
+    "3201811017267": "Shahid",
+    "3201707014489": "Twitch",
+    "3201505002690": "Vimeo",
+    "3201601007230": "Kodi",
+    "3201704012147": "OSN+",
+    "3201803015944": "Anghami",
+    "3201606009910": "Zattoo",
+    "3201706012478": "BBC iPlayer",
+    "org.tizen.browser": "Internet",
+    "com.samsung.tv.browser": "Internet",
+}
+
+
+def _ws_installed_apps(ip: str) -> list[dict] | None:
+    """Official 'installed apps' request; returns None if the TV ignores it."""
     try:
-        ws.send_json(
-            {
-                "method": "ms.channel.emit",
-                "params": {"event": "ed.installedApp.get", "to": "host"},
-            }
-        )
+        ws = open_channel(ip)
+    except TVError:
+        return None
+    try:
+        ws.settimeout(6)
+        ws.send_json({"method": "ms.channel.emit",
+                      "params": {"event": "ed.installedApp.get", "to": "host"}})
         while True:
             msg = ws.recv_json()
             if msg.get("event") == "ed.installedApp.get":
-                apps = (msg.get("data") or {}).get("data") or []
-                break
-    except socket.timeout as exc:
-        raise TVError("التلفاز لم يُرجع قائمة التطبيقات") from exc
+                return (msg.get("data") or {}).get("data") or []
+    except (socket.timeout, WSClosed, OSError):
+        return None
     finally:
         ws.close()
-    out = []
-    for app in apps:
-        app_id = str(app.get("appId", ""))
-        if not _APP_ID_RE.match(app_id):
+
+
+def app_status(ip: str, app_id: str, timeout: float = 6.0) -> dict | None:
+    """GET /api/v2/applications/<id> -> {name, running, visible} if installed."""
+    for base in api_bases(ip):
+        try:
+            status, text = lan_get(f"{base}/api/v2/applications/{app_id}", timeout)
+        except (OSError, urllib.error.URLError):
             continue
-        out.append(
-            {
-                "appId": app_id,
-                "name": app.get("name") or app_id,
-                "type": app.get("app_type", 2),
-                "icon": app.get("icon") or "",
-                "bloat": is_bloat(app.get("name") or ""),
-            }
-        )
+        if status == 200:
+            try:
+                return json.loads(text)
+            except ValueError:
+                return {}
+        if status in (404, 400):
+            return None
+    return None
+
+
+def probe_apps(ip: str, extra_ids=()) -> list[dict]:
+    ids = list(dict.fromkeys(list(KNOWN_APPS) + [i for i in extra_ids if _APP_ID_RE.match(i)]))
+    found, names = [], set()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        for app_id, info in zip(ids, pool.map(lambda i: app_status(ip, i), ids)):
+            if info is None:
+                continue
+            name = (info.get("name") if isinstance(info, dict) else None) or KNOWN_APPS.get(app_id, app_id)
+            if name in names:  # same app under an old and a new id
+                continue
+            names.add(name)
+            found.append({"appId": app_id, "name": name, "type": 4 if "." in app_id else 2,
+                          "icon": "", "bloat": is_bloat(name)})
+    return found
+
+
+def list_apps(ip: str, extra_ids=()) -> list[dict]:
+    apps = _ws_installed_apps(ip)
+    if apps:
+        out = []
+        for app in apps:
+            app_id = str(app.get("appId", ""))
+            if not _APP_ID_RE.match(app_id):
+                continue
+            out.append({"appId": app_id, "name": app.get("name") or app_id,
+                        "type": app.get("app_type", 2), "icon": app.get("icon") or "",
+                        "bloat": is_bloat(app.get("name") or "")})
+    else:
+        out = probe_apps(ip, extra_ids)
+        if not out:
+            raise TVError("لم يُرجع التلفاز أي تطبيق. تأكد أن التلفاز مُشغَّل ثم أعد المحاولة.")
     out.sort(key=lambda a: a["name"].lower())
     return out
 
@@ -821,9 +899,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(info)
             if url.path == "/api/apps":
                 ip = valid_ip(q.get("ip", ""))
-                apps = list_apps(ip)
                 data = load_data()
                 rec = tv_record(data, ip)
+                apps = list_apps(ip, rec.get("custom_apps", []))
                 return self._json(
                     {"apps": apps, "favorites": rec["favorites"], "hidden": rec["hidden"]}
                 )
@@ -882,6 +960,25 @@ class Handler(BaseHTTPRequestHandler):
             if url.path == "/api/devmode":
                 open_developer_dialog(ip)
                 return self._json({"ok": True, "pc_ip": local_ipv4()})
+            if url.path == "/api/addapp":
+                app_id = valid_app_id(str(body.get("appId", "")).strip())
+                info = app_status(ip, app_id)
+                if info is None:
+                    raise TVError("هذا التطبيق غير مثبّت على التلفاز أو المعرّف خاطئ")
+                data = load_data()
+                rec = tv_record(data, ip)
+                rec.setdefault("custom_apps", [])
+                if app_id not in rec["custom_apps"]:
+                    rec["custom_apps"].append(app_id)
+                save_data(data)
+                name = (info or {}).get("name") or app_id
+                return self._json({"ok": True, "app": {"appId": app_id, "name": name,
+                                   "type": 4 if "." in app_id else 2, "icon": "",
+                                   "bloat": is_bloat(name)}})
+            if url.path == "/api/showtv":
+                url_tv = f"http://{local_ipv4()}:{DISPLAY_PORT}/tv"
+                show_on_tv(ip, url_tv)
+                return self._json({"ok": True, "url": url_tv})
             if url.path == "/api/text":
                 send_text(ip, str(body.get("text", "")))
                 return self._json({"ok": True})
@@ -920,6 +1017,61 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+DISPLAY_PORT = 8766
+
+
+def show_on_tv(ip: str, url: str) -> None:
+    """Open a URL full screen in the TV's own web browser."""
+    payloads = [{
+        "method": "ms.channel.emit",
+        "params": {"event": "ed.apps.launch", "to": "host",
+                   "data": {"appId": app_id, "action_type": "NATIVE_LAUNCH", "metaTag": url}},
+    } for app_id in ("org.tizen.browser", "com.samsung.tv.browser")]
+    CHANNEL.send(ip, payloads)  # only the id present on this model opens
+
+
+class DisplayHandler(Handler):
+    """Read-only server reachable from the LAN, so the TV browser can show
+    the display page. It cannot control the TV or change settings."""
+
+    def do_POST(self):
+        self._json({"error": "forbidden"}, 403)
+
+    def do_GET(self):
+        url = urllib.parse.urlparse(self.path)
+        try:
+            if url.path in ("/", "/tv"):
+                return self._static("/tv.html")
+            if url.path == "/api/prayer":
+                cfg = load_data().get("prayer") or {}
+
+                def save_cache(result):
+                    d = load_data()
+                    d.setdefault("prayer", {})["cache"] = result
+                    save_data(d)
+
+                return self._json(prayer.get_times(cfg, save_cache))
+            if url.path == "/api/weather":
+                return self._json(display.get_weather(prayer.DEFAULT_CITY))
+            if url.path == "/api/wallpapers":
+                return self._json({"files": display.list_wallpapers()})
+            if url.path.startswith("/wallpapers/"):
+                name = urllib.parse.unquote(url.path[len("/wallpapers/"):])
+                target = (display.WALLPAPER_DIR / name).resolve()
+                if target.parent != display.WALLPAPER_DIR.resolve() or not target.is_file() \
+                        or target.suffix.lower() not in display.IMAGE_TYPES:
+                    return self._json({"error": "not found"}, 404)
+                body = target.read_bytes()
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", display.IMAGE_TYPES[target.suffix.lower()])
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "max-age=3600")
+                self.end_headers()
+                self.wfile.write(body)
+                return
+            return self._json({"error": "not found"}, 404)
+        except ValueError as exc:
+            self._json({"error": str(exc)}, 400)
 
 
 def check(ip: str | None) -> None:
@@ -1032,6 +1184,12 @@ def main() -> None:
         return
 
     server = ThreadingHTTPServer((args.host, args.port), Handler)
+    try:
+        tv_server = ThreadingHTTPServer(("0.0.0.0", DISPLAY_PORT), DisplayHandler)
+        threading.Thread(target=tv_server.serve_forever, daemon=True).start()
+        print(f"شاشة التلفاز متاحة على: http://{local_ipv4()}:{DISPLAY_PORT}/tv")
+    except OSError as exc:
+        print(f"تعذّر تشغيل شاشة التلفاز على المنفذ {DISPLAY_PORT}: {exc}")
     url = f"http://{'localhost' if args.host in ('127.0.0.1', '0.0.0.0') else args.host}:{args.port}"
     print(f"Samsung TV Manager يعمل على: {url}   (Ctrl+C للإيقاف)")
     if not args.no_browser:
