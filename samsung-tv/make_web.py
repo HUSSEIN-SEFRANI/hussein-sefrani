@@ -126,17 +126,59 @@ REPLACEMENTS = [
 ]
 
 
+TREE_SRC = HERE / "static" / "tree.html"
+TREE_OUT = OUT.parent / "tree.html"
+TREE_ICON = OUT.parent / "tree-icon.png"
+
+
+def calc_core() -> str:
+    """Settings + prayer-time calculation only (shared by every page)."""
+    start = CALC_JS.index("// ---------- standalone: settings")
+    end = CALC_JS.index("async function loadPrayer(){")
+    return CALC_JS[start:end]
+
+
+def tree_icon_pixel(x: int, y: int):
+    """180x180 iPhone icon: green tree on a dark background."""
+    import math
+
+    bg = (10, 31, 25)
+    if 82 <= x <= 98 and 95 <= y <= 150:
+        return (107, 68, 35)                       # trunk
+    for cx, cy, r in ((90, 70, 42), (60, 92, 28), (120, 92, 28)):
+        if math.hypot(x - cx, y - cy) <= r:
+            return (63, 174, 90) if (x + y) % 17 else (227, 179, 65)
+    if 150 < y < 158 and 40 < x < 140:
+        return (18, 51, 38)                        # ground
+    return bg
+
+
+def build_tree() -> None:
+    from make_tizen import png  # small PNG writer, no third-party modules
+
+    tree = TREE_SRC.read_text("utf-8")
+    if "/*CALC*/" not in tree:
+        raise SystemExit("make_web.py: /*CALC*/ placeholder missing in tree.html")
+    TREE_OUT.write_text(tree.replace("/*CALC*/", calc_core(), 1), "utf-8")
+    TREE_ICON.write_bytes(png(180, 180, tree_icon_pixel))
+    print(f"written {TREE_OUT}")
+
+
 def main() -> None:
     html = SRC.read_text("utf-8")
     for old, new in REPLACEMENTS:
         if old not in html:
             raise SystemExit(f"make_web.py: pattern not found in tv.html:\n  {old[:80]}")
         html = html.replace(old, new, 1)
+    # remote: green button (or the T key) opens the prayer tree
+    html = html.replace("</body>", "<script>document.addEventListener('keydown', e => {"
+                        " if (e.keyCode === 404 || e.key === 't') location.href = 'tree.html'; });</script>\n</body>", 1)
     if "/api/" in html:
         raise SystemExit("make_web.py: the page still calls the local /api/")
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text(html, "utf-8")
     print(f"written {OUT}")
+    build_tree()
 
 
 if __name__ == "__main__":

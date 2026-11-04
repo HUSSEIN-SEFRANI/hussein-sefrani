@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="شجرة الصلاة">
+<meta name="theme-color" content="#0a1f19">
+<link rel="apple-touch-icon" href="tree-icon.png">
+<title>شجرة الصلاة</title>
+<style>
+:root{--bg:#0a1f19;--panel:#0f2a22;--panel2:#143429;--line:#22493b;--text:#f3ecd6;--muted:#a9c2b6;--gold:#e6c55a;
+  --green:#3fae5a;--yellow:#e3b341;--brown:#8b5a2b;--fall:#9c6b3c}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,"SF Arabic","Segoe UI",Tahoma,"Noto Sans Arabic",Arial,sans-serif}
+body{min-height:100vh;padding:max(16px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom))}
+.wrap{max-width:980px;margin:0 auto}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+header h1{font-size:22px;margin:0}
+.nav{display:flex;align-items:center;gap:8px}
+.nav button{width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:18px}
+.nav button:disabled{opacity:.35}
+.month{font-weight:700;min-width:120px;text-align:center}
+.layout{display:grid;grid-template-columns:1fr;gap:14px}
+@media (min-width:860px){.layout{grid-template-columns:1.15fr 1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:14px}
+.tree svg{width:100%;height:auto;display:block}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px;text-align:center}
+.stat b{display:block;font-size:22px}
+.stat span{font-size:12px;color:var(--muted)}
+.stat.g b{color:var(--green)}.stat.y b{color:var(--yellow)}.stat.f b{color:var(--fall)}
+.ask{display:none}
+.ask.show{display:block}
+.ask h2{margin:0 0 4px;font-size:20px}
+.ask p{margin:0 0 12px;color:var(--muted);font-size:14px}
+.choices{display:grid;gap:10px}
+.choice{display:flex;align-items:center;gap:12px;width:100%;padding:14px;border-radius:14px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font:inherit;font-size:17px;text-align:right}
+.choice:focus-visible,.choice:hover{outline:3px solid var(--gold);outline-offset:2px}
+.choice i{width:26px;height:26px;flex:none;display:block}
+.done{display:none;text-align:center;color:var(--muted);padding:6px}
+.done.show{display:block}
+.grid{width:100%;border-collapse:collapse;font-size:13px}
+.grid th{color:var(--muted);font-weight:500;padding:4px 2px}
+.grid td{text-align:center;padding:3px 2px;border-top:1px solid #ffffff0d}
+.grid td:first-child{color:var(--muted);width:44px}
+.dot{width:26px;height:26px;border-radius:50%;border:1px solid var(--line);background:transparent;padding:0}
+.dot.g{background:var(--green);border-color:var(--green)}
+.dot.y{background:var(--yellow);border-color:var(--yellow)}
+.dot.f{background:transparent;border:2px dashed var(--fall)}
+.dot.p{background:#ffffff10}
+.dot:disabled{opacity:.2}
+.dot:focus-visible{outline:3px solid var(--gold);outline-offset:1px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin:8px 0 2px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:12px;height:12px;border-radius:50%;display:inline-block}
+.hint{color:var(--muted);font-size:12px;margin-top:8px;line-height:1.6}
+@keyframes fall{0%{transform:translate(0,0) rotate(0)}100%{transform:translate(var(--dx),var(--dy)) rotate(var(--rot))}}
+.falling{animation:fall 1.8s cubic-bezier(.45,.05,.55,.95) forwards}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🌳 شجرة الصلاة</h1>
+    <div class="nav">
+      <button id="prev" aria-label="الشهر السابق">→</button>
+      <div class="month" id="monthName"></div>
+      <button id="next" aria-label="الشهر التالي">←</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div class="card tree">
+      <svg id="tree" viewBox="0 0 400 430" role="img" aria-label="شجرة الصلاة لهذا الشهر"></svg>
+      <div class="stats">
+        <div class="stat g"><b id="sG">0</b><span>في وقتها</span></div>
+        <div class="stat y"><b id="sY">0</b><span>متأخرة</span></div>
+        <div class="stat f"><b id="sF">0</b><span>سقطت</span></div>
+        <div class="stat"><b id="sP">0%</b><span>الإنجاز</span></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card ask" id="ask">
+        <h2 id="askTitle">هل صليت الظهر؟</h2>
+        <p id="askSub"></p>
+        <div class="choices">
+          <button class="choice" data-v="g"><i style="background:var(--green);border-radius:50% 0"></i>نعم، صليتها في وقتها</button>
+          <button class="choice" data-v="y"><i style="background:var(--yellow);border-radius:50% 0"></i>صليتها متأخراً</button>
+          <button class="choice" data-v="f"><i style="border:2px dashed var(--fall);border-radius:50% 0"></i>لم أصلّها</button>
+        </div>
+      </div>
+      <div class="card done" id="done">لا توجد صلاة بانتظار إجابتك الآن. بارك الله فيك 🤍</div>
+
+      <div class="card" style="margin-top:14px">
+        <div class="legend">
+          <span><i style="background:var(--green)"></i>في وقتها</span>
+          <span><i style="background:var(--yellow)"></i>متأخرة</span>
+          <span><i style="border:2px dashed var(--fall)"></i>سقطت</span>
+          <span><i style="background:#ffffff22"></i>بانتظار الإجابة</span>
+        </div>
+        <table class="grid" id="grid"></table>
+        <div class="hint">اضغط على أي دائرة لتغيير إجابتك. الإجابات محفوظة على هذا الجهاز فقط.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function pad(n){ return String(Math.floor(n)).padStart(2, '0'); }
+// ---------- standalone: settings from the address (all optional) ----------
+// ?city=Mouscron&lat=50.7446&lng=3.2142&fajr=12&isha=12&adj=0,0,0,0,0,0
+const Q = new URLSearchParams(location.search);
+const CITY = { name: Q.get('city') || 'موسكرون', lat: +(Q.get('lat') || 50.7446), lng: +(Q.get('lng') || 3.2142) };
+const ANGLES = { fajr: +(Q.get('fajr') || 12), isha: +(Q.get('isha') || 12) };
+const ADJ = (Q.get('adj') || '').split(',').map(x => parseInt(x, 10) || 0);
+
+// ---------- prayer-time calculation (same as prayer.py) ----------
+const d2r = d => d * Math.PI / 180, r2d = r => r * 180 / Math.PI, fix = (a, b) => a - b * Math.floor(a / b);
+function sunPos(jd){
+  const d = jd - 2451545.0;
+  const g = d2r(fix(357.529 + 0.98560028 * d, 360));
+  const q = fix(280.459 + 0.98564736 * d, 360);
+  const L = d2r(fix(q + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g), 360));
+  const e = d2r(23.439 - 0.00000036 * d);
+  const ra = r2d(Math.atan2(Math.cos(e) * Math.sin(L), Math.cos(L))) / 15;
+  return { decl: Math.asin(Math.sin(e) * Math.sin(L)), eqt: q / 15 - fix(ra, 24) };
+}
+function computeTimes(day){
+  const y = day.getFullYear(), m = day.getMonth() + 1, dd = day.getDate();
+  // Julian day at local midnight (same formula as Python's toordinal() + 1721424.5)
+  const a = Math.floor((14 - m) / 12), yy = y + 4800 - a, mm = m + 12 * a - 3;
+  const jdn = dd + Math.floor((153 * mm + 2) / 5) + 365 * yy + Math.floor(yy / 4) - Math.floor(yy / 100) + Math.floor(yy / 400) - 32045;
+  const jd = jdn - 0.5 - CITY.lng / 360, lat = d2r(CITY.lat);
+  const noon = t => fix(12 - sunPos(jd + t / 24).eqt, 24);
+  const angleTime = (ang, t, ccw) => {
+    const decl = sunPos(jd + t / 24).decl;
+    let x = (-Math.sin(d2r(ang)) - Math.sin(decl) * Math.sin(lat)) / (Math.cos(decl) * Math.cos(lat));
+    x = Math.max(-1, Math.min(1, x));
+    const diff = r2d(Math.acos(x)) / 15;
+    return noon(t) + (ccw ? -diff : diff);
+  };
+  const asrTime = t => {
+    const decl = sunPos(jd + t / 24).decl;
+    return angleTime(-r2d(Math.atan(1 / (1 + Math.tan(Math.abs(lat - decl))))), t, false);
+  };
+  const raw = { fajr: angleTime(ANGLES.fajr, 5, true), shuruq: angleTime(0.833, 6, true), dhuhr: noon(12),
+                asr: asrTime(13), maghrib: angleTime(0.833, 18, false), isha: angleTime(ANGLES.isha, 18, false) };
+  const tz = -new Date(y, m - 1, dd, 12).getTimezoneOffset() / 60;  // the TV's own time zone
+  const off = tz - CITY.lng / 15, safety = { dhuhr: 1 / 60, maghrib: 1 / 60 };
+  const out = {};
+  ['fajr','shuruq','dhuhr','asr','maghrib','isha'].forEach((p, i) => {
+    const v = fix(raw[p] + off + (safety[p] || 0) + (ADJ[i] || 0) / 60, 24);
+    const mins = Math.round(v * 60) % 1440;
+    out[p] = pad(mins / 60) + ':' + pad(mins % 60);
+  });
+  return out;
+}
+
+
+const PRAYERS = ['fajr','dhuhr','asr','maghrib','isha'];
+const PN = { fajr:'الفجر', dhuhr:'الظهر', asr:'العصر', maghrib:'المغرب', isha:'العشاء' };
+const SHORT = { fajr:'فجر', dhuhr:'ظهر', asr:'عصر', maghrib:'مغرب', isha:'عشاء' };
+const KEY = 'prayerTree.v1';
+const $ = s => document.querySelector(s);
+
+// ---------- storage: { "2026-11-04": { fajr: "g" | "y" | "f" } } ----------
+function load(){ try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch(e) { return {}; } }
+function save(d){ try { localStorage.setItem(KEY, JSON.stringify(d)); } catch(e) {} }
+let data = load();
+const iso = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const at = (day, hm) => { const [h, m] = hm.split(':').map(Number); const d = new Date(day); d.setHours(h, m, 0, 0); return d; };
+
+// ---------- which month is shown ----------
+const today = new Date();
+let view = new Date(today.getFullYear(), today.getMonth(), 1);
+const isCurrent = () => view.getFullYear() === today.getFullYear() && view.getMonth() === today.getMonth();
+const daysIn = d => new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+
+// a prayer can be answered once its time has started
+const timesCache = {};
+function timesFor(day){ const k = iso(day); return timesCache[k] || (timesCache[k] = computeTimes(day)); }
+function started(day, p){ return at(day, timesFor(day)[p]) <= new Date(); }
+
+// ---------- deterministic leaf layout for a month ----------
+function rng(seed){ return () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; }; }
+const BLOBS = [[200,165,125,95],[120,205,75,60],[280,205,75,60],[200,95,85,55],[150,130,60,45],[250,130,60,45]];
+function inCanopy(x, y){ return BLOBS.some(([cx, cy, rx, ry]) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1); }
+function layout(month){
+  const r = rng(month.getFullYear() * 100 + month.getMonth() + 7), n = daysIn(month) * 5, pts = [];
+  let guard = 0;
+  while (pts.length < n && guard++ < 20000) {
+    const x = 70 + r() * 260, y = 35 + r() * 255;
+    if (!inCanopy(x, y)) continue;
+    if (pts.some(p => (p.x - x) ** 2 + (p.y - y) ** 2 < 150)) continue;
+    pts.push({ x, y, rot: r() * 360, s: 0.85 + r() * 0.35, gx: 60 + r() * 280, gy: 392 + r() * 26, grot: r() * 360 });
+  }
+  pts.sort((a, b) => b.y - a.y);              // first days at the bottom: the tree fills upwards
+  return pts;
+}
+
+// ---------- draw ----------
+const LEAF = 'M0,-9 C6,-6 6,6 0,9 C-6,6 -6,-6 0,-9 Z';
+function treeSVG(){
+  const month = view, pts = layout(month), n = daysIn(month);
+  let leaves = '', fallen = '', idx = 0;
+  for (let d = 1; d <= n; d++) {
+    const day = new Date(month.getFullYear(), month.getMonth(), d), rec = data[iso(day)] || {};
+    for (const p of PRAYERS) {
+      const pt = pts[idx++]; if (!pt) continue;
+      const v = rec[p], id = `leaf-${iso(day)}-${p}`;
+      const tf = `translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)}) rotate(${pt.rot.toFixed(0)}) scale(${pt.s.toFixed(2)})`;
+      if (v === 'g') leaves += `<path id="${id}" d="${LEAF}" transform="${tf}" fill="url(#lg)" stroke="#1f6b35" stroke-width=".6"/>`;
+      else if (v === 'y') leaves += `<path id="${id}" d="${LEAF}" transform="${tf}" fill="url(#ly)" stroke="#a87b16" stroke-width=".6"/>`;
+      else if (v === 'f') fallen += `<path id="${id}" d="${LEAF}" transform="translate(${pt.gx.toFixed(1)},${pt.gy.toFixed(1)}) rotate(${pt.grot.toFixed(0)}) scale(${(pt.s * .9).toFixed(2)})" fill="#9c6b3c" opacity=".85"/>`;
+      else if (day <= today) leaves += `<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="2.6" fill="#ffffff" opacity=".22"/>`;
+      else leaves += `<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="1.6" fill="#ffffff" opacity=".08"/>`;
+    }
+  }
+  return `<defs>
+      <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5fd17a"/><stop offset="1" stop-color="#2e8b47"/></linearGradient>
+      <linearGradient id="ly" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f5d26b"/><stop offset="1" stop-color="#d39a1e"/></linearGradient>
+      <radialGradient id="sky" cx=".5" cy=".35" r=".7"><stop offset="0" stop-color="#14402f"/><stop offset="1" stop-color="#0a1f19"/></radialGradient>
+    </defs>
+    <rect width="400" height="430" rx="14" fill="url(#sky)"/>
+    ${BLOBS.map(([cx, cy, rx, ry]) => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="#1c4a36" opacity=".35"/>`).join('')}
+    <path d="M188,400 C190,340 192,300 186,250 C170,230 140,215 118,205 L122,198 C146,206 170,214 190,226 C192,200 186,170 176,140 L184,136 C196,166 202,196 200,222
+             C206,190 222,160 246,140 L252,146 C232,166 216,196 210,232 C230,216 256,206 282,200 L284,208 C258,216 232,230 214,250 C208,300 210,340 212,400 Z" fill="#6b4423"/>
+    <path d="M40,404 Q200,392 360,404 L360,430 L40,430 Z" fill="#123326"/>
+    ${leaves}${fallen}`;
+}
+
+function render(){
+  $('#monthName').textContent = view.toLocaleDateString('ar-u-nu-latn', { month:'long', year:'numeric' });
+  $('#next').disabled = isCurrent();
+  $('#tree').innerHTML = treeSVG();
+  // stats
+  let g = 0, y = 0, f = 0;
+  for (const [k, rec] of Object.entries(data)) {
+    if (!k.startsWith(view.getFullYear() + '-' + pad(view.getMonth() + 1))) continue;
+    for (const v of Object.values(rec)) { if (v === 'g') g++; else if (v === 'y') y++; else if (v === 'f') f++; }
+  }
+  const answered = g + y + f;
+  $('#sG').textContent = g; $('#sY').textContent = y; $('#sF').textContent = f;
+  $('#sP').textContent = answered ? Math.round((g + y * 0.5) / answered * 100) + '%' : '—';
+  renderGrid(); renderAsk();
+}
+
+function renderGrid(){
+  const n = daysIn(view);
+  let html = '<tr><th>اليوم</th>' + PRAYERS.map(p => `<th>${SHORT[p]}</th>`).join('') + '</tr>';
+  for (let d = n; d >= 1; d--) {
+    const day = new Date(view.getFullYear(), view.getMonth(), d);
+    if (day > today) continue;
+    const rec = data[iso(day)] || {};
+    html += `<tr><td>${d}</td>` + PRAYERS.map(p => {
+      const v = rec[p], ok = started(day, p);
+      return `<td><button class="dot ${v || (ok ? 'p' : '')}" data-day="${iso(day)}" data-p="${p}" ${ok ? '' : 'disabled'} aria-label="${PN[p]} يوم ${d}"></button></td>`;
+    }).join('') + '</tr>';
+  }
+  $('#grid').innerHTML = html;
+}
+
+// newest unanswered prayer of the current month
+function pending(){
+  if (!isCurrent()) return null;
+  for (let d = today.getDate(); d >= 1; d--) {
+    const day = new Date(today.getFullYear(), today.getMonth(), d), rec = data[iso(day)] || {};
+    for (const p of [...PRAYERS].reverse()) if (!rec[p] && started(day, p)) return { day, p };
+  }
+  return null;
+}
+function renderAsk(){
+  const q = pending();
+  $('#ask').classList.toggle('show', !!q);
+  $('#done').classList.toggle('show', !q && isCurrent());
+  if (!q) return;
+  const isToday = iso(q.day) === iso(today);
+  $('#askTitle').textContent = `هل صليت ${PN[q.p]}؟`;
+  $('#askSub').textContent = (isToday ? 'اليوم' : q.day.toLocaleDateString('ar-u-nu-latn', { weekday:'long', day:'numeric', month:'long' }))
+    + ' · الأذان ' + timesFor(q.day)[q.p];
+  $('#ask').dataset.day = iso(q.day); $('#ask').dataset.p = q.p;
+  setTimeout(() => { const b = document.querySelector('.choice'); if (b && document.activeElement === document.body) b.focus({ preventScroll: true }); }, 50);
+}
+
+function setAnswer(dayIso, p, v){
+  data[dayIso] = data[dayIso] || {};
+  if (v) data[dayIso][p] = v; else delete data[dayIso][p];
+  save(data);
+}
+function animateFall(dayIso, p){
+  // draw the leaf on its branch, then let it fall to its place on the ground
+  const month = view, pts = layout(month);
+  const day = new Date(dayIso + 'T12:00'), idx = (day.getDate() - 1) * 5 + PRAYERS.indexOf(p), pt = pts[idx];
+  if (!pt) return;
+  const svg = $('#tree'), g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute('transform', `translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})`);
+  g.innerHTML = `<g class="falling" style="--dx:${(pt.gx - pt.x).toFixed(0)}px;--dy:${(pt.gy - pt.y).toFixed(0)}px;--rot:${(pt.grot + 200).toFixed(0)}deg;transform-box:fill-box;transform-origin:center">
+    <path d="${LEAF}" fill="url(#ly)" transform="scale(${pt.s.toFixed(2)})"/></g>`;
+  svg.appendChild(g);
+  // the leaf already drawn on the ground stays hidden until the falling one lands
+  const landed = document.getElementById(`leaf-${dayIso}-${p}`);
+  if (landed) { landed.style.opacity = 0; setTimeout(() => { landed.style.opacity = ''; g.remove(); }, 1800); }
+}
+
+document.querySelectorAll('.choice').forEach(b => b.onclick = () => {
+  const ask = $('#ask'), dayIso = ask.dataset.day, p = ask.dataset.p, v = b.dataset.v;
+  setAnswer(dayIso, p, v);
+  render(); if (v === 'f') animateFall(dayIso, p);
+});
+$('#grid').addEventListener('click', e => {
+  const b = e.target.closest('.dot'); if (!b || b.disabled) return;
+  const order = [undefined, 'g', 'y', 'f'], cur = (data[b.dataset.day] || {})[b.dataset.p];
+  const next = order[(order.indexOf(cur) + 1) % order.length];
+  setAnswer(b.dataset.day, b.dataset.p, next);
+  render(); if (next === 'f') animateFall(b.dataset.day, b.dataset.p);
+});
+$('#prev').onclick = () => { view = new Date(view.getFullYear(), view.getMonth() - 1, 1); render(); };
+$('#next').onclick = () => { if (!isCurrent()) { view = new Date(view.getFullYear(), view.getMonth() + 1, 1); render(); } };
+
+// TV remote: Back (or Escape) returns to the prayer-times screen
+document.addEventListener('keydown', e => { if (e.keyCode === 10009 || e.key === 'Escape') location.href = 'index.html'; });
+
+render();
+setInterval(() => { const d = new Date(); if (d.getDate() !== today.getDate()) location.reload(); else renderAsk(); }, 60 * 1000);
+</script>
+</body>
+</html>
