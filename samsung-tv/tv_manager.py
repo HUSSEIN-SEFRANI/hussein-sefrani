@@ -40,6 +40,8 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+import prayer
+
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 DATA_FILE = BASE_DIR / "tv_data.json"  # tokens + favourites + hidden apps
@@ -676,6 +678,21 @@ class Handler(BaseHTTPRequestHandler):
                 if fmt not in ("plain", "hosts", "adguard", "dnsmasq"):
                     fmt = "plain"
                 return self._text(build_blocklist(level, fmt), f"samsung-tv-{level}-{fmt}.txt")
+            if url.path == "/api/prayer":
+                data = load_data()
+                cfg = data.get("prayer") or {}
+
+                def save_cache(result):
+                    d = load_data()
+                    d.setdefault("prayer", {})["cache"] = result
+                    save_data(d)
+
+                return self._json(prayer.get_times(cfg, save_cache))
+            if url.path == "/api/prayer/search":
+                try:
+                    return self._json({"mosques": prayer.search_mosques(q.get("q", "Mouscron"))})
+                except (OSError, ValueError) as exc:
+                    return self._json({"error": f"تعذّر البحث في مواقيت: {exc}"}, 502)
             if url.path == "/api/domains":
                 return self._json(AD_DOMAINS)
             return self._static(url.path)
@@ -690,6 +707,12 @@ class Handler(BaseHTTPRequestHandler):
         url = urllib.parse.urlparse(self.path)
         try:
             body = self._body()
+            if url.path == "/api/prayer/config":
+                data = load_data()
+                slug = str(body.get("slug") or "").strip()
+                data["prayer"] = {"slug": prayer.parse_slug(slug)} if slug else {}
+                save_data(data)
+                return self._json({"ok": True})
             ip = valid_ip(str(body.get("ip", "")))
             if url.path == "/api/pair":
                 open_channel(ip, pair_timeout=40).close()

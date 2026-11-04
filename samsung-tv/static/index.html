@@ -49,6 +49,25 @@ input[type=text],select{background:var(--panel2);border:1px solid var(--line);co
 .empty{padding:40px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:var(--radius)}
 .spinner{width:18px;height:18px;border:2px solid #fff4;border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;display:inline-block;vertical-align:middle}
 @keyframes spin{to{transform:rotate(360deg)}}
+/* prayer */
+.prayer{background:linear-gradient(135deg,#123a2e,#14223a);border:1px solid #1f4d3f;border-radius:18px;padding:18px 20px;margin-bottom:22px}
+.prayer-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.prayer-head .mosque{font-weight:700;font-size:16px;unicode-bidi:plaintext}
+.prayer-head small{color:var(--muted);display:block;margin-top:2px}
+.next{text-align:left}.next b{font-size:26px;font-variant-numeric:tabular-nums;direction:ltr;display:inline-block}
+.next span{color:#9fe3c6;font-size:13px;display:block}
+.ptimes{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.pt{background:#0b0d1266;border:1px solid #ffffff14;border-radius:12px;padding:10px 6px;text-align:center}
+.pt .n{font-size:13px;color:#b9c3d6}.pt .t{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
+.pt .iq{font-size:11px;color:var(--muted);margin-top:2px}
+.pt.now{background:#2ecc8f22;border-color:var(--ok)}.pt.now .t{color:var(--ok)}
+.pt.past{opacity:.5}
+.psettings{display:none;margin-top:14px;padding-top:14px;border-top:1px solid #ffffff1a}
+.psettings.open{display:block}
+.mosque-opt{display:block;width:100%;text-align:right;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:6px}
+.mosque-opt:hover{border-color:var(--accent)}
+.mosque-opt small{color:var(--muted);display:block}
+@media (max-width:620px){.ptimes{grid-template-columns:repeat(3,1fr)}}
 /* launcher */
 .launcher{display:grid;grid-template-columns:1fr 260px;gap:22px;align-items:start}
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
@@ -123,7 +142,29 @@ pre{background:#07090d;border:1px solid var(--line);padding:12px;border-radius:1
     <!-- HOME / LAUNCHER -->
     <section class="view" id="view-home">
       <h1>واجهتي</h1>
-      <p class="sub">تطبيقاتك المفضّلة فقط — بدون إعلانات أو إضافات. اضغط على أي بلاطة لتشغيلها على التلفاز.</p>
+      <p class="sub">مواقيت الصلاة وتطبيقاتك المفضّلة فقط — بدون إعلانات أو إضافات. اضغط على أي بلاطة لتشغيلها على التلفاز.</p>
+      <div class="prayer" id="prayer">
+        <div class="prayer-head">
+          <div><div class="mosque" id="pMosque">مواقيت الصلاة — موسكرون</div><small id="pInfo">جارٍ التحميل…</small></div>
+          <div class="row">
+            <div class="next"><span id="pNextName">الصلاة القادمة</span><b id="pCountdown">--:--:--</b></div>
+            <button class="icon-btn" id="pSetBtn" title="اختيار المسجد">⚙ المسجد</button>
+          </div>
+        </div>
+        <div class="ptimes" id="pTimes"></div>
+        <div class="psettings" id="pSettings">
+          <div class="row">
+            <input type="text" id="pSearch" value="Mouscron" placeholder="ابحث عن مسجد في مواقيت…" style="flex:1;min-width:160px">
+            <button class="btn" id="pSearchBtn">بحث في مواقيت</button>
+          </div>
+          <div class="row" style="margin-top:8px">
+            <input type="text" id="pUrl" placeholder="أو الصق رابط المسجد من مواقيت: https://mawaqit.net/fr/…" style="flex:1;min-width:160px;direction:ltr;text-align:right">
+            <button class="btn primary" id="pUrlBtn">حفظ</button>
+            <button class="btn" id="pCalcBtn">حساب فلكي بدون مسجد</button>
+          </div>
+          <div id="pResults"></div>
+        </div>
+      </div>
       <div class="launcher">
         <div>
           <div id="tiles" class="tiles"></div>
@@ -438,6 +479,58 @@ async function renderDev(){
   } catch(e){ $('#devStatus').innerHTML = `<span class="pill bad">${esc(e.message)}</span>`; }
 }
 $('#recheck').onclick = renderDev;
+
+
+// ---------- prayer times (Mawaqit) ----------
+const PNAMES = { fajr:'الفجر', shuruq:'الشروق', dhuhr:'الظهر', asr:'العصر', maghrib:'المغرب', isha:'العشاء' };
+let ptimes = null;
+function toDate(hm, addDay){ const [h, m] = hm.split(':').map(Number); const d = new Date(); d.setHours(h, m, 0, 0); if (addDay) d.setDate(d.getDate() + 1); return d; }
+async function loadPrayer(){
+  try {
+    ptimes = await api('/api/prayer');
+    const src = { mawaqit:'المصدر: تطبيق مواقيت', 'mawaqit-cache':'المصدر: مواقيت (نسخة محفوظة)', calc:'حساب فلكي تقريبي — اختر مسجدك من ⚙ لأوقات مواقيت الدقيقة' }[ptimes.source] || '';
+    $('#pMosque').textContent = ptimes.mosque;
+    const fri = new Date().getDay() === 5 && ptimes.jumua ? ' · الجمعة ' + ptimes.jumua + (ptimes.jumua2 ? ' و ' + ptimes.jumua2 : '') : '';
+    $('#pInfo').textContent = src + fri + (ptimes.warning ? ' · ' + ptimes.warning : '');
+    tickPrayer();
+  } catch(e){ $('#pInfo').textContent = e.message; }
+}
+function tickPrayer(){
+  if (!ptimes) return;
+  const t = ptimes.times, now = new Date();
+  const order = ['fajr','dhuhr','asr','maghrib','isha'];
+  let next = order.find(p => t[p] && toDate(t[p]) > now), nextAt;
+  if (next) nextAt = toDate(t[next]); else { next = 'fajr'; nextAt = toDate(t.fajr, true); }
+  const cur = [...order].reverse().find(p => t[p] && toDate(t[p]) <= now);
+  $('#pTimes').innerHTML = Object.keys(PNAMES).filter(p => t[p]).map(p => {
+    const cls = p === cur ? 'now' : (toDate(t[p]) <= now ? 'past' : '');
+    const iq = ptimes.iqama && ptimes.iqama[p] ? '<div class="iq">إقامة ' + esc(ptimes.iqama[p]) + '</div>' : '';
+    return '<div class="pt ' + cls + '"><div class="n">' + PNAMES[p] + '</div><div class="t">' + esc(t[p]) + '</div>' + iq + '</div>';
+  }).join('');
+  const s = Math.max(0, Math.floor((nextAt - now) / 1000));
+  $('#pNextName').textContent = 'متبقٍ على ' + PNAMES[next];
+  $('#pCountdown').textContent = [s / 3600, s / 60 % 60, s % 60].map(v => String(Math.floor(v)).padStart(2, '0')).join(':');
+  if (ptimes.date !== new Date().toLocaleDateString('sv')) { ptimes = null; loadPrayer(); }
+}
+setInterval(tickPrayer, 1000);
+$('#pSetBtn').onclick = () => $('#pSettings').classList.toggle('open');
+async function setMosque(slug){
+  try { await api('/api/prayer/config', { slug }); $('#pSettings').classList.remove('open'); $('#pResults').innerHTML = ''; await loadPrayer(); toast('تم الحفظ ✓'); }
+  catch(e){ toast(e.message, true); }
+}
+$('#pSearchBtn').onclick = async () => {
+  const b = $('#pSearchBtn'); b.disabled = true;
+  try {
+    const r = await api('/api/prayer/search?q=' + encodeURIComponent($('#pSearch').value));
+    $('#pResults').innerHTML = r.mosques.length ? r.mosques.map(m => '<button class="mosque-opt" data-slug="' + esc(m.slug) + '"><span class="bidi">' + esc(m.name) + '</span><small class="bidi">' + esc(m.address) + '</small></button>').join('')
+      : '<div class="empty" style="margin-top:8px">لا توجد نتائج</div>';
+    $$('.mosque-opt').forEach(o => o.onclick = () => setMosque(o.dataset.slug));
+  } catch(e){ toast(e.message, true); }
+  finally { b.disabled = false; }
+};
+$('#pUrlBtn').onclick = () => $('#pUrl').value.trim() && setMosque($('#pUrl').value.trim());
+$('#pCalcBtn').onclick = () => setMosque('');
+loadPrayer();
 
 // ---------- init ----------
 renderCurrent(); renderChecklist(); previewBl();
