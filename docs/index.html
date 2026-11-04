@@ -323,7 +323,7 @@ function unlockAudio(){
   try { actx = new (window.AudioContext || window.webkitAudioContext)(); actx.resume(); } catch(e) {}
   try { const a = new Audio(); a.muted = true; a.play().catch(() => {}); } catch(e) {}
   audioOK = true; $('#unlock').style.display = 'none';
-  try { const el = document.documentElement; (el.requestFullscreen || el.webkitRequestFullscreen).call(el); } catch(e) {}
+  try { const el = document.documentElement, r = (el.requestFullscreen || el.webkitRequestFullscreen).call(el); if (r && r.catch) r.catch(() => {}); } catch(e) {}
 }
 function stopAdhan(){
   if (player) { player.pause(); player = null; }

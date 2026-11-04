@@ -120,7 +120,7 @@ REPLACEMENTS = [
     # first OK: also go full screen (hides the browser's address bar)
     ("  audioOK = true; $('#unlock').style.display = 'none';",
      "  audioOK = true; $('#unlock').style.display = 'none';\n"
-     "  try { const el = document.documentElement; (el.requestFullscreen || el.webkitRequestFullscreen).call(el); } catch(e) {}"),
+     "  try { const el = document.documentElement, r = (el.requestFullscreen || el.webkitRequestFullscreen).call(el); if (r && r.catch) r.catch(() => {}); } catch(e) {}"),
     ("🔊 اضغط OK في الريموت مرة واحدة لتفعيل صوت الأذان", "🔊 اضغط OK في الريموت مرة واحدة: ملء الشاشة وتفعيل صوت الأذان"),
     ("<title>شاشة البيت</title>", "<title>مواقيت الصلاة</title>"),
 ]
