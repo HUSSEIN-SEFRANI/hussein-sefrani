@@ -113,7 +113,7 @@ def main() -> None:
     if "</body>" not in html:
         raise SystemExit("make_tizen.py: unexpected page structure")
     html = html.replace("</body>", TIZEN_JS + "</body>", 1)
-    html = html.replace("🔊 اضغط OK في الريموت مرة واحدة: ملء الشاشة وتفعيل صوت الأذان",
+    html = html.replace("🔊 اضغط OK في الريموت (أو المس الشاشة) مرة واحدة: ملء الشاشة وتفعيل صوت الأذان",
                         "🔊 اضغط OK في الريموت لتفعيل صوت الأذان")
 
     APP_DIR.mkdir(exist_ok=True)

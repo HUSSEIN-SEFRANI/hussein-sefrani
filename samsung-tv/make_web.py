@@ -121,21 +121,13 @@ REPLACEMENTS = [
     ("  audioOK = true; $('#unlock').style.display = 'none';",
      "  audioOK = true; $('#unlock').style.display = 'none';\n"
      "  try { const el = document.documentElement, r = (el.requestFullscreen || el.webkitRequestFullscreen).call(el); if (r && r.catch) r.catch(() => {}); } catch(e) {}"),
-    ("🔊 اضغط OK في الريموت مرة واحدة لتفعيل صوت الأذان", "🔊 اضغط OK في الريموت مرة واحدة: ملء الشاشة وتفعيل صوت الأذان"),
+    ("🔊 اضغط OK في الريموت (أو المس الشاشة) مرة واحدة لتفعيل صوت الأذان",
+     "🔊 اضغط OK في الريموت (أو المس الشاشة) مرة واحدة: ملء الشاشة وتفعيل صوت الأذان"),
     ("<title>شاشة البيت</title>", "<title>مواقيت الصلاة</title>"),
 ]
 
 
-TREE_SRC = HERE / "static" / "tree.html"
-TREE_OUT = OUT.parent / "tree.html"
 TREE_ICON = OUT.parent / "tree-icon.png"
-
-
-def calc_core() -> str:
-    """Settings + prayer-time calculation only (shared by every page)."""
-    start = CALC_JS.index("// ---------- standalone: settings")
-    end = CALC_JS.index("async function loadPrayer(){")
-    return CALC_JS[start:end]
 
 
 def tree_icon_pixel(x: int, y: int):
@@ -153,15 +145,10 @@ def tree_icon_pixel(x: int, y: int):
     return bg
 
 
-def build_tree() -> None:
+def build_icon() -> None:
     from make_tizen import png  # small PNG writer, no third-party modules
 
-    tree = TREE_SRC.read_text("utf-8")
-    if "/*CALC*/" not in tree:
-        raise SystemExit("make_web.py: /*CALC*/ placeholder missing in tree.html")
-    TREE_OUT.write_text(tree.replace("/*CALC*/", calc_core(), 1), "utf-8")
     TREE_ICON.write_bytes(png(180, 180, tree_icon_pixel))
-    print(f"written {TREE_OUT}")
 
 
 def main() -> None:
@@ -170,15 +157,12 @@ def main() -> None:
         if old not in html:
             raise SystemExit(f"make_web.py: pattern not found in tv.html:\n  {old[:80]}")
         html = html.replace(old, new, 1)
-    # remote: green button (or the T key) opens the prayer tree
-    html = html.replace("</body>", "<script>document.addEventListener('keydown', e => {"
-                        " if (e.keyCode === 404 || e.key === 't') location.href = 'tree.html'; });</script>\n</body>", 1)
     if "/api/" in html:
         raise SystemExit("make_web.py: the page still calls the local /api/")
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text(html, "utf-8")
     print(f"written {OUT}")
-    build_tree()
+    build_icon()
 
 
 if __name__ == "__main__":
