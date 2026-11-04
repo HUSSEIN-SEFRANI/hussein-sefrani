@@ -62,7 +62,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#06140f;color:var(--te
 .p.next{border-color:var(--gold);box-shadow:0 0 0 .15vw rgba(230,197,90,.5) inset}
 
 /* ---------- prayer tree ---------- */
-.treebox{position:relative;display:grid;grid-template-rows:auto minmax(0,1fr) auto auto;background:var(--glass);border:1px solid var(--line);
+.treebox{position:relative;display:grid;grid-template-rows:auto minmax(0,1fr) auto auto auto;background:var(--glass);border:1px solid var(--line);
   border-radius:1.6vw;padding:1vw 1.2vw;backdrop-filter:blur(8px);min-height:0;overflow:hidden}
 .tb-h{display:flex;justify-content:space-between;align-items:baseline;font-size:1.45vw;color:var(--gold);font-weight:700}
 .tb-h small{font-size:.95vw;color:var(--muted);font-weight:400}
@@ -110,6 +110,24 @@ html,body{margin:0;height:100%;overflow:hidden;background:#06140f;color:var(--te
   .warn{position:static;transform:none;white-space:normal;text-align:center;font-size:2.8vw;margin-top:12px}
   .overlay .ab-l{font-size:7vw}.overlay .ab-n{font-size:16vw}.overlay .ab-h{font-size:3.6vw}
 }
+
+/* ---------- istighfar garden ---------- */
+.garden{margin-top:.4vw}
+.g-h{display:flex;justify-content:space-between;align-items:center;gap:.8vw;font-size:1vw;color:var(--muted)}
+.g-h .g-t{color:#f7b6cf;font-weight:700;font-size:1.15vw}
+.g-h b{color:var(--text)}
+#istBtn{font:inherit;font-size:1.1vw;font-weight:700;color:#3a0f22;background:linear-gradient(135deg,#ffe3ee,#f7a8c4);border:0;border-radius:2vw;
+  padding:.4vw 1.2vw;cursor:pointer;white-space:nowrap;box-shadow:0 .2vw .8vw rgba(247,168,196,.35)}
+#istBtn:active{transform:scale(.95)}
+#istBtn.sel{outline:.25vw solid var(--gold);outline-offset:.1vw}
+.garden svg{width:100%;height:5.2vw;display:block;margin-top:.3vw}
+@keyframes pop{0%{transform:scale(0)}70%{transform:scale(1.5)}100%{transform:scale(1)}}
+.pop{animation:pop .55s ease-out;transform-box:fill-box;transform-origin:center}
+@media (orientation: portrait){
+  .g-h{font-size:3.4vw;flex-wrap:wrap}.g-h .g-t{font-size:4.2vw}
+  #istBtn{font-size:4.4vw;padding:12px 22px;border-radius:26px;width:100%;margin-top:8px}
+  .garden svg{height:auto;aspect-ratio:1000/150}
+}
 .overlay{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;
   background:radial-gradient(ellipse at 50% 45%,#0b3d2e,#020806);z-index:5}
 .overlay.show{display:flex}
@@ -119,7 +137,8 @@ html,body{margin:0;height:100%;overflow:hidden;background:#06140f;color:var(--te
 .unlock{pointer-events:none;position:fixed;top:.4vw;left:50%;transform:translateX(-50%);z-index:4;white-space:nowrap;font-size:1.05vw;padding:.45vw 1.4vw;border-radius:3vw;
   background:rgba(230,197,90,.92);color:#1b1404;font-weight:700;box-shadow:0 .4vw 1.6vw rgba(0,0,0,.5)}
 .warn{position:fixed;top:.5vw;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:.9vw;color:var(--muted);opacity:.8}
-@media (orientation: portrait){.unlock{top:auto;white-space:normal;font-size:3.8vw;padding:10px 18px;border-radius:30px;bottom:max(16px,env(safe-area-inset-bottom));width:max-content;max-width:92vw;text-align:center}}
+@media (orientation: portrait){.unlock{top:auto;white-space:normal;font-size:3.8vw;padding:10px 18px;border-radius:30px;bottom:max(16px,env(safe-area-inset-bottom));width:max-content;max-width:92vw;text-align:center}
+  .warn{position:static;transform:none;white-space:normal;text-align:center;font-size:2.8vw;margin-top:12px}}
 </style>
 </head>
 <body>
@@ -143,6 +162,11 @@ html,body{margin:0;height:100%;overflow:hidden;background:#06140f;color:var(--te
  <div class="treebox" id="treebox">
   <div class="tb-h"><span>🌳 شجرة الصلاة</span><small id="tbMonth"></small></div>
   <svg id="tree" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet" role="img" aria-label="شجرة الصلاة"></svg>
+  <div class="garden" id="garden">
+    <div class="g-h"><span class="g-t">🌸 غراس الاستغفار</span><span>اليوم <b id="istDay">0</b> · هذا الشهر <b id="istMonth">0</b></span>
+      <button id="istBtn">أستغفر الله <small style="opacity:.6">(OK)</small></button></div>
+    <svg id="flowers" viewBox="0 0 1000 150" preserveAspectRatio="xMidYMid meet" aria-label="زهور الاستغفار"></svg>
+  </div>
   <div class="tb-stats">
     <div class="g"><b id="sG">0</b><span>في وقتها</span></div>
     <div class="y"><b id="sY">0</b><span>متأخرة</span></div>
@@ -362,7 +386,11 @@ function checkAdhan(){
 document.addEventListener('keydown', e => {
   if ($('#adhanBox').classList.contains('show')) { stopAdhan(); renderAsk(); return; }
   if (!audioOK) { unlockAudio(); return; }
-  if (askKey(e)) e.preventDefault();
+  if (askKey(e)) { e.preventDefault(); return; }
+  if (e.keyCode === 404 || ((e.key === 'Enter' || e.keyCode === 13) && !askQ)) {
+    e.preventDefault(); istighfar();
+    $('#istBtn').classList.add('sel'); setTimeout(() => $('#istBtn').classList.remove('sel'), 250);
+  }
 });
 document.addEventListener('click', () => { if ($('#adhanBox').classList.contains('show')) { stopAdhan(); renderAsk(); } else unlockAudio(); });
 setInterval(checkAdhan, 5000);
@@ -379,56 +407,70 @@ const monthDays = d => new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
 function seeded(seed){ return () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; }; }
 const bez = (p0, p1, p2, p3, t) => { const u = 1 - t; return u*u*u*p0 + 3*u*u*t*p1 + 3*u*t*t*p2 + t*t*t*p3; };
 const bezD = (p0, p1, p2, p3, t) => { const u = 1 - t; return 3*u*u*(p1 - p0) + 6*u*t*(p2 - p1) + 3*t*t*(p3 - p2); };
-const trunkX = y => 500 + 16 * Math.sin((y - 120) / 230);
-const trunkHalf = y => 9 + Math.max(0, (y - 200)) / 730 * 40;
+const trunkX = y => 500 + 10 * Math.sin((y - 560) / 160);
+const trunkHalf = y => 30 + Math.max(0, y - 560) / 370 * 20;
 const LEAF_D = 'M0,0 C9,-11 31,-13 50,0 C31,13 9,11 0,0 Z';
+const WEEK_NAMES = ['الأسبوع ١', 'الأسبوع ٢', 'الأسبوع ٣', 'الأسبوع ٤'];
+
+// tapered outline around a cubic curve {x:[4], y:[4]}
+function taper(c, w0, w1, steps){
+  const left = [], right = [];
+  for (let k = 0; k <= steps; k++) {
+    const t = k / steps, X = bez(...c.x, t), Y = bez(...c.y, t), dx = bezD(...c.x, t), dy = bezD(...c.y, t);
+    const len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len, w = w0 * (1 - t) + w1 * t;
+    left.push([X + nx * w, Y + ny * w]); right.push([X - nx * w, Y - ny * w]);
+  }
+  const f = q => q[0].toFixed(1) + ',' + q[1].toFixed(1);
+  return 'M' + left.map(f).join(' L') + ' L' + right.reverse().map(f).join(' L') + ' Z';
+}
+const onCurve = (c, t) => ({ x: bez(...c.x, t), y: bez(...c.y, t), a: Math.atan2(bezD(...c.y, t), bezD(...c.x, t)) });
+
+// days of week k: 1-7, 8-14, 15-21, and 22 to the end of the month on the fourth limb
+function weekDays(k, n){ const a = k * 7 + 1, b = k === 3 ? n : k * 7 + 7; return Array.from({ length: b - a + 1 }, (_, i) => a + i); }
 
 let treeGeo = null, treeGeoKey = '';
 function geometry(month){
   const key = month.getFullYear() + '-' + month.getMonth();
   if (treeGeo && treeGeoKey === key) return treeGeo;
-  const r = seeded(month.getFullYear() * 37 + month.getMonth() * 101 + 11), n = monthDays(month), branches = [];
-  for (let i = 0; i < n; i++) {
-    const t = n > 1 ? i / (n - 1) : 0, side = i % 2 ? 1 : -1;
-    const y0 = 800 - Math.pow(t, .85) * 560 + (r() - .5) * 12, x0 = trunkX(y0) + side * trunkHalf(y0) * .5;
-    // lower branches long and nearly level, upper ones short and steep: a rounded crown
-    const L = (400 - 230 * t) * (.9 + r() * .2), a = (8 + 62 * Math.pow(t, 1.15) + (r() - .5) * 10) * Math.PI / 180;
-    const dir = (k, f) => [x0 + side * f * L * Math.cos(a * k), y0 - f * L * Math.sin(a * k)];
-    const [x1, y1] = dir(.45, .34), [x2, y2] = dir(.85, .7), [x3, y3] = dir(1.05, 1);
-    const wb = 11 - 6 * t, curve = { x: [x0, x1, x2, x3], y: [y0, y1, y2, y3] };
-    // tapered outline
-    const left = [], right = [];
-    for (let k = 0; k <= 18; k++) {
-      const s = k / 18, X = bez(...curve.x, s), Y = bez(...curve.y, s), dx = bezD(...curve.x, s), dy = bezD(...curve.y, s);
-      const len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len, w = wb * (1 - s) + 1.1 * s;
-      left.push([X + nx * w, Y + ny * w]); right.push([X - nx * w, Y - ny * w]);
-    }
-    const outline = 'M' + left.map(q => q[0].toFixed(1) + ',' + q[1].toFixed(1)).join(' L') + ' L' +
-      right.reverse().map(q => q[0].toFixed(1) + ',' + q[1].toFixed(1)).join(' L') + ' Z';
-    // a small twig for realism
-    const ts = .55, tx = bez(...curve.x, ts), ty = bez(...curve.y, ts);
-    const twig = `M${tx.toFixed(1)},${ty.toFixed(1)} q${(side * 22).toFixed(0)},${(-30 - r() * 12).toFixed(0)} ${(side * 34).toFixed(0)},${(-52 - r() * 10).toFixed(0)}`;
-    // five leaves along the outer part of the branch
-    const leaves = [.40, .55, .69, .83, .97].map((s, j) => {
-      const X = bez(...curve.x, s), Y = bez(...curve.y, s), dx = bezD(...curve.x, s), dy = bezD(...curve.y, s);
-      const ang = Math.atan2(dy, dx) * 180 / Math.PI;
-      const tilt = j === 4 ? 0 : (j % 2 ? 1 : -1) * (48 + r() * 18);
-      return { x: X, y: Y, rot: ang + tilt, sc: .9 + r() * .25,
-               gx: 140 + r() * 720, gy: 905 + r() * 60, grot: r() * 360 };
+  const r = seeded(month.getFullYear() * 37 + month.getMonth() * 101 + 11), n = monthDays(month);
+  const j = v => v + (r() - .5) * 18;
+  // four big limbs from the fork: lower-left, lower-right, upper-left, upper-right
+  const LIMBS = [
+    { x: [486, 420, j(270), j(140)], y: [640, 585, j(520), j(470)] },
+    { x: [514, 580, j(730), j(860)], y: [640, 585, j(520), j(470)] },
+    { x: [490, 470, j(380), j(290)], y: [600, 470, j(300), j(170)] },
+    { x: [510, 535, j(630), j(715)], y: [600, 470, j(290), j(155)] },
+  ];
+  const limbs = [], branches = [];
+  LIMBS.forEach((c, k) => {
+    limbs.push({ outline: taper(c, 25, 6, 24), end: onCurve(c, 1), week: k });
+    const days = weekDays(k, n);
+    days.forEach((d, i) => {
+      const s0 = .2 + (.93 - .2) * (days.length > 1 ? i / (days.length - 1) : 0), base = onCurve(c, s0);
+      const side = i % 2 ? 1 : -1, L = (k < 2 ? 95 : 82) * (.85 + r() * .3);
+      const ang = base.a + side * (38 + r() * 22) * Math.PI / 180;
+      const ex = base.x + L * Math.cos(ang), ey = base.y + L * Math.sin(ang) - 12;   // twigs lean a little upwards
+      const tw = { x: [base.x, base.x + L * .35 * Math.cos(ang), ex - L * .25 * Math.cos(ang), ex],
+                   y: [base.y, base.y + L * .35 * Math.sin(ang), ey - L * .18 * Math.sin(ang) - 6, ey] };
+      const leaves = [.34, .52, .68, .84, 1].map((t, q) => {
+        const pnt = onCurve(tw, t), tilt = q === 4 ? 0 : (q % 2 ? 1 : -1) * (50 + r() * 16);
+        return { x: pnt.x, y: pnt.y, rot: pnt.a * 180 / Math.PI + tilt, sc: .6 + r() * .14,
+                 gx: 130 + r() * 740, gy: 905 + r() * 60, grot: r() * 360 };
+      });
+      branches[d - 1] = { outline: taper(tw, 4.2, .9, 10), twig: '', leaves };
     });
-    branches.push({ outline, twig, leaves, tip: [x3, y3] });
-  }
+  });
   // trunk with roots
   const L = [], R = [];
-  for (let y = 200; y <= 930; y += 10) { L.push([trunkX(y) - trunkHalf(y), y]); R.push([trunkX(y) + trunkHalf(y), y]); }
-  const trunk = 'M' + L.map(q => q.map(v => v.toFixed(1)).join(',')).join(' L') +
-    ' C440,945 395,955 360,962 L640,962 C605,955 560,945 ' + R[R.length - 1].map(v => v.toFixed(1)).join(',') + ' L' +
-    R.reverse().map(q => q.map(v => v.toFixed(1)).join(',')).join(' L') + ' Z';
-  const bark = Array.from({ length: 9 }, (_, k) => {
-    const x = trunkX(600) - 22 + k * 5.5, y0 = 300 + r() * 250;
-    return `M${x.toFixed(1)},${y0.toFixed(0)} q${((r() - .5) * 8).toFixed(1)},${(120 + r() * 160).toFixed(0)} ${((r() - .5) * 6).toFixed(1)},${(260 + r() * 200).toFixed(0)}`;
+  for (let y = 560; y <= 930; y += 10) { L.push([trunkX(y) - trunkHalf(y), y]); R.push([trunkX(y) + trunkHalf(y), y]); }
+  const f = q => q.map(v => v.toFixed(1)).join(',');
+  const trunk = 'M' + L.map(f).join(' L') + ' C430,948 385,958 345,964 L655,964 C615,958 570,948 ' + f(R[R.length - 1]) +
+    ' L' + R.reverse().map(f).join(' L') + ' Z';
+  const bark = Array.from({ length: 10 }, (_, k) => {
+    const x = trunkX(760) - 30 + k * 6.5, y0 = 600 + r() * 120;
+    return `M${x.toFixed(1)},${y0.toFixed(0)} q${((r() - .5) * 8).toFixed(1)},${(90 + r() * 80).toFixed(0)} ${((r() - .5) * 6).toFixed(1)},${(180 + r() * 120).toFixed(0)}`;
   }).join(' ');
-  treeGeo = { branches, trunk, bark }; treeGeoKey = key;
+  treeGeo = { limbs, branches, trunk, bark }; treeGeoKey = key;
   return treeGeo;
 }
 
@@ -444,6 +486,7 @@ function renderTree(){
   $('#tbMonth').textContent = now.toLocaleDateString('ar-u-nu-latn', { month:'long', year:'numeric' });
   let leaves = '', fallen = '', buds = '', g = 0, y = 0, f = 0;
   geo.branches.forEach((br, i) => {
+    if (!br) return;
     const day = new Date(month.getFullYear(), month.getMonth(), i + 1), rec = treeData[isoDay(day)] || {};
     br.leaves.forEach((lf, j) => {
       const p = FIVE[j], v = rec[p], data = `data-day="${isoDay(day)}" data-p="${p}"`;
@@ -476,8 +519,11 @@ function renderTree(){
     <ellipse cx="500" cy="950" rx="430" ry="55" fill="url(#ground)"/>
     <path d="${geo.trunk}" fill="url(#bark)"/>
     <path d="${geo.bark}" stroke="#2a180c" stroke-opacity=".45" stroke-width="2" fill="none"/>
-    ${tb ? `<path d="${tb.outline}" fill="#e6c55a" opacity=".55" filter="url(#soft)"/>` : ''}
-    ${geo.branches.map(b => `<path d="${b.outline}" fill="url(#limb)"/><path d="${b.twig}" stroke="#5a3a20" stroke-width="2.4" stroke-linecap="round" fill="none"/>`).join('')}
+    ${geo.limbs.map(l => `<path d="${l.outline}" fill="url(#bark)"/>`).join('')}
+    ${tb ? `<path d="${tb.outline}" fill="#e6c55a" opacity=".7" filter="url(#soft)"/>` : ''}
+    ${geo.branches.map(b => b ? `<path d="${b.outline}" fill="url(#limb)"/>` : '').join('')}
+    ${geo.limbs.map(l => { const x = Math.max(150, Math.min(850, l.end.x + (l.week % 2 ? 30 : -30))), y = l.end.y + (l.week < 2 ? 85 : -55);
+      return `<text x="${x.toFixed(0)}" y="${y.toFixed(0)}" text-anchor="middle" font-size="26" fill="#e6c55a" fill-opacity=".75">${WEEK_NAMES[l.week]}</text>`; }).join('')}
     ${buds}${leaves}${fallen}`;
   const answered = g + y + f;
   $('#sG').textContent = g; $('#sY').textContent = y; $('#sF').textContent = f;
@@ -557,11 +603,57 @@ $('#tree').addEventListener('click', e => {
   setTreeAnswer(el.dataset.day, el.dataset.p, order[(order.indexOf(cur) + 1) % order.length]);
 });
 
+
+// =================== istighfar garden: one small flower for every istighfar ===================
+const IST_KEY = 'istighfar.v1';
+let istData = (() => { try { return JSON.parse(localStorage.getItem(IST_KEY) || '{}'); } catch(e) { return {}; } })();
+const FLOWER_COLORS = ['#f7a8c4', '#ffffff', '#c9a7f5', '#ffd36b', '#8fd3ff', '#ff9e7a'];
+const FLOWER_MAX = 350;
+let flowerPos = null, flowerKey = '';
+function flowerSpots(month){
+  const key = month.getFullYear() + '-' + month.getMonth();
+  if (flowerPos && flowerKey === key) return flowerPos;
+  const r = seeded(month.getFullYear() * 13 + month.getMonth() * 7 + 5), spots = [];
+  for (let i = 0; i < FLOWER_MAX; i++) {
+    const row = i % 5, col = Math.floor(i / 5);
+    spots.push({ x: 1000 - (12 + col * 14.1 + (row % 2) * 7 + (r() - .5) * 4), y: 16 + row * 26 + (r() - .5) * 6,
+                 s: .95 + r() * .3, rot: r() * 72, c: FLOWER_COLORS[Math.floor(r() * FLOWER_COLORS.length)] });
+  }
+  flowerPos = spots; flowerKey = key;
+  return spots;
+}
+function flowerSVG(sp, cls){
+  const petals = [0, 72, 144, 216, 288].map(a => `<ellipse cx="0" cy="-5.2" rx="3.2" ry="5" fill="${sp.c}" transform="rotate(${a})"/>`).join('');
+  return `<g transform="translate(${sp.x.toFixed(1)},${sp.y.toFixed(1)}) rotate(${sp.rot.toFixed(0)}) scale(${sp.s.toFixed(2)})">`
+       + `<g class="${cls || ''}">${petals}<circle r="2.6" fill="#ffcf3f"/></g></g>`;
+}
+function istMonthTotal(now){
+  const pre = now.getFullYear() + '-' + pad(now.getMonth() + 1);
+  return Object.entries(istData).reduce((sum, [k, v]) => sum + (k.startsWith(pre) ? v : 0), 0);
+}
+function renderGarden(popLast){
+  const now = new Date(), month = new Date(now.getFullYear(), now.getMonth(), 1), total = istMonthTotal(now);
+  const spots = flowerSpots(month), shown = Math.min(total, FLOWER_MAX);
+  let html = `<rect x="0" y="136" width="1000" height="14" rx="7" fill="#1f4a2c" opacity=".6"/>`;
+  for (let i = 0; i < shown; i++) html += flowerSVG(spots[i], popLast && i === shown - 1 ? 'pop' : '');
+  if (total > FLOWER_MAX) html += `<text x="20" y="85" font-size="34" fill="#f7b6cf">+${total - FLOWER_MAX}</text>`;
+  $('#flowers').innerHTML = html;
+  $('#istDay').textContent = istData[isoDay(now)] || 0;
+  $('#istMonth').textContent = total;
+}
+function istighfar(){
+  const k = isoDay(new Date());
+  istData[k] = (istData[k] || 0) + 1;
+  try { localStorage.setItem(IST_KEY, JSON.stringify(istData)); } catch(e) {}
+  renderGarden(true);
+}
+$('#istBtn').addEventListener('click', e => { e.stopPropagation(); unlockAudio(); istighfar(); });
+
 // ---------- start ----------
 (async () => {
   await Promise.all([loadPrayer(), loadWallpapers(), loadSounds()]);
-  loadWeather(); nextBackground(); nextVerse(); tick(); renderTree();
-  setInterval(() => { if (new Date().getSeconds() < 5) renderTree(); }, 5000);
+  loadWeather(); nextBackground(); nextVerse(); tick(); renderTree(); renderGarden();
+  setInterval(() => { if (new Date().getSeconds() < 5) { renderTree(); renderGarden(); } }, 5000);
   setInterval(tick, 1000);
   setInterval(nextVerse, 30 * 1000);
   setInterval(nextBackground, 3 * 60 * 1000);
