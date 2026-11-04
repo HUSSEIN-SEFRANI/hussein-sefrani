@@ -462,29 +462,112 @@ def legacy_key(ip: str, key: str) -> None:
         raise TVError(f"تعذّر الاتصال بالتلفاز (منفذ 55000): {exc}") from exc
 
 
-def send_key(ip: str, key: str) -> None:
-    if not _KEY_RE.match(key):
-        raise ValueError("زر غير صالح")
-    try:
+class _Channel:
+    """One long-lived remote-control connection per TV.
+
+    Opening a WebSocket (TLS + handshake) for every key press takes up to a
+    second on some TVs, which makes the remote feel laggy and breaks key
+    sequences such as the 12345 developer-mode code.
+    """
+
+    IDLE = 60  # seconds before a cached connection is considered stale
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.socks: dict[str, tuple[WebSocket, float]] = {}
+
+    def _get(self, ip: str) -> WebSocket:
+        import time
+
+        cached = self.socks.get(ip)
+        if cached and time.monotonic() - cached[1] < self.IDLE:
+            return cached[0]
+        if cached:
+            cached[0].close()
         ws = open_channel(ip)
+        self.socks[ip] = (ws, time.monotonic())
+        return ws
+
+    def send(self, ip: str, payloads: list[dict], delay: float = 0.0) -> None:
+        import time
+
+        with self.lock:
+            for attempt in (1, 2):
+                ws = self._get(ip)
+                try:
+                    for i, payload in enumerate(payloads):
+                        if i and delay:
+                            time.sleep(delay)
+                        ws.send_json(payload)
+                    self.socks[ip] = (ws, time.monotonic())
+                    return
+                except OSError:
+                    ws.close()
+                    self.socks.pop(ip, None)
+                    if attempt == 2:
+                        raise TVError("انقطع الاتصال بالتلفاز - أعد المحاولة")
+
+
+CHANNEL = _Channel()
+
+
+def _key_payload(key: str) -> dict:
+    return {
+        "method": "ms.remote.control",
+        "params": {"Cmd": "Click", "DataOfCmd": key, "Option": "false",
+                   "TypeOfRemote": "SendRemoteKey"},
+    }
+
+
+def send_keys(ip: str, keys: list[str], delay: float = 0.25) -> None:
+    for key in keys:
+        if not _KEY_RE.match(key):
+            raise ValueError("زر غير صالح")
+    try:
+        CHANNEL.send(ip, [_key_payload(k) for k in keys], delay)
     except TVError:
         if port_open(ip, LEGACY_PORT, 1.0):
-            return legacy_key(ip, key)
+            import time
+
+            for i, key in enumerate(keys):
+                if i:
+                    time.sleep(delay)
+                legacy_key(ip, key)
+            return
         raise
-    try:
-        ws.send_json(
-            {
-                "method": "ms.remote.control",
-                "params": {
-                    "Cmd": "Click",
-                    "DataOfCmd": key,
-                    "Option": "false",
-                    "TypeOfRemote": "SendRemoteKey",
-                },
-            }
-        )
-    finally:
-        ws.close()
+
+
+def send_key(ip: str, key: str) -> None:
+    send_keys(ip, [key])
+
+
+def send_text(ip: str, text: str) -> None:
+    """Type text into the focused field on the TV (on-screen keyboard)."""
+    if not text or len(text) > 200:
+        raise ValueError("نص غير صالح")
+    CHANNEL.send(ip, [{
+        "method": "ms.remote.control",
+        "params": {"Cmd": base64.b64encode(text.encode()).decode(),
+                   "DataOfCmd": "base64", "TypeOfRemote": "SendInputString"},
+    }])
+
+
+# App ids of the "Apps" panel on different Tizen generations (best effort).
+APPS_PANEL_IDS = ("com.samsung.tv.store", "org.volt.apps")
+
+
+def open_developer_dialog(ip: str) -> None:
+    """Open the Apps panel, then type 12345 quickly over one connection."""
+    import time
+
+    for app_id in APPS_PANEL_IDS:
+        CHANNEL.send(ip, [{
+            "method": "ms.channel.emit",
+            "params": {"event": "ed.apps.launch", "to": "host",
+                       "data": {"appId": app_id, "action_type": "NATIVE_LAUNCH"}},
+        }])
+    time.sleep(4)  # let the Apps panel finish loading
+    send_keys(ip, ["KEY_1", "KEY_2", "KEY_3", "KEY_4", "KEY_5"], delay=0.15)
 
 
 def list_apps(ip: str) -> list[dict]:
@@ -795,6 +878,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"ok": True})
             if url.path == "/api/key":
                 send_key(ip, str(body.get("key", "")))
+                return self._json({"ok": True})
+            if url.path == "/api/devmode":
+                open_developer_dialog(ip)
+                return self._json({"ok": True, "pc_ip": local_ipv4()})
+            if url.path == "/api/text":
+                send_text(ip, str(body.get("text", "")))
                 return self._json({"ok": True})
             if url.path == "/api/launch":
                 launch_app(ip, str(body.get("appId", "")), int(body.get("type", 2)))

@@ -311,7 +311,16 @@ pre{background:#07090d;border:1px solid var(--line);padding:12px;border-radius:1
           <h3>طريقة التفعيل (Developer Mode)</h3>
           <ol class="steps">
             <li>على التلفاز افتح <b>التطبيقات (Apps)</b>.</li>
-            <li>اكتب <code>12345</code> بسرعة <b>بدون الضغط على OK</b> — أو الأسهل: اضغط هنا وسنكتبها نحن عبر الشبكة: <button class="btn primary" id="sendCode" style="padding:4px 12px">أرسل 12345 إلى التلفاز</button><small style="display:block;color:var(--muted);margin-top:4px">يجب أن تكون شاشة «التطبيقات (Apps)» مفتوحة على التلفاز قبل الضغط. يمكنك فتحها من زر «الرئيسية» في الريموت أدناه.</small></li>
+            <li>
+              <button class="btn primary" id="sendCode" style="font-size:16px;padding:12px 20px">⚡ تفعيل وضع المطوّر بضغطة واحدة</button>
+              <small style="display:block;color:var(--muted);margin-top:6px">يفتح شاشة التطبيقات ويكتب 12345 تلقائياً. انتظر نحو 5 ثوانٍ وانظر إلى التلفاز.
+              إن لم تُفتح شاشة التطبيقات وحدها، افتحها بالريموت ثم اضغط الزر مرة أخرى.</small>
+              <div id="devNext" style="display:none;margin-top:10px;padding:12px;border:1px solid var(--accent);border-radius:12px">
+                عند ظهور نافذة <b>Developer mode</b>: اختر <b>On</b> بالريموت، ثم انزل إلى خانة <b>Host PC IP</b> وافتحها،
+                ثم اضغط: <button class="btn" id="typeIp" style="padding:4px 12px">اكتب عنوان حاسوبي</button>
+                (<code id="pcIp">…</code>) ثم <b>OK</b> وأعد تشغيل التلفاز.
+              </div>
+            </li>
             <li>فعّل <b>Developer mode → On</b> واكتب عنوان IP لهذا الحاسوب: <code id="myIp">…</code></li>
             <li>أعد تشغيل التلفاز (اضغط زر التشغيل مطوّلاً حتى يعيد التشغيل).</li>
             <li>عد إلى هنا واضغط <button class="btn" id="recheck" style="padding:4px 10px">إعادة الفحص</button></li>
@@ -560,10 +569,17 @@ $('#sendCode').onclick = async () => {
   if (!tv) return toast('اختر تلفازاً أولاً', true);
   const b = $('#sendCode'); b.disabled = true;
   try {
-    for (const n of [1, 2, 3, 4, 5]) { await api('/api/key', { ip: tv.ip, key: 'KEY_' + n }); await new Promise(r => setTimeout(r, 350)); }
-    toast('تم إرسال 12345 — يجب أن تظهر نافذة Developer mode على التلفاز');
+    b.innerHTML = '<span class="spinner"></span> جارٍ التفعيل… انظر إلى التلفاز';
+    const r = await api('/api/devmode', { ip: tv.ip });
+    $('#pcIp').textContent = r.pc_ip || store.get('myIp', '');
+    $('#devNext').style.display = 'block';
+    toast('تم — يجب أن تظهر نافذة Developer mode على التلفاز الآن');
   } catch(e){ toast(e.message, true); }
-  finally { b.disabled = false; }
+  finally { b.disabled = false; b.textContent = '⚡ تفعيل وضع المطوّر بضغطة واحدة'; }
+};
+$('#typeIp').onclick = async () => {
+  try { await api('/api/text', { ip: tv.ip, text: $('#pcIp').textContent.trim() }); toast('تمت كتابة العنوان — اضغط OK على التلفاز'); }
+  catch(e){ toast(e.message, true); }
 };
 
 
