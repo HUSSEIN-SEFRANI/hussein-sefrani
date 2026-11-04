@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>مدير تلفاز سامسونغ</title>
+<style>
+:root{
+  --bg:#0b0d12; --panel:#141821; --panel2:#1b2030; --line:#262c3d;
+  --text:#e8ebf2; --muted:#8d95a8; --accent:#4f8cff; --accent2:#7c5cff;
+  --ok:#2ecc8f; --warn:#f5b041; --bad:#ff5d6c; --radius:14px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);
+  font-family:"Segoe UI",Tahoma,"Noto Sans Arabic","Geeza Pro",Arial,sans-serif}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:var(--accent)}
+.app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+aside{background:var(--panel);border-inline-start:1px solid var(--line);padding:20px 14px;display:flex;flex-direction:column;gap:6px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px;margin:0 6px 18px}
+.brand .logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center}
+.nav{all:unset;display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;color:var(--muted);cursor:pointer}
+.nav:hover{background:var(--panel2);color:var(--text)}
+.nav.active{background:var(--panel2);color:var(--text);box-shadow:inset -3px 0 0 var(--accent)}
+.nav svg{width:18px;height:18px;flex:none}
+.current{margin-top:auto;padding:12px;border-radius:12px;background:var(--panel2);font-size:13px;color:var(--muted)}
+.current b{display:block;color:var(--text);font-size:14px;margin-bottom:2px}
+main{padding:28px clamp(16px,3vw,40px);max-width:1200px;width:100%}
+h1{font-size:24px;margin:0 0 4px}
+.sub{color:var(--muted);margin:0 0 22px}
+.view{display:none}.view.active{display:block}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--line);background:var(--panel2);padding:10px 16px;border-radius:10px}
+.btn:hover{border-color:#3a4258}
+.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));border:0;font-weight:600}
+.btn.danger{color:var(--bad)}
+.btn:disabled{opacity:.5;cursor:default}
+input[type=text],select{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:10px 12px;border-radius:10px;font:inherit}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px}
+.tv-card{display:flex;flex-direction:column;gap:10px;cursor:pointer;transition:.15s}
+.tv-card:hover{border-color:var(--accent)}
+.tv-card.sel{border-color:var(--accent);box-shadow:0 0 0 3px #4f8cff33}
+.tv-card h3{margin:0;font-size:17px}
+.bidi,.tv-card h3,.current b,.app-row .name,.tile{unicode-bidi:plaintext}
+.meta{font-size:13px;color:var(--muted);display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:4px 10px;border-radius:999px;background:var(--panel2);border:1px solid var(--line)}
+.pill.ok{color:var(--ok);border-color:#2ecc8f55}.pill.warn{color:var(--warn);border-color:#f5b04155}.pill.bad{color:var(--bad);border-color:#ff5d6c55}
+.empty{padding:40px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:var(--radius)}
+.spinner{width:18px;height:18px;border:2px solid #fff4;border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;display:inline-block;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* launcher */
+.launcher{display:grid;grid-template-columns:1fr 260px;gap:22px;align-items:start}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+.tile{aspect-ratio:16/10;border-radius:16px;border:0;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;padding:14px;font-weight:700;font-size:15px;position:relative;overflow:hidden;transition:transform .15s, box-shadow .15s}
+.tile:hover,.tile:focus-visible{transform:scale(1.05);box-shadow:0 10px 30px #0008;outline:3px solid #fff;outline-offset:2px}
+.tile .letter{position:absolute;top:8px;inset-inline-start:12px;font-size:44px;opacity:.35;font-weight:800}
+.remote{background:var(--panel);border:1px solid var(--line);border-radius:28px;padding:18px;display:grid;gap:12px;justify-items:center}
+.dpad{display:grid;grid-template-columns:repeat(3,56px);grid-template-rows:repeat(3,56px);gap:6px}
+.rk{border:1px solid var(--line);background:var(--panel2);border-radius:14px;font-size:13px;min-height:44px}
+.rk:hover{border-color:var(--accent)}
+.rk.ok{border-radius:50%;background:var(--accent);border:0;font-weight:700}
+.rk.power{color:var(--bad)}
+.rrow{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%}
+/* apps */
+.app-list{display:grid;gap:8px}
+.app-row{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.app-row.hidden-app{opacity:.5}
+.av{width:44px;height:44px;border-radius:10px;display:grid;place-items:center;font-weight:800}
+.app-row .name{font-weight:600}
+.app-row .id{font-size:12px;color:var(--muted);direction:ltr;text-align:right}
+.icon-btn{border:1px solid var(--line);background:var(--panel2);border-radius:9px;padding:7px 10px;font-size:13px}
+.icon-btn.on{border-color:var(--warn);color:var(--warn)}
+.icon-btn.hid{border-color:var(--muted)}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+/* checklist */
+.check{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--line)}
+.check:last-child{border:0}
+.check input{margin-top:4px;width:18px;height:18px;accent-color:var(--accent)}
+.check small{display:block;color:var(--muted);margin-top:3px}
+code,.mono{font-family:ui-monospace,Consolas,monospace;direction:ltr;unicode-bidi:embed;background:var(--panel2);padding:2px 6px;border-radius:6px;font-size:13px}
+pre{background:#07090d;border:1px solid var(--line);padding:12px;border-radius:10px;overflow:auto;direction:ltr;text-align:left;font-size:13px}
+.steps{counter-reset:s;list-style:none;padding:0;margin:0}
+.steps li{counter-increment:s;position:relative;padding:10px 44px 10px 0;border-bottom:1px solid var(--line)}
+.steps li::before{content:counter(s);position:absolute;right:0;top:9px;width:28px;height:28px;border-radius:50%;background:var(--panel2);display:grid;place-items:center;font-weight:700;color:var(--accent)}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);padding:12px 18px;border-radius:12px;box-shadow:0 10px 30px #0008;max-width:90vw;white-space:pre-line;z-index:9;display:none}
+.toast.err{border-color:var(--bad)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:900px){.launcher,.two{grid-template-columns:1fr}}
+@media (max-width:720px){
+  .app{grid-template-columns:1fr}
+  aside{flex-direction:row;overflow-x:auto;padding:10px;gap:4px;border:0;border-bottom:1px solid var(--line)}
+  .brand,.current{display:none}
+  .nav{white-space:nowrap}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="brand"><div class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>مدير التلفاز</div>
+    <button class="nav active" data-view="devices"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>البحث عن الأجهزة</button>
+    <button class="nav" data-view="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>واجهتي</button>
+    <button class="nav" data-view="apps"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>التطبيقات والتنظيف</button>
+    <button class="nav" data-view="ads"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/></svg>حظر الإعلانات</button>
+    <button class="nav" data-view="dev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m8 9-4 3 4 3M16 9l4 3-4 3M14 5l-4 14"/></svg>وضع المطوّر / الخبير</button>
+    <div class="current" id="currentBox"><b>لا يوجد جهاز محدد</b>ابحث واختر تلفازك</div>
+  </aside>
+
+  <main>
+    <!-- DEVICES -->
+    <section class="view active" id="view-devices">
+      <h1>البحث عن تلفاز سامسونغ</h1>
+      <p class="sub">يجب أن يكون التلفاز مُشغّلاً ومتصلاً بنفس شبكة هذا الحاسوب.</p>
+      <div class="row" style="margin-bottom:18px">
+        <button class="btn primary" id="scanBtn">ابحث في الشبكة</button>
+        <input type="text" id="manualIp" placeholder="أو أدخل عنوان IP يدوياً مثل 192.168.1.50" style="flex:1;min-width:220px;direction:ltr;text-align:right">
+        <button class="btn" id="manualBtn">إضافة</button>
+      </div>
+      <div id="tvList" class="grid"><div class="empty" style="grid-column:1/-1">اضغط «ابحث في الشبكة» للعثور على تلفازك</div></div>
+    </section>
+
+    <!-- HOME / LAUNCHER -->
+    <section class="view" id="view-home">
+      <h1>واجهتي</h1>
+      <p class="sub">تطبيقاتك المفضّلة فقط — بدون إعلانات أو إضافات. اضغط على أي بلاطة لتشغيلها على التلفاز.</p>
+      <div class="launcher">
+        <div>
+          <div id="tiles" class="tiles"></div>
+        </div>
+        <div class="remote">
+          <div class="rrow"><button class="rk power" data-key="KEY_POWER">تشغيل/إيقاف</button><button class="rk" data-key="KEY_SOURCE">المصدر</button><button class="rk" data-key="KEY_HOME">الرئيسية</button></div>
+          <div class="dpad">
+            <span></span><button class="rk" data-key="KEY_UP">▲</button><span></span>
+            <button class="rk" data-key="KEY_RIGHT">▶</button><button class="rk ok" data-key="KEY_ENTER">OK</button><button class="rk" data-key="KEY_LEFT">◀</button>
+            <span></span><button class="rk" data-key="KEY_DOWN">▼</button><span></span>
+          </div>
+          <div class="rrow"><button class="rk" data-key="KEY_RETURN">رجوع</button><button class="rk" data-key="KEY_MENU">الإعدادات</button><button class="rk" data-key="KEY_INFO">معلومات</button></div>
+          <div class="rrow"><button class="rk" data-key="KEY_VOLDOWN">صوت −</button><button class="rk" data-key="KEY_MUTE">كتم</button><button class="rk" data-key="KEY_VOLUP">صوت +</button></div>
+          <div class="rrow"><button class="rk" data-key="KEY_CHDOWN">قناة −</button><button class="rk" data-key="KEY_PLAY">تشغيل</button><button class="rk" data-key="KEY_CHUP">قناة +</button></div>
+          <small style="color:var(--muted)">الأسهم ومفتاح Enter على لوحة المفاتيح تعمل أيضاً</small>
+        </div>
+      </div>
+    </section>
+
+    <!-- APPS -->
+    <section class="view" id="view-apps">
+      <h1>التطبيقات والتنظيف</h1>
+      <p class="sub">اختر ⭐ لإضافة التطبيق إلى واجهتك، أو «إخفاء» لإزالته منها. التطبيقات المعلَّمة «غير ضروري» هي اقتراحات للحذف.</p>
+      <div class="toolbar">
+        <button class="btn primary" id="loadApps">تحميل التطبيقات من التلفاز</button>
+        <input type="text" id="appFilter" placeholder="بحث…" style="flex:1;min-width:160px">
+        <select id="appShow">
+          <option value="all">الكل</option>
+          <option value="bloat">غير الضرورية فقط</option>
+          <option value="fav">المفضّلة</option>
+          <option value="hidden">المخفيّة</option>
+        </select>
+        <button class="btn" id="hideBloat">إخفاء كل غير الضروري</button>
+      </div>
+      <div id="appList" class="app-list"><div class="empty">اختر جهازاً أولاً ثم اضغط «تحميل التطبيقات». في أول مرة سيظهر على التلفاز طلب «سماح / Allow» — وافق عليه.</div></div>
+    </section>
+
+    <!-- ADS -->
+    <section class="view" id="view-ads">
+      <h1>حظر الإعلانات والتتبّع</h1>
+      <p class="sub">سامسونغ تعرض الإعلانات من خوادمها، لذا أفضل طريقة لحظرها هي على مستوى الشبكة (DNS) + إيقاف خيارات الخصوصية داخل التلفاز.</p>
+      <div class="two">
+        <div class="card">
+          <h3 style="margin-top:0">1) قائمة حظر النطاقات</h3>
+          <div class="row" style="margin-bottom:10px">
+            <select id="blLevel"><option value="safe">آمن (موصى به)</option><option value="aggressive">قوي (قد يعطّل بعض البلاطات)</option></select>
+            <select id="blFormat"><option value="plain">نطاقات فقط</option><option value="adguard">AdGuard / uBlock</option><option value="hosts">hosts / Pi-hole</option><option value="dnsmasq">dnsmasq / OpenWrt</option></select>
+            <button class="btn primary" id="blDownload">تنزيل</button>
+          </div>
+          <pre id="blPreview" style="max-height:260px"></pre>
+          <p style="color:var(--muted);font-size:14px;margin-bottom:0">
+            ضعها في: Pi-hole ← Adlists، أو AdGuard Home ← Custom filtering rules، أو قسم «حظر المواقع / DNS» في الراوتر.
+            بديل سريع بدون أجهزة إضافية: من إعدادات شبكة التلفاز ← إعدادات IP ← DNS يدوي ← <code>94.140.14.14</code> (AdGuard DNS).
+          </p>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0">2) إعدادات داخل التلفاز</h3>
+          <div id="checklist"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DEV MODE -->
+    <section class="view" id="view-dev">
+      <h1>وضع المطوّر / الخبير</h1>
+      <p class="sub">لأسباب أمنية لا تسمح سامسونغ بتفعيله عن بُعد — يجب تفعيله بجهاز التحكم مرة واحدة فقط.</p>
+      <div class="two">
+        <div class="card">
+          <h3 style="margin-top:0">الحالة</h3>
+          <div id="devStatus" class="row"><span class="pill">اختر جهازاً</span></div>
+          <h3>طريقة التفعيل (Developer Mode)</h3>
+          <ol class="steps">
+            <li>على التلفاز افتح <b>التطبيقات (Apps)</b>.</li>
+            <li>اكتب بالريموت الأرقام <code>12345</code> (أو استخدم لوحة الأرقام على الشاشة).</li>
+            <li>فعّل <b>Developer mode → On</b> واكتب عنوان IP لهذا الحاسوب: <code id="myIp">…</code></li>
+            <li>أعد تشغيل التلفاز (اضغط زر التشغيل مطوّلاً حتى يعيد التشغيل).</li>
+            <li>عد إلى هنا واضغط <button class="btn" id="recheck" style="padding:4px 10px">إعادة الفحص</button></li>
+          </ol>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0">حذف التطبيقات (sdb)</h3>
+          <p>لحذف التطبيقات فعلياً تحتاج أداة <b>sdb</b> من <a href="https://developer.samsung.com/smarttv/develop/getting-started/setting-up-sdk/installing-tv-sdk.html" target="_blank" rel="noopener">Tizen Studio</a>. بعد تثبيتها سيظهر زر «حذف» بجانب كل تطبيق.</p>
+          <div id="sdbStatus" class="row" style="margin-bottom:10px"></div>
+          <p style="color:var(--muted);font-size:14px">ملاحظة صريحة: التطبيقات المثبّتة مسبقاً من المصنع (مثل Samsung TV Plus) محمية في أغلب الموديلات ولا يمكن حذفها حتى في وضع المطوّر — لذلك نخفيها من واجهتك ونحظر إعلاناتها عبر DNS.</p>
+          <h3>قائمة الخدمة المخفية (Service Menu)</h3>
+          <p style="color:var(--warn);font-size:14px;margin-bottom:0">⚠ لا ننصح بها: تغيير قيم هذه القائمة قد يعطّل التلفاز أو يُلغي الضمان، لذلك لم نؤتمتها.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const store = {
+  get(k, d){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+let tv = store.get('tv', null);          // selected TV info
+let apps = store.get('apps:' + (tv && tv.ip), []);
+let prefs = { favorites: [], hidden: [] };
+let lastTvs = [];
+
+function toast(msg, err){
+  const t = $('#toast'); t.textContent = msg; t.className = 'toast' + (err ? ' err' : '');
+  t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = 'none', err ? 7000 : 2500);
+}
+async function api(path, body){
+  const opt = body ? { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) } : {};
+  const r = await fetch(path, opt);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function hue(s){ let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
+function letter(n){ return (n.trim()[0] || '?').toUpperCase(); }
+
+// ---------- navigation ----------
+function show(view){
+  $$('.nav').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+  $$('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + view));
+  store.set('view', view);
+  if (view === 'home') renderTiles();
+  if (view === 'dev') renderDev();
+}
+$$('.nav').forEach(b => b.onclick = () => show(b.dataset.view));
+
+function renderCurrent(){
+  $('#currentBox').innerHTML = tv
+    ? `<b>${esc(tv.name)}</b>${esc(tv.model || '')}<br><span class="mono">${esc(tv.ip)}</span>`
+    : '<b>لا يوجد جهاز محدد</b>ابحث واختر تلفازك';
+}
+
+// ---------- discovery ----------
+function tvCard(t){
+  const sel = tv && tv.ip === t.ip;
+  return `<div class="card tv-card ${sel ? 'sel' : ''}" data-ip="${esc(t.ip)}">
+    <div class="row" style="justify-content:space-between"><h3>${esc(t.name)}</h3>
+      <span class="pill ${t.power === 'on' ? 'ok' : 'warn'}">${t.power === 'on' ? 'يعمل' : esc(t.power)}</span></div>
+    <div class="meta">
+      <span>الموديل</span><span>${esc(t.model || '—')}</span>
+      <span>العنوان</span><span class="mono">${esc(t.ip)}</span>
+      <span>النظام</span><span>${esc(t.os)} ${esc(t.firmware || '')}</span>
+      <span>الاتصال</span><span>${esc(t.network || '—')}</span>
+    </div>
+    <div class="row">
+      <span class="pill ${t.developer_mode ? 'ok' : 'warn'}">وضع المطوّر: ${t.developer_mode ? 'مفعّل' : 'غير مفعّل'}</span>
+      <span class="pill ${t.paired ? 'ok' : ''}">${t.paired ? 'مقترن' : 'غير مقترن'}</span>
+    </div>
+    <button class="btn ${sel ? '' : 'primary'}">${sel ? 'محدد ✓' : 'اختر هذا التلفاز'}</button>
+  </div>`;
+}
+function renderTvs(){
+  $('#tvList').innerHTML = lastTvs.length ? lastTvs.map(tvCard).join('')
+    : '<div class="empty" style="grid-column:1/-1">لم يتم العثور على أي تلفاز. تأكد أن التلفاز يعمل وعلى نفس الشبكة، أو أدخل عنوانه يدوياً (الإعدادات ← عام ← الشبكة ← حالة الشبكة).</div>';
+  $$('.tv-card').forEach(c => c.onclick = () => selectTv(lastTvs.find(t => t.ip === c.dataset.ip)));
+}
+$('#scanBtn').onclick = async () => {
+  const b = $('#scanBtn'); b.disabled = true; b.innerHTML = '<span class="spinner"></span> جارٍ البحث…';
+  try { const r = await api('/api/discover'); lastTvs = r.tvs; store.set('myIp', r.me); renderTvs(); toast(`تم العثور على ${r.tvs.length} جهاز`); }
+  catch(e){ toast(e.message, true); }
+  finally { b.disabled = false; b.textContent = 'ابحث في الشبكة'; }
+};
+$('#manualBtn').onclick = async () => {
+  const ip = $('#manualIp').value.trim(); if (!ip) return;
+  try { const t = await api('/api/tv?ip=' + encodeURIComponent(ip)); lastTvs = [t, ...lastTvs.filter(x => x.ip !== t.ip)]; renderTvs(); }
+  catch(e){ toast(e.message, true); }
+};
+async function selectTv(t){
+  tv = t; store.set('tv', t); apps = store.get('apps:' + t.ip, []);
+  renderTvs(); renderCurrent();
+  try { prefs = await api('/api/prefs?ip=' + encodeURIComponent(t.ip)); } catch {}
+  toast('تم اختيار ' + t.name);
+  if (!t.paired){
+    toast('سيظهر الآن على التلفاز طلب اقتران — اضغط «سماح / Allow»');
+    try { await api('/api/pair', { ip: t.ip }); t.paired = true; store.set('tv', t); renderTvs(); toast('تم الاقتران بنجاح ✓'); }
+    catch(e){ toast(e.message, true); }
+  }
+}
+
+// ---------- launcher ----------
+function renderTiles(){
+  const box = $('#tiles');
+  if (!tv){ box.innerHTML = '<div class="empty" style="grid-column:1/-1">اختر تلفازاً من صفحة البحث أولاً.</div>'; return; }
+  const favs = prefs.favorites.map(id => apps.find(a => a.appId === id)).filter(Boolean);
+  if (!favs.length){ box.innerHTML = '<div class="empty" style="grid-column:1/-1">لا توجد تطبيقات مفضّلة بعد. اذهب إلى «التطبيقات والتنظيف» واضغط ⭐ على ما تريد رؤيته هنا.</div>'; return; }
+  box.innerHTML = favs.map(a => {
+    const h = hue(a.name);
+    return `<button class="tile" data-id="${esc(a.appId)}" data-type="${a.type}" style="background:linear-gradient(135deg,hsl(${h} 70% 42%),hsl(${(h+40)%360} 70% 28%))"><span class="letter">${esc(letter(a.name))}</span>${esc(a.name)}</button>`;
+  }).join('');
+  $$('.tile').forEach(t => t.onclick = () => launch(t.dataset.id, +t.dataset.type));
+}
+async function launch(appId, type){
+  try { await api('/api/launch', { ip: tv.ip, appId, type }); toast('جارٍ التشغيل على التلفاز…'); }
+  catch(e){ toast(e.message, true); }
+}
+async function key(k){
+  if (!tv) return toast('اختر تلفازاً أولاً', true);
+  try { await api('/api/key', { ip: tv.ip, key: k }); } catch(e){ toast(e.message, true); }
+}
+$$('[data-key]').forEach(b => b.onclick = () => key(b.dataset.key));
+document.addEventListener('keydown', e => {
+  if (!$('#view-home').classList.contains('active') || e.target.matches('input,select')) return;
+  const m = { ArrowUp:'KEY_UP', ArrowDown:'KEY_DOWN', ArrowLeft:'KEY_LEFT', ArrowRight:'KEY_RIGHT', Enter:'KEY_ENTER', Backspace:'KEY_RETURN', Escape:'KEY_HOME' };
+  if (m[e.key] && !e.target.closest('.tile')){ e.preventDefault(); key(m[e.key]); }
+});
+
+// ---------- apps ----------
+async function savePrefs(){ try { await api('/api/prefs', { ip: tv.ip, ...prefs }); } catch(e){ toast(e.message, true); } }
+function renderApps(){
+  const list = $('#appList');
+  if (!apps.length) return;
+  const f = $('#appFilter').value.trim().toLowerCase(), mode = $('#appShow').value;
+  const rows = apps.filter(a => {
+    if (f && !a.name.toLowerCase().includes(f) && !a.appId.toLowerCase().includes(f)) return false;
+    if (mode === 'bloat') return a.bloat;
+    if (mode === 'fav') return prefs.favorites.includes(a.appId);
+    if (mode === 'hidden') return prefs.hidden.includes(a.appId);
+    return true;
+  });
+  const canDel = tv && tv.sdb && tv.developer_mode;
+  list.innerHTML = rows.map(a => {
+    const fav = prefs.favorites.includes(a.appId), hid = prefs.hidden.includes(a.appId), h = hue(a.name);
+    return `<div class="app-row ${hid ? 'hidden-app' : ''}" data-id="${esc(a.appId)}">
+      <div class="av" style="background:hsl(${h} 60% 30%)">${esc(letter(a.name))}</div>
+      <div><div class="name">${esc(a.name)} ${a.bloat ? '<span class="pill warn">غير ضروري</span>' : ''}</div><div class="id">${esc(a.appId)}</div></div>
+      <div class="row">
+        <button class="icon-btn ${fav ? 'on' : ''}" data-act="fav" title="مفضّل">${fav ? '★' : '☆'}</button>
+        <button class="icon-btn" data-act="run">تشغيل</button>
+        <button class="icon-btn ${hid ? 'hid' : ''}" data-act="hide">${hid ? 'إظهار' : 'إخفاء'}</button>
+        ${canDel ? '<button class="icon-btn btn danger" data-act="del">حذف</button>' : ''}
+      </div></div>`;
+  }).join('') || '<div class="empty">لا توجد نتائج</div>';
+}
+$('#appList').addEventListener('click', async e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const id = b.closest('.app-row').dataset.id, a = apps.find(x => x.appId === id);
+  const toggle = (arr, v) => arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v];
+  if (b.dataset.act === 'fav'){ prefs.favorites = toggle(prefs.favorites, id); prefs.hidden = prefs.hidden.filter(x => x !== id); }
+  if (b.dataset.act === 'hide'){ prefs.hidden = toggle(prefs.hidden, id); prefs.favorites = prefs.favorites.filter(x => x !== id); }
+  if (b.dataset.act === 'run') return launch(id, a.type);
+  if (b.dataset.act === 'del'){
+    if (!confirm(`حذف «${a.name}» من التلفاز نهائياً؟`)) return;
+    try { await api('/api/uninstall', { ip: tv.ip, appId: id }); apps = apps.filter(x => x.appId !== id); store.set('apps:' + tv.ip, apps); toast('تم الحذف ✓'); }
+    catch(err){ toast(err.message, true); }
+  }
+  renderApps(); savePrefs();
+});
+$('#loadApps').onclick = async () => {
+  if (!tv) return toast('اختر تلفازاً أولاً', true);
+  const b = $('#loadApps'); b.disabled = true; b.innerHTML = '<span class="spinner"></span> جارٍ التحميل… (وافق على الطلب في التلفاز إن ظهر)';
+  try {
+    const r = await api('/api/apps?ip=' + encodeURIComponent(tv.ip));
+    apps = r.apps; prefs = { favorites: r.favorites, hidden: r.hidden };
+    store.set('apps:' + tv.ip, apps); renderApps(); toast(`تم تحميل ${apps.length} تطبيق`);
+  } catch(e){ toast(e.message, true); }
+  finally { b.disabled = false; b.textContent = 'تحميل التطبيقات من التلفاز'; }
+};
+$('#appFilter').oninput = renderApps; $('#appShow').onchange = renderApps;
+$('#hideBloat').onclick = () => {
+  if (!apps.length) return toast('حمّل التطبيقات أولاً', true);
+  const bloat = apps.filter(a => a.bloat).map(a => a.appId);
+  prefs.hidden = [...new Set([...prefs.hidden, ...bloat])];
+  prefs.favorites = prefs.favorites.filter(x => !bloat.includes(x));
+  renderApps(); savePrefs(); toast(`تم إخفاء ${bloat.length} تطبيق غير ضروري`);
+};
+
+// ---------- ads ----------
+async function previewBl(){
+  const r = await fetch(`/api/blocklist?level=${$('#blLevel').value}&format=${$('#blFormat').value}`);
+  $('#blPreview').textContent = await r.text();
+}
+$('#blLevel').onchange = previewBl; $('#blFormat').onchange = previewBl;
+$('#blDownload').onclick = () => { location.href = `/api/blocklist?level=${$('#blLevel').value}&format=${$('#blFormat').value}`; };
+const CHECKS = [
+  ['أوقف «خدمات معلومات المشاهدة» (Viewing Information Services)', 'الإعدادات ← الدعم ← الشروط والخصوصية ← خيارات الخصوصية'],
+  ['أوقف «الإعلانات المبنية على الاهتمامات» (Interest-Based Ads)', 'الإعدادات ← الدعم ← الشروط والخصوصية ← خيارات الخصوصية'],
+  ['ارفض «خدمات التعرّف على الصوت» إن لم تستخدمها', 'الإعدادات ← الدعم ← الشروط والخصوصية ← خدمات التعرف على الصوت'],
+  ['أوقف التشغيل التلقائي لـ Smart Hub', 'الإعدادات ← عام ← ميزات ذكية ← Autorun Smart Hub = إيقاف'],
+  ['أوقف «تشغيل آخر تطبيق تلقائياً»', 'الإعدادات ← عام ← ميزات ذكية ← Autorun Last App'],
+  ['أوقف «الإعلانات/العروض» في Smart Hub إن وُجد الخيار', 'الإعدادات ← الدعم ← الشروط والخصوصية ← إلغاء الموافقة على «Samsung Promotion»'],
+  ['ألغِ الموافقة على شروط Samsung TV Plus', 'الإعدادات ← الدعم ← الشروط والخصوصية'],
+  ['أوقف التحديث التلقائي للتطبيقات (اختياري)', 'Apps ← الإعدادات ← تحديث تلقائي'],
+];
+function renderChecklist(){
+  const done = store.get('checks', []);
+  $('#checklist').innerHTML = CHECKS.map(([t, s], i) =>
+    `<label class="check"><input type="checkbox" data-i="${i}" ${done.includes(i) ? 'checked' : ''}><span>${esc(t)}<small>${esc(s)}</small></span></label>`).join('');
+  $$('#checklist input').forEach(c => c.onchange = () => {
+    const d = new Set(store.get('checks', [])); c.checked ? d.add(+c.dataset.i) : d.delete(+c.dataset.i); store.set('checks', [...d]);
+  });
+}
+
+// ---------- dev mode ----------
+async function renderDev(){
+  $('#myIp').textContent = store.get('myIp', null) || 'عنوان هذا الحاسوب';
+  if (!tv){ $('#devStatus').innerHTML = '<span class="pill">اختر جهازاً</span>'; return; }
+  $('#devStatus').innerHTML = '<span class="spinner"></span>';
+  try {
+    const t = await api('/api/tv?ip=' + encodeURIComponent(tv.ip));
+    tv = { ...tv, ...t }; store.set('tv', tv);
+    if (t.me){ store.set('myIp', t.me); $('#myIp').textContent = t.me; }
+    const ipOk = t.developer_ip && t.developer_ip === store.get('myIp', '');
+    $('#devStatus').innerHTML = `
+      <span class="pill ${t.developer_mode ? 'ok' : 'bad'}">وضع المطوّر: ${t.developer_mode ? 'مفعّل ✓' : 'غير مفعّل'}</span>
+      ${t.developer_ip ? `<span class="pill ${ipOk ? 'ok' : 'warn'}">IP المطوّر: ${esc(t.developer_ip)}</span>` : ''}
+      <span class="pill ${t.sdb_port_open ? 'ok' : 'warn'}">منفذ sdb ${t.sdb_port_open ? 'مفتوح' : 'مغلق'}</span>`;
+    $('#sdbStatus').innerHTML = `<span class="pill ${t.sdb ? 'ok' : 'warn'}">sdb على هذا الحاسوب: ${t.sdb ? 'موجود ✓' : 'غير مثبّت'}</span>`;
+  } catch(e){ $('#devStatus').innerHTML = `<span class="pill bad">${esc(e.message)}</span>`; }
+}
+$('#recheck').onclick = renderDev;
+
+// ---------- init ----------
+renderCurrent(); renderChecklist(); previewBl();
+if (tv){ lastTvs = [tv]; renderTvs(); api('/api/prefs?ip=' + encodeURIComponent(tv.ip)).then(p => { prefs = p; renderApps(); }).catch(() => {}); }
+show(store.get('view', 'devices'));
+</script>
+</body>
+</html>
