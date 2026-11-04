@@ -9,11 +9,14 @@
 <meta name="apple-mobile-web-app-title" content="مواقيت البيت">
 <link rel="apple-touch-icon" href="tree-icon.png">
 <title>شاشة البيت</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--gold:#e6c55a;--gold2:#b8892a;--text:#f6f1e1;--muted:#d9d2bb;--glass:rgba(5,15,12,.55);--line:rgba(230,197,90,.35)}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;background:#06140f;color:var(--text);
-  font-family:"Segoe UI",Tahoma,"Noto Sans Arabic","Noto Naskh Arabic",Arial,sans-serif;cursor:none}
+  font-family:"Reem Kufi","Segoe UI",Tahoma,"Noto Sans Arabic",Arial,sans-serif;cursor:none}
 .bg{position:fixed;inset:0;background-size:cover;background-position:center;transition:opacity 3s ease;opacity:0}
 .bg.show{opacity:1}
 .shade{position:fixed;inset:0;background:radial-gradient(120% 90% at 50% 40%,transparent 30%,rgba(0,0,0,.55) 100%),linear-gradient(180deg,rgba(0,0,0,.35),transparent 30%,transparent 55%,rgba(0,0,0,.65))}
@@ -47,7 +50,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#06140f;color:var(--te
 @keyframes glow{50%{text-shadow:0 0 2.5vw rgba(230,197,90,.8)}}
 /* verse */
 .verse{text-align:center;min-height:4.6vw;display:flex;flex-direction:column;justify-content:center;transition:opacity 1.2s}
-.verse .v{font-size:1.85vw;font-family:"Amiri","Noto Naskh Arabic","Traditional Arabic","Times New Roman",serif;line-height:1.5}
+.verse .v{font-size:1.85vw;font-family:"Reem Kufi","Amiri","Noto Naskh Arabic",serif;line-height:1.5}
 .verse .s{font-size:.95vw;color:var(--gold);margin-top:.2vw}
 .verse.fade{opacity:0}
 /* prayers */
