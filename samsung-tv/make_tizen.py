@@ -57,7 +57,8 @@ TIZEN_JS = r"""
   }
   noSaver(); setInterval(noSaver, 10 * 60 * 1000);
   document.addEventListener('keydown', function(e){
-    if (e.keyCode === 10009) {            // Back / Return on the Samsung remote
+    var ed = document.getElementById('editBox');
+    if (e.keyCode === 10009 && !(ed && ed.classList.contains('show'))) {   // Back exits (unless the edit table is open)
       try { tizen.application.getCurrentApplication().exit(); } catch(err) {}
     }
   });

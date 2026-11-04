@@ -128,6 +128,35 @@ html,body{margin:0;height:100%;overflow:hidden;background:#06140f;color:var(--te
   #istBtn{font-size:4.4vw;padding:12px 22px;border-radius:26px;width:100%;margin-top:8px}
   .garden svg{height:auto;aspect-ratio:1000/150}
 }
+
+/* ---------- edit past answers ---------- */
+.tb-h .edit{font:inherit;font-size:.95vw;color:var(--text);background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:1vw;
+  padding:.2vw .8vw;cursor:pointer;margin-inline-start:.6vw}
+.editbox{position:fixed;inset:0;z-index:6;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6)}
+.editbox.show{display:flex}
+.ed-card{width:min(46vw,900px);max-height:92vh;display:flex;flex-direction:column;background:#0b1f18;border:1px solid var(--gold);border-radius:1.4vw;padding:1vw 1.2vw}
+.ed-top{display:flex;justify-content:space-between;align-items:center;gap:1vw;margin-bottom:.5vw}
+.ed-top h3{margin:0;font-size:1.5vw;color:var(--gold)}
+.ed-top button{font:inherit;font-size:1.1vw;color:var(--text);background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:.7vw;padding:.25vw .8vw;cursor:pointer}
+.ed-help{font-size:.85vw;color:var(--muted);margin-bottom:.4vw}
+.ed-scroll{overflow:auto;min-height:0}
+.ed-grid{width:100%;border-collapse:collapse;font-size:.95vw}
+.ed-grid th{color:var(--muted);font-weight:500;padding:.25vw;position:sticky;top:0;background:#0b1f18}
+.ed-grid td{text-align:center;padding:.15vw;border-top:1px solid rgba(255,255,255,.06)}
+.ed-grid td:first-child{color:var(--muted);text-align:right;white-space:nowrap}
+.cell{width:1.7vw;height:1.7vw;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:transparent;padding:0;cursor:pointer}
+.cell.g{background:#3fae5a;border-color:#3fae5a}.cell.y{background:#f0c24a;border-color:#f0c24a}.cell.f{border:.15vw dashed #c08a55}
+.cell:disabled{opacity:.15;cursor:default}
+.cell.cur{outline:.22vw solid var(--gold);outline-offset:.12vw}
+.ed-legend{display:flex;gap:1vw;font-size:.85vw;color:var(--muted);margin-top:.5vw;flex-wrap:wrap}
+.ed-legend i{display:inline-block;width:.9vw;height:.9vw;border-radius:50%;vertical-align:middle;margin-inline-end:.3vw}
+@media (orientation: portrait){
+  .tb-h .edit{font-size:3.6vw;padding:4px 12px;border-radius:14px}
+  .ed-card{width:94vw;border-radius:18px;padding:14px}
+  .ed-top h3{font-size:5vw}.ed-top button{font-size:4.2vw;padding:6px 12px;border-radius:10px}
+  .ed-help,.ed-legend{font-size:3.2vw}.ed-legend i{width:3.2vw;height:3.2vw}
+  .ed-grid{font-size:3.8vw}.cell{width:8.5vw;height:8.5vw}.cell.f{border-width:2px}
+}
 .overlay{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;
   background:radial-gradient(ellipse at 50% 45%,#0b3d2e,#020806);z-index:5}
 .overlay.show{display:flex}
@@ -160,7 +189,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#06140f;color:var(--te
   <div class="prayers" id="prayers"></div>
  </div>
  <div class="treebox" id="treebox">
-  <div class="tb-h"><span>🌳 شجرة الصلاة</span><small id="tbMonth"></small></div>
+  <div class="tb-h"><span>🌳 شجرة الصلاة</span><span><small id="tbMonth"></small><button class="edit" id="editBtn">✏️ تعديل <small style="opacity:.6">(الأصفر)</small></button></span></div>
   <svg id="tree" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet" role="img" aria-label="شجرة الصلاة"></svg>
   <div class="garden" id="garden">
     <div class="g-h"><span class="g-t">🌸 غراس الاستغفار</span><span>اليوم <b id="istDay">0</b> · هذا الشهر <b id="istMonth">0</b></span>
@@ -185,6 +214,20 @@ html,body{margin:0;height:100%;overflow:hidden;background:#06140f;color:var(--te
  </div>
 </div>
 <div class="warn" id="warn"></div>
+<div class="editbox" id="editBox">
+  <div class="ed-card">
+    <div class="ed-top">
+      <button id="edPrev" aria-label="الشهر السابق">→</button>
+      <h3 id="edMonth"></h3>
+      <button id="edNext" aria-label="الشهر التالي">←</button>
+      <button id="edClose">إغلاق ✕</button>
+    </div>
+    <div class="ed-help" id="edHelp">المس الدائرة لتغيير الإجابة. بالريموت: الأسهم للتنقل، OK للتغيير، الرجوع للإغلاق.</div>
+    <div class="ed-scroll"><table class="ed-grid" id="edGrid"></table></div>
+    <div class="ed-legend"><span><i style="background:#3fae5a"></i>في وقتها</span><span><i style="background:#f0c24a"></i>متأخرة</span>
+      <span><i style="border:2px dashed #c08a55"></i>لم تُصلَّ</span><span><i style="border:1px solid rgba(255,255,255,.3)"></i>بلا إجابة</span></div>
+  </div>
+</div>
 <div class="overlay" id="adhanBox"><div class="ab-l">حان الآن موعد أذان</div><div class="ab-n" id="abName"></div>
   <div class="ab-h">اضغط أي زر في الريموت لإيقاف الصوت</div></div>
 <div class="unlock" id="unlock">🔊 اضغط OK في الريموت (أو المس الشاشة) مرة واحدة: ملء الشاشة وتفعيل صوت الأذان</div>
@@ -468,7 +511,9 @@ function checkAdhan(){
 }
 document.addEventListener('keydown', e => {
   if ($('#adhanBox').classList.contains('show')) { stopAdhan(); renderAsk(); return; }
+  if (editOpen()) { if (editKey(e)) e.preventDefault(); return; }
   if (!audioOK) { unlockAudio(); return; }
+  if (e.keyCode === 405 || e.key === 'e') { e.preventDefault(); openEdit(); return; }
   if (askKey(e)) { e.preventDefault(); return; }
   if (e.keyCode === 404 || ((e.key === 'Enter' || e.keyCode === 13) && !askQ)) {
     e.preventDefault(); istighfar();
@@ -518,15 +563,23 @@ function geometry(month){
   const r = seeded(month.getFullYear() * 37 + month.getMonth() * 101 + 11), n = monthDays(month);
   const j = v => v + (r() - .5) * 18;
   // four big limbs from the fork: lower-left, lower-right, upper-left, upper-right
+  // arched limbs: out and low first, then rising towards the light
   const LIMBS = [
-    { x: [486, 420, j(270), j(140)], y: [640, 585, j(520), j(470)] },
-    { x: [514, 580, j(730), j(860)], y: [640, 585, j(520), j(470)] },
-    { x: [490, 470, j(380), j(290)], y: [600, 470, j(300), j(170)] },
-    { x: [510, 535, j(630), j(715)], y: [600, 470, j(290), j(155)] },
+    { x: [484, 395, j(250), j(150)], y: [650, 615, j(590), j(495)] },
+    { x: [516, 605, j(750), j(850)], y: [650, 615, j(590), j(495)] },
+    { x: [492, 452, j(360), j(298)], y: [612, 482, j(365), j(212)] },
+    { x: [508, 550, j(648), j(702)], y: [612, 470, j(352), j(196)] },
   ];
   const limbs = [], branches = [];
+  // central leader (no days on it) so the crown has a top
+  const leader = { x: [500, 498, 506, 502], y: [620, 480, 360, 250] };
+  // foliage mass behind the branches, so it reads as a tree even on day 1
+  const canopy = [[500, 290, 130], [500, 400, 170], [420, 330, 120], [580, 330, 120], [380, 470, 120], [620, 470, 120]];
+  LIMBS.forEach((c, k) => [.35, .55, .75, .92, 1.05].forEach(t => {
+    const q = onCurve(c, Math.min(t, 1)); canopy.push([q.x + (r() - .5) * 26, q.y - 30 - r() * 18, (k < 2 ? 100 : 92) * (.9 + r() * .25)]);
+  }));
   LIMBS.forEach((c, k) => {
-    limbs.push({ outline: taper(c, 25, 6, 24), end: onCurve(c, 1), week: k });
+    limbs.push({ outline: taper(c, 27, 6, 24), end: onCurve(c, 1), week: k });
     const days = weekDays(k, n);
     days.forEach((d, i) => {
       const s0 = .2 + (.93 - .2) * (days.length > 1 ? i / (days.length - 1) : 0), base = onCurve(c, s0);
@@ -537,7 +590,7 @@ function geometry(month){
                    y: [base.y, base.y + L * .35 * Math.sin(ang), ey - L * .18 * Math.sin(ang) - 6, ey] };
       const leaves = [.34, .52, .68, .84, 1].map((t, q) => {
         const pnt = onCurve(tw, t), tilt = q === 4 ? 0 : (q % 2 ? 1 : -1) * (50 + r() * 16);
-        return { x: pnt.x, y: pnt.y, rot: pnt.a * 180 / Math.PI + tilt, sc: .6 + r() * .14,
+        return { x: pnt.x, y: pnt.y, rot: pnt.a * 180 / Math.PI + tilt, sc: .76 + r() * .16,
                  gx: 130 + r() * 740, gy: 905 + r() * 60, grot: r() * 360 };
       });
       branches[d - 1] = { outline: taper(tw, 4.2, .9, 10), twig: '', leaves };
@@ -553,7 +606,7 @@ function geometry(month){
     const x = trunkX(760) - 30 + k * 6.5, y0 = 600 + r() * 120;
     return `M${x.toFixed(1)},${y0.toFixed(0)} q${((r() - .5) * 8).toFixed(1)},${(90 + r() * 80).toFixed(0)} ${((r() - .5) * 6).toFixed(1)},${(180 + r() * 120).toFixed(0)}`;
   }).join(' ');
-  treeGeo = { limbs, branches, trunk, bark }; treeGeoKey = key;
+  treeGeo = { limbs, branches, trunk, bark, canopy, leader: taper(leader, 16, 3, 16) }; treeGeoKey = key;
   return treeGeo;
 }
 
@@ -585,7 +638,7 @@ function renderTree(){
       } else if (prayerStarted(day, p)) {
         buds += `<circle class="leaf" ${data} cx="${lf.x.toFixed(1)}" cy="${lf.y.toFixed(1)}" r="7" fill="#e6c55a" fill-opacity=".25" stroke="#e6c55a" stroke-opacity=".7" stroke-width="1.5"/>`;
       } else {
-        buds += `<circle cx="${lf.x.toFixed(1)}" cy="${lf.y.toFixed(1)}" r="3.2" fill="#c9e3b0" fill-opacity=".22"/>`;
+        buds += `<circle cx="${lf.x.toFixed(1)}" cy="${lf.y.toFixed(1)}" r="2.6" fill="#c9e3b0" fill-opacity=".14"/>`;
       }
     });
   });
@@ -598,15 +651,17 @@ function renderTree(){
       <linearGradient id="limb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7a5130"/><stop offset="1" stop-color="#4a2e18"/></linearGradient>
       <radialGradient id="ground" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#2f5a2c"/><stop offset="1" stop-color="#2f5a2c" stop-opacity="0"/></radialGradient>
       <filter id="soft"><feGaussianBlur stdDeviation="2.2"/></filter>
+      <filter id="leafy" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="9"/></filter>
+      <radialGradient id="crown" cx=".45" cy=".35" r=".7"><stop offset="0" stop-color="#2f7a4a"/><stop offset="1" stop-color="#143a26"/></radialGradient>
     </defs>
     <ellipse cx="500" cy="950" rx="430" ry="55" fill="url(#ground)"/>
+    <g filter="url(#leafy)" opacity=".72">${geo.canopy.map(([x, y, rr]) => `<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${rr.toFixed(0)}" fill="url(#crown)"/>`).join('')}</g>
     <path d="${geo.trunk}" fill="url(#bark)"/>
+    <path d="${geo.leader}" fill="url(#bark)"/>
     <path d="${geo.bark}" stroke="#2a180c" stroke-opacity=".45" stroke-width="2" fill="none"/>
     ${geo.limbs.map(l => `<path d="${l.outline}" fill="url(#bark)"/>`).join('')}
     ${tb ? `<path d="${tb.outline}" fill="#e6c55a" opacity=".7" filter="url(#soft)"/>` : ''}
-    ${geo.branches.map(b => b ? `<path d="${b.outline}" fill="url(#limb)"/>` : '').join('')}
-    ${geo.limbs.map(l => { const x = Math.max(150, Math.min(850, l.end.x + (l.week % 2 ? 30 : -30))), y = l.end.y + (l.week < 2 ? 85 : -55);
-      return `<text x="${x.toFixed(0)}" y="${y.toFixed(0)}" text-anchor="middle" font-size="26" fill="#e6c55a" fill-opacity=".75">${WEEK_NAMES[l.week]}</text>`; }).join('')}
+    ${geo.branches.map((b, i) => b ? `<path d="${b.outline}" fill="url(#limb)"${i > todayIdx ? ' opacity=".3"' : ''}/>` : '').join('')}
     ${buds}${leaves}${fallen}`;
   const answered = g + y + f;
   $('#sG').textContent = g; $('#sY').textContent = y; $('#sF').textContent = f;
@@ -731,6 +786,73 @@ function istighfar(){
   renderGarden(true);
 }
 $('#istBtn').addEventListener('click', e => { e.stopPropagation(); unlockAudio(); istighfar(); });
+
+
+// =================== edit previous days (and months) ===================
+const SHORTP = { fajr:'فجر', dhuhr:'ظهر', asr:'عصر', maghrib:'مغرب', isha:'عشاء' };
+let edMonth = null, edCur = { r: 0, c: 0 }, edRows = [];
+function openEdit(){
+  const now = new Date(); edMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  $('#editBox').classList.add('show'); renderEdit(true);
+}
+function closeEdit(){ $('#editBox').classList.remove('show'); renderTree(); }
+const editOpen = () => $('#editBox').classList.contains('show');
+function renderEdit(resetCursor){
+  const now = new Date(), cur = edMonth.getFullYear() === now.getFullYear() && edMonth.getMonth() === now.getMonth();
+  $('#edMonth').textContent = edMonth.toLocaleDateString('ar-u-nu-latn', { month:'long', year:'numeric' });
+  $('#edNext').disabled = cur;
+  const n = monthDays(edMonth), last = cur ? now.getDate() : n;
+  edRows = [];
+  let html = '<tr><th>اليوم</th>' + FIVE.map(p => `<th>${SHORTP[p]}</th>`).join('') + '</tr>';
+  for (let d = last; d >= 1; d--) {
+    const day = new Date(edMonth.getFullYear(), edMonth.getMonth(), d), k = isoDay(day), rec = treeData[k] || {};
+    edRows.push(k);
+    const label = day.toLocaleDateString('ar-u-nu-latn', { weekday:'short', day:'numeric' });
+    html += `<tr><td>${label}</td>` + FIVE.map(p => {
+      const ok = prayerStarted(day, p);
+      return `<td><button class="cell ${rec[p] || ''}" data-day="${k}" data-p="${p}" ${ok ? '' : 'disabled'} aria-label="${PN[p]} ${label}"></button></td>`;
+    }).join('') + '</tr>';
+  }
+  $('#edGrid').innerHTML = html;
+  if (resetCursor) edCur = { r: 0, c: 0 };
+  markCursor();
+}
+function markCursor(){
+  document.querySelectorAll('#edGrid .cell.cur').forEach(b => b.classList.remove('cur'));
+  const k = edRows[edCur.r]; if (!k) return;
+  const b = document.querySelector(`#edGrid .cell[data-day="${k}"][data-p="${FIVE[edCur.c]}"]`);
+  if (b) { b.classList.add('cur'); b.scrollIntoView({ block: 'nearest' }); }
+}
+function cycleCell(k, p){
+  const order = [undefined, 'g', 'y', 'f'], cur = (treeData[k] || {})[p];
+  treeData[k] = treeData[k] || {};
+  const next = order[(order.indexOf(cur) + 1) % order.length];
+  if (next) treeData[k][p] = next; else delete treeData[k][p];
+  saveTree(); renderEdit(false);
+}
+$('#edGrid').addEventListener('click', e => {
+  const b = e.target.closest('.cell'); if (!b || b.disabled) return;
+  e.stopPropagation(); cycleCell(b.dataset.day, b.dataset.p);
+});
+$('#editBtn').addEventListener('click', e => { e.stopPropagation(); unlockAudio(); openEdit(); });
+$('#edClose').addEventListener('click', e => { e.stopPropagation(); closeEdit(); });
+$('#edPrev').addEventListener('click', e => { e.stopPropagation(); edMonth = new Date(edMonth.getFullYear(), edMonth.getMonth() - 1, 1); renderEdit(true); });
+$('#edNext').addEventListener('click', e => { e.stopPropagation(); edMonth = new Date(edMonth.getFullYear(), edMonth.getMonth() + 1, 1); renderEdit(true); });
+$('#editBox').addEventListener('click', e => { if (e.target.id === 'editBox') closeEdit(); });
+function editKey(e){
+  const k = e.keyCode, key = e.key;
+  if (k === 10009 || key === 'Escape' || key === 'Backspace') { closeEdit(); return true; }
+  if (key === 'ArrowDown' || k === 40) edCur.r = Math.min(edRows.length - 1, edCur.r + 1);
+  else if (key === 'ArrowUp' || k === 38) edCur.r = Math.max(0, edCur.r - 1);
+  else if (key === 'ArrowLeft' || k === 37) edCur.c = Math.min(4, edCur.c + 1);     // right-to-left table
+  else if (key === 'ArrowRight' || k === 39) edCur.c = Math.max(0, edCur.c - 1);
+  else if (key === 'Enter' || k === 13) {
+    const b = document.querySelector('#edGrid .cell.cur'); if (b && !b.disabled) cycleCell(b.dataset.day, b.dataset.p); return true;
+  }
+  else if (k === 427 || key === 'PageUp') { edMonth = new Date(edMonth.getFullYear(), edMonth.getMonth() - 1, 1); renderEdit(true); return true; }   // channel up
+  else return false;
+  markCursor(); return true;
+}
 
 // ---------- start ----------
 (async () => {
