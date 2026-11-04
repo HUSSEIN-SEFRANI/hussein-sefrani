@@ -114,7 +114,17 @@ SSDP_TARGETS = (
 )
 
 
-LAN = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+_TV_SSL = ssl.create_default_context()
+_TV_SSL.check_hostname = False
+_TV_SSL.verify_mode = ssl.CERT_NONE  # TVs use a self-signed certificate
+LAN = urllib.request.build_opener(
+    urllib.request.ProxyHandler({}), urllib.request.HTTPSHandler(context=_TV_SSL)
+)
+
+
+def api_bases(ip: str) -> list[str]:
+    """2016-2023 models serve the REST API on http:8001; 2024+ only on https:8002."""
+    return [f"http://{ip}:{REST_PORT}", f"https://{ip}:{WSS_PORT}"]
 
 
 def lan_get(url: str, timeout: float = 3.0, method: str = "GET") -> tuple[int, str]:
@@ -130,9 +140,16 @@ def lan_get(url: str, timeout: float = 3.0, method: str = "GET") -> tuple[int, s
 def get_device_info(ip: str, timeout: float = 2.0) -> dict | None:
     """GET http://ip:8001/api/v2/  -> Samsung Tizen device description."""
     try:
-        status, text = lan_get(f"http://{ip}:{REST_PORT}/api/v2/", timeout)
-        info = json.loads(text) if status == 200 else None
-    except (OSError, ValueError, urllib.error.URLError):
+        info = None
+        for base in api_bases(ip):
+            try:
+                status, text = lan_get(f"{base}/api/v2/", timeout)
+            except (OSError, urllib.error.URLError):
+                continue
+            if status == 200:
+                info = json.loads(text)
+                break
+    except ValueError:
         return None
     if not isinstance(info, dict):
         return None
@@ -233,7 +250,9 @@ def subnet_scan(extra_subnet: str | None = None) -> set[str]:
     hosts = {str(h) for n in nets for h in n.hosts()}
     hosts.discard(me or "")
     with concurrent.futures.ThreadPoolExecutor(max_workers=128) as pool:
-        results = pool.map(lambda h: (h, port_open(h, REST_PORT)), sorted(hosts))
+        results = pool.map(
+            lambda h: (h, port_open(h, REST_PORT) or port_open(h, WSS_PORT)), sorted(hosts)
+        )
         return {h for h, ok in results if ok}
 
 
@@ -500,12 +519,13 @@ def list_apps(ip: str) -> list[dict]:
 def launch_app(ip: str, app_id: str, app_type: int = 2) -> None:
     app_id = valid_app_id(app_id)
     # REST launch works on most models without pairing.
-    try:
-        status, _ = lan_get(f"http://{ip}:{REST_PORT}/api/v2/applications/{app_id}", 4, "POST")
-        if status < 400:
-            return
-    except (OSError, urllib.error.URLError):
-        pass
+    for base in api_bases(ip):
+        try:
+            status, _ = lan_get(f"{base}/api/v2/applications/{app_id}", 4, "POST")
+            if status < 400:
+                return
+        except (OSError, urllib.error.URLError):
+            pass
     ws = open_channel(ip)
     try:
         ws.send_json(
@@ -835,10 +855,11 @@ def check(ip: str | None) -> None:
     print(f"{ok(same)} نفس الشبكة الفرعية" + ("" if same else
           " - التلفاز والحاسوب على شبكتين مختلفتين (شبكة ضيوف؟ موسّع شبكة؟ راوترين؟)"))
     p8001, p8002, psdb = (port_open(ip, prt, 1.5) for prt in (REST_PORT, WSS_PORT, SDB_PORT))
-    print(f"{ok(p8001)} منفذ 8001 (معلومات التلفاز)")
+    print(f"{ok(p8001)} منفذ 8001 (الواجهة القديمة)" + ("" if p8001 or not p8002 else
+          " - طبيعي في موديلات 2024 وما بعدها"))
     print(f"{ok(p8002)} منفذ 8002 (التحكم عن بُعد)")
     print(f"{ok(psdb)} منفذ 26101 (وضع المطوّر / Tizen)")
-    info = get_device_info(ip, 3) if p8001 else None
+    info = get_device_info(ip, 4) if (p8001 or p8002) else None
     if info:
         print(f"✔ تلفاز سامسونغ: {info['name']} [{info['model']}]")
         dev_ok = info["developer_mode"]
@@ -851,14 +872,22 @@ def check(ip: str | None) -> None:
     print("\nالتشخيص:")
     extra = {prt: port_open(ip, prt, 1.5) for prt in (LEGACY_PORT, 8080, 8000, 7676, 9197, 9119)}
     print("منافذ أخرى: " + "  ".join(f"{ok(v)} {k}" for k, v in extra.items()))
-    if p8001:
-        print("\nما يردّ به الجهاز على المنفذ 8001:")
-        for path in ("/api/v2/", "/ms/1.0/", "/"):
+    if p8001 or p8002:
+        print("\nما يردّ به الجهاز:")
+        for base, path in [(b, pth) for b in api_bases(ip) for pth in ("/api/v2/", "/ms/1.0/")]:
             try:
-                status, text = lan_get(f"http://{ip}:{REST_PORT}{path}", 4)
-                print(f"  {path} → HTTP {status}: {' '.join(text.split())[:300]}")
+                status, text = lan_get(f"{base}{path}", 4)
+                print(f"  {base}{path} → HTTP {status}: {' '.join(text.split())[:300]}")
             except (OSError, urllib.error.URLError) as exc:
-                print(f"  {path} → خطأ: {exc}")
+                print(f"  {base}{path} → خطأ: {exc}")
+        if p8002:
+            print("\nتجربة الاقتران عبر 8002 - انظر إلى شاشة التلفاز واضغط «سماح / Allow» خلال 30 ثانية…")
+            try:
+                open_channel(ip).close()
+                print("✔ تم الاقتران! التحكم يعمل. شغّل الآن: py tv_manager.py")
+                return
+            except TVError as exc:
+                print(f"✘ {exc}")
         status_ms = None
         try:
             status_ms, _ = lan_get(f"http://{ip}:{REST_PORT}/ms/1.0/", 4)
