@@ -137,17 +137,24 @@ def lan_get(url: str, timeout: float = 3.0, method: str = "GET") -> tuple[int, s
         return exc.code, exc.read(2000).decode("utf-8", "replace")
 
 
-def get_device_info(ip: str, timeout: float = 2.0) -> dict | None:
-    """GET http://ip:8001/api/v2/  -> Samsung Tizen device description."""
+def get_device_info(ip: str, timeout: float = 5.0, retries: int = 2) -> dict | None:
+    """GET http://ip:8001/api/v2/  -> Samsung Tizen device description.
+
+    TVs on Wi-Fi with power saving can take several seconds to answer, so
+    each endpoint is tried more than once with a generous timeout.
+    """
+    info = None
     try:
-        info = None
-        for base in api_bases(ip):
-            try:
-                status, text = lan_get(f"{base}/api/v2/", timeout)
-            except (OSError, urllib.error.URLError):
-                continue
-            if status == 200:
-                info = json.loads(text)
+        for _attempt in range(retries):
+            for base in api_bases(ip):
+                try:
+                    status, text = lan_get(f"{base}/api/v2/", timeout)
+                except (OSError, urllib.error.URLError):
+                    continue
+                if status == 200:
+                    info = json.loads(text)
+                    break
+            if info is not None:
                 break
     except ValueError:
         return None
@@ -251,7 +258,7 @@ def subnet_scan(extra_subnet: str | None = None) -> set[str]:
     hosts.discard(me or "")
     with concurrent.futures.ThreadPoolExecutor(max_workers=128) as pool:
         results = pool.map(
-            lambda h: (h, port_open(h, REST_PORT) or port_open(h, WSS_PORT)), sorted(hosts)
+            lambda h: (h, port_open(h, REST_PORT, 1.0) or port_open(h, WSS_PORT, 1.0)), sorted(hosts)
         )
         return {h for h, ok in results if ok}
 
@@ -854,12 +861,12 @@ def check(ip: str | None) -> None:
     print(f"\nالتلفاز: {ip}")
     print(f"{ok(same)} نفس الشبكة الفرعية" + ("" if same else
           " - التلفاز والحاسوب على شبكتين مختلفتين (شبكة ضيوف؟ موسّع شبكة؟ راوترين؟)"))
-    p8001, p8002, psdb = (port_open(ip, prt, 1.5) for prt in (REST_PORT, WSS_PORT, SDB_PORT))
+    p8001, p8002, psdb = (port_open(ip, prt, 4.0) for prt in (REST_PORT, WSS_PORT, SDB_PORT))
     print(f"{ok(p8001)} منفذ 8001 (الواجهة القديمة)" + ("" if p8001 or not p8002 else
           " - طبيعي في موديلات 2024 وما بعدها"))
     print(f"{ok(p8002)} منفذ 8002 (التحكم عن بُعد)")
     print(f"{ok(psdb)} منفذ 26101 (وضع المطوّر / Tizen)")
-    info = get_device_info(ip, 4) if (p8001 or p8002) else None
+    info = get_device_info(ip, 8, 3) if (p8001 or p8002) else None
     if info:
         print(f"✔ تلفاز سامسونغ: {info['name']} [{info['model']}]")
         dev_ok = info["developer_mode"]
@@ -867,7 +874,12 @@ def check(ip: str | None) -> None:
         if dev_ok and info["developer_ip"] and info["developer_ip"] != me:
             print(f"✘ وضع المطوّر مضبوط على عنوان آخر ({info['developer_ip']}) وليس {me}"
                   " - غيّره في التلفاز (Apps ← 12345) ثم أعد تشغيل التلفاز.")
-        print("\nكل شيء جاهز ✔  شغّل: python3 tv_manager.py")
+        print("\nتجربة الاقتران - انظر إلى شاشة التلفاز واضغط «سماح / Allow» خلال 30 ثانية…")
+        try:
+            open_channel(ip).close()
+            print("✔ تم الاقتران! كل شيء جاهز. شغّل الآن: py tv_manager.py")
+        except TVError as exc:
+            print(f"✘ {exc}")
         return
     print("\nالتشخيص:")
     extra = {prt: port_open(ip, prt, 1.5) for prt in (LEGACY_PORT, 8080, 8000, 7676, 9197, 9119)}
