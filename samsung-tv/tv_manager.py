@@ -1030,6 +1030,27 @@ def show_on_tv(ip: str, url: str) -> None:
     CHANNEL.send(ip, payloads)  # only the id present on this model opens
 
 
+def auto_show() -> None:
+    """Open the display on every paired TV, retrying while the TV wakes up."""
+    import time
+
+    tvs = [ip for ip, rec in load_data()["tvs"].items() if rec.get("token")]
+    if not tvs:
+        print("لا يوجد تلفاز مقترن بعد: افتح الواجهة واختر التلفاز مرة واحدة.")
+        return
+    page = f"http://{local_ipv4()}:{DISPLAY_PORT}/tv"
+    for ip in tvs:
+        for _ in range(10):
+            try:
+                show_on_tv(ip, page)
+                print(f"✔ فُتحت شاشة البيت على التلفاز {ip}")
+                break
+            except (TVError, OSError):
+                time.sleep(30)  # TV off or still starting
+        else:
+            print(f"✘ لم يردّ التلفاز {ip} - شغّله ثم اضغط «اعرض شاشة البيت» في الواجهة")
+
+
 class DisplayHandler(Handler):
     """Read-only server reachable from the LAN, so the TV browser can show
     the display page. It cannot control the TV or change settings."""
@@ -1055,6 +1076,21 @@ class DisplayHandler(Handler):
                 return self._json(display.get_weather(prayer.DEFAULT_CITY))
             if url.path == "/api/wallpapers":
                 return self._json({"files": display.list_wallpapers()})
+            if url.path == "/api/sounds":
+                return self._json(display.list_sounds())
+            if url.path.startswith("/sounds/"):
+                name = urllib.parse.unquote(url.path[len("/sounds/"):])
+                target = (display.SOUND_DIR / name).resolve()
+                if target.parent != display.SOUND_DIR.resolve() or not target.is_file() \
+                        or target.suffix.lower() not in display.SOUND_TYPES:
+                    return self._json({"error": "not found"}, 404)
+                body = target.read_bytes()
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", display.SOUND_TYPES[target.suffix.lower()])
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
             if url.path.startswith("/wallpapers/"):
                 name = urllib.parse.unquote(url.path[len("/wallpapers/"):])
                 target = (display.WALLPAPER_DIR / name).resolve()
@@ -1168,6 +1204,8 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--scan", action="store_true", help="discover TVs and exit")
+    parser.add_argument("--show", action="store_true",
+                        help="open the home display on the paired TV at start-up")
     parser.add_argument("--check", nargs="?", const="", metavar="TV_IP",
                         help="diagnose why the TV is not found")
     args = parser.parse_args()
@@ -1190,6 +1228,8 @@ def main() -> None:
         print(f"شاشة التلفاز متاحة على: http://{local_ipv4()}:{DISPLAY_PORT}/tv")
     except OSError as exc:
         print(f"تعذّر تشغيل شاشة التلفاز على المنفذ {DISPLAY_PORT}: {exc}")
+    if args.show:
+        threading.Thread(target=auto_show, daemon=True).start()
     url = f"http://{'localhost' if args.host in ('127.0.0.1', '0.0.0.0') else args.host}:{args.port}"
     print(f"Samsung TV Manager يعمل على: {url}   (Ctrl+C للإيقاف)")
     if not args.no_browser:

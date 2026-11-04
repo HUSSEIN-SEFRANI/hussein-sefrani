@@ -54,6 +54,14 @@ html,body{margin:0;height:100%;overflow:hidden;background:#06140f;color:var(--te
 .p.now{background:linear-gradient(160deg,rgba(230,197,90,.35),rgba(184,137,42,.18));border-color:var(--gold)}
 .p.now .n,.p.now .i{color:var(--text)}
 .p.next{border-color:var(--gold);box-shadow:0 0 0 .15vw rgba(230,197,90,.5) inset}
+.overlay{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+  background:radial-gradient(ellipse at 50% 45%,#0b3d2e,#020806);z-index:5}
+.overlay.show{display:flex}
+.overlay .ab-l{font-size:3vw;color:var(--gold)}
+.overlay .ab-n{font-size:11vw;font-weight:700;line-height:1.15;animation:glow 2.5s ease-in-out infinite}
+.overlay .ab-h{font-size:1.4vw;color:var(--muted);margin-top:2vw}
+.unlock{position:fixed;bottom:1.2vw;left:50%;transform:translateX(-50%);z-index:4;font-size:1.4vw;padding:.7vw 1.8vw;border-radius:3vw;
+  background:rgba(230,197,90,.92);color:#1b1404;font-weight:700;box-shadow:0 .4vw 1.6vw rgba(0,0,0,.5)}
 .warn{position:fixed;top:.5vw;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:.9vw;color:var(--muted);opacity:.8}
 </style>
 </head>
@@ -75,6 +83,9 @@ html,body{margin:0;height:100%;overflow:hidden;background:#06140f;color:var(--te
   <div class="prayers" id="prayers"></div>
 </div>
 <div class="warn" id="warn"></div>
+<div class="overlay" id="adhanBox"><div class="ab-l">حان الآن موعد أذان</div><div class="ab-n" id="abName"></div>
+  <div class="ab-h">اضغط أي زر في الريموت لإيقاف الصوت</div></div>
+<div class="unlock" id="unlock">🔊 اضغط OK في الريموت مرة واحدة لتفعيل صوت الأذان</div>
 
 <script>
 const $ = s => document.querySelector(s);
@@ -221,15 +232,70 @@ function nextVerse(){
   setTimeout(() => { const [v, s] = VERSES[vi++ % VERSES.length]; el.querySelector('.v').textContent = v; el.querySelector('.s').textContent = s; el.classList.remove('fade'); }, 1200);
 }
 
+
+// ---------- adhan ----------
+let sounds = {}, audioOK = false, actx = null, player = null, toneTimer = null, adhanDone = '';
+async function loadSounds(){ try { sounds = await getJSON('/api/sounds'); } catch(e) {} }
+function unlockAudio(){
+  if (audioOK) return;
+  try { actx = new (window.AudioContext || window.webkitAudioContext)(); actx.resume(); } catch(e) {}
+  try { const a = new Audio(); a.muted = true; a.play().catch(() => {}); } catch(e) {}
+  audioOK = true; $('#unlock').style.display = 'none';
+}
+function stopAdhan(){
+  if (player) { player.pause(); player = null; }
+  clearInterval(toneTimer); toneTimer = null;
+  $('#adhanBox').classList.remove('show');
+}
+function tone(){
+  // gentle three-note chime, repeated a few times (used when no adhan file is present)
+  if (!actx) return;
+  let n = 0;
+  const ring = () => {
+    [523.25, 659.25, 783.99].forEach((f, i) => {
+      const o = actx.createOscillator(), g = actx.createGain(), t0 = actx.currentTime + i * 0.45;
+      o.type = 'sine'; o.frequency.value = f; o.connect(g); g.connect(actx.destination);
+      g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(0.35, t0 + 0.05); g.gain.exponentialRampToValueAtTime(0.001, t0 + 1.6);
+      o.start(t0); o.stop(t0 + 1.7);
+    });
+    if (++n >= 4) clearInterval(toneTimer);
+  };
+  ring(); toneTimer = setInterval(ring, 3000);
+}
+function playAdhan(p){
+  $('#abName').textContent = 'صلاة ' + PN[p];
+  $('#adhanBox').classList.add('show');
+  const file = (p === 'fajr' && sounds.fajr) || sounds.adhan;
+  if (file) {
+    player = new Audio('/sounds/' + encodeURIComponent(file));
+    player.onended = () => setTimeout(stopAdhan, 15000);
+    player.play().catch(() => { player = null; tone(); });
+  } else tone();
+  setTimeout(() => { if (!player) stopAdhan(); }, 3 * 60 * 1000);
+}
+function checkAdhan(){
+  if (!pt) return;
+  const now = new Date(), hm = pad(now.getHours()) + ':' + pad(now.getMinutes());
+  for (const p of FIVE) {
+    const key = now.toLocaleDateString('sv') + p;
+    if (pt.times[p] === hm && adhanDone !== key) { adhanDone = key; playAdhan(p); }
+  }
+}
+document.addEventListener('keydown', () => { if ($('#adhanBox').classList.contains('show')) stopAdhan(); else unlockAudio(); });
+document.addEventListener('click', () => { if ($('#adhanBox').classList.contains('show')) stopAdhan(); else unlockAudio(); });
+setInterval(checkAdhan, 5000);
+if (location.search.includes('testadhan')) setTimeout(() => playAdhan('dhuhr'), 3000);
+
 // ---------- start ----------
 (async () => {
-  await Promise.all([loadPrayer(), loadWallpapers()]);
+  await Promise.all([loadPrayer(), loadWallpapers(), loadSounds()]);
   loadWeather(); nextBackground(); nextVerse(); tick();
   setInterval(tick, 1000);
   setInterval(nextVerse, 30 * 1000);
   setInterval(nextBackground, 3 * 60 * 1000);
   setInterval(loadWeather, 20 * 60 * 1000);
   setInterval(loadWallpapers, 30 * 60 * 1000);
+  setInterval(loadSounds, 30 * 60 * 1000);
   setInterval(loadPrayer, 60 * 60 * 1000);
 })();
 </script>

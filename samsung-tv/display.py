@@ -101,3 +101,19 @@ def list_wallpapers() -> list[str]:
         p.name for p in WALLPAPER_DIR.iterdir()
         if p.is_file() and p.suffix.lower() in IMAGE_TYPES
     )[:200]
+
+
+SOUND_DIR = Path(__file__).resolve().parent / "sounds"
+SOUND_TYPES = {".mp3": "audio/mpeg", ".ogg": "audio/ogg", ".wav": "audio/wav", ".m4a": "audio/mp4"}
+
+
+def list_sounds() -> dict:
+    """adhan.<ext> for every prayer, adhan-fajr.<ext> (optional) for Fajr."""
+    found = {}
+    if SOUND_DIR.is_dir():
+        for p in sorted(SOUND_DIR.iterdir()):
+            if p.is_file() and p.suffix.lower() in SOUND_TYPES:
+                stem = p.stem.lower()
+                if stem in ("adhan", "adhan-fajr") and stem not in found:
+                    found[stem] = p.name
+    return {"adhan": found.get("adhan"), "fajr": found.get("adhan-fajr")}
