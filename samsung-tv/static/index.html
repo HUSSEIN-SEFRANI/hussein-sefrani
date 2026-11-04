@@ -636,7 +636,7 @@ function tickClock(){
   try { hijri = ' · ' + d.toLocaleDateString('ar-SA-u-ca-islamic-umalqura-nu-latn', { day:'numeric', month:'long', year:'numeric' }); } catch {}
   $('#clockDate').textContent = d.toLocaleDateString('ar-u-nu-latn', { weekday:'long', day:'numeric', month:'long' }) + hijri;
 }
-applySkin(store.get('skin', 'classic')); tickClock(); setInterval(tickClock, 1000);
+applySkin(store.get('skin', 'islamic')); tickClock(); setInterval(tickClock, 1000);
 
 // ---------- init ----------
 renderCurrent(); renderChecklist(); previewBl();
