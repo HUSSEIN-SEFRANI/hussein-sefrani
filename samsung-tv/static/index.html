@@ -147,6 +147,7 @@ body[data-skin=islamic] .clock b{color:#e6c55a}
 .rk.ok{border-radius:50%;background:var(--accent);border:0;font-weight:700}
 .rk.power{color:var(--bad)}
 .rrow{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%}
+.rrow.numpad{direction:ltr}
 /* apps */
 .app-list{display:grid;gap:8px}
 .app-row{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
@@ -249,6 +250,7 @@ pre{background:#07090d;border:1px solid var(--line);padding:12px;border-radius:1
           </div>
           <div class="rrow"><button class="rk" data-key="KEY_RETURN">رجوع</button><button class="rk" data-key="KEY_MENU">الإعدادات</button><button class="rk" data-key="KEY_INFO">معلومات</button></div>
           <div class="rrow"><button class="rk" data-key="KEY_VOLDOWN">صوت −</button><button class="rk" data-key="KEY_MUTE">كتم</button><button class="rk" data-key="KEY_VOLUP">صوت +</button></div>
+          <div class="rrow numpad"><button class="rk" data-key="KEY_1">1</button><button class="rk" data-key="KEY_2">2</button><button class="rk" data-key="KEY_3">3</button><button class="rk" data-key="KEY_4">4</button><button class="rk" data-key="KEY_5">5</button><button class="rk" data-key="KEY_6">6</button><button class="rk" data-key="KEY_7">7</button><button class="rk" data-key="KEY_8">8</button><button class="rk" data-key="KEY_9">9</button></div>
           <div class="rrow"><button class="rk" data-key="KEY_CHDOWN">قناة −</button><button class="rk" data-key="KEY_PLAY">تشغيل</button><button class="rk" data-key="KEY_CHUP">قناة +</button></div>
           <small style="color:var(--muted)">الأسهم ومفتاح Enter على لوحة المفاتيح تعمل أيضاً</small>
         </div>
@@ -309,7 +311,7 @@ pre{background:#07090d;border:1px solid var(--line);padding:12px;border-radius:1
           <h3>طريقة التفعيل (Developer Mode)</h3>
           <ol class="steps">
             <li>على التلفاز افتح <b>التطبيقات (Apps)</b>.</li>
-            <li>اكتب بالريموت الأرقام <code>12345</code> (أو استخدم لوحة الأرقام على الشاشة).</li>
+            <li>اكتب <code>12345</code> بسرعة <b>بدون الضغط على OK</b> — أو الأسهل: اضغط هنا وسنكتبها نحن عبر الشبكة: <button class="btn primary" id="sendCode" style="padding:4px 12px">أرسل 12345 إلى التلفاز</button><small style="display:block;color:var(--muted);margin-top:4px">يجب أن تكون شاشة «التطبيقات (Apps)» مفتوحة على التلفاز قبل الضغط. يمكنك فتحها من زر «الرئيسية» في الريموت أدناه.</small></li>
             <li>فعّل <b>Developer mode → On</b> واكتب عنوان IP لهذا الحاسوب: <code id="myIp">…</code></li>
             <li>أعد تشغيل التلفاز (اضغط زر التشغيل مطوّلاً حتى يعيد التشغيل).</li>
             <li>عد إلى هنا واضغط <button class="btn" id="recheck" style="padding:4px 10px">إعادة الفحص</button></li>
@@ -554,6 +556,15 @@ async function renderDev(){
   } catch(e){ $('#devStatus').innerHTML = `<span class="pill bad">${esc(e.message)}</span>`; }
 }
 $('#recheck').onclick = renderDev;
+$('#sendCode').onclick = async () => {
+  if (!tv) return toast('اختر تلفازاً أولاً', true);
+  const b = $('#sendCode'); b.disabled = true;
+  try {
+    for (const n of [1, 2, 3, 4, 5]) { await api('/api/key', { ip: tv.ip, key: 'KEY_' + n }); await new Promise(r => setTimeout(r, 350)); }
+    toast('تم إرسال 12345 — يجب أن تظهر نافذة Developer mode على التلفاز');
+  } catch(e){ toast(e.message, true); }
+  finally { b.disabled = false; }
+};
 
 
 // ---------- prayer times (Mawaqit) ----------
