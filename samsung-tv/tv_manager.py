@@ -114,18 +114,35 @@ SSDP_TARGETS = (
 )
 
 
+LAN = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
+def lan_get(url: str, timeout: float = 3.0, method: str = "GET") -> tuple[int, str]:
+    """HTTP request to a LAN device, bypassing any system proxy."""
+    req = urllib.request.Request(url, method=method, headers={"User-Agent": "TVManager"})
+    try:
+        with LAN.open(req, timeout=timeout) as resp:
+            return resp.status, resp.read(200_000).decode("utf-8", "replace")
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read(2000).decode("utf-8", "replace")
+
+
 def get_device_info(ip: str, timeout: float = 2.0) -> dict | None:
     """GET http://ip:8001/api/v2/  -> Samsung Tizen device description."""
     try:
-        with urllib.request.urlopen(
-            f"http://{ip}:{REST_PORT}/api/v2/", timeout=timeout
-        ) as resp:
-            info = json.loads(resp.read().decode("utf-8", "replace"))
+        status, text = lan_get(f"http://{ip}:{REST_PORT}/api/v2/", timeout)
+        info = json.loads(text) if status == 200 else None
     except (OSError, ValueError, urllib.error.URLError):
+        return None
+    if not isinstance(info, dict):
         return None
     dev = info.get("device") or {}
     if not dev:
-        return None
+        # 2016 models answer with a flat structure
+        if "samsung" not in json.dumps(info).lower() and "tizen" not in json.dumps(info).lower():
+            return None
+        dev = {"name": info.get("name"), "modelName": info.get("model") or info.get("modelName"),
+               "OS": "Tizen", "firmwareVersion": info.get("version", "")}
     return {
         "ip": ip,
         "name": dev.get("name") or info.get("name") or "Samsung TV",
@@ -390,10 +407,44 @@ def open_channel(ip: str, pair_timeout: float = 30.0) -> WebSocket:
         raise TVError(f"أُغلق الاتصال: {exc}") from exc
 
 
+LEGACY_PORT = 55000
+
+
+def legacy_key(ip: str, key: str) -> None:
+    """Samsung legacy remote protocol (C/D/E/F/H series, 2010-2014)."""
+    def chunk(data: bytes) -> bytes:
+        return struct.pack("<H", len(data)) + data
+
+    def b64(text: str) -> bytes:
+        return base64.b64encode(text.encode())
+
+    app = b"iphone..iapp.samsung"
+    auth = b"\x64\x00" + chunk(b64(local_ipv4() or "0.0.0.0")) + chunk(b64("00-00-00-00-00-00")) \
+        + chunk(b64(APP_NAME))
+    cmd = b"\x00\x00\x00" + chunk(b64(key))
+    try:
+        with socket.create_connection((ip, LEGACY_PORT), timeout=30) as sock:
+            sock.sendall(b"\x00" + chunk(app) + chunk(auth))
+            reply = sock.recv(4096)
+            if b"\x64\x00\x00\x00" in reply:
+                raise TVError("رفض التلفاز الاتصال - اختر «سماح» على الشاشة")
+            sock.sendall(b"\x00" + chunk(app) + chunk(cmd))
+            sock.recv(4096)
+    except socket.timeout as exc:
+        raise TVError("انتهت المهلة - وافق على طلب الاتصال على شاشة التلفاز") from exc
+    except OSError as exc:
+        raise TVError(f"تعذّر الاتصال بالتلفاز (منفذ 55000): {exc}") from exc
+
+
 def send_key(ip: str, key: str) -> None:
     if not _KEY_RE.match(key):
         raise ValueError("زر غير صالح")
-    ws = open_channel(ip)
+    try:
+        ws = open_channel(ip)
+    except TVError:
+        if port_open(ip, LEGACY_PORT, 1.0):
+            return legacy_key(ip, key)
+        raise
     try:
         ws.send_json(
             {
@@ -449,12 +500,10 @@ def list_apps(ip: str) -> list[dict]:
 def launch_app(ip: str, app_id: str, app_type: int = 2) -> None:
     app_id = valid_app_id(app_id)
     # REST launch works on most models without pairing.
-    req = urllib.request.Request(
-        f"http://{ip}:{REST_PORT}/api/v2/applications/{app_id}", method="POST"
-    )
     try:
-        urllib.request.urlopen(req, timeout=4).close()
-        return
+        status, _ = lan_get(f"http://{ip}:{REST_PORT}/api/v2/applications/{app_id}", 4, "POST")
+        if status < 400:
+            return
     except (OSError, urllib.error.URLError):
         pass
     ws = open_channel(ip)
@@ -800,6 +849,27 @@ def check(ip: str | None) -> None:
         print("\nكل شيء جاهز ✔  شغّل: python3 tv_manager.py")
         return
     print("\nالتشخيص:")
+    extra = {prt: port_open(ip, prt, 1.5) for prt in (LEGACY_PORT, 8080, 8000, 7676, 9197, 9119)}
+    print("منافذ أخرى: " + "  ".join(f"{ok(v)} {k}" for k, v in extra.items()))
+    if p8001:
+        print("\nما يردّ به الجهاز على المنفذ 8001:")
+        for path in ("/api/v2/", "/ms/1.0/", "/"):
+            try:
+                status, text = lan_get(f"http://{ip}:{REST_PORT}{path}", 4)
+                print(f"  {path} → HTTP {status}: {' '.join(text.split())[:300]}")
+            except (OSError, urllib.error.URLError) as exc:
+                print(f"  {path} → خطأ: {exc}")
+        status_ms = None
+        try:
+            status_ms, _ = lan_get(f"http://{ip}:{REST_PORT}/ms/1.0/", 4)
+        except (OSError, urllib.error.URLError):
+            pass
+        if status_ms == 200:
+            print(" • يبدو أنه تلفاز سامسونغ موديل 2015 (سلسلة J، Tizen 2.3) يستخدم واجهة قديمة.")
+        if extra[LEGACY_PORT]:
+            print(" • المنفذ 55000 مفتوح: تلفاز سامسونغ موديل 2010-2014. أزرار الريموت ستعمل عبر البروتوكول القديم،"
+                  " لكن قائمة التطبيقات غير مدعومة في هذه الموديلات.")
+        print(" • أرسل هذه النتيجة كاملة، مع موديل التلفاز (الإعدادات ← الدعم ← حول هذا التلفاز)، لأضيف الدعم المناسب.")
     if not (p8001 or p8002 or psdb):
         print(" • التلفاز لا يردّ إطلاقاً. تأكد أنه مُشغَّل (وليس في وضع الاستعداد)، وأن العنوان صحيح.")
         print(" • فعّل في التلفاز: الإعدادات ← عام ← مدير الأجهزة الخارجية ← إعدادات اتصال الجهاز ← الوصول = تشغيل.")
