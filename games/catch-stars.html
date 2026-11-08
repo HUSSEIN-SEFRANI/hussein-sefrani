@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>صائد النجوم</title>
+<style>
+  :root { --bg:#0b1026; --fg:#f3f4f8; --accent:#ffd34d; --danger:#ff5a5a; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,"Segoe UI",Tahoma,sans-serif;
+         display:flex; flex-direction:column; align-items:center; min-height:100vh; padding:16px; }
+  h1 { margin:4px 0 8px; font-size:1.6rem; color:var(--accent); }
+  #hud { display:flex; gap:24px; font-size:1.1rem; margin-bottom:8px; }
+  canvas { width:100%; max-width:480px; aspect-ratio:3/4; background:linear-gradient(#151c45,#0b1026);
+           border-radius:12px; touch-action:none; }
+  #msg { margin-top:10px; text-align:center; opacity:.85; }
+  button { margin-top:8px; padding:10px 28px; font-size:1.1rem; border:0; border-radius:8px;
+           background:var(--accent); color:#222; cursor:pointer; }
+</style>
+</head>
+<body>
+<h1>⭐ صائد النجوم</h1>
+<div id="hud">
+  <span>النقاط: <b id="score">0</b></span>
+  <span>الأرواح: <b id="lives">3</b></span>
+  <span>الأفضل: <b id="best">0</b></span>
+</div>
+<canvas id="game" width="480" height="640"></canvas>
+<div id="msg">اجمع النجوم ⭐ وتجنّب القنابل 💣<br>حرّك السلة بالأسهم ← → أو بإصبعك/الفأرة</div>
+<button id="start">ابدأ اللعب</button>
+
+<script>
+const cv = document.getElementById('game'), ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+const $ = id => document.getElementById(id);
+let best = 0;
+try { best = +localStorage.getItem('catchStarsBest') || 0; } catch (e) {}
+$('best').textContent = best;
+
+let player, items, score, lives, running, spawnTimer, speed, keys = {}, last;
+
+function reset() {
+  player = { x: W / 2, y: H - 40, w: 80, h: 18 };
+  items = []; score = 0; lives = 3; spawnTimer = 0; speed = 2.5;
+  updateHud();
+}
+function updateHud() { $('score').textContent = score; $('lives').textContent = lives; $('best').textContent = best; }
+
+function spawn() {
+  const bomb = Math.random() < 0.25 + Math.min(score / 400, 0.2);
+  items.push({ x: 20 + Math.random() * (W - 40), y: -20, r: 14,
+               vy: speed + Math.random() * 1.5, bomb, spin: Math.random() * 6 });
+}
+
+function drawStar(x, y, r, rot) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const rr = i % 2 ? r * 0.45 : r, a = i * Math.PI / 5;
+    ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+  }
+  ctx.closePath(); ctx.fillStyle = '#ffd34d'; ctx.shadowColor = '#ffd34d'; ctx.shadowBlur = 12; ctx.fill();
+  ctx.restore();
+}
+function drawBomb(x, y, r) {
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = '#333'; ctx.fill();
+  ctx.strokeStyle = '#ff5a5a'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x + 6, y - r - 8); ctx.strokeStyle = '#ffae42'; ctx.stroke();
+}
+function drawPlayer() {
+  ctx.fillStyle = '#4dd2ff';
+  ctx.beginPath();
+  ctx.roundRect(player.x - player.w / 2, player.y - player.h / 2, player.w, player.h, 8);
+  ctx.fill();
+}
+
+function loop(t) {
+  if (!running) return;
+  const dt = Math.min((t - last) / 16.67, 3); last = t;
+
+  if (keys.ArrowLeft) player.x -= 7 * dt;
+  if (keys.ArrowRight) player.x += 7 * dt;
+  player.x = Math.max(player.w / 2, Math.min(W - player.w / 2, player.x));
+
+  spawnTimer -= dt;
+  if (spawnTimer <= 0) { spawn(); spawnTimer = Math.max(18, 50 - score / 5); }
+  speed = 2.5 + score / 60;
+
+  for (const it of items) {
+    it.y += it.vy * dt; it.spin += 0.05 * dt;
+    const hit = it.y + it.r > player.y - player.h / 2 && it.y - it.r < player.y + player.h / 2 &&
+                Math.abs(it.x - player.x) < player.w / 2 + it.r;
+    if (hit) {
+      it.dead = true;
+      if (it.bomb) lives--; else score += 10;
+    } else if (it.y - it.r > H) {
+      it.dead = true;
+      if (!it.bomb) lives--;   // star missed
+    }
+  }
+  items = items.filter(i => !i.dead);
+  updateHud();
+
+  ctx.clearRect(0, 0, W, H);
+  for (const it of items) it.bomb ? drawBomb(it.x, it.y, it.r) : drawStar(it.x, it.y, it.r, it.spin);
+  drawPlayer();
+
+  if (lives <= 0) return gameOver();
+  requestAnimationFrame(loop);
+}
+
+function gameOver() {
+  running = false;
+  if (score > best) { best = score; try { localStorage.setItem('catchStarsBest', best); } catch (e) {} }
+  updateHud();
+  ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = 'bold 40px system-ui';
+  ctx.fillText('انتهت اللعبة!', W / 2, H / 2 - 20);
+  ctx.font = '24px system-ui'; ctx.fillText('نقاطك: ' + score, W / 2, H / 2 + 24);
+  $('start').textContent = 'العب مرة أخرى'; $('start').style.display = '';
+}
+
+function start() {
+  reset(); running = true; $('start').style.display = 'none';
+  last = performance.now(); requestAnimationFrame(loop);
+}
+
+$('start').onclick = start;
+addEventListener('keydown', e => { keys[e.key] = true; if (e.key === ' ' && !running) start(); });
+addEventListener('keyup', e => { keys[e.key] = false; });
+function pointer(e) {
+  const r = cv.getBoundingClientRect();
+  player.x = (e.clientX - r.left) * (W / r.width);
+}
+cv.addEventListener('pointermove', pointer);
+cv.addEventListener('pointerdown', pointer);
+
+reset();
+</script>
+</body>
+</html>
