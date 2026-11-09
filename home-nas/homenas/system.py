@@ -14,7 +14,7 @@ from flask import (Blueprint, abort, current_app, jsonify, redirect, render_temp
                    url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from .core import (FFMPEG, HEIF_OK, admin_required, body, current_user, get_db, get_setting, home_dir,
+from .core import (FFMPEG, admin_required, heic_supported, body, current_user, get_db, get_setting, home_dir,
                    human_size, log_action, login_required, now_iso, paths, set_setting, setup_code_file)
 from .network import on_change, on_password, on_user_deleted
 from .photos import indexer
@@ -409,7 +409,7 @@ def api_folder_delete(fid):
 def api_settings():
     cfg = current_app.config["NAS_CFG"]
     return jsonify(server_name=server_name(), photo_shared_folder=get_setting("photo_shared_folder"), appliance=APPLIANCE,
-                   port=cfg["port"], data_dir=str(paths().data), heif=HEIF_OK, ffmpeg=bool(FFMPEG),
+                   port=cfg["port"], data_dir=str(paths().data), heif=heic_supported(), ffmpeg=bool(FFMPEG),
                    psutil=psutil is not None)
 
 

@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 from homenas import __version__, create_app
-from homenas.core import HEIF_OK, FFMPEG, Paths, connect, init_db, load_config, save_config
+from homenas.core import FFMPEG, Paths, connect, heic_supported, init_db, load_config, save_config
 
 
 def main() -> None:
@@ -72,7 +72,7 @@ def main() -> None:
     for url in server_urls(port):
         print(f"       {url}")
     print(f"\n  مجلد البيانات: {app.extensions['nas_paths'].data}")
-    if not HEIF_OK:
+    if not heic_supported():
         print("  [!] pillow-heif غير مثبتة: لن تظهر معاينة صور HEIC")
     if not FFMPEG:
         print("  [i] ffmpeg غير مثبت: لن تظهر مصغرات الفيديو (اختياري)")

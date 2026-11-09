@@ -8,6 +8,7 @@ import secrets
 import shutil
 import sqlite3
 import subprocess
+import tempfile
 import threading
 import time
 import zipfile
@@ -33,6 +34,9 @@ if PIL_OK:
         pass
 
 FFMPEG = shutil.which("ffmpeg")
+# بديل لصور HEIC عند عدم توفر pillow-heif: أداة heif-dec/heif-convert من Debian (libheif-examples)
+HEIF_CLI = shutil.which("heif-dec") or shutil.which("heif-convert")
+HEIC_EXT = {".heic", ".heif"}
 
 APP_DIR = Path(__file__).resolve().parent.parent
 CONFIG_PATH = Path(os.environ.get("HOMENAS_CONFIG") or APP_DIR / "config.json")
@@ -301,13 +305,41 @@ def parse_exif_date(value) -> datetime | None:
     return None
 
 
+class open_image:
+    """يفتح صورة بـ Pillow، مع تحويل HEIC إلى JPEG مؤقت عند عدم توفر pillow-heif."""
+
+    def __init__(self, path: Path):
+        self.path, self.tmp, self.im = Path(path), None, None
+
+    def __enter__(self):
+        src = self.path
+        if src.suffix.lower() in HEIC_EXT and not HEIF_OK and HEIF_CLI:
+            self.tmp = Path(tempfile.gettempdir()) / f"hsef-{secrets.token_hex(6)}.jpg"
+            subprocess.run([HEIF_CLI, "-q", "92", str(src), str(self.tmp)], capture_output=True, timeout=120,
+                           stdin=subprocess.DEVNULL, check=True)
+            src = self.tmp
+        self.im = Image.open(src)
+        return self.im
+
+    def __exit__(self, *exc):
+        if self.im is not None:
+            self.im.close()
+        if self.tmp is not None:
+            self.tmp.unlink(missing_ok=True)
+        return False
+
+
+def heic_supported() -> bool:
+    return HEIF_OK or bool(HEIF_CLI)
+
+
 def image_meta(path: Path) -> dict:
     """تاريخ الالتقاط والأبعاد والكاميرا من بيانات EXIF."""
     meta = {"taken": None, "width": None, "height": None, "camera": None}
     if not PIL_OK:
         return meta
     try:
-        with Image.open(path) as im:
+        with open_image(path) as im:
             w, h = im.size
             exif = im.getexif()
             if exif:
@@ -346,7 +378,7 @@ def make_thumb(src: Path, dest: Path, size: int, is_video: bool = False) -> bool
             return True
         if not PIL_OK:
             return False
-        with Image.open(src) as im:
+        with open_image(src) as im:
             im = ImageOps.exif_transpose(im)
             im.thumbnail((size, size))
             if im.mode not in ("RGB", "L"):

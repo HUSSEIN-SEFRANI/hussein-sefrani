@@ -32,7 +32,8 @@ log "Installing system packages"
 retry apt-get update
 retry apt-get install -y --no-install-recommends \
     python3 python3-venv python3-pip ffmpeg avahi-daemon libnss-mdns sudo ca-certificates \
-    unattended-upgrades rsync parted e2fsprogs sqlite3 mdadm smartmontools samba minidlna
+    unattended-upgrades rsync parted e2fsprogs sqlite3 mdadm smartmontools samba minidlna \
+    python3-flask python3-waitress python3-pil python3-psutil libheif-examples libheif-plugin-libde265
 
 # Windows network discovery (shows H.SEF under "Network" in Explorer)
 apt-get install -y --no-install-recommends wsdd2 >/dev/null 2>&1 || apt-get install -y --no-install-recommends wsdd >/dev/null 2>&1 || true
@@ -55,9 +56,16 @@ fi
 chown -R root:root "$APP"
 
 log "Installing Python libraries"
-[ -x "$VENV/bin/python" ] || python3 -m venv "$VENV"
-retry "$VENV/bin/pip" install --disable-pip-version-check -q --upgrade pip
-retry "$VENV/bin/pip" install --disable-pip-version-check -q -r "$APP/requirements.txt"
+# Flask, Waitress, Pillow and psutil come from Debian (same mirror as the installer).
+# pillow-heif (fast iPhone HEIC support) is the only library from PyPI; if PyPI cannot be
+# reached, HEIC photos are still handled by Debian's heif-convert, just a bit slower.
+if [ -x "$VENV/bin/python" ] && ! "$VENV/bin/python" -c "import flask" 2>/dev/null; then
+    rm -rf --one-file-system "$VENV"
+fi
+[ -x "$VENV/bin/python" ] || python3 -m venv --system-site-packages "$VENV"
+"$VENV/bin/pip" install --disable-pip-version-check -q --timeout 30 pillow-heif \
+    || echo "warning: pillow-heif not installed (PyPI unreachable) - using heif-convert for HEIC photos"
+"$VENV/bin/python" -c "import flask, waitress, PIL, psutil" || { echo "Python libraries are missing"; exit 1; }
 
 log "Preparing data folder $DATA"
 mkdir -p "$DATA" "$CONF_DIR"
