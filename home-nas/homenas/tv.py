@@ -566,19 +566,44 @@ def api_tv_tile_list(tid):
         return jsonify(tile=tile_dict(t), items=[], missing=True)
     folder = safe_sub(base, request.args.get("sub", ""))
     items = []
+    covers = ("cover.jpg", "cover.png", "cover.jpeg", "icon.png", "folder.jpg")
+
+    def game_entry(d: Path) -> str | None:
+        """مسار اللعبة داخل المجلد: index.html فيه مباشرة، أو في مجلد وحيد بداخله (بعد فك الضغط)."""
+        if (d / "index.html").is_file():
+            return ""
+        try:
+            subs = [x for x in d.iterdir() if x.is_dir() and not x.name.startswith((".", "@")) and x.name != RECYCLE]
+        except OSError:
+            return None
+        if len(subs) == 1 and (subs[0] / "index.html").is_file():
+            return subs[0].name
+        return None
+
+    # ملفات لعبة موضوعة مباشرة في هذا المجلد
+    if (folder / "index.html").is_file():
+        items.append({"name": "", "type": "game", "self": True, "entry": "",
+                      "cover": next((c for c in covers if (folder / c).is_file()), None)})
     with os.scandir(folder) as it:
         for e in it:
             if e.name.startswith((".", "@")) or e.name == RECYCLE:
                 continue
             if e.is_dir():
-                game = (Path(e.path) / "index.html").exists()
-                cover = next((c for c in ("cover.jpg", "cover.png", "icon.png", "folder.jpg") if (Path(e.path) / c).exists()), None)
-                items.append({"name": e.name, "type": "game" if (t["kind"] == "games" and game) else "folder", "cover": cover})
+                entry = game_entry(Path(e.path))
+                gdir = Path(e.path) / entry if entry else Path(e.path)
+                cover = next((c for c in covers if (gdir / c).is_file()), None)
+                if entry is not None:
+                    items.append({"name": e.name, "type": "game", "entry": entry,
+                                  "cover": f"{entry}/{cover}" if (entry and cover) else cover})
+                else:
+                    items.append({"name": e.name, "type": "folder", "cover": cover})
             else:
+                if items and items[0].get("self") and e.name in covers:
+                    continue
                 k = file_kind(e.name)
                 if k:
                     items.append({"name": e.name, "type": k, "size": e.stat().st_size})
-    items.sort(key=lambda x: (x["type"] not in ("folder", "game"), x["name"].casefold()))
+    items.sort(key=lambda x: (not x.get("self"), x["type"] not in ("folder", "game"), x["name"].casefold()))
     return jsonify(tile=tile_dict(t), items=items, sub=request.args.get("sub", ""))
 
 
@@ -605,10 +630,11 @@ def api_tv_tile_thumb(tid):
     return thumb_response(p, request.args.get("s") == "big")
 
 
+@bp.get("/tv/game/<int:tid>/", defaults={"sub": ""})
 @bp.get("/tv/game/<int:tid>/<path:sub>")
 def tv_game_file(tid, sub):
     u, t = my_tile(tid)
-    if t["kind"] != "games":
+    if t["kind"] == "photos":
         abort(404)
     base = tile_folder(u, t)
     if base is None:

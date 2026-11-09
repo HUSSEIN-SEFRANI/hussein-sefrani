@@ -523,12 +523,12 @@ async function browseScreen(t, sub) {
     if (x.type === "video" || x.type === "image") {
       th = `<img loading="lazy" src="${thumbUrl(t, p)}" alt="">${x.type === "video" ? `<span class="tag">${A.PLAY}</span>` : ""}`;
     } else if (x.type === "folder" || x.type === "game") {
-      th = x.cover ? `<img loading="lazy" src="${fileUrl(t, joinp(p, x.cover))}" alt="">` : A.icon(x.type === "game" ? "games" : "folder");
+      th = x.cover ? `<img loading="lazy" src="${fileUrl(t, x.self ? joinp(sub, x.cover) : joinp(p, x.cover))}" alt="">` : A.icon(x.type === "game" ? "games" : "folder");
     } else if (x.type === "pdf") {
       th = `<img loading="lazy" src="/api/tv/tile/${t.id}/page?p=${encodeURIComponent(p)}&n=1" alt="" style="object-fit:contain;background:#fff">`;
     } else th = A.icon("audio");
     const bg = x.type === "folder" || x.type === "game" || x.type === "audio" ? `style="background:${grad}"` : "";
-    const nm = x.type === "folder" || x.type === "game" ? x.name : x.name.replace(/\.[^.]+$/, "");
+    const nm = x.self ? "▶ العب" : x.type === "folder" || x.type === "game" ? x.name : x.name.replace(/\.[^.]+$/, "");
     return `<button class="it f" data-i="${i}"><div class="th" ${bg}>${th}</div><div class="nm">${esc(nm)}</div></button>`;
   }).join("");
   const emptyMsg = kid ? "لا يوجد شيء هنا بعد.<br>اطلب من ماما أو بابا أن يضعوا لك أشياء جميلة 🌟" : "هذا المجلد فارغ.<br>ضع الملفات فيه من الكمبيوتر أو الهاتف:";
@@ -547,7 +547,7 @@ async function browseScreen(t, sub) {
     const x = items[+b.dataset.i];
     const p = joinp(sub, x.name);
     if (x.type === "folder") browseScreen(t, p);
-    else if (x.type === "game") gameScreen(t, p);
+    else if (x.type === "game") gameScreen(t, x.self ? sub : joinp(p, x.entry || ""));
     else if (x.type === "pdf") bookScreen(t, p);
     else {
       const same = items.filter((y) => y.type === x.type);
@@ -776,7 +776,7 @@ async function photosScreen(t) {
 
 // ============================================================== الألعاب
 function gameScreen(t, path) {
-  const el = h(`<div class="game"><iframe src="/tv/game/${t.id}/${encPath(path)}/" allow="autoplay; fullscreen; gamepad" title="${esc(path)}"></iframe>
+  const el = h(`<div class="game"><iframe src="/tv/game/${t.id}/${path ? `${encPath(path)}/` : ""}" allow="autoplay; fullscreen; gamepad" title="${esc(path)}"></iframe>
     <div class="exit">للخروج من اللعبة اضغط «رجوع» (Esc)</div></div>`);
   const fr = el.querySelector("iframe");
   const onKey = (e) => { activity(); if (e.key === "Escape" || e.key === "BrowserBack" || e.key === "GoBack") { e.preventDefault(); pop(); } };
