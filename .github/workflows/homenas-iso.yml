@@ -6,6 +6,11 @@ on:
       - 'home-nas/**'
       - '.github/workflows/homenas-iso.yml'
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish the ISO as a GitHub release'
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -36,7 +41,16 @@ jobs:
           echo "tag=homenas-$(date -u +%Y%m%d-%H%M)-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
           ls -lh home-nas/HomeNAS-*
 
+      - name: Keep the ISO as a build artifact
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: homenas-iso
+          path: home-nas/HomeNAS-*
+          retention-days: 7
+
       - name: Publish release
+        if: github.event_name == 'workflow_dispatch' && inputs.publish
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
