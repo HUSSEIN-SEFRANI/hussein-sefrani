@@ -1,0 +1,686 @@
+"""وضع التلفاز: واجهة تظهر على الشاشة الموصولة بالسيرفر، تُدار بالكامل من لوحة التحكم.
+
+- كل مستخدم له «ملف» على التلفاز: بالغ (برمز PIN)، طفل (يظهر تاريخ ميلاده)، أو طفل صغير.
+- لكل ملف «مربعات» يضيفها المدير ويحذفها ويرتبها؛ كل مربع مرتبط بمجلد في ملفات المستخدم
+  (مثل سارة/التلفاز/رسوم متحركة): ما يوضع في المجلد يظهر على التلفاز.
+- أنواع المربعات: وسائط (فيديو، صوت، صور، كتب/صفحات)، ألعاب (كل لعبة مجلد فيه index.html)،
+  ومكتبة صوري (صور المستخدم في تطبيق الصور).
+- واجهة التلفاز تعمل من نفس الجهاز (127.0.0.1)؛ ويستطيع المدير معاينتها من متصفحه.
+"""
+from __future__ import annotations
+
+import json
+import mimetypes
+import os
+import re
+import subprocess
+from datetime import date, datetime
+from pathlib import Path
+
+from flask import Blueprint, abort, jsonify, render_template, request, send_file, session
+from werkzeug.security import check_password_hash, generate_password_hash
+
+from .core import (IMAGE_EXT, RECYCLE, VIDEO_EXT, admin_required, body, current_user, get_db, get_setting,
+                   log_action, now_iso, paths, set_setting)
+from . import prayer
+
+bp = Blueprint("tv", __name__)
+
+AUDIO_EXT = {".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".opus"}
+BOOK_EXT = {".pdf"}
+ROLES = ("none", "adult", "kid", "little")
+KINDS = ("media", "games", "photos")
+TV_DIR = "التلفاز"
+HELPER = "/usr/local/sbin/hsef-extras"
+APPLIANCE = os.environ.get("HOMENAS_APPLIANCE") == "1"
+
+ICONS = ["cartoon", "music", "animals", "math", "games", "photos", "video", "quran", "book", "film", "star", "heart",
+         "science", "letters", "nature", "sport"]
+COLORS = ["#a855f7,#ec4899", "#f97316,#ef4444", "#22c55e,#15803d", "#06b6d4,#2563eb", "#8b5cf6,#06b6d4",
+          "#f59e0b,#f97316", "#10b981,#0ea5e9", "#0f766e,#14532d", "#64748b,#1e293b", "#e11d48,#7f1d1d"]
+
+DEFAULT_TILES = {
+    "kid": [("رسوم متحركة", "media", "cartoon", 0), ("أناشيد", "media", "music", 1), ("عالم الحيوان", "media", "animals", 2),
+            ("عالم الرياضيات", "media", "math", 3), ("ألعاب", "games", "games", 4), ("صوري", "photos", "photos", 5),
+            ("فيديوهاتي", "media", "video", 6), ("القرآن الكريم", "media", "quran", 7)],
+    "little": [("ألعاب", "games", "games", 4), ("رسوم متحركة", "media", "cartoon", 0), ("أناشيد", "media", "music", 1),
+               ("عالم الحيوان", "media", "animals", 2)],
+    "adult": [("صوري", "photos", "photos", 5), ("الفيديو", "media", "video", 3), ("الأفلام", "media", "film", 9),
+              ("الموسيقى", "media", "music", 2), ("القرآن الكريم", "media", "quran", 7)],
+}
+
+WORDS = [  # كلمة اليوم: عربي، فرنسي، إنجليزي، رسم
+    ("شمس", "Soleil", "Sun", "sun"), ("قمر", "Lune", "Moon", "moon"), ("قطة", "Chat", "Cat", "cat"),
+    ("نجمة", "Étoile", "Star", "star"), ("شجرة", "Arbre", "Tree", "tree"), ("تفاحة", "Pomme", "Apple", "apple"),
+    ("بيت", "Maison", "House", "house"), ("كتاب", "Livre", "Book", "book"), ("سمكة", "Poisson", "Fish", "fish"),
+    ("عصفور", "Oiseau", "Bird", "bird"), ("كرة", "Ballon", "Ball", "ball"), ("قلب", "Cœur", "Heart", "heart"),
+    ("وردة", "Fleur", "Flower", "flower"), ("سيارة", "Voiture", "Car", "car"), ("ماء", "Eau", "Water", "water"),
+    ("غيمة", "Nuage", "Cloud", "cloud"), ("مدرسة", "École", "School", None), ("صديق", "Ami", "Friend", None),
+    ("عائلة", "Famille", "Family", None), ("أم", "Mère", "Mother", None), ("أب", "Père", "Father", None),
+    ("أخت", "Sœur", "Sister", None), ("أخ", "Frère", "Brother", None), ("قلم", "Crayon", "Pencil", None),
+    ("باب", "Porte", "Door", None), ("نافذة", "Fenêtre", "Window", None), ("حليب", "Lait", "Milk", None),
+    ("خبز", "Pain", "Bread", None), ("بحر", "Mer", "Sea", None), ("جبل", "Montagne", "Mountain", None),
+    ("مطر", "Pluie", "Rain", None), ("ثلج", "Neige", "Snow", None), ("أحمر", "Rouge", "Red", None),
+    ("أزرق", "Bleu", "Blue", None), ("أخضر", "Vert", "Green", None), ("أصفر", "Jaune", "Yellow", None),
+    ("واحد", "Un", "One", None), ("اثنان", "Deux", "Two", None), ("ثلاثة", "Trois", "Three", None),
+    ("شكراً", "Merci", "Thank you", None), ("صباح الخير", "Bonjour", "Good morning", None), ("سلام", "Paix", "Peace", None),
+]
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS tv_tiles (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'media',
+    path TEXT,
+    icon TEXT,
+    color TEXT,
+    position INTEGER NOT NULL DEFAULT 0,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_tv_tiles_user ON tv_tiles(user_id, position);
+"""
+
+
+def migrate(db):
+    db.executescript(SCHEMA)
+    cols = {r[1] for r in db.execute("PRAGMA table_info(users)")}
+    for col, decl in (("display_name", "TEXT"), ("tv_role", "TEXT NOT NULL DEFAULT 'none'"), ("birthdate", "TEXT"),
+                      ("avatar", "INTEGER NOT NULL DEFAULT 0"), ("tv_pin", "TEXT")):
+        if col not in cols:
+            db.execute(f"ALTER TABLE users ADD COLUMN {col} {decl}")
+    db.commit()
+
+
+# ----------------------------------------------------------------------------- مساعدات
+
+def display_name(u) -> str:
+    return (u["display_name"] or "").strip() or u["username"]
+
+
+def age_info(birthdate: str | None) -> dict:
+    if not birthdate:
+        return {}
+    try:
+        b = date.fromisoformat(birthdate)
+    except ValueError:
+        return {}
+    t = date.today()
+    age = t.year - b.year - ((t.month, t.day) < (b.month, b.day))
+    nxt = b.replace(year=t.year)
+    if nxt < t:
+        nxt = b.replace(year=t.year + 1)
+    return {"age": age, "birthday_in": (nxt - t).days, "birthday_today": (nxt - t).days == 0,
+            "birth_day": b.day, "birth_month": b.month, "birth_year": b.year}
+
+
+def tv_settings() -> dict:
+    def g(k, d):
+        v = get_setting(k)
+        return d if v is None else v
+    return {
+        "theme": g("tv_theme", "playful"), "wallpaper": g("tv_wallpaper", "animated"),
+        "city": g("tv_city", ""), "lat": g("tv_lat", ""), "lon": g("tv_lon", ""), "method": g("tv_method", "mwl"),
+        "hanafi": g("tv_hanafi", "0") == "1", "prayer": g("tv_prayer", "1") == "1",
+        "words": json.loads(g("tv_words", '["ar","fr","en"]')), "nosleep": g("tv_nosleep", "1") == "1",
+        "saver_min": int(g("tv_saver_min", "10")), "night_off": g("tv_night_off", ""),
+    }
+
+
+def prayer_now(s: dict) -> dict | None:
+    if not s["prayer"]:
+        return None
+    lat, lon = s["lat"], s["lon"]
+    if s["city"] in prayer.CITIES:
+        _, lat, lon = prayer.CITIES[s["city"]]
+    try:
+        lat, lon = float(lat), float(lon)
+    except (TypeError, ValueError):
+        return {"city": None, "times": None}
+    out = prayer.today(lat, lon, s["method"], s["hanafi"])
+    out["city"] = prayer.CITIES[s["city"]][0] if s["city"] in prayer.CITIES else None
+    return out
+
+
+def word_of_day() -> dict:
+    w = WORDS[date.today().toordinal() % len(WORDS)]
+    return {"ar": w[0], "fr": w[1], "en": w[2], "icon": w[3]}
+
+
+def file_kind(name: str) -> str | None:
+    ext = os.path.splitext(name)[1].lower()
+    if ext in VIDEO_EXT:
+        return "video"
+    if ext in AUDIO_EXT:
+        return "audio"
+    if ext in IMAGE_EXT:
+        return "image"
+    if ext in BOOK_EXT:
+        return "pdf"
+    return None
+
+
+def user_row(uid: int):
+    return get_db().execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+
+
+def tile_folder(owner, tile) -> Path | None:
+    """المجلد الحقيقي للمربع، بصلاحيات صاحبه (لا يصل لأي مكان لا يصل إليه المستخدم نفسه)."""
+    from .vfs import resolve
+    if not tile["path"]:
+        return None
+    try:
+        _root, p = resolve(owner, tile["path"])
+    except Exception:
+        return None
+    return p
+
+
+def safe_sub(base: Path, sub: str) -> Path:
+    parts = [p for p in (sub or "").replace("\\", "/").split("/") if p not in ("", ".")]
+    if any(p == ".." or p == RECYCLE for p in parts):
+        abort(400)
+    p = base.joinpath(*parts).resolve() if parts else base.resolve()
+    try:
+        p.relative_to(base.resolve())
+    except ValueError:
+        abort(403)
+    return p
+
+
+def make_tile_folder(owner, title: str) -> str:
+    from .core import home_dir
+    name = re.sub(r'[\\/:*?"<>|#\x00]', "", title).strip() or "مربع"
+    folder = home_dir(owner["username"]) / TV_DIR / name
+    folder.mkdir(parents=True, exist_ok=True)
+    return f"/home/{TV_DIR}/{name}"
+
+
+def norm_tile_path(owner, path: str | None) -> str | None:
+    """يقبل مسار المدير (/homes/سارة/...) ويحوّله لمسار صاحب المربع (/home/...)، ويتأكد أن صاحبه يصل إليه."""
+    path = (path or "").strip()
+    if not path:
+        return None
+    parts = [p for p in path.replace("\\", "/").split("/") if p]
+    if len(parts) >= 2 and parts[0] == "homes" and parts[1].lower() == owner["username"].lower():
+        parts = ["home"] + parts[2:]
+    path = "/" + "/".join(parts)
+    from .vfs import resolve
+    try:
+        _root, p = resolve(owner, path)
+    except Exception:
+        abort(400, "هذا المستخدم لا يملك صلاحية على هذا المجلد. اختر مجلداً داخل ملفاته أو مجلداً مشتركاً مسموحاً له.")
+    if not p.is_dir():
+        abort(400, "المجلد غير موجود")
+    return path
+
+
+def tile_dict(t) -> dict:
+    return {k: t[k] for k in ("id", "user_id", "title", "kind", "path", "icon", "color", "position", "enabled")}
+
+
+# ----------------------------------------------------------------------------- الإدارة (من لوحة التحكم)
+
+def kiosk_helper(*args, timeout=1800) -> tuple[bool, str]:
+    if not (APPLIANCE and os.path.exists(HELPER)):
+        return False, "not available"
+    r = subprocess.run(["sudo", "-n", HELPER, *args], capture_output=True, text=True, timeout=timeout)
+    return r.returncode == 0, (r.stdout if r.returncode == 0 else (r.stderr or r.stdout)).strip()
+
+
+@bp.get("/api/admin/tv")
+@admin_required
+def api_admin_tv():
+    db = get_db()
+    users = []
+    for u in db.execute("SELECT * FROM users ORDER BY id"):
+        tiles = [tile_dict(t) for t in db.execute("SELECT * FROM tv_tiles WHERE user_id=? ORDER BY position, id", (u["id"],))]
+        users.append({"id": u["id"], "username": u["username"], "display_name": u["display_name"] or "",
+                      "tv_role": u["tv_role"] or "none", "birthdate": u["birthdate"] or "", "avatar": u["avatar"] or 0,
+                      "has_pin": bool(u["tv_pin"]), "disabled": bool(u["disabled"]), "tiles": tiles, **age_info(u["birthdate"])})
+    kiosk = None
+    if APPLIANCE and os.path.exists(HELPER):
+        ok, out = kiosk_helper("tv-status", timeout=30)
+        try:
+            kiosk = json.loads(out) if ok else None
+        except ValueError:
+            kiosk = None
+    return jsonify(settings=tv_settings(), users=users, kiosk=kiosk, available=APPLIANCE and os.path.exists(HELPER),
+                   cities=[{"id": k, "name": v[0]} for k, v in prayer.CITIES.items()],
+                   methods=[{"id": k, "name": v[0]} for k, v in prayer.METHODS.items()],
+                   icons=ICONS, colors=COLORS, prayer=prayer_now(tv_settings()))
+
+
+@bp.post("/api/admin/tv/settings")
+@admin_required
+def api_admin_tv_settings():
+    d = body()
+    for key, sk in (("theme", "tv_theme"), ("wallpaper", "tv_wallpaper"), ("city", "tv_city"), ("method", "tv_method"),
+                    ("night_off", "tv_night_off")):
+        if key in d:
+            set_setting(sk, str(d[key] or "")[:40])
+    for key, sk in (("lat", "tv_lat"), ("lon", "tv_lon")):
+        if key in d:
+            try:
+                set_setting(sk, str(float(d[key])) if str(d[key]).strip() else "")
+            except ValueError:
+                abort(400, "إحداثيات غير صالحة")
+    for key, sk in (("hanafi", "tv_hanafi"), ("prayer", "tv_prayer"), ("nosleep", "tv_nosleep")):
+        if key in d:
+            set_setting(sk, "1" if d[key] else "0")
+    if "saver_min" in d:
+        set_setting("tv_saver_min", str(max(0, min(240, int(d["saver_min"] or 0)))))
+    if "words" in d:
+        set_setting("tv_words", json.dumps([x for x in d["words"] if x in ("ar", "fr", "en")]))
+    log_action("تعديل إعدادات وضع التلفاز")
+    return jsonify(ok=True)
+
+
+@bp.patch("/api/admin/tv/users/<int:uid>")
+@admin_required
+def api_admin_tv_user(uid):
+    u = user_row(uid)
+    if not u:
+        abort(404)
+    d = body()
+    db = get_db()
+    if "display_name" in d:
+        db.execute("UPDATE users SET display_name=? WHERE id=?", ((d["display_name"] or "").strip()[:40] or None, uid))
+    if "tv_role" in d:
+        if d["tv_role"] not in ROLES:
+            abort(400)
+        db.execute("UPDATE users SET tv_role=? WHERE id=?", (d["tv_role"], uid))
+    if "birthdate" in d:
+        b = (d["birthdate"] or "").strip()
+        if b:
+            try:
+                date.fromisoformat(b)
+            except ValueError:
+                abort(400, "تاريخ الميلاد غير صالح")
+        db.execute("UPDATE users SET birthdate=? WHERE id=?", (b or None, uid))
+    if "avatar" in d:
+        db.execute("UPDATE users SET avatar=? WHERE id=?", (int(d["avatar"]) % 12, uid))
+    if "pin" in d:
+        pin = str(d["pin"] or "").strip()
+        if pin and not re.fullmatch(r"\d{4,8}", pin):
+            abort(400, "الرمز يجب أن يكون من 4 إلى 8 أرقام")
+        db.execute("UPDATE users SET tv_pin=? WHERE id=?", (generate_password_hash(pin) if pin else None, uid))
+    db.commit()
+    return jsonify(ok=True)
+
+
+@bp.post("/api/admin/tv/users/<int:uid>/tiles")
+@admin_required
+def api_admin_tile_create(uid):
+    u = user_row(uid)
+    if not u:
+        abort(404)
+    d = body()
+    title = (d.get("title") or "").strip()[:40]
+    kind = d.get("kind") or "media"
+    if not title or kind not in KINDS:
+        abort(400, "اكتب اسماً للمربع")
+    path = norm_tile_path(u, d.get("path")) if kind != "photos" else None
+    if kind != "photos" and not path:
+        path = make_tile_folder(u, title)
+    db = get_db()
+    pos = db.execute("SELECT COALESCE(MAX(position),-1)+1 FROM tv_tiles WHERE user_id=?", (uid,)).fetchone()[0]
+    cur = db.execute("INSERT INTO tv_tiles(user_id, title, kind, path, icon, color, position, created_at) VALUES (?,?,?,?,?,?,?,?)",
+                     (uid, title, kind, path, d.get("icon") or ("photos" if kind == "photos" else "star"),
+                      d.get("color") or COLORS[pos % len(COLORS)], pos, now_iso()))
+    db.commit()
+    log_action("إضافة مربع للتلفاز", f"{display_name(u)}: {title}")
+    return jsonify(ok=True, id=cur.lastrowid, path=path)
+
+
+@bp.post("/api/admin/tv/users/<int:uid>/defaults")
+@admin_required
+def api_admin_tile_defaults(uid):
+    u = user_row(uid)
+    if not u:
+        abort(404)
+    role = body().get("role") or u["tv_role"]
+    if role not in DEFAULT_TILES:
+        abort(400, "اختر نوع الملف أولاً")
+    db = get_db()
+    have = {r["title"] for r in db.execute("SELECT title FROM tv_tiles WHERE user_id=?", (uid,))}
+    pos = db.execute("SELECT COALESCE(MAX(position),-1)+1 FROM tv_tiles WHERE user_id=?", (uid,)).fetchone()[0]
+    added = 0
+    for title, kind, icon, color in DEFAULT_TILES[role]:
+        if title in have:
+            continue
+        path = None if kind == "photos" else make_tile_folder(u, title)
+        db.execute("INSERT INTO tv_tiles(user_id, title, kind, path, icon, color, position, created_at) VALUES (?,?,?,?,?,?,?,?)",
+                   (uid, title, kind, path, icon, COLORS[color % len(COLORS)], pos, now_iso()))
+        pos += 1
+        added += 1
+    db.commit()
+    return jsonify(ok=True, added=added)
+
+
+@bp.patch("/api/admin/tv/tiles/<int:tid>")
+@admin_required
+def api_admin_tile_update(tid):
+    db = get_db()
+    t = db.execute("SELECT * FROM tv_tiles WHERE id=?", (tid,)).fetchone()
+    if not t:
+        abort(404)
+    d = body()
+    if "title" in d and (d["title"] or "").strip():
+        db.execute("UPDATE tv_tiles SET title=? WHERE id=?", (d["title"].strip()[:40], tid))
+    for k in ("icon", "color"):
+        if k in d:
+            db.execute(f"UPDATE tv_tiles SET {k}=? WHERE id=?", ((d[k] or "").strip() or None, tid))
+    if "path" in d and t["kind"] != "photos":
+        owner = user_row(t["user_id"])
+        path = norm_tile_path(owner, d["path"]) or make_tile_folder(owner, d.get("title") or t["title"])
+        db.execute("UPDATE tv_tiles SET path=? WHERE id=?", (path, tid))
+    if "enabled" in d:
+        db.execute("UPDATE tv_tiles SET enabled=? WHERE id=?", (int(bool(d["enabled"])), tid))
+    if "move" in d:
+        sib = db.execute("SELECT id, position FROM tv_tiles WHERE user_id=? ORDER BY position, id", (t["user_id"],)).fetchall()
+        ids = [r["id"] for r in sib]
+        i = ids.index(tid)
+        j = i + (1 if d["move"] > 0 else -1)
+        if 0 <= j < len(ids):
+            ids[i], ids[j] = ids[j], ids[i]
+        for n, x in enumerate(ids):
+            db.execute("UPDATE tv_tiles SET position=? WHERE id=?", (n, x))
+    db.commit()
+    return jsonify(ok=True)
+
+
+@bp.delete("/api/admin/tv/tiles/<int:tid>")
+@admin_required
+def api_admin_tile_delete(tid):
+    db = get_db()
+    db.execute("DELETE FROM tv_tiles WHERE id=?", (tid,))
+    db.commit()
+    return jsonify(ok=True)
+
+
+@bp.post("/api/admin/tv/kiosk")
+@admin_required
+def api_admin_kiosk():
+    action = body().get("action")
+    if action not in ("setup", "enable", "disable", "restart"):
+        abort(400)
+    ok, out = kiosk_helper("tv-" + action, timeout=3600)
+    if not ok:
+        abort(400, out or "error")
+    log_action("وضع التلفاز على الشاشة", action)
+    return jsonify(ok=True)
+
+
+# ----------------------------------------------------------------------------- واجهة التلفاز
+
+def tv_allowed() -> bool:
+    """التلفاز نفسه (متصفح على نفس الجهاز)، أو مدير مسجّل يعاين من كمبيوتره."""
+    if request.remote_addr in ("127.0.0.1", "::1"):
+        return True
+    u = current_user()
+    return bool(u and u["is_admin"])
+
+
+def tv_guard():
+    if not tv_allowed():
+        abort(403, "واجهة التلفاز تعمل على الشاشة الموصولة بالسيرفر")
+
+
+def tv_user():
+    tv_guard()
+    uid = session.get("tv_uid")
+    u = user_row(uid) if uid else None
+    if not u or u["disabled"] or (u["tv_role"] or "none") == "none":
+        abort(401, "اختر المستخدم")
+    return u
+
+
+def profile_dict(u) -> dict:
+    return {"id": u["id"], "name": display_name(u), "role": u["tv_role"], "avatar": u["avatar"] or 0,
+            "has_pin": bool(u["tv_pin"]), **age_info(u["birthdate"])}
+
+
+@bp.get("/tv")
+def tv_page():
+    if not tv_allowed():
+        return render_template("tv_denied.html"), 403
+    from . import __version__
+    from .system import server_name
+    local = request.remote_addr in ("127.0.0.1", "::1")
+    return render_template("tv.html", server_name=server_name(), version=__version__, preview=not local)
+
+
+@bp.get("/api/tv/profiles")
+def api_tv_profiles():
+    tv_guard()
+    db = get_db()
+    order = {"adult": 0, "kid": 1, "little": 2}
+    rows = [u for u in db.execute("SELECT * FROM users WHERE disabled=0") if (u["tv_role"] or "none") != "none"]
+    rows.sort(key=lambda u: (order.get(u["tv_role"], 9), u["id"]))
+    return jsonify(profiles=[profile_dict(u) for u in rows], settings=tv_settings(), current=session.get("tv_uid"))
+
+
+def any_adult_pin_ok(pin: str) -> bool:
+    for u in get_db().execute("SELECT tv_pin FROM users WHERE tv_role='adult' AND disabled=0 AND tv_pin IS NOT NULL"):
+        if check_password_hash(u["tv_pin"], pin):
+            return True
+    return False
+
+
+def adults_have_pins() -> bool:
+    return bool(get_db().execute("SELECT 1 FROM users WHERE tv_role='adult' AND disabled=0 AND tv_pin IS NOT NULL").fetchone())
+
+
+@bp.post("/api/tv/login")
+def api_tv_login():
+    tv_guard()
+    d = body()
+    u = user_row(int(d.get("id") or 0))
+    if not u or u["disabled"] or (u["tv_role"] or "none") == "none":
+        abort(404)
+    cur = session.get("tv_uid")
+    cu = user_row(cur) if cur else None
+    # الخروج من ملف طفل إلى ملف آخر يحتاج رمز أحد الوالدين
+    if cu and cu["tv_role"] in ("kid", "little") and cu["id"] != u["id"] and adults_have_pins():
+        if not any_adult_pin_ok(str(d.get("parent_pin") or "")):
+            abort(403, "يحتاج رمز ماما أو بابا")
+    if u["tv_pin"] and not check_password_hash(u["tv_pin"], str(d.get("pin") or "")):
+        abort(403, "الرمز غير صحيح")
+    session["tv_uid"] = u["id"]
+    return jsonify(ok=True)
+
+
+@bp.post("/api/tv/leave")
+def api_tv_leave():
+    """العودة إلى شاشة اختيار المستخدم."""
+    tv_guard()
+    cur = session.get("tv_uid")
+    cu = user_row(cur) if cur else None
+    if cu and cu["tv_role"] in ("kid", "little") and adults_have_pins():
+        if not any_adult_pin_ok(str(body().get("parent_pin") or "")):
+            abort(403, "يحتاج رمز ماما أو بابا")
+    session.pop("tv_uid", None)
+    return jsonify(ok=True)
+
+
+@bp.get("/api/tv/home")
+def api_tv_home():
+    u = tv_user()
+    db = get_db()
+    tiles = [tile_dict(t) for t in db.execute("SELECT * FROM tv_tiles WHERE user_id=? AND enabled=1 ORDER BY position, id",
+                                              (u["id"],))]
+    s = tv_settings()
+    return jsonify(user=profile_dict(u), tiles=tiles, settings=s, prayer=prayer_now(s), word=word_of_day(),
+                   parent_lock=u["tv_role"] in ("kid", "little") and adults_have_pins())
+
+
+@bp.get("/api/tv/clock")
+def api_tv_clock():
+    tv_guard()
+    s = tv_settings()
+    return jsonify(prayer=prayer_now(s), word=word_of_day(), now=datetime.now().isoformat(timespec="seconds"))
+
+
+def my_tile(tid: int):
+    u = tv_user()
+    t = get_db().execute("SELECT * FROM tv_tiles WHERE id=? AND user_id=? AND enabled=1", (tid, u["id"])).fetchone()
+    if not t:
+        abort(404)
+    return u, t
+
+
+@bp.get("/api/tv/tile/<int:tid>/list")
+def api_tv_tile_list(tid):
+    u, t = my_tile(tid)
+    if t["kind"] == "photos":
+        abort(400)
+    base = tile_folder(u, t)
+    if base is None or not base.is_dir():
+        return jsonify(tile=tile_dict(t), items=[], missing=True)
+    folder = safe_sub(base, request.args.get("sub", ""))
+    items = []
+    with os.scandir(folder) as it:
+        for e in it:
+            if e.name.startswith((".", "@")) or e.name == RECYCLE:
+                continue
+            if e.is_dir():
+                game = (Path(e.path) / "index.html").exists()
+                cover = next((c for c in ("cover.jpg", "cover.png", "icon.png", "folder.jpg") if (Path(e.path) / c).exists()), None)
+                items.append({"name": e.name, "type": "game" if (t["kind"] == "games" and game) else "folder", "cover": cover})
+            else:
+                k = file_kind(e.name)
+                if k:
+                    items.append({"name": e.name, "type": k, "size": e.stat().st_size})
+    items.sort(key=lambda x: (x["type"] not in ("folder", "game"), x["name"].casefold()))
+    return jsonify(tile=tile_dict(t), items=items, sub=request.args.get("sub", ""))
+
+
+@bp.get("/api/tv/tile/<int:tid>/file")
+def api_tv_tile_file(tid):
+    u, t = my_tile(tid)
+    base = tile_folder(u, t)
+    if base is None:
+        abort(404)
+    p = safe_sub(base, request.args.get("p", ""))
+    if not p.is_file() or not file_kind(p.name) and p.suffix.lower() not in (".jpg", ".png", ".jpeg"):
+        abort(404)
+    return send_file(p, conditional=True, mimetype=mimetypes.guess_type(p.name)[0])
+
+
+@bp.get("/api/tv/tile/<int:tid>/thumb")
+def api_tv_tile_thumb(tid):
+    u, t = my_tile(tid)
+    base = tile_folder(u, t)
+    if base is None:
+        abort(404)
+    p = safe_sub(base, request.args.get("p", ""))
+    from .files import thumb_response
+    return thumb_response(p, request.args.get("s") == "big")
+
+
+@bp.get("/tv/game/<int:tid>/<path:sub>")
+def tv_game_file(tid, sub):
+    u, t = my_tile(tid)
+    if t["kind"] != "games":
+        abort(404)
+    base = tile_folder(u, t)
+    if base is None:
+        abort(404)
+    p = safe_sub(base, sub)
+    if p.is_dir():
+        p = p / "index.html"
+    if not p.is_file():
+        abort(404)
+    return send_file(p, conditional=True)
+
+
+@bp.get("/api/tv/photos")
+def api_tv_photos():
+    u = tv_user()
+    off = max(0, request.args.get("offset", 0, type=int))
+    rows = get_db().execute("SELECT id, name, is_video, taken_at FROM media WHERE library=? "
+                            "ORDER BY taken_at DESC, id DESC LIMIT 120 OFFSET ?", (f"u:{u['id']}", off)).fetchall()
+    return jsonify(items=[dict(r) for r in rows], next=off + len(rows) if len(rows) == 120 else None)
+
+
+@bp.get("/api/tv/wallpaper")
+def api_tv_wallpaper():
+    """صور عشوائية من مكتبة المستخدم (المفضلة أولاً) للخلفية وإطار الصور."""
+    u = tv_user()
+    db = get_db()
+    rows = db.execute("SELECT m.id FROM media m JOIN favorites f ON f.media_id=m.id AND f.user_id=? "
+                      "WHERE m.library=? AND m.is_video=0 ORDER BY RANDOM() LIMIT 30", (u["id"], f"u:{u['id']}")).fetchall()
+    if len(rows) < 10:
+        rows += db.execute("SELECT id FROM media WHERE library=? AND is_video=0 ORDER BY RANDOM() LIMIT 30",
+                           (f"u:{u['id']}",)).fetchall()
+    ids = list(dict.fromkeys(r["id"] for r in rows))[:30]
+    return jsonify(ids=ids)
+
+
+@bp.get("/api/tv/photo/<int:mid>/<what>")
+def api_tv_photo(mid, what):
+    u = tv_user()
+    row = get_db().execute("SELECT * FROM media WHERE id=? AND library=?", (mid, f"u:{u['id']}")).fetchone()
+    if not row:
+        abort(404)
+    from .photos import send_thumb, send_view
+    base = paths().homes / u["username"] / "Photos"
+    p = (base / row["rel_path"]).resolve()
+    if not p.exists():
+        abort(404)
+    if what == "thumb":
+        return send_thumb(row, p)
+    if what == "view":
+        return send_view(row, p)
+    abort(404)
+
+
+# ----------------------------------------------------------------------------- الكتب (PDF) كصفحات
+
+def _pdf_target(tid: int) -> Path:
+    u, t = my_tile(tid)
+    base = tile_folder(u, t)
+    if base is None:
+        abort(404)
+    p = safe_sub(base, request.args.get("p", ""))
+    if not p.is_file() or p.suffix.lower() != ".pdf":
+        abort(404)
+    return p
+
+
+@bp.get("/api/tv/tile/<int:tid>/pdfinfo")
+def api_tv_pdfinfo(tid):
+    """عدد صفحات الكتاب؛ إن لم تتوفر أدوات poppler يعرض التلفاز الملف مباشرة."""
+    p = _pdf_target(tid)
+    import shutil as _sh
+    if not (_sh.which("pdfinfo") and _sh.which("pdftoppm")):
+        return jsonify(pages=None)
+    try:
+        r = subprocess.run(["pdfinfo", str(p)], capture_output=True, text=True, timeout=30)
+        m = re.search(r"^Pages:\s+(\d+)", r.stdout, re.M)
+        return jsonify(pages=int(m.group(1)) if m else None)
+    except (subprocess.TimeoutExpired, OSError):
+        return jsonify(pages=None)
+
+
+@bp.get("/api/tv/tile/<int:tid>/page")
+def api_tv_pdf_page(tid):
+    p = _pdf_target(tid)
+    page = max(1, request.args.get("n", 1, type=int))
+    import hashlib
+    st = p.stat()
+    key = hashlib.sha1(f"{p}|{st.st_size}|{st.st_mtime}".encode()).hexdigest()
+    out = paths().cache / "tvpdf" / key[:2] / key / f"{page}.jpg"
+    if not out.exists():
+        out.parent.mkdir(parents=True, exist_ok=True)
+        stem = out.with_suffix("")
+        try:
+            subprocess.run(["pdftoppm", "-jpeg", "-jpegopt", "quality=85", "-scale-to", "1600", "-f", str(page),
+                            "-l", str(page), "-singlefile", str(p), str(stem)], capture_output=True, timeout=120)
+        except (subprocess.TimeoutExpired, OSError):
+            abort(500)
+        if not out.exists():
+            abort(404)
+    return send_file(out, mimetype="image/jpeg", max_age=86400 * 30)

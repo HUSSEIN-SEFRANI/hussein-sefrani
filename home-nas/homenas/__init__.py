@@ -33,6 +33,8 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
     from .core import connect as _connect
     _db = _connect(data_paths.db)
     faces_migrate(_db)
+    from . import tv as _tv
+    _tv.migrate(_db)
     _db.close()
     app.extensions["nas_paths"] = data_paths
     app.extensions["nas_indexer"] = idx = Indexer(data_paths)
@@ -40,17 +42,18 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
     app.extensions["nas_net"] = nw = Network(data_paths)
     app.extensions["nas_apps"] = AppStore(data_paths)
     app.extensions["nas_faces"] = fc = FaceEngine(data_paths)
-    _prev_cb = idx.on_indexed
-    idx.on_indexed = lambda lib: (_prev_cb(lib), fc.event.set())
-    idx.on_indexed = lambda lib: nw.request(tv=True)
+    def _on_indexed(lib):
+        fc.event.set()
+        nw.request(tv=True)
+    idx.on_indexed = _on_indexed
     if start_indexer:
         idx.start()
         bk.start()
         nw.start()
         fc.start()
 
-    from . import appstore, backup, faces, files, health, links, network, photos, remote, system
-    for mod in (system, files, photos, links, backup, health, network, appstore, faces, remote):
+    from . import appstore, backup, faces, files, health, links, network, photos, remote, system, tv
+    for mod in (system, files, photos, links, backup, health, network, appstore, faces, remote, tv):
         app.register_blueprint(mod.bp)
 
     @app.teardown_appcontext

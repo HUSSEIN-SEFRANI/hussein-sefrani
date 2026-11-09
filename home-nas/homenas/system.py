@@ -60,6 +60,7 @@ def check_password_strength(pw: str):
 # ==========================================================================
 
 _failed: dict[str, list[float]] = {}
+_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890123456789")
 
 
 @bp.route("/login", methods=["GET", "POST"])
@@ -102,7 +103,8 @@ def setup():
     if request.method == "POST":
         ip = request.remote_addr or "?"
         attempts = [t for t in _failed.get(ip, []) if time.time() - t < 600]
-        given = (request.form.get("code") or "").strip()
+        # الرمز يظهر على الشاشة بمسافات (1 2 3 4 5 6)، ولوحة مفاتيح الهاتف العربية تكتب ١٢٣ — نقبل الشكلين
+        given = re.sub(r"\D", "", (request.form.get("code") or "").translate(_DIGITS))
         if need_code and len(attempts) >= 10:
             return render_template("setup.html", need_code=True, error="محاولات خاطئة كثيرة. انتظر 10 دقائق.",
                                    server_name="H.SEF"), 429
@@ -612,3 +614,45 @@ def api_status():
     if user["is_admin"]:
         out["recent"] = [dict(r) for r in db.execute("SELECT * FROM logs ORDER BY id DESC LIMIT 8")]
     return jsonify(out)
+
+
+# ==========================================================================
+# التحديث من داخل النظام (جهاز H.SEF المخصص فقط)
+# ==========================================================================
+
+def _extras(*args, timeout=60) -> tuple[bool, str]:
+    helper = "/usr/local/sbin/hsef-extras"
+    if not (APPLIANCE and os.path.exists(helper)):
+        return False, "not available"
+    import subprocess
+    try:
+        r = subprocess.run(["sudo", "-n", helper, *args], capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return False, "timeout"
+    return r.returncode == 0, (r.stdout if r.returncode == 0 else (r.stderr or r.stdout)).strip()
+
+
+@bp.get("/api/admin/update")
+@admin_required
+def api_update_check():
+    from . import __version__
+    if not APPLIANCE:
+        return jsonify(available=False, appliance=False, current=__version__)
+    ok, st = _extras("update-status")
+    status = json.loads(st) if ok else {}
+    if status.get("running"):
+        return jsonify(appliance=True, current=__version__, status=status)
+    ok, out = _extras("update-check")
+    if not ok:
+        return jsonify(appliance=True, current=__version__, error=out, status=status)
+    return jsonify(appliance=True, status=status, **json.loads(out))
+
+
+@bp.post("/api/admin/update")
+@admin_required
+def api_update_run():
+    ok, out = _extras("update-run")
+    if not ok:
+        abort(400, out or "error")
+    log_action("تحديث النظام")
+    return jsonify(ok=True)

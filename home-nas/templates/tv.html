@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="ar" dir="rtl" translate="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1630">
+  <link rel="icon" href="{{ url_for('static', filename='img/icon.svg') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/tv.css') }}?v={{ version }}">
+  <title>{{ server_name }} TV</title>
+</head>
+<body>
+  <div id="stage" dir="rtl"></div>
+  <script>window.__TV__ = {{ {"server": server_name, "version": version, "preview": preview}|tojson }};</script>
+  <script type="module" src="{{ url_for('static', filename='js/tv.js') }}?v={{ version }}"></script>
+</body>
+</html>

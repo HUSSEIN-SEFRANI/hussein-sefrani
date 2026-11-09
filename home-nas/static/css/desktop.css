@@ -454,3 +454,37 @@ pre.applog.big { max-height: 60vh; font-size: 12px; }
 .people.pick { max-height: 50vh; overflow: auto; padding: 4px; }
 .face-sm { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; }
 #viewer .people-line { margin-top: 4px; color: #e5e7eb; }
+
+/* ---------------------------------------------------------------- وضع التلفاز (لوحة التحكم) */
+.tv-h { margin: 22px 0 10px; font-size: 16px; }
+.tv-ic { display: inline-flex; align-items: center; justify-content: center; border-radius: 26%; flex: none; }
+.tv-ic svg { width: 64%; height: 64%; }
+.tv-user { margin-bottom: 12px; }
+.tv-user.off .tv-uh { opacity: .75; }
+.tv-uh { display: flex; gap: 16px; align-items: flex-start; }
+.tv-ava { width: 72px; height: 72px; border-radius: 50%; overflow: hidden; border: 0; padding: 0; cursor: pointer; flex: none; box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--border); }
+.tv-ava svg { width: 100%; height: 100%; display: block; }
+.tv-uf { flex: 1; min-width: 0; }
+.tv-row, .tv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.tv-row label, .tv-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.tv-note { margin-top: 6px; }
+.tv-tiles { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
+.tv-tile { display: flex; align-items: center; gap: 10px; padding: 6px 4px; border-radius: 10px; }
+.tv-tile:hover { background: var(--surface-2, rgba(127,127,127,.06)); }
+.tv-tile.off { opacity: .5; }
+.tv-tt { flex: 1; min-width: 0; }
+.tv-tt .small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tv-tile .check { margin: 0; white-space: nowrap; }
+.tv-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.tv-avas { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+.tv-avas button { border: 0; padding: 0; border-radius: 50%; overflow: hidden; cursor: pointer; aspect-ratio: 1; }
+.tv-avas button svg { width: 100%; height: 100%; display: block; }
+.tv-avas button.on, .tv-avas button:hover { box-shadow: 0 0 0 3px var(--accent); }
+.tv-prev { display: flex; align-items: center; gap: 12px; font-size: 18px; margin-bottom: 4px; }
+.tv-icons, .tv-colors { display: flex; flex-wrap: wrap; gap: 6px; }
+.tv-icons button { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--border); background: #64748b; cursor: pointer; padding: 6px; }
+.tv-icons button svg { width: 100%; height: 100%; }
+.tv-colors button { width: 34px; height: 34px; border-radius: 50%; border: 0; cursor: pointer; }
+.tv-icons button.on, .tv-colors button.on { box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--accent); }
+.tv-fold { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tv-fold .fp { direction: ltr; unicode-bidi: plaintext; background: var(--surface-3); padding: 3px 10px; border-radius: 8px; font-size: 13px; }

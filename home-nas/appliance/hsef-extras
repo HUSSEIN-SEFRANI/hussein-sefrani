@@ -7,6 +7,13 @@
     hsef-extras ts-status                Tailscale state as JSON
     hsef-extras ts-https on|off          serve H.SEF over HTTPS inside your tailnet
     hsef-extras ts-logout                disconnect this server from Tailscale
+    hsef-extras tv-setup                 install the TV screen (cage + chromium kiosk) in the background
+    hsef-extras tv-status                TV screen state as JSON
+    hsef-extras tv-enable|tv-disable|tv-restart
+    hsef-extras tv-write                 (re)write the TV screen service (used by install.sh on upgrade)
+    hsef-extras update-check             latest H.SEF release as JSON
+    hsef-extras update-run               download and install the latest release in the background
+    hsef-extras update-status            progress of update-run as JSON
 """
 import json
 import os
@@ -139,6 +146,214 @@ def ts_https(on: bool):
         run(["tailscale", "serve", "reset"], check=False, timeout=60)
 
 
+# ----------------------------------------------------------------------------- شاشة التلفاز (kiosk)
+TV_USER = "hseftv"
+TV_HOME = Path("/var/lib/hseftv")
+TV_UNIT = Path("/etc/systemd/system/hsef-tv.service")
+TV_LOG = Path("/var/lib/homenas/tv-setup.log")
+TV_PKGS = ("cage", "chromium", "fonts-noto-core", "fonts-noto-color-emoji", "pipewire-audio", "wireplumber")
+CHROMIUM_FLAGS = ("--kiosk --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble "
+                  "--disable-features=Translate,TranslateUI,MediaRouter --autoplay-policy=no-user-gesture-required "
+                  "--check-for-update-interval=31536000 --password-store=basic --ozone-platform=wayland "
+                  "--disable-pinch --overscroll-history-navigation=0 --user-data-dir=/var/lib/hseftv/chromium")
+
+
+def unit_active(name: str) -> bool:
+    return subprocess.run(["systemctl", "is-active", "--quiet", name]).returncode == 0
+
+
+def tv_write():
+    port = hsef_port()
+    url = f"http://127.0.0.1:{port}/tv"
+    TV_HOME.mkdir(parents=True, exist_ok=True)
+    if subprocess.run(["id", TV_USER], capture_output=True).returncode != 0:
+        run(["useradd", "--system", "--home-dir", str(TV_HOME), "--shell", "/usr/sbin/nologin", TV_USER])
+    for grp in ("video", "render", "input", "audio"):
+        subprocess.run(["usermod", "-aG", grp, TV_USER], capture_output=True)
+    run(["chown", "-R", f"{TV_USER}:{TV_USER}", str(TV_HOME)])
+    Path("/etc/pam.d/hsef-tv").write_text(
+        "auth     required pam_permit.so\naccount  required pam_permit.so\n"
+        "session  required pam_unix.so\nsession  required pam_systemd.so\n")
+    pol = Path("/etc/chromium/policies/managed")
+    pol.mkdir(parents=True, exist_ok=True)
+    (pol / "hsef-tv.json").write_text(json.dumps({
+        "TranslateEnabled": False, "PasswordManagerEnabled": False, "AutofillAddressEnabled": False,
+        "AutofillCreditCardEnabled": False, "DefaultBrowserSettingEnabled": False, "BrowserSignin": 0,
+        "SyncDisabled": True, "MetricsReportingEnabled": False, "SpellcheckEnabled": False,
+        "AutoplayAllowed": True, "HardwareAccelerationModeEnabled": True,
+        "URLAllowlist": [f"http://127.0.0.1:{port}/*", "about:blank"], "URLBlocklist": ["*"],
+        "DownloadRestrictions": 3, "DeveloperToolsAvailability": 2, "PrintingEnabled": False}, indent=1))
+    TV_UNIT.write_text(f"""[Unit]
+Description=H.SEF TV screen (shows /tv on the attached screen)
+After=systemd-user-sessions.service plymouth-quit-wait.service homenas.service
+Wants=homenas.service
+Conflicts=getty@tty1.service
+After=getty@tty1.service
+StartLimitIntervalSec=0
+
+[Service]
+User={TV_USER}
+PAMName=hsef-tv
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty-fail
+StandardOutput=journal
+StandardError=journal
+UtmpIdentifier=tty1
+UtmpMode=user
+Environment=XDG_SESSION_TYPE=wayland
+ExecStartPre=+/usr/local/sbin/hsef-extras tv-wait
+ExecStart=/usr/bin/cage -d -s -- /usr/bin/chromium {CHROMIUM_FLAGS} {url}
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical.target
+""")
+    run(["systemctl", "daemon-reload"], check=False)
+
+
+def tv_installed() -> bool:
+    return bool(shutil.which("cage") and shutil.which("chromium") and TV_UNIT.exists())
+
+
+def tv_setup_run():
+    """يعمل في الخلفية (systemd-run) حتى لا يتوقف إذا أُعيد تشغيل خدمة H.SEF."""
+    apt_install(*TV_PKGS)
+    tv_write()
+    run(["systemctl", "set-default", "graphical.target"], check=False)
+    run(["systemctl", "enable", "--now", "hsef-tv.service"], check=False)
+
+
+def background(unit: str, *args, log: Path):
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text("")
+    if FAKE:
+        return
+    if unit_active(unit):
+        die("already running")
+    subprocess.run(["systemctl", "reset-failed", unit], capture_output=True)
+    run(["systemd-run", f"--unit={unit}", "--collect", "--property=Type=exec",
+         f"--property=StandardOutput=append:{log}", f"--property=StandardError=append:{log}",
+         "/usr/local/sbin/hsef-extras", *args])
+
+
+def tail(path: Path, n=3) -> str:
+    try:
+        return "\n".join(path.read_text(errors="replace").strip().splitlines()[-n:])
+    except OSError:
+        return ""
+
+
+def tv_status():
+    if FAKE:
+        st = Path("/tmp/hsef-tv-fake")
+        s = st.read_text().strip() if st.exists() else "none"
+        print(json.dumps({"installed": s != "none", "enabled": s == "on", "active": s == "on", "installing": False, "error": None}))
+        return
+    installing = unit_active("hsef-tv-setup")
+    failed = subprocess.run(["systemctl", "is-failed", "--quiet", "hsef-tv-setup"]).returncode == 0
+    enabled = subprocess.run(["systemctl", "is-enabled", "--quiet", "hsef-tv.service"]).returncode == 0
+    print(json.dumps({"installed": tv_installed(), "installing": installing, "enabled": enabled,
+                      "active": unit_active("hsef-tv.service"), "error": tail(TV_LOG) if failed else None}))
+
+
+def tv_cmd(action: str):
+    if FAKE:
+        Path("/tmp/hsef-tv-fake").write_text({"setup": "on", "enable": "on", "disable": "off", "restart": "on"}[action])
+        return
+    if action == "setup":
+        background("hsef-tv-setup", "tv-setup-run", log=TV_LOG)
+        return
+    if not tv_installed():
+        die("TV screen is not installed")
+    if action == "enable":
+        tv_write()
+        run(["systemctl", "set-default", "graphical.target"], check=False)
+        run(["systemctl", "enable", "--now", "hsef-tv.service"])
+    elif action == "disable":
+        run(["systemctl", "disable", "--now", "hsef-tv.service"], check=False)
+        run(["systemctl", "start", "getty@tty1.service"], check=False)
+    elif action == "restart":
+        run(["systemctl", "restart", "hsef-tv.service"])
+
+
+# ----------------------------------------------------------------------------- التحديث من داخل النظام
+REPO = "HUSSEIN-SEFRANI/hussein-sefrani"
+UPD_LOG = Path("/var/lib/homenas/update.log")
+
+
+def current_version() -> str:
+    import re
+    try:
+        txt = Path("/opt/homenas/app/homenas/__init__.py").read_text()
+        return re.search(r'__version__ = "(.+?)"', txt).group(1)
+    except Exception:
+        return "0"
+
+
+def vtuple(v: str):
+    return tuple(int(x) if x.isdigit() else 0 for x in v.lstrip("v").split("."))
+
+
+def latest_release() -> dict:
+    import urllib.request
+    req = urllib.request.Request(f"https://api.github.com/repos/{REPO}/releases/latest",
+                                 headers={"Accept": "application/vnd.github+json", "User-Agent": "hsef-update"})
+    d = json.loads(urllib.request.urlopen(req, timeout=30).read())
+    asset = next((a for a in d.get("assets", []) if a["name"].startswith("hsef-app-") and a["name"].endswith(".tar.gz")), None)
+    return {"version": d.get("tag_name", "").lstrip("v"), "notes": (d.get("body") or "")[:4000],
+            "url": asset["browser_download_url"] if asset else None, "page": d.get("html_url")}
+
+
+def update_check():
+    cur = current_version()
+    if FAKE:
+        print(json.dumps({"current": cur, "latest": "9.9", "available": True, "notes": "test", "url": "x"}))
+        return
+    try:
+        r = latest_release()
+    except Exception as e:
+        die(f"cannot reach GitHub: {e}")
+    print(json.dumps({"current": cur, "latest": r["version"], "notes": r["notes"], "page": r["page"],
+                      "available": bool(r["url"]) and vtuple(r["version"]) > vtuple(cur)}))
+
+
+def update_apply():
+    import tarfile
+    import tempfile
+    import urllib.request
+    r = latest_release()
+    if not r["url"]:
+        die("the latest release has no app package")
+    print(f"downloading H.SEF {r['version']} ...", flush=True)
+    tmp = Path(tempfile.mkdtemp(prefix="hsef-update-"))
+    pkg = tmp / "app.tar.gz"
+    with urllib.request.urlopen(r["url"], timeout=120) as resp, open(pkg, "wb") as f:
+        shutil.copyfileobj(resp, f)
+    src = tmp / "src"
+    src.mkdir()
+    with tarfile.open(pkg) as t:
+        t.extractall(src, filter="data")
+    inst = src / "appliance" / "install.sh"
+    if not inst.exists():
+        die("package is missing appliance/install.sh")
+    print("installing ...", flush=True)
+    rc = subprocess.run(["bash", str(inst), "--appliance"]).returncode
+    shutil.rmtree(tmp, ignore_errors=True)
+    if rc != 0:
+        die(f"install.sh failed ({rc})")
+    print("done", flush=True)
+
+
+def update_status():
+    running = unit_active("hsef-update")
+    failed = subprocess.run(["systemctl", "is-failed", "--quiet", "hsef-update"]).returncode == 0
+    print(json.dumps({"running": running, "failed": failed, "log": tail(UPD_LOG, 6), "current": current_version()}))
+
+
 def main():
     if os.geteuid() != 0 and not FAKE:
         die("must run as root")
@@ -159,8 +374,41 @@ def main():
         else:
             run(["tailscale", "serve", "reset"], check=False, timeout=60)
             run(["tailscale", "logout"], check=False, timeout=60)
+    elif a == ["tv-status"]:
+        tv_status()
+    elif len(a) == 1 and a[0] in ("tv-setup", "tv-enable", "tv-disable", "tv-restart"):
+        tv_cmd(a[0][3:])
+    elif a == ["tv-setup-run"]:
+        tv_setup_run()
+    elif a == ["tv-wait"]:
+        import time
+        import urllib.request
+        for _ in range(90):  # انتظر حتى يجهز السيرفر قبل فتح المتصفح
+            try:
+                urllib.request.urlopen(f"http://127.0.0.1:{hsef_port()}/tv", timeout=2)
+                break
+            except Exception as e:
+                if getattr(e, "code", None):
+                    break
+                time.sleep(1)
+    elif a == ["tv-write"]:
+        if TV_UNIT.exists():
+            tv_write()
+    elif a == ["update-check"]:
+        update_check()
+    elif a == ["update-run"]:
+        if FAKE:
+            return
+        background("hsef-update", "update-apply", log=UPD_LOG)
+    elif a == ["update-apply"]:
+        update_apply()
+    elif a == ["update-status"]:
+        if FAKE:
+            print(json.dumps({"running": False, "failed": False, "log": "", "current": current_version()}))
+            return
+        update_status()
     else:
-        die("usage: hsef-extras faces-deps | ts-setup | ts-login | ts-status | ts-https on|off | ts-logout")
+        die("usage: hsef-extras faces-deps | ts-* | tv-setup|tv-status|tv-enable|tv-disable|tv-restart | update-check|update-run|update-status")
 
 
 if __name__ == "__main__":

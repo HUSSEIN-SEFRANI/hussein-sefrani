@@ -5,6 +5,7 @@ import {
   ME, $, $$, h, esc, icon, api, guard, toast, modal, form, confirmBox, registerApp, openApp, linkBox, copyText,
   fmtSize, fmtDateTime, fmtDuration,
 } from '../core.js';
+import { tvSection } from './tvadmin.js';
 
 // --------------------------------------------------------------------- روابط المشاركة
 registerApp({
@@ -169,6 +170,7 @@ const SECTIONS = [
   { id: 'folders', label: 'المجلدات المشتركة', icon: 'hdd', admin: true },
   { id: 'backup', label: 'النسخ الاحتياطي', icon: 'save', admin: true },
   { id: 'photos', label: 'إعدادات الصور', icon: 'image', admin: true },
+  { id: 'tv', label: 'وضع التلفاز', icon: 'video', admin: true },
   { id: 'general', label: 'عام', icon: 'sliders', admin: true },
   { id: 'logs', label: 'سجل النشاط', icon: 'clock', admin: true },
 ];
@@ -204,6 +206,8 @@ function section(sc, title, desc, actions = '') {
 }
 
 const CP = {
+  tv(sc) { return tvSection(sc, section); },
+
   async account(sc) {
     const me = await guard(() => api.get('/api/me')); if (!me) return;
     const p = section(sc, 'حسابي', `مسجّل باسم <b>${esc(me.username)}</b>${me.is_admin ? ' <span class="badge accent">مدير</span>' : ''}`);
@@ -608,6 +612,7 @@ const CP = {
         if (await guard(() => api.post('/api/admin/power', { action: b.dataset.p }))) toast(off ? 'جارِ إيقاف التشغيل…' : 'جارِ إعادة التشغيل…', 'ok');
       });
       p.appendChild(pw);
+      p.appendChild(updateCard());
     }
   },
 
@@ -625,6 +630,52 @@ const CP = {
     load(true);
   },
 };
+
+function updateCard() {
+  const c = h(`<div class="card" style="max-width:560px;margin-top:14px"><h4>${icon('download')} تحديث النظام</h4><div class="ub muted">جارٍ البحث عن تحديث…</div></div>`);
+  const box = $('.ub', c);
+  let timer = 0;
+  const draw = async () => {
+    clearTimeout(timer);
+    if (!document.body.contains(c) && timer) return;
+    const r = await api.get('/api/admin/update').catch(() => null);
+    if (!r) { box.textContent = 'تعذر الاتصال بالسيرفر'; timer = setTimeout(draw, 5000); return; }
+    const st = r.status || {};
+    if (st.running) {
+      box.innerHTML = `<p><span class="badge accent">جارٍ التحديث…</span> لا تطفئ الجهاز. قد يستغرق بضع دقائق، وستُعاد الصفحة تلقائياً.</p><pre class="code" style="white-space:pre-wrap" translate="no"></pre>`;
+      $('pre', box).textContent = st.log || '';
+      timer = setTimeout(draw, 4000); return;
+    }
+    if (r.error) { box.innerHTML = `<p class="muted">تعذر التحقق من التحديثات (يحتاج إنترنت).</p>`; return; }
+    if (!r.available) {
+      box.innerHTML = `<p><span class="badge ok">النظام محدّث</span> الإصدار الحالي <b translate="no">v${esc(r.current)}</b></p>`
+        + (st.failed ? `<p class="alert err small" translate="no">${esc(st.log || '')}</p>` : '');
+      return;
+    }
+    box.innerHTML = `<p>يتوفر إصدار جديد: <b translate="no">v${esc(r.latest)}</b> (الحالي <span translate="no">v${esc(r.current)}</span>)</p>
+      <details><summary>ما الجديد</summary><div class="muted small" style="white-space:pre-wrap"></div></details>
+      <p class="muted small">التحديث يحافظ على كل الملفات والصور والإعدادات.</p>
+      <button class="btn primary">${icon('download')} تحديث الآن</button>`;
+    $('details div', box).textContent = r.notes || '';
+    $('button', box).onclick = async () => {
+      if (!await confirmBox(`تحديث H.SEF إلى v${r.latest}؟ سيتوقف السيرفر لحظات أثناء التحديث.`, { ok: 'تحديث' })) return;
+      if (await guard(() => api.post('/api/admin/update', {}))) {
+        toast('بدأ التحديث', 'ok');
+        let was = false;
+        const wait = async () => {
+          const s = await api.get('/api/admin/update').catch(() => null);
+          if (s && s.status && s.status.running) was = true;
+          if (s && was && !(s.status && s.status.running)) { location.reload(); return; }
+          if (s && !was && s.current === r.latest) { location.reload(); return; }
+          setTimeout(wait, 4000);
+        };
+        setTimeout(draw, 1500); setTimeout(wait, 5000);
+      }
+    };
+  };
+  draw();
+  return c;
+}
 
 function permSeg(value, onChange) {
   const seg = h(`<div class="seg"><button data-v="">لا شيء</button><button data-v="ro">قراءة</button><button data-v="rw">قراءة وكتابة</button></div>`);
