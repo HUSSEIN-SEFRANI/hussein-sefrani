@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}تسجيل الدخول{% endblock %}
+{% block body %}
+<div class="wrap">
+  <form class="card login-box" method="post">
+    <img src="{{ url_for('static', filename='icon.svg') }}" alt="">
+    <h2>سيرفر صور الآيفون</h2>
+    <p class="muted">أدخل كلمة المرور للمتابعة</p>
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <input type="password" name="password" placeholder="كلمة المرور" autofocus autocomplete="current-password">
+    <button class="btn block" type="submit">دخول</button>
+  </form>
+</div>
+{% endblock %}
