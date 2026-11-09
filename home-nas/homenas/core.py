@@ -97,16 +97,16 @@ def setup_code_file(p: Paths) -> Path:
     return p.system / "setup_code"
 
 
+# رمز ثابت لإنشاء حساب المدير أول مرة من الهاتف أو الكمبيوتر (لا يحتاج النظر إلى شاشة السيرفر)
+SETUP_CODE = "0554609954"
+
+
 def ensure_setup_code(p: Paths) -> str:
-    """رمز من 6 أرقام يسمح بإنشاء حساب المدير من جهاز آخر على الشبكة (لأجهزة بدون شاشة)."""
+    """رمز الإعداد الأول: ثابت دائماً، ويُكتب في الملف أيضاً لمن يبحث عنه على الجهاز."""
     f = setup_code_file(p)
-    if f.exists():
-        code = f.read_text().strip()
-        if code:
-            return code
-    code = f"{secrets.randbelow(10 ** 6):06d}"
-    f.write_text(code)
-    return code
+    if not f.exists() or f.read_text().strip() != SETUP_CODE:
+        f.write_text(SETUP_CODE)
+    return SETUP_CODE
 
 
 def paths() -> Paths:

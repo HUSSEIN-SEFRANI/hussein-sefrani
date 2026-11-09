@@ -36,11 +36,8 @@ def user_count() -> int:
 code = None
 if user_count() == 0:
     system.mkdir(parents=True, exist_ok=True)
-    if code_file.exists() and code_file.read_text().strip():
-        code = code_file.read_text().strip()
-    else:
-        code = f"{secrets.randbelow(10 ** 6):06d}"
-        code_file.write_text(code)
+    code = "0554609954"  # ثابت، مثل homenas/core.py SETUP_CODE
+    code_file.write_text(code)
     try:
         pw = pwd.getpwnam("homenas")
         for p in (data, system, code_file):
@@ -65,7 +62,7 @@ lines = [
 ]
 if code:
     lines += [
-        "   First-time setup code:   " + " ".join(code),
+        "   First-time setup code:   " + code,
         "   (needed once, to create the administrator account)",
         "",
     ]

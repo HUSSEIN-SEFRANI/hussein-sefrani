@@ -33,7 +33,8 @@ retry apt-get update
 retry apt-get install -y --no-install-recommends \
     python3 python3-venv python3-pip ffmpeg avahi-daemon libnss-mdns sudo ca-certificates \
     unattended-upgrades rsync parted e2fsprogs sqlite3 mdadm smartmontools samba minidlna \
-    python3-flask python3-waitress python3-pil python3-psutil libheif-examples libheif-plugin-libde265
+    python3-flask python3-waitress python3-pil python3-psutil libheif-examples libheif-plugin-libde265 \
+    poppler-utils
 
 # Windows network discovery (shows H.SEF under "Network" in Explorer)
 apt-get install -y --no-install-recommends wsdd2 >/dev/null 2>&1 || apt-get install -y --no-install-recommends wsdd >/dev/null 2>&1 || true
@@ -208,6 +209,12 @@ if [ -d /run/systemd/system ]; then
     systemctl restart homenas.service
     sleep 3
     systemctl --no-pager --lines=0 status homenas.service || true
+fi
+
+# وضع التلفاز: إن كان مثبّتاً، حدّث خدمته مع البرنامج
+if [ -f /etc/systemd/system/hsef-tv.service ] && [ -d /run/systemd/system ]; then
+    /usr/local/sbin/hsef-extras tv-write || true
+    systemctl try-restart hsef-tv.service || true
 fi
 
 touch /opt/homenas/.installed

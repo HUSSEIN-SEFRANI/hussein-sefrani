@@ -73,6 +73,15 @@ jobs:
             fi
           fi
 
+      - name: Package the app for in-place updates
+        run: |
+          V=${{ steps.meta.outputs.version }}
+          tar -C home-nas --exclude=./iso/build --exclude=./data --exclude=./.venv --exclude='__pycache__' \
+              --exclude='*.iso' --exclude='*.iso.sha256' -czf "$RUNNER_TEMP/hsef-app-$V.tar.gz" .
+          mv "$RUNNER_TEMP/hsef-app-$V.tar.gz" home-nas/
+          sha256sum "home-nas/hsef-app-$V.tar.gz" | sed 's#home-nas/##' > "home-nas/hsef-app-$V.tar.gz.sha256"
+          ls -lh home-nas/hsef-app-*
+
       - name: Keep the ISO as a build artifact
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
@@ -93,6 +102,8 @@ jobs:
           files: |
             ${{ steps.meta.outputs.iso }}
             ${{ steps.meta.outputs.iso }}.sha256
+            home-nas/hsef-app-${{ steps.meta.outputs.version }}.tar.gz
+            home-nas/hsef-app-${{ steps.meta.outputs.version }}.tar.gz.sha256
 
       - name: Delete old releases from before versioning
         if: github.event_name == 'workflow_dispatch' && inputs.cleanup_old
