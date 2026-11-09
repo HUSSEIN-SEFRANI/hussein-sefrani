@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-title HomeNAS
+title H.SEF
 cd /d "%~dp0"
 
 where python >nul 2>nul

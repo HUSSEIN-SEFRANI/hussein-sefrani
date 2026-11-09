@@ -1,4 +1,4 @@
-name: Build HomeNAS ISO
+name: Build H.SEF ISO
 
 on:
   push:
@@ -36,17 +36,17 @@ jobs:
       - name: Name the release
         id: meta
         run: |
-          ISO=$(ls home-nas/HomeNAS-*.iso)
+          ISO=$(ls home-nas/HSEF-*.iso)
           echo "iso=$ISO" >> "$GITHUB_OUTPUT"
           echo "tag=homenas-$(date -u +%Y%m%d-%H%M)-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-          ls -lh home-nas/HomeNAS-*
+          ls -lh home-nas/HSEF-*
 
       - name: Keep the ISO as a build artifact
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
           name: homenas-iso
-          path: home-nas/HomeNAS-*
+          path: home-nas/HSEF-*
           retention-days: 7
 
       - name: Publish release
@@ -55,14 +55,14 @@ jobs:
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          name: HomeNAS installer ${{ steps.meta.outputs.tag }}
+          name: H.SEF installer ${{ steps.meta.outputs.tag }}
           body: |
-            **HomeNAS installer ISO** (Debian 13, 64-bit PCs).
+            **H.SEF installer ISO** (Debian 13, 64-bit PCs).
 
             1. Download the `.iso` file below.
             2. Write it to a USB stick (8 GB+) with [balenaEtcher](https://etcher.balena.io/) or [Rufus](https://rufus.ie/) (choose *DD image* mode if asked).
             3. Boot the old PC from the USB stick, press **Enter**, confirm erasing the disk. Keep the network cable connected.
-            4. When it restarts, open `http://homenas.local` (or the address shown on the PC's screen) from your phone and enter the setup code shown on the screen.
+            4. When it restarts, open `http://hsef.local` (or the address shown on the PC's screen) from your phone and enter the setup code shown on the screen.
 
             ⚠️ Installing **erases the computer's internal disk**.
 

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Runs at the end of the Debian installer. Copies HomeNAS into the new system,
+# Runs at the end of the Debian installer. Copies H.SEF into the new system,
 # installs it, and adds a first-boot service that finishes the job if the
 # installation could not complete now (for example, no internet for pip).
 set -x

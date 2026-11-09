@@ -30,7 +30,7 @@ RESERVED_NAMES = {"home", "homes", "backup", "@system", "#recycle"}
 
 
 def server_name() -> str:
-    return get_setting("server_name") or "HomeNAS"
+    return get_setting("server_name") or "H.SEF"
 
 
 def is_local_request() -> bool:
@@ -95,7 +95,7 @@ def setup():
     code_file = setup_code_file(paths())
     need_code = not is_local_request()
     if need_code and not code_file.exists():
-        return render_template("setup.html", remote=True, server_name="HomeNAS"), 403
+        return render_template("setup.html", remote=True, server_name="H.SEF"), 403
     error = None
     if request.method == "POST":
         ip = request.remote_addr or "?"
@@ -103,11 +103,11 @@ def setup():
         given = (request.form.get("code") or "").strip()
         if need_code and len(attempts) >= 10:
             return render_template("setup.html", need_code=True, error="محاولات خاطئة كثيرة. انتظر 10 دقائق.",
-                                   server_name="HomeNAS"), 429
+                                   server_name="H.SEF"), 429
         if need_code and not secrets.compare_digest(given, code_file.read_text().strip()):
             _failed[ip] = attempts + [time.time()]
             return render_template("setup.html", need_code=True, error="رمز الإعداد غير صحيح",
-                                   server_name="HomeNAS"), 403
+                                   server_name="H.SEF"), 403
         username = (request.form.get("username") or "").strip()
         pw = request.form.get("password", "")
         if not USERNAME_RE.match(username) or username.lower() in RESERVED_NAMES:
@@ -135,7 +135,7 @@ def setup():
             if tz and APPLIANCE:
                 set_timezone(tz)
             return redirect("/")
-    return render_template("setup.html", need_code=need_code, error=error, server_name="HomeNAS")
+    return render_template("setup.html", need_code=need_code, error=error, server_name="H.SEF")
 
 
 @bp.get("/logout")
@@ -406,7 +406,7 @@ def api_settings():
 def api_settings_save():
     data = body()
     if "server_name" in data:
-        set_setting("server_name", (data["server_name"] or "HomeNAS").strip()[:40])
+        set_setting("server_name", (data["server_name"] or "H.SEF").strip()[:40])
     if "photo_shared_folder" in data:
         old = get_setting("photo_shared_folder")
         new = str(data["photo_shared_folder"] or "") or None
@@ -487,7 +487,7 @@ def current_timezone() -> str:
 
 
 def set_timezone(tz: str) -> bool:
-    """يغيّر المنطقة الزمنية للجهاز (فقط على جهاز HomeNAS المخصص)."""
+    """يغيّر المنطقة الزمنية للجهاز (فقط على جهاز H.SEF المخصص)."""
     if not APPLIANCE or tz not in list_timezones():
         return False
     import subprocess

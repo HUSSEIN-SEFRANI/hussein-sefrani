@@ -1,5 +1,5 @@
 [Unit]
-Description=HomeNAS first-boot setup (finishes the installation if it was interrupted)
+Description=H.SEF first-boot setup (finishes the installation if it was interrupted)
 After=network-online.target
 Wants=network-online.target
 ConditionPathExists=!/opt/homenas/.installed

@@ -1,5 +1,5 @@
 /* ===================================================================
-   HomeNAS — واجهة سطح المكتب
+   H.SEF — واجهة سطح المكتب
    =================================================================== */
 :root {
   --bg: #eef1f5;
@@ -101,7 +101,8 @@ label.lbl { display: block; font-size: 13px; color: var(--muted); margin: 10px 0
   border: 0; border-radius: 8px; background: transparent; color: #fff; cursor: pointer; white-space: nowrap;
 }
 #taskbar .tb-btn:hover, #taskbar .tb-btn.open { background: rgba(255,255,255,.14); }
-#taskbar .tb-logo { font-weight: 700; letter-spacing: .2px; }
+#taskbar .tb-logo { font-weight: 700; letter-spacing: .4px; }
+#taskbar .tb-logo .logo-img { width: 24px; height: 24px; display: block; }
 #taskbar .tb-logo .dot { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg, #4c8dff, #19b3a3);
   display: inline-flex; align-items: center; justify-content: center; }
 #taskbar .tb-logo .dot svg { width: 14px; height: 14px; }

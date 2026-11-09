@@ -1,9 +1,9 @@
 #!/bin/bash
 # =====================================================================
-#  HomeNAS appliance installer
-#  Installs HomeNAS as a system service on Debian 12/13 or Ubuntu 22.04+.
+#  H.SEF appliance installer
+#  Installs H.SEF as a system service on Debian 12/13 or Ubuntu 22.04+.
 #
-#  Used automatically by the HomeNAS ISO, and can also be run by hand:
+#  Used automatically by the H.SEF ISO, and can also be run by hand:
 #      sudo ./appliance/install.sh              # service only
 #      sudo ./appliance/install.sh --appliance  # also tune the machine as a dedicated NAS
 #  Re-running it upgrades the app and keeps all data and settings.
@@ -20,7 +20,7 @@ PORT=${HOMENAS_PORT:-80}
 APPLIANCE=0
 [ "${1:-}" = "--appliance" ] && APPLIANCE=1
 
-log() { echo -e "\n\033[1;34m[HomeNAS]\033[0m $*"; }
+log() { echo -e "\n\033[1;34m[H.SEF]\033[0m $*"; }
 [ "$(id -u)" -eq 0 ] || { echo "Please run as root (sudo)."; exit 1; }
 [ -f "$SRC/server.py" ] || { echo "server.py not found next to the installer ($SRC)."; exit 1; }
 
@@ -76,7 +76,7 @@ chown homenas:homenas "$CONF"; chmod 600 "$CONF"
 log "Installing system service"
 cat > /etc/systemd/system/homenas.service <<EOF
 [Unit]
-Description=HomeNAS home storage server
+Description=H.SEF home storage server
 After=network-online.target
 Wants=network-online.target
 
@@ -111,7 +111,7 @@ cat > /etc/avahi/services/homenas.service <<EOF
 <?xml version="1.0" standalone='no'?>
 <!DOCTYPE service-group SYSTEM "avahi-service.dtd">
 <service-group>
-  <name replace-wildcards="yes">HomeNAS on %h</name>
+  <name replace-wildcards="yes">H.SEF on %h</name>
   <service><type>_http._tcp</type><port>$PORT</port></service>
 </service-group>
 EOF
@@ -157,4 +157,4 @@ if [ -d /run/systemd/system ]; then
 fi
 
 touch /opt/homenas/.installed
-log "Done. HomeNAS will be available at http://$(hostname).local$([ "$PORT" = 80 ] || echo ":$PORT")"
+log "Done. H.SEF will be available at http://$(hostname).local$([ "$PORT" = 80 ] || echo ":$PORT")"

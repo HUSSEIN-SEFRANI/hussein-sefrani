@@ -1,6 +1,6 @@
 #!/bin/sh
 # Runs inside the Debian installer (busybox) before partitioning.
-# Picks the internal disk(s) for HomeNAS, skipping the USB stick / DVD holding
+# Picks the internal disk(s) for H.SEF, skipping the USB stick / DVD holding
 # this installer. With "homenas_raid=1" on the boot line it builds a RAID 1
 # mirror over the first two disks (system + data are both mirrored).
 

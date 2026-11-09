@@ -1,6 +1,6 @@
 #!/bin/bash
 # =====================================================================
-#  Build the HomeNAS installer ISO from an official Debian installer ISO.
+#  Build the H.SEF installer ISO from an official Debian installer ISO.
 #
 #    ./iso/build-iso.sh                         # downloads the latest Debian netinst
 #    ./iso/build-iso.sh path/to/debian.iso      # use an ISO you already have
@@ -9,9 +9,9 @@
 #  Works with the Debian netinst ISO (recommended: includes network firmware)
 #  and with the small netboot mini.iso. Requires: xorriso, cpio, gzip, curl.
 #
-#  How it works: the answers file (preseed.cfg) and the HomeNAS application are
+#  How it works: the answers file (preseed.cfg) and the H.SEF application are
 #  appended to the installer's initrd as an extra cpio archive, and the boot
-#  menus (BIOS + UEFI) are replaced with a single "Install HomeNAS" entry.
+#  menus (BIOS + UEFI) are replaced with a single "Install H.SEF" entry.
 #  The original Debian boot records are replayed unchanged.
 # =====================================================================
 set -euo pipefail
@@ -42,7 +42,7 @@ fi
 
 VERSION=$(cd "$APPDIR" && python3 -c "import re;print(re.search(r'__version__ = \"(.+?)\"', open('homenas/__init__.py').read()).group(1))")
 DEB=$(basename "$SRC_ISO" .iso | sed -E 's/^debian-([0-9.]+).*/\1/;t;s/.*/debian/')
-OUT=${2:-"$APPDIR/HomeNAS-$VERSION-debian-$DEB-amd64.iso"}
+OUT=${2:-"$APPDIR/HSEF-$VERSION-debian-$DEB-amd64.iso"}
 
 echo ">> Inspecting $(basename "$SRC_ISO")"
 files=$(xorriso -indev "$SRC_ISO" -find / -type f 2>/dev/null | tr -d "'")
@@ -57,7 +57,7 @@ HAS_ISOLINUX=0; echo "$files" | grep -qx "$ISOLINUX_DIR/isolinux.cfg" && HAS_ISO
 
 STAGE="$WORK/stage"; rm -rf --one-file-system "$STAGE"; mkdir -p "$STAGE/payload/homenas/app" "$STAGE/iso/homenas"
 
-echo ">> Packing HomeNAS $VERSION into the installer"
+echo ">> Packing H.SEF $VERSION into the installer"
 tar -C "$APPDIR" --exclude=./data --exclude=./config.json --exclude=./.venv --exclude='__pycache__' \
     --exclude=./iso --exclude='*.iso' -cf - . | tar -C "$STAGE/payload/homenas/app" -xf -
 cp "$HERE/preseed.cfg" "$STAGE/payload/preseed.cfg"
@@ -89,11 +89,11 @@ set menu_color_highlight=black/light-cyan
 set default=0
 set timeout=-1
 
-menuentry 'Install HomeNAS  (ERASES the computer disk)' {
+menuentry 'Install H.SEF  (ERASES the computer disk)' {
     linux  $KERNEL $ARGS
     initrd /homenas/initrd.gz
 }
-menuentry 'Install HomeNAS with RAID 1 mirror  (2 disks, ERASES both)' {
+menuentry 'Install H.SEF with RAID 1 mirror  (2 disks, ERASES both)' {
     linux  $KERNEL homenas_raid=1 $ARGS
     initrd /homenas/initrd.gz
 }
@@ -124,13 +124,13 @@ cat > "$STAGE/homenas.msg" <<'EOF'
 
 
         =====================================================
-                       HomeNAS  installer
+                       H.SEF  installer
         =====================================================
 
-         This installs HomeNAS on this computer and ERASES
+         This installs H.SEF on this computer and ERASES
          its internal disk. Keep the network cable plugged in.
 
-           Press  ENTER  to install HomeNAS on one disk
+           Press  ENTER  to install H.SEF on one disk
            Type   raid    then ENTER to mirror two disks (RAID 1)
            Type   debian  then ENTER for the normal Debian installer
 

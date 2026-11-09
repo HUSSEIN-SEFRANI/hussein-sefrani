@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""تشغيل HomeNAS.
+"""تشغيل H.SEF.
 
     python server.py                   تشغيل السيرفر
     python server.py --port 9000       تغيير المنفذ
@@ -23,7 +23,7 @@ def main() -> None:
             stream.reconfigure(encoding="utf-8", errors="replace")
         except (AttributeError, ValueError):
             pass
-    ap = argparse.ArgumentParser(description="HomeNAS")
+    ap = argparse.ArgumentParser(description="H.SEF")
     ap.add_argument("--port", type=int)
     ap.add_argument("--data", help="مجلد البيانات")
     ap.add_argument("--reset-password", metavar="USERNAME", help="إعادة تعيين كلمة مرور مستخدم")
@@ -64,7 +64,7 @@ def main() -> None:
     code = ensure_setup_code(app.extensions["nas_paths"]) if first_run else None
 
     line = "=" * 62
-    print(f"\n{line}\n  HomeNAS {__version__} يعمل الآن\n{line}")
+    print(f"\n{line}\n  H.SEF {__version__} يعمل الآن\n{line}")
     if first_run:
         print("\n  ★ الإعداد الأول: افتح الرابط وأنشئ حساب المدير.\n"
               f"    من جهاز آخر سيُطلب رمز الإعداد: {code}\n")
@@ -84,7 +84,7 @@ def main() -> None:
     try:
         from waitress import serve
         serve(app, host=cfg["host"], port=port, threads=16, channel_timeout=900,
-              max_request_body_size=app.config["MAX_CONTENT_LENGTH"], ident="HomeNAS")
+              max_request_body_size=app.config["MAX_CONTENT_LENGTH"], ident="H.SEF")
     except ImportError:
         app.run(host=cfg["host"], port=port, threaded=True)
 

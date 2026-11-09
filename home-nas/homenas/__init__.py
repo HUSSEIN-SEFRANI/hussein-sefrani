@@ -1,4 +1,4 @@
-"""HomeNAS - نظام تخزين منزلي شخصي يعمل على جهاز الكمبيوتر."""
+"""H.SEF - نظام تخزين منزلي شخصي يعمل على جهاز الكمبيوتر."""
 from __future__ import annotations
 
 from datetime import timedelta

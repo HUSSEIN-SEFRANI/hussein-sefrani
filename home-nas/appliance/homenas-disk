@@ -1,6 +1,6 @@
 #!/bin/bash
 # =====================================================================
-#  homenas-disk — manage hard drives on a HomeNAS machine.
+#  homenas-disk — manage hard drives on a H.SEF machine.
 #
 #    sudo homenas-disk list
 #        Show all disks and which one holds the system.
@@ -10,7 +10,7 @@
 #
 #    sudo homenas-disk mirror /dev/sdX /dev/sdY
 #        ERASE both disks and make them a RAID 1 mirror (same data on both)
-#        that becomes the main HomeNAS storage. All data is copied onto it.
+#        that becomes the main H.SEF storage. All data is copied onto it.
 #        If one disk dies, nothing is lost.
 #
 #    sudo homenas-disk replace /dev/sdZ
@@ -84,7 +84,7 @@ add_fstab() {   # $1=UUID $2=mountpoint $3=extra options
 move_data_to() {   # $1=block device holding the new (empty, formatted) filesystem
     local tmp; tmp=$(mktemp -d)
     mount "$1" "$tmp"
-    echo "Stopping HomeNAS and copying data (this can take a while)..."
+    echo "Stopping H.SEF and copying data (this can take a while)..."
     systemctl stop homenas.service
     rsync -aHAX --info=progress2 "$DATA"/ "$tmp"/
     umount "$tmp"; rmdir "$tmp"
@@ -139,9 +139,9 @@ mirror)
     save_mdadm_conf
     move_data_to "$md"
     echo
-    echo "Done. HomeNAS data is now on a RAID 1 mirror ($a + $b)."
+    echo "Done. H.SEF data is now on a RAID 1 mirror ($a + $b)."
     echo "The disks are synchronising in the background (see: cat /proc/mdstat)."
-    echo "HomeNAS can be used normally meanwhile."
+    echo "H.SEF can be used normally meanwhile."
     ;;
 replace)
     new=${2:-}; [ -n "$new" ] || die "usage: homenas-disk replace /dev/sdZ"
@@ -186,7 +186,7 @@ move-data)
     part=$(new_partition "$dev" homenas-data ext4 | tail -n1)
     mkfs.ext4 -q -F -L HOMENAS-DATA -m 1 "$part"
     move_data_to "$part"
-    echo "Done. HomeNAS now stores its data on $dev."
+    echo "Done. H.SEF now stores its data on $dev."
     ;;
 add)
     dev=${2:-}; name=${3:-}
@@ -212,8 +212,8 @@ backup-disk)
     add_fstab "$(blkid -s UUID -o value "$part")" "$BACKUP_MNT" "x-systemd.automount,x-systemd.idle-timeout=600,x-systemd.device-timeout=5s"
     systemctl restart "$(systemd-escape -p --suffix=automount "$BACKUP_MNT")" 2>/dev/null || mount "$BACKUP_MNT"
     chown homenas:homenas "$BACKUP_MNT"
-    echo "HomeNAS backup destination" > "$BACKUP_MNT/.homenas-backup"
-    mkdir -p "$BACKUP_MNT/HomeNAS-Backup"
+    echo "H.SEF backup destination" > "$BACKUP_MNT/.homenas-backup"
+    mkdir -p "$BACKUP_MNT/H.SEF-Backup"
     chown -R homenas:homenas "$BACKUP_MNT"
     echo
     echo "Done. In the web panel: Control Panel > Backup, destination: $BACKUP_MNT"

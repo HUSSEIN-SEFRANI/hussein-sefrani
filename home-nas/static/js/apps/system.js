@@ -327,7 +327,7 @@ const CP = {
         </div></div>
       <div class="card"><h4>${icon('hdd')} الوجهة والجدولة</h4>
         <label class="lbl">مجلد الوجهة (على القرص الخارجي)</label>
-        <input class="field" name="target" dir="ltr" placeholder="${esc(st.suggested || 'E:\\HomeNAS-Backup')}">
+        <input class="field" name="target" dir="ltr" placeholder="${esc(st.suggested || 'E:\\H.SEF-Backup')}">
         ${tg.exists && !tg.initialized ? `<div class="muted" style="font-size:12px;margin-top:6px">⚠️ المجلد موجود لكنه غير مُجهز كوجهة نسخ. اضغط «تجهيز».</div>` : ''}
         ${st.target && !tg.exists ? `<div class="muted" style="font-size:12px;margin-top:6px">⚠️ المجلد غير موجود — صِل القرص.</div>` : ''}
         <label class="check"><input type="checkbox" name="enabled" ${st.enabled ? 'checked' : ''}> نسخ تلقائي كل يوم</label>
@@ -342,7 +342,7 @@ const CP = {
       <div class="card span2"><h4>${icon('info')} ما الذي يُنسخ؟</h4>
         <p style="margin:0">${r.sources.map(x => `<span class="code">${esc(x)}</span>`).join(' ')} <span class="code">@system/nas.db</span></p>
         <p class="muted" style="font-size:13px">كل الملفات والصور لكل المستخدمين، والمجلدات المشتركة (حتى المربوطة بأقراص أخرى)، وقاعدة البيانات (الحسابات والألبومات والمفضلة). سلال المحذوفات والمصغرات لا تُنسخ.</p>
-        <p class="muted" style="font-size:13px"><b>على جهاز HomeNAS المخصص:</b> جهّز قرص USB مرة واحدة من شاشة الجهاز بالأمر
+        <p class="muted" style="font-size:13px"><b>على جهاز H.SEF المخصص:</b> جهّز قرص USB مرة واحدة من شاشة الجهاز بالأمر
           <span class="code">sudo homenas-disk backup-disk /dev/sdX</span> ثم استخدم المسار <span class="code">/srv/homenas/backup</span>.</p></div></div>`);
     $('[name=target]', card).value = st.target || '';
     const reload = () => { sc.innerHTML = ''; CP.backup(sc); };

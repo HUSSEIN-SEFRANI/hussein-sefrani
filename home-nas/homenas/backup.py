@@ -1,6 +1,6 @@
 """النسخ الاحتياطي إلى قرص خارجي (أو أي مجلد).
 
-- كل نسخة مجلد مستقل باسم التاريخ: HomeNAS-Backup/2026-11-09_0300/homes/... ملفات عادية يمكن فتحها مباشرة.
+- كل نسخة مجلد مستقل باسم التاريخ: H.SEF-Backup/2026-11-09_0300/homes/... ملفات عادية يمكن فتحها مباشرة.
 - الملفات غير المتغيرة تُربط (hard link) بالنسخة السابقة فلا تأخذ مساحة إضافية.
 - إذا كان القرص لا يدعم الروابط (exFAT/FAT32) نستخدم "مرآة" واحدة تُحدَّث تدريجياً ولا يُحذف منها شيء.
 - لا يُكتب شيء إلا إذا وُجد ملف العلامة .homenas-backup في الوجهة، حتى لا نملأ قرص النظام
@@ -24,7 +24,7 @@ from .core import RECYCLE, admin_required, body, connect, get_db, get_setting, l
 bp = Blueprint("backup", __name__)
 
 MARKER = ".homenas-backup"
-ROOT_NAME = "HomeNAS-Backup"
+ROOT_NAME = "H.SEF-Backup"
 DEFAULT_APPLIANCE_TARGET = "/srv/homenas/backup"
 SKIP_DIRS = {RECYCLE, "@system", ".cache"}
 
@@ -336,7 +336,7 @@ def api_backup_init():
     if not p.is_dir():
         abort(404, "المجلد غير موجود — هل القرص موصول؟")
     try:
-        (p / MARKER).write_text("HomeNAS backup destination\n")
+        (p / MARKER).write_text("H.SEF backup destination\n")
         (p / ROOT_NAME).mkdir(exist_ok=True)
     except OSError as exc:
         abort(400, f"لا يمكن الكتابة في هذا المجلد: {exc}")

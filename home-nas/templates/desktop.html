@@ -16,7 +16,7 @@
 <body>
   <div id="desktop"><div id="icons"></div></div>
   <header id="taskbar">
-    <button class="tb-btn tb-logo" id="tb-start" title="القائمة"><span class="dot"><svg class="i" viewBox="0 0 24 24" style="stroke:#fff"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg></span><span class="name">{{ server_name }}</span></button>
+    <button class="tb-btn tb-logo" id="tb-start" title="القائمة"><img class="logo-img" src="{{ url_for('static', filename='img/icon.svg') }}" alt=""><span class="name">{{ server_name }}</span></button>
     <div id="tb-windows"></div>
     <span id="tb-clock"></span>
   </header>

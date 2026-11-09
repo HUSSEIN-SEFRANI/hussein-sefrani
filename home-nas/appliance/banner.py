@@ -3,7 +3,7 @@
 
 It tells the user which address to open from a phone or computer and, before the
 first admin account exists, the 6-digit setup code needed to create it remotely.
-Runs as root just before the HomeNAS service starts (ExecStartPre=+ in the unit).
+Runs as root just before the H.SEF service starts (ExecStartPre=+ in the unit).
 """
 import json
 import os
@@ -54,7 +54,7 @@ lines = [
     r"\S{PRETTY_NAME}  -  \l",
     "",
     "  ==========================================================",
-    "                    HomeNAS is running",
+    "                    H.SEF is running",
     "  ==========================================================",
     "",
     "   On your phone or computer (same network), open:",
