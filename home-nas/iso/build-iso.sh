@@ -41,8 +41,7 @@ fi
 [ -f "$SRC_ISO" ] || { echo "ISO not found: $SRC_ISO"; exit 1; }
 
 VERSION=$(cd "$APPDIR" && python3 -c "import re;print(re.search(r'__version__ = \"(.+?)\"', open('homenas/__init__.py').read()).group(1))")
-DEB=$(basename "$SRC_ISO" .iso | sed -E 's/^debian-([0-9.]+).*/\1/;t;s/.*/debian/')
-OUT=${2:-"$APPDIR/HSEF-$VERSION-debian-$DEB-amd64.iso"}
+OUT=${2:-"$APPDIR/HSEF-$VERSION-Free-Home-Backup-System-amd64.iso"}
 
 echo ">> Inspecting $(basename "$SRC_ISO")"
 files=$(xorriso -indev "$SRC_ISO" -find / -type f 2>/dev/null | tr -d "'")
@@ -89,7 +88,7 @@ set menu_color_highlight=black/light-cyan
 set default=0
 set timeout=-1
 
-menuentry 'Install H.SEF  (ERASES the computer disk)' {
+menuentry 'Install H.SEF - Free Home Backup System  (ERASES the computer disk)' {
     linux  $KERNEL $ARGS
     initrd /homenas/initrd.gz
 }
@@ -97,7 +96,7 @@ menuentry 'Install H.SEF with RAID 1 mirror  (2 disks, ERASES both)' {
     linux  $KERNEL homenas_raid=1 $ARGS
     initrd /homenas/initrd.gz
 }
-menuentry 'Standard Debian installer (manual)' {
+menuentry 'Advanced: manual installation' {
     linux  $KERNEL vga=788 --- quiet
     initrd $INITRD
 }
@@ -124,7 +123,7 @@ cat > "$STAGE/homenas.msg" <<'EOF'
 
 
         =====================================================
-                       H.SEF  installer
+            H.SEF  -  Free Home Backup System
         =====================================================
 
          This installs H.SEF on this computer and ERASES
@@ -132,7 +131,7 @@ cat > "$STAGE/homenas.msg" <<'EOF'
 
            Press  ENTER  to install H.SEF on one disk
            Type   raid    then ENTER to mirror two disks (RAID 1)
-           Type   debian  then ENTER for the normal Debian installer
+           Type   debian  then ENTER for manual installation
 
         =====================================================
 

@@ -54,7 +54,7 @@ lines = [
     r"\S{PRETTY_NAME}  -  \l",
     "",
     "  ==========================================================",
-    "                    H.SEF is running",
+    "          H.SEF - Free Home Backup System is running",
     "  ==========================================================",
     "",
     "   On your phone or computer (same network), open:",

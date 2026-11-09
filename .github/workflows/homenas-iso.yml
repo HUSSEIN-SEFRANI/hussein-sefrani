@@ -11,6 +11,14 @@ on:
         description: 'Publish the ISO as a GitHub release'
         type: boolean
         default: true
+      replace:
+        description: 'Replace the files of an existing release with the same version'
+        type: boolean
+        default: false
+      cleanup_old:
+        description: 'Delete old releases from before versioning (tags homenas-*)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -56,8 +64,13 @@ jobs:
           print(open("home-nas/iso/release-install.md", encoding="utf-8").read())
           PY
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && gh release view "v$VERSION" >/dev/null 2>&1; then
-            echo "::error::Release v$VERSION already exists. Raise __version__ in home-nas/homenas/__init__.py and add a CHANGELOG section."
-            exit 1
+            if [ "${{ inputs.replace }}" = "true" ]; then
+              echo "Replacing the files of release v$VERSION"
+              for a in $(gh release view "v$VERSION" --json assets -q '.assets[].name'); do gh release delete-asset "v$VERSION" "$a" --yes; done
+            else
+              echo "::error::Release v$VERSION already exists. Raise __version__ in home-nas/homenas/__init__.py and add a CHANGELOG section."
+              exit 1
+            fi
           fi
 
       - name: Keep the ISO as a build artifact
@@ -74,9 +87,19 @@ jobs:
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          name: H.SEF v${{ steps.meta.outputs.version }}
+          name: "H.SEF v${{ steps.meta.outputs.version }} — نظام النسخ الاحتياطي المنزلي المجاني"
           body_path: release-notes.md
           make_latest: true
           files: |
             ${{ steps.meta.outputs.iso }}
             ${{ steps.meta.outputs.iso }}.sha256
+
+      - name: Delete old releases from before versioning
+        if: github.event_name == 'workflow_dispatch' && inputs.cleanup_old
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for t in $(gh release list --limit 100 --json tagName -q '.[].tagName' | grep '^homenas-' || true); do
+            echo "Deleting old release $t"
+            gh release delete "$t" --yes --cleanup-tag
+          done
