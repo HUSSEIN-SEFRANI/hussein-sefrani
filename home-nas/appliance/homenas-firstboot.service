@@ -1,0 +1,16 @@
+[Unit]
+Description=HomeNAS first-boot setup (finishes the installation if it was interrupted)
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=!/opt/homenas/.installed
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/homenas-src/appliance/install.sh --appliance
+StandardOutput=append:/var/log/homenas-install.log
+StandardError=append:/var/log/homenas-install.log
+Restart=on-failure
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target

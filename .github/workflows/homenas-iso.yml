@@ -1,0 +1,58 @@
+name: Build HomeNAS ISO
+
+on:
+  push:
+    paths:
+      - 'home-nas/**'
+      - '.github/workflows/homenas-iso.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  iso:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y xorriso cpio
+
+      - name: Check the app imports
+        run: |
+          pip install -q -r home-nas/requirements.txt
+          cd home-nas && python -c "from homenas import create_app"
+
+      - name: Build ISO from the latest Debian netinst
+        run: ./home-nas/iso/build-iso.sh
+
+      - name: Name the release
+        id: meta
+        run: |
+          ISO=$(ls home-nas/HomeNAS-*.iso)
+          echo "iso=$ISO" >> "$GITHUB_OUTPUT"
+          echo "tag=homenas-$(date -u +%Y%m%d-%H%M)-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          ls -lh home-nas/HomeNAS-*
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: HomeNAS installer ${{ steps.meta.outputs.tag }}
+          body: |
+            **HomeNAS installer ISO** (Debian 13, 64-bit PCs).
+
+            1. Download the `.iso` file below.
+            2. Write it to a USB stick (8 GB+) with [balenaEtcher](https://etcher.balena.io/) or [Rufus](https://rufus.ie/) (choose *DD image* mode if asked).
+            3. Boot the old PC from the USB stick, press **Enter**, confirm erasing the disk. Keep the network cable connected.
+            4. When it restarts, open `http://homenas.local` (or the address shown on the PC's screen) from your phone and enter the setup code shown on the screen.
+
+            ⚠️ Installing **erases the computer's internal disk**.
+
+            See `home-nas/README.md` for details.
+          files: |
+            ${{ steps.meta.outputs.iso }}
+            ${{ steps.meta.outputs.iso }}.sha256

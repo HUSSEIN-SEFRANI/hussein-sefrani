@@ -292,6 +292,32 @@ const CP = {
       <dt>مجلد البيانات</dt><dd class="ltr">${esc(s.data_dir)}</dd><dt>المنفذ</dt><dd>${s.port}</dd>
       <dt>مراقبة الأداء</dt><dd>${s.psutil ? '<span class="badge ok">مفعّلة</span>' : '<span class="badge warn">ثبّت psutil</span>'}</dd></dl>
       <p class="muted" style="font-size:12px">لتغيير المنفذ أو مجلد البيانات شغّل: <span class="code">python server.py --port 9000 --data "D:\\NAS"</span></p></div>`));
+    if (s.appliance) {
+      const tz = await guard(() => api.get('/api/admin/timezone'));
+      if (tz) {
+        const card = h(`<div class="card" style="max-width:560px;margin-top:14px"><h4>${icon('clock')} المنطقة الزمنية</h4>
+          <p class="muted">تُستخدم في سجل النشاط وتواريخ الملفات. الحالية: <b class="ltr"></b></p>
+          <select class="field" dir="ltr"></select><div style="margin-top:14px"><button class="btn primary">حفظ</button></div></div>`);
+        $('b', card).textContent = tz.current;
+        $('select', card).innerHTML = tz.zones.map(z => `<option ${z === tz.current ? 'selected' : ''}>${esc(z)}</option>`).join('');
+        $('button', card).onclick = async () => {
+          const v = $('select', card).value;
+          if (await guard(() => api.post('/api/admin/timezone', { tz: v }))) { $('b', card).textContent = v; toast('تم تغيير المنطقة الزمنية', 'ok'); }
+        };
+        p.appendChild(card);
+      }
+      const pw = h(`<div class="card" style="max-width:560px;margin-top:14px"><h4>${icon('server')} تشغيل الجهاز</h4>
+        <p class="muted">إعادة تشغيل جهاز السيرفر أو إيقافه بأمان. بعد الإيقاف شغّله من زر الطاقة.</p>
+        <button class="btn" data-p="reboot">${icon('refresh')} إعادة التشغيل</button>
+        <button class="btn danger" data-p="poweroff">${icon('logout')} إيقاف التشغيل</button></div>`);
+      $$('[data-p]', pw).forEach(b => b.onclick = async () => {
+        const off = b.dataset.p === 'poweroff';
+        if (!await confirmBox(off ? 'إيقاف تشغيل جهاز السيرفر؟ لن يمكن الوصول إليه حتى تشغّله يدوياً.' : 'إعادة تشغيل جهاز السيرفر؟ سيعود خلال دقيقة أو دقيقتين.',
+          { ok: off ? 'إيقاف' : 'إعادة التشغيل', danger: off })) return;
+        if (await guard(() => api.post('/api/admin/power', { action: b.dataset.p }))) toast(off ? 'جارِ إيقاف التشغيل…' : 'جارِ إعادة التشغيل…', 'ok');
+      });
+      p.appendChild(pw);
+    }
   },
 
   async logs(sc) {

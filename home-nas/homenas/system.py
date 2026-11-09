@@ -15,7 +15,7 @@ from flask import (Blueprint, abort, current_app, jsonify, redirect, render_temp
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from .core import (FFMPEG, HEIF_OK, admin_required, body, current_user, get_db, get_setting, home_dir,
-                   human_size, log_action, login_required, now_iso, paths, set_setting)
+                   human_size, log_action, login_required, now_iso, paths, set_setting, setup_code_file)
 from .photos import indexer
 
 try:
@@ -92,10 +92,22 @@ def login():
 def setup():
     if user_count() > 0:
         return redirect(url_for("auth.login"))
-    if not is_local_request():
+    code_file = setup_code_file(paths())
+    need_code = not is_local_request()
+    if need_code and not code_file.exists():
         return render_template("setup.html", remote=True, server_name="HomeNAS"), 403
     error = None
     if request.method == "POST":
+        ip = request.remote_addr or "?"
+        attempts = [t for t in _failed.get(ip, []) if time.time() - t < 600]
+        given = (request.form.get("code") or "").strip()
+        if need_code and len(attempts) >= 10:
+            return render_template("setup.html", need_code=True, error="محاولات خاطئة كثيرة. انتظر 10 دقائق.",
+                                   server_name="HomeNAS"), 429
+        if need_code and not secrets.compare_digest(given, code_file.read_text().strip()):
+            _failed[ip] = attempts + [time.time()]
+            return render_template("setup.html", need_code=True, error="رمز الإعداد غير صحيح",
+                                   server_name="HomeNAS"), 403
         username = (request.form.get("username") or "").strip()
         pw = request.form.get("password", "")
         if not USERNAME_RE.match(username) or username.lower() in RESERVED_NAMES:
@@ -118,8 +130,12 @@ def setup():
             start_session(user)
             log_action("الإعداد الأول", "إنشاء حساب المدير", username)
             indexer().enqueue(f"u:{user['id']}")
+            code_file.unlink(missing_ok=True)
+            tz = (request.form.get("tz") or "").strip()
+            if tz and APPLIANCE:
+                set_timezone(tz)
             return redirect("/")
-    return render_template("setup.html", remote=False, error=error, server_name="HomeNAS")
+    return render_template("setup.html", need_code=need_code, error=error, server_name="HomeNAS")
 
 
 @bp.get("/logout")
@@ -380,7 +396,7 @@ def api_folder_delete(fid):
 @admin_required
 def api_settings():
     cfg = current_app.config["NAS_CFG"]
-    return jsonify(server_name=server_name(), photo_shared_folder=get_setting("photo_shared_folder"),
+    return jsonify(server_name=server_name(), photo_shared_folder=get_setting("photo_shared_folder"), appliance=APPLIANCE,
                    port=cfg["port"], data_dir=str(paths().data), heif=HEIF_OK, ffmpeg=bool(FFMPEG),
                    psutil=psutil is not None)
 
@@ -443,6 +459,71 @@ def local_ips() -> list[str]:
     return sorted(ips) or ["127.0.0.1"]
 
 
+def server_urls(port) -> list[str]:
+    suffix = "" if int(port) == 80 else f":{port}"
+    urls = [f"http://{ip}{suffix}" for ip in local_ips()]
+    if shutil.which("avahi-daemon"):  # mDNS: يعمل على الآيفون والماك وأغلب الأجهزة
+        urls.append(f"http://{socket.gethostname()}.local{suffix}")
+    return urls
+
+
+APPLIANCE = os.environ.get("HOMENAS_APPLIANCE") == "1"
+
+
+def list_timezones() -> list[str]:
+    try:
+        import zoneinfo
+        return sorted(z for z in zoneinfo.available_timezones() if "/" in z and not z.startswith(("Etc/", "SystemV/", "posix/", "right/")))
+    except Exception:
+        return []
+
+
+def current_timezone() -> str:
+    try:
+        link = os.readlink("/etc/localtime")
+        return link.split("zoneinfo/", 1)[1]
+    except (OSError, IndexError):
+        return time.tzname[0]
+
+
+def set_timezone(tz: str) -> bool:
+    """يغيّر المنطقة الزمنية للجهاز (فقط على جهاز HomeNAS المخصص)."""
+    if not APPLIANCE or tz not in list_timezones():
+        return False
+    import subprocess
+    r = subprocess.run(["sudo", "-n", "/usr/bin/timedatectl", "set-timezone", tz], capture_output=True, timeout=20)
+    time.tzset()
+    return r.returncode == 0
+
+
+@bp.get("/api/admin/timezone")
+@admin_required
+def api_timezone():
+    return jsonify(current=current_timezone(), zones=list_timezones(), editable=APPLIANCE)
+
+
+@bp.post("/api/admin/timezone")
+@admin_required
+def api_timezone_set():
+    tz = body().get("tz", "")
+    if not set_timezone(tz):
+        abort(400, "تعذر تغيير المنطقة الزمنية")
+    log_action("تغيير المنطقة الزمنية", tz)
+    return jsonify(ok=True)
+
+
+@bp.post("/api/admin/power")
+@admin_required
+def api_power():
+    action = body().get("action")
+    if not APPLIANCE or action not in ("reboot", "poweroff"):
+        abort(400, "غير متاح على هذا الجهاز")
+    log_action("إعادة تشغيل الجهاز" if action == "reboot" else "إيقاف تشغيل الجهاز")
+    import subprocess
+    subprocess.Popen(["sudo", "-n", "/usr/bin/systemctl", action])
+    return jsonify(ok=True)
+
+
 @bp.get("/api/system/status")
 @login_required
 def api_status():
@@ -470,7 +551,7 @@ def api_status():
         "os": f"{platform.system()} {platform.release()}",
         "python": platform.python_version(),
         "server_uptime": time.time() - STARTED,
-        "urls": [f"http://{ip}:{cfg['port']}" for ip in local_ips()],
+        "urls": server_urls(cfg["port"]),
         "volumes": list(volumes.values()),
         "time": time.time(),
         "indexer": indexer().status,

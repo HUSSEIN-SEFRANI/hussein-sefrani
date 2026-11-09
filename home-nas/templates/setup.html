@@ -2,10 +2,14 @@
 {% block content %}
 <h1>مرحباً بك 👋</h1>
 {% if remote %}
-<p class="sub">الإعداد الأول يتم من جهاز الكمبيوتر نفسه لحمايتك.<br>افتح <b dir="ltr">http://localhost:{{ request.host.split(':')[-1] }}</b> على الكمبيوتر الذي يعمل عليه السيرفر.</p>
+<p class="sub">الإعداد الأول يتم من جهاز الكمبيوتر نفسه لحمايتك.<br>افتح <b dir="ltr">http://localhost:{{ request.host.split(':')[-1] }}</b> على الكمبيوتر الذي يعمل عليه السيرفر،<br>أو شغّل السيرفر من جديد واستخدم رمز الإعداد الذي يظهر في نافذته.</p>
 {% else %}
 <p class="sub">أنشئ حساب المدير لبدء استخدام النظام</p>
 <form method="post">
+  {% if need_code %}
+  <label class="lbl">رمز الإعداد (يظهر على شاشة جهاز السيرفر)</label>
+  <input class="field" name="code" dir="ltr" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required style="letter-spacing:6px;text-align:center;font-size:22px">
+  {% endif %}
   {% if error %}<div class="err">{{ error }}</div>{% endif %}
   <label class="lbl">اسم السيرفر</label>
   <input class="field" name="server_name" value="{{ request.form.server_name or 'HomeNAS' }}" maxlength="40">
@@ -15,7 +19,9 @@
   <input class="field" type="password" name="password" autocomplete="new-password" required>
   <label class="lbl">تأكيد كلمة المرور</label>
   <input class="field" type="password" name="password2" autocomplete="new-password" required>
+  <input type="hidden" name="tz" id="tz">
   <button class="btn primary" type="submit">إنشاء الحساب والبدء</button>
 </form>
+<script>try { document.getElementById('tz').value = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}</script>
 {% endif %}
 {% endblock %}

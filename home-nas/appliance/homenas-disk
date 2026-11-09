@@ -1,0 +1,107 @@
+#!/bin/bash
+# =====================================================================
+#  homenas-disk — manage extra hard drives on a HomeNAS machine.
+#
+#    sudo homenas-disk list
+#        Show all disks and which one holds the system.
+#
+#    sudo homenas-disk move-data /dev/sdX
+#        ERASE /dev/sdX and make it the main storage: all HomeNAS data
+#        (users' files and photos) is copied onto it.
+#
+#    sudo homenas-disk add /dev/sdX NAME
+#        ERASE /dev/sdX and mount it at /srv/homenas/disks/NAME.
+#        Then in the web panel: Control Panel > Shared folders > New,
+#        path /srv/homenas/disks/NAME.
+# =====================================================================
+set -euo pipefail
+
+CONF=${HOMENAS_CONFIG:-/etc/homenas/config.json}
+DATA=$(python3 -c "import json;print(json.load(open('$CONF')).get('data_dir','/srv/homenas/data'))" 2>/dev/null || echo /srv/homenas/data)
+
+die() { echo "Error: $*" >&2; exit 1; }
+[ "$(id -u)" -eq 0 ] || die "run with sudo"
+
+root_disk() { lsblk -no PKNAME "$(findmnt -no SOURCE /)" | head -n1; }
+
+check_disk() {
+    local dev=$1
+    [ -b "$dev" ] || die "$dev is not a disk"
+    [ "$(lsblk -dno TYPE "$dev")" = "disk" ] || die "$dev is a partition; give the whole disk (e.g. /dev/sdb)"
+    [ "$(basename "$dev")" != "$(root_disk)" ] || die "$dev holds the operating system"
+    if lsblk -no MOUNTPOINT "$dev" | grep -q .; then die "$dev (or one of its partitions) is mounted"; fi
+    echo
+    lsblk -o NAME,SIZE,MODEL,FSTYPE,LABEL "$dev"
+    echo
+    echo "ALL DATA ON $dev WILL BE ERASED."
+    read -r -p "Type ERASE to continue: " ans
+    [ "$ans" = "ERASE" ] || die "cancelled"
+}
+
+format_disk() {   # $1=device $2=label → prints partition path
+    local dev=$1 label=$2
+    wipefs -aq "$dev"
+    parted -s "$dev" mklabel gpt mkpart "$label" ext4 1MiB 100%
+    partprobe "$dev" 2>/dev/null || true; udevadm settle
+    local part
+    part=$(lsblk -lnpo NAME,TYPE "$dev" | awk '$2=="part"{print $1; exit}')
+    [ -n "$part" ] || die "partition was not created"
+    mkfs.ext4 -q -F -L "$label" -m 1 "$part"
+    echo "$part"
+}
+
+add_fstab() {   # $1=partition $2=mountpoint
+    local uuid
+    uuid=$(blkid -s UUID -o value "$1")
+    sed -i "\# $2 #d" /etc/fstab
+    echo "UUID=$uuid $2 ext4 defaults,noatime,nofail 0 2" >> /etc/fstab
+    systemctl daemon-reload
+}
+
+case "${1:-}" in
+list)
+    echo "System disk: /dev/$(root_disk)"
+    echo
+    lsblk -o NAME,SIZE,TYPE,MODEL,FSTYPE,LABEL,MOUNTPOINT -e 7,11
+    ;;
+move-data)
+    dev=${2:-}; [ -n "$dev" ] || die "usage: homenas-disk move-data /dev/sdX"
+    check_disk "$dev"
+    part=$(format_disk "$dev" HOMENAS-DATA | tail -n1)
+    tmp=$(mktemp -d)
+    mount "$part" "$tmp"
+    echo "Stopping HomeNAS and copying data (this can take a while)..."
+    systemctl stop homenas.service
+    rsync -aHAX --info=progress2 "$DATA"/ "$tmp"/
+    umount "$tmp"; rmdir "$tmp"
+    mv "$DATA" "$DATA.on-system-disk"
+    mkdir -p "$DATA"
+    add_fstab "$part" "$DATA"
+    mount "$DATA"
+    chown homenas:homenas "$DATA"
+    systemctl start homenas.service
+    echo
+    echo "Done. HomeNAS now stores its data on $dev."
+    echo "The old copy is kept at $DATA.on-system-disk — delete it when you have checked everything:"
+    echo "    sudo rm -r $DATA.on-system-disk"
+    ;;
+add)
+    dev=${2:-}; name=${3:-}
+    [ -n "$dev" ] && [ -n "$name" ] || die "usage: homenas-disk add /dev/sdX NAME"
+    [[ "$name" =~ ^[A-Za-z0-9_-]{1,32}$ ]] || die "NAME: letters, digits, - and _ only"
+    check_disk "$dev"
+    part=$(format_disk "$dev" "$name" | tail -n1)
+    mnt=/srv/homenas/disks/$name
+    mkdir -p "$mnt"
+    add_fstab "$part" "$mnt"
+    mount "$mnt"
+    chown homenas:homenas "$mnt"
+    echo
+    echo "Done. Disk mounted at $mnt"
+    echo "Web panel: Control Panel > Shared folders > New, path: $mnt"
+    ;;
+*)
+    sed -n '3,17p' "$0" | sed 's/^# \{0,1\}//'
+    exit 1
+    ;;
+esac

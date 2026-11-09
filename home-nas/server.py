@@ -55,20 +55,22 @@ def main() -> None:
         return
 
     app = create_app(cfg)
-    from homenas.system import local_ips
+    from homenas.core import ensure_setup_code
+    from homenas.system import server_urls
     port = int(cfg["port"])
     with app.app_context():
         from homenas.core import get_db
         first_run = get_db().execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0
+    code = ensure_setup_code(app.extensions["nas_paths"]) if first_run else None
 
     line = "=" * 62
     print(f"\n{line}\n  HomeNAS {__version__} يعمل الآن\n{line}")
     if first_run:
-        print(f"\n  ★ الإعداد الأول: افتح على هذا الكمبيوتر\n       http://localhost:{port}\n"
-              "    لإنشاء حساب المدير.\n")
+        print("\n  ★ الإعداد الأول: افتح الرابط وأنشئ حساب المدير.\n"
+              f"    من جهاز آخر سيُطلب رمز الإعداد: {code}\n")
     print("  من الهاتف أو أي جهاز على نفس شبكة Wi-Fi افتح:")
-    for ip in local_ips():
-        print(f"       http://{ip}:{port}")
+    for url in server_urls(port):
+        print(f"       {url}")
     print(f"\n  مجلد البيانات: {app.extensions['nas_paths'].data}")
     if not HEIF_OK:
         print("  [!] pillow-heif غير مثبتة: لن تظهر معاينة صور HEIC")

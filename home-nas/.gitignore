@@ -4,3 +4,5 @@ data/
 storage/
 .venv/
 __pycache__/
+iso/build/
+*.iso

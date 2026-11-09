@@ -35,7 +35,7 @@ if PIL_OK:
 FFMPEG = shutil.which("ffmpeg")
 
 APP_DIR = Path(__file__).resolve().parent.parent
-CONFIG_PATH = APP_DIR / "config.json"
+CONFIG_PATH = Path(os.environ.get("HOMENAS_CONFIG") or APP_DIR / "config.json")
 
 IMAGE_EXT = {".jpg", ".jpeg", ".png", ".heic", ".heif", ".gif", ".webp", ".tif", ".tiff", ".bmp", ".dng"}
 VIDEO_EXT = {".mov", ".mp4", ".m4v", ".3gp", ".avi", ".mkv", ".webm"}
@@ -87,6 +87,22 @@ class Paths:
         self.db = self.system / "nas.db"
         for d in (self.homes, self.shares, self.cache, self.tmp):
             d.mkdir(parents=True, exist_ok=True)
+
+
+def setup_code_file(p: Paths) -> Path:
+    return p.system / "setup_code"
+
+
+def ensure_setup_code(p: Paths) -> str:
+    """رمز من 6 أرقام يسمح بإنشاء حساب المدير من جهاز آخر على الشبكة (لأجهزة بدون شاشة)."""
+    f = setup_code_file(p)
+    if f.exists():
+        code = f.read_text().strip()
+        if code:
+            return code
+    code = f"{secrets.randbelow(10 ** 6):06d}"
+    f.write_text(code)
+    return code
 
 
 def paths() -> Paths:
