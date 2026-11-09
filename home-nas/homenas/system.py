@@ -431,7 +431,8 @@ def api_folder_delete(fid):
 @admin_required
 def api_settings():
     cfg = current_app.config["NAS_CFG"]
-    return jsonify(server_name=server_name(), photo_shared_folder=get_setting("photo_shared_folder"), appliance=APPLIANCE,
+    from . import __version__
+    return jsonify(version=__version__, server_name=server_name(), photo_shared_folder=get_setting("photo_shared_folder"), appliance=APPLIANCE,
                    port=cfg["port"], data_dir=str(paths().data), heif=heic_supported(), ffmpeg=bool(FFMPEG),
                    psutil=psutil is not None)
 
@@ -581,7 +582,9 @@ def api_status():
             continue
         volumes[key] = {"labels": [label], "path": str(p) if user["is_admin"] else "",
                         "total": du.total, "used": du.used, "free": du.free}
+    from . import __version__
     out = {
+        "version": __version__,
         "server_name": server_name(),
         "hostname": socket.gethostname(),
         "os": f"{platform.system()} {platform.release()}",

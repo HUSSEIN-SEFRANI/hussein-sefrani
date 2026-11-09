@@ -811,4 +811,5 @@ window.I18N_DICT = {
 "يحتاج إنترنت مرة واحدة، وقد يكون بطيئاً على الأجهزة القديمة في البداية": ["Needs internet once, and may be slow on old machines at first", "Nécessite internet une fois, et peut être lent au début sur les anciens appareils"],
 "صور كل شخص تلقائياً، على هذا الجهاز فقط، دون إرسال أي صورة إلى الإنترنت": ["each person's photos automatically, on this device only, without sending any photo to the internet", "automatiquement les photos de chaque personne, sur cet appareil uniquement, sans rien envoyer sur internet"],
 "من متجر": ["from the", "depuis l'"],
+"الإصدار": ["Version", "Version"],
 };

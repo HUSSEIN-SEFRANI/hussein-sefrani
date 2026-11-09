@@ -35,11 +35,30 @@ jobs:
 
       - name: Name the release
         id: meta
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           ISO=$(ls home-nas/HSEF-*.iso)
+          VERSION=$(python3 -c "import re;print(re.search(r'__version__ = \"(.+?)\"', open('home-nas/homenas/__init__.py').read()).group(1))")
           echo "iso=$ISO" >> "$GITHUB_OUTPUT"
-          echo "tag=homenas-$(date -u +%Y%m%d-%H%M)-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
           ls -lh home-nas/HSEF-*
+          # release notes = this version's section of CHANGELOG.md, then the install steps
+          python3 - "$VERSION" > release-notes.md <<'PY'
+          import re, sys
+          v = sys.argv[1]
+          text = open("home-nas/CHANGELOG.md", encoding="utf-8").read()
+          m = re.search(r"^## v" + re.escape(v) + r"\s*\n(.*?)(?=^## v|\Z)", text, re.S | re.M)
+          if not m:
+              sys.exit(f"CHANGELOG.md has no section for v{v}")
+          print(m.group(1).strip())
+          print(open("home-nas/iso/release-install.md", encoding="utf-8").read())
+          PY
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "::error::Release v$VERSION already exists. Raise __version__ in home-nas/homenas/__init__.py and add a CHANGELOG section."
+            exit 1
+          fi
 
       - name: Keep the ISO as a build artifact
         if: github.event_name == 'push'
@@ -55,18 +74,9 @@ jobs:
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          name: H.SEF installer ${{ steps.meta.outputs.tag }}
-          body: |
-            **H.SEF installer ISO** (Debian 13, 64-bit PCs).
-
-            1. Download the `.iso` file below.
-            2. Write it to a USB stick (8 GB+) with [balenaEtcher](https://etcher.balena.io/) or [Rufus](https://rufus.ie/) (choose *DD image* mode if asked).
-            3. Boot the old PC from the USB stick, press **Enter**, confirm erasing the disk. Keep the network cable connected.
-            4. When it restarts, open `http://hsef.local` (or the address shown on the PC's screen) from your phone and enter the setup code shown on the screen.
-
-            ⚠️ Installing **erases the computer's internal disk**.
-
-            See `home-nas/README.md` for details.
+          name: H.SEF v${{ steps.meta.outputs.version }}
+          body_path: release-notes.md
+          make_latest: true
           files: |
             ${{ steps.meta.outputs.iso }}
             ${{ steps.meta.outputs.iso }}.sha256

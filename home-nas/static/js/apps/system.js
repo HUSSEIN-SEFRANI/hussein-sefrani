@@ -105,7 +105,7 @@ registerApp({
           <div class="meter ${p > 90 ? 'err' : p > 75 ? 'warn' : ''}"><div style="width:${p}%"></div></div>
           ${v.path ? `<div class="muted ltr" style="font-size:12px">${esc(v.path)}</div>` : ''}</div>`;
       }).join('');
-      $('.v-info', cards).innerHTML = `<dt>الاسم</dt><dd>${esc(s.server_name)} (${esc(s.hostname)})</dd><dt>النظام</dt><dd class="ltr">${esc(s.os)}</dd>
+      $('.v-info', cards).innerHTML = `<dt>الإصدار</dt><dd translate="no">H.SEF v${esc(s.version)}</dd><dt>الاسم</dt><dd>${esc(s.server_name)} (${esc(s.hostname)})</dd><dt>النظام</dt><dd class="ltr">${esc(s.os)}</dd>
         ${s.uptime ? `<dt>تشغيل الجهاز</dt><dd>${fmtDuration(s.uptime)}</dd>` : ''}<dt>تشغيل السيرفر</dt><dd>${fmtDuration(s.server_uptime)}</dd>
         <dt>الوسائط</dt><dd>${s.media_count} (${fmtSize(s.media_size)})</dd><dt>المستخدمون</dt><dd>${s.users}</dd><dt>روابط المشاركة</dt><dd>${s.links}</dd>
         ${s.indexer.running ? `<dt>الفهرسة</dt><dd>${s.indexer.done}/${s.indexer.total}</dd>` : ''}`;
@@ -579,6 +579,7 @@ const CP = {
     $('button', card).onclick = async () => { if (await guard(() => api.post('/api/admin/settings', { server_name: $('input', card).value }))) { toast('تم الحفظ', 'ok'); document.title = $('input', card).value; } };
     p.appendChild(card);
     p.appendChild(h(`<div class="card" style="max-width:560px;margin-top:14px"><h4>${icon('info')} معلومات</h4><dl class="kv">
+      <dt>الإصدار</dt><dd translate="no">H.SEF v${esc(s.version)}</dd>
       <dt>مجلد البيانات</dt><dd class="ltr">${esc(s.data_dir)}</dd><dt>المنفذ</dt><dd>${s.port}</dd>
       <dt>مراقبة الأداء</dt><dd>${s.psutil ? '<span class="badge ok">مفعّلة</span>' : '<span class="badge warn">ثبّت psutil</span>'}</dd></dl>
       <p class="muted" style="font-size:12px">لتغيير المنفذ أو مجلد البيانات شغّل: <span class="code">python server.py --port 9000 --data "D:\\NAS"</span></p></div>`));
