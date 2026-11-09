@@ -5,18 +5,34 @@ import { ME, I18N, $, h, esc, icon, api, apps, openApp, closePopovers, isMobile 
 import './apps/files.js';
 import './apps/photos.js';
 import './apps/system.js';
+import { appUrl } from './apps/appstore.js';
 
 const desktop = $('#desktop');
 const visible = () => apps().filter(a => !a.hidden);
 
 // أيقونات سطح المكتب
 const icons = $('#icons');
-const shortcuts = [...visible(), { id: 'phone', title: 'ربط الآيفون', icon: 'phone', color: 'linear-gradient(135deg,#00b4db,#0083b0)', open: () => openApp('control', { section: 'phone' }) }];
-for (const a of shortcuts) {
-  const b = h(`<button class="dicon"><div class="app-tile" style="background:${a.color}">${icon(a.icon)}</div><span>${esc(a.title)}</span></button>`);
-  b.onclick = () => a.id === 'phone' ? a.open() : openApp(a.id);
-  icons.appendChild(b);
+const shortcuts = [...visible(), { id: 'phone', title: 'ربط الآيفون', icon: 'phone', color: 'linear-gradient(135deg,#00b4db,#0083b0)', launch: () => openApp('control', { section: 'phone' }) }];
+function drawIcons() {
+  icons.innerHTML = '';
+  for (const a of shortcuts) {
+    const b = h(`<button class="dicon"><div class="app-tile" style="background:${a.color}">${icon(a.icon)}</div><span ${a.external ? 'translate="no"' : ''}>${esc(a.title)}</span></button>`);
+    b.onclick = () => a.launch ? a.launch() : openApp(a.id);
+    icons.appendChild(b);
+  }
 }
+drawIcons();
+
+// التطبيقات المثبتة من «مركز التطبيقات» تظهر كأيقونات تفتح في تبويب جديد
+async function loadInstalledApps() {
+  const list = await api.get('/api/appstore/installed').catch(() => []);
+  for (let i = shortcuts.length - 1; i >= 0; i--) if (shortcuts[i].external) shortcuts.splice(i, 1);
+  for (const a of list) shortcuts.push({ id: 'x-' + a.id, title: a.name, icon: a.icon, color: a.color, external: true,
+    launch: () => window.open(appUrl(a.port, a.path), '_blank') });
+  drawIcons();
+}
+loadInstalledApps();
+addEventListener('nas-apps', loadInstalledApps);
 
 // قائمة البدء
 $('#tb-start').onclick = (e) => {
@@ -26,8 +42,8 @@ $('#tb-start').onclick = (e) => {
     <div class="who"><div class="av"></div><div class="nm"><b></b><div class="muted" style="font-size:12px"></div></div>
     <a class="btn ghost" href="/logout">${icon('logout')} خروج</a></div></div>`);
   for (const a of shortcuts) {
-    const b = h(`<button><div class="app-tile" style="background:${a.color}">${icon(a.icon)}</div><span>${esc(a.title)}</span></button>`);
-    b.onclick = () => { m.remove(); a.id === 'phone' ? a.open() : openApp(a.id); };
+    const b = h(`<button><div class="app-tile" style="background:${a.color}">${icon(a.icon)}</div><span ${a.external ? 'translate="no"' : ''}>${esc(a.title)}</span></button>`);
+    b.onclick = () => { m.remove(); a.launch ? a.launch() : openApp(a.id); };
     $('.apps', m).appendChild(b);
   }
   $('.av', m).textContent = (ME.username || '?')[0].toUpperCase();

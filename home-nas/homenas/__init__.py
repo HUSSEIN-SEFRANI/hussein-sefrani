@@ -7,11 +7,12 @@ from flask import Flask, g, jsonify, request
 from werkzeug.exceptions import HTTPException
 
 from .core import Paths, init_db
+from .appstore import AppStore
 from .backup import Backup
 from .network import Network
 from .photos import Indexer
 
-__version__ = "2.2.0"
+__version__ = "2.3.0"
 
 
 def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
@@ -31,14 +32,15 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
     app.extensions["nas_indexer"] = idx = Indexer(data_paths)
     app.extensions["nas_backup"] = bk = Backup(data_paths)
     app.extensions["nas_net"] = nw = Network(data_paths)
+    app.extensions["nas_apps"] = AppStore(data_paths)
     idx.on_indexed = lambda lib: nw.request(tv=True)
     if start_indexer:
         idx.start()
         bk.start()
         nw.start()
 
-    from . import backup, files, health, links, network, photos, system
-    for mod in (system, files, photos, links, backup, health, network):
+    from . import appstore, backup, files, health, links, network, photos, system
+    for mod in (system, files, photos, links, backup, health, network, appstore):
         app.register_blueprint(mod.bp)
 
     @app.teardown_appcontext

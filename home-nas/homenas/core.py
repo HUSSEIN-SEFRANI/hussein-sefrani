@@ -184,6 +184,13 @@ CREATE TABLE IF NOT EXISTS links (
     views INTEGER NOT NULL DEFAULT 0,
     created_at TEXT
 );
+CREATE TABLE IF NOT EXISTS installed_apps (
+    id TEXT PRIMARY KEY,
+    port INTEGER NOT NULL,
+    options TEXT,
+    show_all INTEGER NOT NULL DEFAULT 1,
+    installed_at TEXT
+);
 CREATE TABLE IF NOT EXISTS logs (
     id INTEGER PRIMARY KEY,
     ts TEXT NOT NULL,

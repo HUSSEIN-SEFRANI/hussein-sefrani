@@ -1,0 +1,195 @@
+{
+  "version": 1,
+  "apps": [
+    {
+      "id": "jellyfin",
+      "name": "Jellyfin",
+      "category": "media",
+      "icon": "film",
+      "color": "linear-gradient(135deg,#7b3fe4,#2fa4e7)",
+      "ram_mb": 1024,
+      "port": 8096,
+      "path": "/",
+      "summary": {
+        "ar": "سينما منزلية: شاهد أفلامك ومسلسلاتك على التلفاز والهاتف والمتصفح",
+        "en": "Home cinema: watch your movies and series on TV, phone and browser",
+        "fr": "Cinéma à la maison : regardez vos films et séries sur TV, téléphone et navigateur"
+      },
+      "notes": {
+        "ar": "عند أول فتح أنشئ حساباً، ثم أضف مكتبة من المجلد /media",
+        "en": "On first open, create an account, then add a library from the /media folder",
+        "fr": "À la première ouverture, créez un compte puis ajoutez une bibliothèque depuis /media"
+      },
+      "folders": [
+        {"key": "media", "write": false, "label": {"ar": "مجلد الأفلام والفيديو", "en": "Movies & videos folder", "fr": "Dossier films et vidéos"}}
+      ],
+      "compose": "services:\n  app:\n    image: jellyfin/jellyfin:latest\n    user: \"{{uid}}:{{gid}}\"\n    ports:\n      - \"{{port}}:8096\"\n    volumes:\n      - \"{{data}}/config:/config\"\n      - \"{{data}}/cache:/cache\"\n      - \"{{folder:media}}:/media:ro\"\n    environment:\n      TZ: \"{{tz}}\"\n    restart: unless-stopped\n"
+    },
+    {
+      "id": "navidrome",
+      "name": "Navidrome",
+      "category": "media",
+      "icon": "music",
+      "color": "linear-gradient(135deg,#1db954,#0b7a3b)",
+      "ram_mb": 256,
+      "port": 4533,
+      "path": "/",
+      "summary": {
+        "ar": "خدمة بث موسيقى خاصة بك: استمع لمكتبتك من أي جهاز",
+        "en": "Your own music streaming: listen to your library from any device",
+        "fr": "Votre propre streaming musical : écoutez votre bibliothèque partout"
+      },
+      "notes": {
+        "ar": "عند أول فتح أنشئ حساب المدير. تعمل مع تطبيقات Subsonic على الهاتف",
+        "en": "On first open, create the admin account. Works with Subsonic apps on phones",
+        "fr": "À la première ouverture, créez le compte admin. Compatible avec les apps Subsonic"
+      },
+      "folders": [
+        {"key": "music", "write": false, "label": {"ar": "مجلد الموسيقى", "en": "Music folder", "fr": "Dossier musique"}}
+      ],
+      "compose": "services:\n  app:\n    image: deluan/navidrome:latest\n    user: \"{{uid}}:{{gid}}\"\n    ports:\n      - \"{{port}}:4533\"\n    volumes:\n      - \"{{data}}:/data\"\n      - \"{{folder:music}}:/music:ro\"\n    environment:\n      ND_SCANSCHEDULE: \"1h\"\n      TZ: \"{{tz}}\"\n    restart: unless-stopped\n"
+    },
+    {
+      "id": "audiobookshelf",
+      "name": "Audiobookshelf",
+      "category": "media",
+      "icon": "book",
+      "color": "linear-gradient(135deg,#c2410c,#f59e0b)",
+      "ram_mb": 256,
+      "port": 13378,
+      "path": "/",
+      "summary": {
+        "ar": "مكتبة للكتب الصوتية والبودكاست مع حفظ موضع الاستماع",
+        "en": "Audiobooks and podcasts library that remembers where you stopped",
+        "fr": "Bibliothèque de livres audio et podcasts qui retient votre progression"
+      },
+      "notes": {
+        "ar": "عند أول فتح أنشئ حساب المدير ثم أضف مكتبة من المجلد /audiobooks",
+        "en": "On first open, create the admin account, then add a library from /audiobooks",
+        "fr": "À la première ouverture, créez le compte admin puis ajoutez /audiobooks"
+      },
+      "folders": [
+        {"key": "books", "write": false, "label": {"ar": "مجلد الكتب الصوتية", "en": "Audiobooks folder", "fr": "Dossier livres audio"}}
+      ],
+      "compose": "services:\n  app:\n    image: ghcr.io/advplyr/audiobookshelf:latest\n    ports:\n      - \"{{port}}:80\"\n    volumes:\n      - \"{{data}}/config:/config\"\n      - \"{{data}}/metadata:/metadata\"\n      - \"{{folder:books}}:/audiobooks:ro\"\n    environment:\n      TZ: \"{{tz}}\"\n    restart: unless-stopped\n"
+    },
+    {
+      "id": "homeassistant",
+      "name": "Home Assistant",
+      "category": "home",
+      "icon": "home",
+      "color": "linear-gradient(135deg,#18bcf2,#0a7bbd)",
+      "ram_mb": 1024,
+      "port": 8123,
+      "fixed_port": true,
+      "path": "/",
+      "summary": {
+        "ar": "تحكم بالأجهزة الذكية في منزلك وأنشئ أتمتة بينها",
+        "en": "Control the smart devices in your home and automate them",
+        "fr": "Contrôlez les objets connectés de la maison et automatisez-les"
+      },
+      "notes": {
+        "ar": "يحتاج بضع دقائق عند أول تشغيل. يعمل على المنفذ 8123",
+        "en": "Needs a few minutes on first start. Runs on port 8123",
+        "fr": "Quelques minutes au premier démarrage. Fonctionne sur le port 8123"
+      },
+      "folders": [],
+      "compose": "services:\n  app:\n    image: ghcr.io/home-assistant/home-assistant:stable\n    network_mode: host\n    volumes:\n      - \"{{data}}/config:/config\"\n      - \"/etc/localtime:/etc/localtime:ro\"\n    environment:\n      TZ: \"{{tz}}\"\n    restart: unless-stopped\n"
+    },
+    {
+      "id": "pihole",
+      "name": "Pi-hole",
+      "category": "network",
+      "icon": "shield",
+      "color": "linear-gradient(135deg,#e11d48,#7f1d1d)",
+      "ram_mb": 128,
+      "port": 8053,
+      "path": "/admin/",
+      "uses_dns": true,
+      "password": true,
+      "summary": {
+        "ar": "يحجب الإعلانات والمواقع الضارة لكل أجهزة المنزل",
+        "en": "Blocks ads and harmful sites for every device at home",
+        "fr": "Bloque les publicités et sites malveillants pour toute la maison"
+      },
+      "notes": {
+        "ar": "اجعل عنوان IP لهذا السيرفر هو خادم DNS في إعدادات الراوتر. كلمة مرور لوحة التحكم تظهر بعد التثبيت",
+        "en": "Set this server's IP as the DNS server in your router. The admin password is shown after installing",
+        "fr": "Indiquez l'IP de ce serveur comme DNS dans votre box. Le mot de passe s'affiche après l'installation"
+      },
+      "folders": [],
+      "compose": "services:\n  app:\n    image: pihole/pihole:latest\n    ports:\n      - \"53:53/tcp\"\n      - \"53:53/udp\"\n      - \"{{port}}:80/tcp\"\n    environment:\n      TZ: \"{{tz}}\"\n      FTLCONF_webserver_api_password: \"{{password}}\"\n      FTLCONF_dns_listeningMode: \"all\"\n    volumes:\n      - \"{{data}}/etc-pihole:/etc/pihole\"\n    restart: unless-stopped\n"
+    },
+    {
+      "id": "syncthing",
+      "name": "Syncthing",
+      "category": "files",
+      "icon": "refresh",
+      "color": "linear-gradient(135deg,#0891b2,#155e75)",
+      "ram_mb": 256,
+      "port": 8384,
+      "path": "/",
+      "summary": {
+        "ar": "مزامنة مجلد تلقائياً مع كمبيوتراتك الأخرى بدون سحابة",
+        "en": "Keep a folder in sync with your other computers, no cloud needed",
+        "fr": "Synchronisez un dossier avec vos autres ordinateurs, sans cloud"
+      },
+      "notes": {
+        "ar": "ثبّت Syncthing على الجهاز الآخر وأضف كل جهاز إلى الآخر. المجلد المختار يظهر باسم H.SEF",
+        "en": "Install Syncthing on the other computer and add each device to the other. The chosen folder appears as H.SEF",
+        "fr": "Installez Syncthing sur l'autre ordinateur et associez les appareils. Le dossier choisi apparaît comme H.SEF"
+      },
+      "folders": [
+        {"key": "sync", "write": true, "label": {"ar": "المجلد الذي تتم مزامنته", "en": "Folder to sync", "fr": "Dossier à synchroniser"}}
+      ],
+      "compose": "services:\n  app:\n    image: syncthing/syncthing:latest\n    hostname: hsef\n    ports:\n      - \"{{port}}:8384\"\n      - \"22000:22000/tcp\"\n      - \"22000:22000/udp\"\n      - \"21027:21027/udp\"\n    environment:\n      PUID: \"{{uid}}\"\n      PGID: \"{{gid}}\"\n      TZ: \"{{tz}}\"\n    volumes:\n      - \"{{data}}:/var/syncthing\"\n      - \"{{folder:sync}}:/var/syncthing/H.SEF\"\n    restart: unless-stopped\n"
+    },
+    {
+      "id": "qbittorrent",
+      "name": "qBittorrent",
+      "category": "files",
+      "icon": "download",
+      "color": "linear-gradient(135deg,#2563eb,#1e3a8a)",
+      "ram_mb": 256,
+      "port": 8085,
+      "same_port": true,
+      "path": "/",
+      "summary": {
+        "ar": "تنزيل الملفات (تورنت) مباشرة إلى مجلد مشترك",
+        "en": "Download files (torrents) straight into a shared folder",
+        "fr": "Téléchargez des fichiers (torrents) directement dans un dossier partagé"
+      },
+      "notes": {
+        "ar": "اسم المستخدم admin وكلمة المرور المؤقتة تظهر في سجل التطبيق بعد التشغيل الأول",
+        "en": "Username admin; the temporary password appears in the app log after the first start",
+        "fr": "Utilisateur admin ; le mot de passe temporaire apparaît dans le journal après le premier démarrage"
+      },
+      "folders": [
+        {"key": "downloads", "write": true, "label": {"ar": "مجلد التنزيلات", "en": "Downloads folder", "fr": "Dossier des téléchargements"}}
+      ],
+      "compose": "services:\n  app:\n    image: lscr.io/linuxserver/qbittorrent:latest\n    ports:\n      - \"{{port}}:{{port}}\"\n      - \"6881:6881\"\n      - \"6881:6881/udp\"\n    environment:\n      PUID: \"{{uid}}\"\n      PGID: \"{{gid}}\"\n      TZ: \"{{tz}}\"\n      WEBUI_PORT: \"{{port}}\"\n    volumes:\n      - \"{{data}}:/config\"\n      - \"{{folder:downloads}}:/downloads\"\n    restart: unless-stopped\n"
+    },
+    {
+      "id": "uptimekuma",
+      "name": "Uptime Kuma",
+      "category": "tools",
+      "icon": "activity",
+      "color": "linear-gradient(135deg,#10b981,#047857)",
+      "ram_mb": 256,
+      "port": 3001,
+      "path": "/",
+      "summary": {
+        "ar": "يراقب أجهزتك ومواقعك وينبهك عند توقف أي منها",
+        "en": "Watches your devices and websites and alerts you when one goes down",
+        "fr": "Surveille vos appareils et sites et vous alerte en cas de panne"
+      },
+      "notes": {
+        "ar": "عند أول فتح أنشئ حساب المدير",
+        "en": "On first open, create the admin account",
+        "fr": "À la première ouverture, créez le compte admin"
+      },
+      "folders": [],
+      "compose": "services:\n  app:\n    image: louislam/uptime-kuma:1\n    ports:\n      - \"{{port}}:3001\"\n    volumes:\n      - \"{{data}}:/app/data\"\n    restart: unless-stopped\n"
+    }
+  ]
+}

@@ -103,7 +103,7 @@ EOF
 
 # Let the web panel reboot / power off the machine (and nothing else)
 cat > /etc/sudoers.d/homenas <<'EOF'
-homenas ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/bin/timedatectl set-timezone *, /usr/sbin/smartctl -j -H -A /dev/*, /usr/local/sbin/hsef-net
+homenas ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/bin/timedatectl set-timezone *, /usr/sbin/smartctl -j -H -A /dev/*, /usr/local/sbin/hsef-net, /usr/local/sbin/hsef-apps
 EOF
 chmod 440 /etc/sudoers.d/homenas
 visudo -cf /etc/sudoers.d/homenas >/dev/null
@@ -121,6 +121,10 @@ EOF
 
 install -m 755 "$APP/appliance/homenas-disk" /usr/local/sbin/homenas-disk
 install -m 755 "$APP/appliance/hsef-net" /usr/local/sbin/hsef-net
+install -m 755 "$APP/appliance/hsef-apps" /usr/local/sbin/hsef-apps
+# App Center: user choices written by the app, logs written by hsef-apps
+mkdir -p "$CONF_DIR/apps" /var/lib/homenas/apps /srv/homenas/apps
+chown homenas:homenas "$CONF_DIR/apps"
 
 log "Preparing network sharing (SMB) and TV server (DLNA)"
 # file written by the web app, applied by hsef-net (root)

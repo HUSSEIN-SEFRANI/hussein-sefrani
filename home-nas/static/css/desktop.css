@@ -424,3 +424,18 @@ ol.steps { padding-inline-start: 20px; } ol.steps li { margin-bottom: 8px; }
 }
 
 [dir=ltr] .ar-only { display: none; }
+
+/* مركز التطبيقات */
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 99px; padding: 5px 14px; cursor: pointer; font-size: 13px; }
+.chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.appgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px; }
+.appcard { background: var(--surface-2); border: 1px solid var(--border); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.appcard .top { display: flex; gap: 12px; align-items: center; }
+.appcard .meta b { font-size: 16px; }
+.appcard .sum { margin: 0; flex: 1; font-size: 13.5px; }
+.appcard .acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.small { font-size: 12px; }
+.warn-t { color: var(--warn); }
+pre.applog { background: #0f1420; color: #b8c4d6; font-size: 11px; border-radius: 8px; padding: 8px; margin: 0; max-height: 92px; overflow: auto; white-space: pre-wrap; direction: ltr; text-align: left; }
+pre.applog.big { max-height: 60vh; font-size: 12px; }
