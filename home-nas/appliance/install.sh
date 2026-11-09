@@ -32,7 +32,10 @@ log "Installing system packages"
 retry apt-get update
 retry apt-get install -y --no-install-recommends \
     python3 python3-venv python3-pip ffmpeg avahi-daemon libnss-mdns sudo ca-certificates \
-    unattended-upgrades rsync parted e2fsprogs sqlite3 mdadm smartmontools
+    unattended-upgrades rsync parted e2fsprogs sqlite3 mdadm smartmontools samba minidlna
+
+# Windows network discovery (shows H.SEF under "Network" in Explorer)
+apt-get install -y --no-install-recommends wsdd2 >/dev/null 2>&1 || apt-get install -y --no-install-recommends wsdd >/dev/null 2>&1 || true
 
 log "Creating service user"
 id homenas >/dev/null 2>&1 || useradd --system --home-dir /var/lib/homenas --create-home \
@@ -100,7 +103,7 @@ EOF
 
 # Let the web panel reboot / power off the machine (and nothing else)
 cat > /etc/sudoers.d/homenas <<'EOF'
-homenas ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/bin/timedatectl set-timezone *, /usr/sbin/smartctl -j -H -A /dev/*
+homenas ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/bin/timedatectl set-timezone *, /usr/sbin/smartctl -j -H -A /dev/*, /usr/local/sbin/hsef-net
 EOF
 chmod 440 /etc/sudoers.d/homenas
 visudo -cf /etc/sudoers.d/homenas >/dev/null
@@ -117,6 +120,44 @@ cat > /etc/avahi/services/homenas.service <<EOF
 EOF
 
 install -m 755 "$APP/appliance/homenas-disk" /usr/local/sbin/homenas-disk
+install -m 755 "$APP/appliance/hsef-net" /usr/local/sbin/hsef-net
+
+log "Preparing network sharing (SMB) and TV server (DLNA)"
+# file written by the web app, applied by hsef-net (root)
+[ -f "$CONF_DIR/network.json" ] || echo '{}' > "$CONF_DIR/network.json"
+chown homenas:homenas "$CONF_DIR/network.json"
+mkdir -p /var/lib/homenas/minidlna /var/lib/homenas/smb-homes
+chown homenas:homenas /var/lib/homenas/minidlna
+# Debian's own minidlna service is replaced by ours (runs as homenas, our config)
+systemctl disable --now minidlna.service >/dev/null 2>&1 || true
+cat > /etc/systemd/system/hsef-dlna.service <<EOF
+[Unit]
+Description=H.SEF TV media server (DLNA)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=homenas
+Group=homenas
+ExecStart=/usr/sbin/minidlnad -S -f $CONF_DIR/minidlna.conf -P /var/lib/homenas/minidlna/minidlna.pid
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+# SMB stays off until it is enabled from the web panel
+if [ ! -f /etc/samba/hsef-usermap ]; then
+    systemctl disable --now smbd nmbd >/dev/null 2>&1 || true
+fi
+cat > /etc/avahi/services/hsef-smb.service <<'EOF'
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<service-group>
+  <name replace-wildcards="yes">%h</name>
+  <service><type>_smb._tcp</type><port>445</port></service>
+  <service><type>_device-info._tcp</type><port>0</port><txt-record>model=MacSamba</txt-record></service>
+</service-group>
+EOF
 
 # Automatic security updates
 cat > /etc/apt/apt.conf.d/20auto-upgrades <<'EOF'

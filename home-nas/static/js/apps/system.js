@@ -163,6 +163,7 @@ function logTable(rows) {
 const SECTIONS = [
   { id: 'account', label: 'حسابي', icon: 'user' },
   { id: 'phone', label: 'ربط الآيفون', icon: 'phone' },
+  { id: 'network', label: 'الشبكة والتلفاز', icon: 'wifi' },
   { id: 'users', label: 'المستخدمون', icon: 'users', admin: true },
   { id: 'folders', label: 'المجلدات المشتركة', icon: 'hdd', admin: true },
   { id: 'backup', label: 'النسخ الاحتياطي', icon: 'save', admin: true },
@@ -217,6 +218,81 @@ const CP = {
     };
     p.appendChild(card);
     const out = h(`<p><a class="btn danger" href="/logout">${icon('logout')} تسجيل الخروج</a></p>`); p.appendChild(out);
+  },
+
+  async network(sc) {
+    const n = await guard(() => api.get('/api/network')); if (!n) return;
+    const host = n.host, ip = n.ips[0];
+    const p = section(sc, 'الشبكة والتلفاز', 'افتح ملفات H.SEF كقرص شبكة من الكمبيوتر وتطبيق «الملفات» في الآيفون، واعرض الصور والفيديو على التلفاز الذكي.');
+    if (!n.available) {
+      p.appendChild(h(`<div class="card"><p>${icon('info')} قرص الشبكة (SMB) وخادم التلفاز (DLNA) متاحان على جهاز H.SEF المخصص (المثبّت من ملف ISO).</p>
+        <p class="muted">على ويندوز يمكنك بدلاً من ذلك مشاركة مجلد البيانات من خصائص المجلد ← مشاركة.</p></div>`));
+      return;
+    }
+    const reload = () => { sc.innerHTML = ''; CP.network(sc); };
+    const me = n.me;
+    // --- حسابي على الشبكة (لكل المستخدمين)
+    const mine = h(`<div class="cards" style="padding:0">
+      <div class="card"><h4>${icon('hdd')} قرص الشبكة لحسابي</h4>
+        ${!n.smb_enabled ? '<p class="muted">قرص الشبكة غير مفعّل على السيرفر (يفعّله المدير).</p>'
+        : me.smb_ready ? `<p><span class="badge ok">جاهز</span> سجّل الدخول باسم المستخدم وكلمة المرور نفسها التي تستخدمها هنا.</p>`
+        : `<p class="muted">أدخل كلمة مرورك مرة واحدة لتفعيل الوصول عبر الشبكة لحسابك.</p>
+           <input class="field" type="password" name="pw" placeholder="كلمة المرور الحالية" autocomplete="current-password">
+           <div style="margin-top:10px"><button class="btn primary" data-x="smb">تفعيل</button></div>`}</div>
+      <div class="card"><h4>${icon('image')} صوري على التلفاز</h4>
+        ${!n.dlna_enabled ? '<p class="muted">خادم التلفاز غير مفعّل على السيرفر (يفعّله المدير).</p>'
+        : `<label class="check"><input type="checkbox" name="tv" ${me.tv_photos ? 'checked' : ''}> اعرض صوري وفيديوهاتي على تلفاز المنزل</label>
+           <p class="muted" style="font-size:12px">⚠️ التلفاز لا يطلب كلمة مرور: أي شخص في المنزل يرى ما تختار عرضه.</p>`}</div></div>`);
+    const smbBtn = $('[data-x=smb]', mine);
+    if (smbBtn) smbBtn.onclick = async () => {
+      if (await guard(() => api.post('/api/me/smb', { password: $('[name=pw]', mine).value }))) { toast('تم تفعيل قرص الشبكة لحسابك', 'ok'); reload(); }
+    };
+    const tv = $('[name=tv]', mine);
+    if (tv) tv.onchange = async () => { if (await guard(() => api.post('/api/me/tv', { enabled: tv.checked }))) toast(tv.checked ? 'ستظهر صورك على التلفاز خلال دقائق' : 'لن تظهر صورك على التلفاز', 'ok'); };
+    p.appendChild(mine);
+
+    // --- طريقة الاتصال
+    p.appendChild(h(`<div class="cards" style="padding:14px 0 0">
+      <div class="card"><h4>${icon('server')} من كمبيوتر ويندوز</h4><ol class="steps">
+        <li>افتح «مستكشف الملفات» واكتب في شريط العنوان: <span class="code">\\\\${esc(host)}</span> أو <span class="code">\\\\${esc(ip)}</span></li>
+        <li>أدخل اسم المستخدم وكلمة المرور.</li>
+        <li>لربطه كحرف قرص: انقر بالزر الأيمن على المجلد ← «تعيين محرك أقراص شبكة».</li></ol></div>
+      <div class="card"><h4>${icon('phone')} من الآيفون / الآيباد</h4><ol class="steps">
+        <li>افتح تطبيق <b>الملفات</b> ← زر <b>⋯</b> في الأعلى ← <b>الاتصال بالخادم</b>.</li>
+        <li>اكتب: <span class="code">smb://${esc(host)}.local</span> (أو <span class="code">smb://${esc(ip)}</span>)</li>
+        <li>اختر «مستخدم مسجل» وأدخل اسم المستخدم وكلمة المرور. يظهر H.SEF بعدها في قائمة «المواقع».</li></ol></div>
+      <div class="card"><h4>${icon('server')} من ماك</h4><ol class="steps">
+        <li>Finder ← <b>انتقال</b> ← <b>الاتصال بالخادم</b> (⌘K).</li>
+        <li>اكتب: <span class="code">smb://${esc(host)}.local</span></li></ol></div>
+      <div class="card"><h4>${icon('video')} تلفاز سامسونغ</h4><ol class="steps">
+        <li>تأكد أن التلفاز متصل بنفس شبكة المنزل.</li>
+        <li>اضغط زر <b>Home</b> ← <b>المصدر (Source)</b> أو <b>الأجهزة المتصلة</b>.</li>
+        <li>اختر <b>${esc(n.host)}</b> / <b>H.SEF</b> ← تصفح المجلدات وشغّل الصور والفيديو.</li>
+        <li>في الأجهزة الأقدم: تطبيق <b>Media</b> أو <b>AllShare</b>.</li></ol>
+        <p class="muted" style="font-size:12px">يعمل أيضاً مع أغلب أجهزة التلفاز الذكية (LG، سوني…) ومشغلات مثل VLC وKodi.</p></div></div>`));
+
+    if (!ME.is_admin) return;
+    // --- إعدادات المدير
+    const srv = n.services || {};
+    const admin = h(`<div class="card" style="margin-top:14px"><h4>${icon('sliders')} إعدادات السيرفر (المدير)</h4>
+      <label class="check"><input type="checkbox" name="smb" ${n.smb_enabled ? 'checked' : ''}> <b>قرص الشبكة (SMB)</b> — للكمبيوتر وتطبيق الملفات في الآيفون
+        ${n.smb_enabled ? (srv.smb === false ? ' <span class="badge err">متوقف</span>' : ' <span class="badge ok">يعمل</span>') : ''}</label>
+      <label class="check"><input type="checkbox" name="dlna" ${n.dlna_enabled ? 'checked' : ''}> <b>خادم التلفاز (DLNA)</b>
+        ${n.dlna_enabled ? (srv.dlna === false ? ' <span class="badge err">متوقف</span>' : ` <span class="badge ok">يعمل — ${n.tv.tv_items} ملف</span>`) : ''}</label>
+      <label class="lbl">المجلدات المشتركة التي تظهر على التلفاز</label>
+      <div class="tvf">${n.folders.length ? n.folders.map(f => `<label class="check" style="margin-inline-end:16px"><input type="checkbox" value="${f.id}" ${n.dlna_folders.includes(f.id) ? 'checked' : ''}> ${esc(f.name)}</label>`).join('') : '<span class="muted">لا توجد مجلدات مشتركة</span>'}</div>
+      <p class="muted" style="font-size:12px">صور المستخدمين الخاصة لا تظهر على التلفاز إلا إذا وافق صاحبها من «صوري على التلفاز». صور HEIC تُحوّل تلقائياً إلى JPEG للتلفاز.</p>
+      <div style="margin-top:10px"><button class="btn primary" data-x="save">حفظ</button></div>
+      <table class="tbl" style="margin-top:14px"><thead><tr><th>المستخدم</th><th>قرص الشبكة</th><th>صوره على التلفاز</th></tr></thead><tbody>
+        ${n.users_smb.map(u => `<tr><td>${esc(u.username)}</td><td>${u.ready ? '<span class="badge ok">جاهز</span>' : '<span class="badge warn">ينتظر إدخال كلمة المرور</span>'}</td>
+          <td>${u.tv_photos ? '✓' : '—'}</td></tr>`).join('')}</tbody></table>
+      <p class="muted" style="font-size:12px">الحسابات القديمة: يفعّل كل مستخدم قرص الشبكة بإدخال كلمة مروره مرة واحدة في هذه الصفحة، أو عيّن له المدير كلمة مرور جديدة.</p></div>`);
+    $('[data-x=save]', admin).onclick = async () => {
+      const d = { smb_enabled: $('[name=smb]', admin).checked, dlna_enabled: $('[name=dlna]', admin).checked,
+        dlna_folders: $$('.tvf input:checked', admin).map(i => +i.value) };
+      if (await guard(() => api.post('/api/admin/network', d))) { toast('تم الحفظ — يُطبَّق خلال ثوانٍ', 'ok'); setTimeout(reload, 2500); }
+    };
+    p.appendChild(admin);
   },
 
   async phone(sc) {

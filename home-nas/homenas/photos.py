@@ -88,6 +88,7 @@ class Indexer:
         self.lock = threading.Lock()
         self.status = {"running": False, "library": None, "done": 0, "total": 0, "last_run": None}
         self.thread = threading.Thread(target=self.loop, daemon=True, name="indexer")
+        self.on_indexed = None  # تُستدعى بعد فهرسة مكتبة (لتحديث مكتبة التلفاز)
 
     def start(self):
         self.enqueue_all()
@@ -127,6 +128,8 @@ class Indexer:
                     lib = self.queue.pop(0)
                 try:
                     self.index(lib)
+                    if self.on_indexed:
+                        self.on_indexed(lib)
                 except Exception as exc:  # pragma: no cover
                     print(f"[indexer] {lib}: {exc}")
             self.status.update(running=False, library=None)

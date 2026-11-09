@@ -16,6 +16,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from .core import (FFMPEG, HEIF_OK, admin_required, body, current_user, get_db, get_setting, home_dir,
                    human_size, log_action, login_required, now_iso, paths, set_setting, setup_code_file)
+from .network import on_change, on_password, on_user_deleted
 from .photos import indexer
 
 try:
@@ -131,6 +132,7 @@ def setup():
             log_action("الإعداد الأول", "إنشاء حساب المدير", username)
             indexer().enqueue(f"u:{user['id']}")
             code_file.unlink(missing_ok=True)
+            on_password(user["id"], username, pw)
             tz = (request.form.get("tz") or "").strip()
             if tz and APPLIANCE:
                 set_timezone(tz)
@@ -177,6 +179,7 @@ def api_me_password():
     db.execute("UPDATE users SET password_hash=? WHERE id=?", (new_hash, u["id"]))
     db.commit()
     session["pwv"] = new_hash[-12:]
+    on_password(u["id"], u["username"], data["new"])
     log_action("تغيير كلمة المرور")
     return jsonify(ok=True)
 
@@ -227,6 +230,8 @@ def api_user_create():
     db.commit()
     home_dir(username)
     indexer().enqueue(f"u:{cur.lastrowid}")
+    on_password(cur.lastrowid, username, data["password"])
+    on_change()
     log_action("إضافة مستخدم", username)
     return jsonify(ok=True, id=cur.lastrowid)
 
@@ -266,6 +271,9 @@ def api_user_update(uid):
         db.rollback()
         abort(400, "يجب أن يبقى مدير واحد على الأقل")
     db.commit()
+    if data.get("password"):
+        on_password(uid, user["username"], data["password"])
+    on_change(tv=True)
     log_action("تعديل مستخدم", user["username"])
     return jsonify(ok=True)
 
@@ -294,6 +302,7 @@ def api_user_delete(uid):
     db.commit()
     if request.args.get("delete_files") == "1":
         shutil.rmtree(paths().homes / user["username"], ignore_errors=True)
+    on_user_deleted(uid)
     log_action("حذف مستخدم", user["username"])
     return jsonify(ok=True)
 
@@ -348,6 +357,7 @@ def api_folder_create():
             db.execute("INSERT INTO folder_perms(folder_id, user_id, perm) VALUES (?,?,?)",
                        (cur.lastrowid, int(uid), perm))
     db.commit()
+    on_change()
     log_action("إنشاء مجلد مشترك", f"{name} ← {path}")
     return jsonify(ok=True, id=cur.lastrowid)
 
@@ -368,6 +378,7 @@ def api_folder_update(fid):
             if perm in ("ro", "rw"):
                 db.execute("INSERT INTO folder_perms(folder_id, user_id, perm) VALUES (?,?,?)", (fid, int(uid), perm))
     db.commit()
+    on_change()
     log_action("تعديل مجلد مشترك", f["name"])
     return jsonify(ok=True)
 
@@ -384,6 +395,7 @@ def api_folder_delete(fid):
         db.execute("DELETE FROM settings WHERE key='photo_shared_folder'")
         db.execute("DELETE FROM media WHERE library='s'")
     db.commit()
+    on_change(tv=True)
     log_action("حذف مجلد مشترك", f"{f['name']} (الملفات لم تُحذف من القرص)")
     return jsonify(ok=True)
 
@@ -407,6 +419,7 @@ def api_settings_save():
     data = body()
     if "server_name" in data:
         set_setting("server_name", (data["server_name"] or "H.SEF").strip()[:40])
+        on_change()
     if "photo_shared_folder" in data:
         old = get_setting("photo_shared_folder")
         new = str(data["photo_shared_folder"] or "") or None
