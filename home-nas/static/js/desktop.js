@@ -1,7 +1,7 @@
 // ====================================================================
 // H.SEF — سطح المكتب: الأيقونات، شريط المهام، قائمة البدء، الساعة
 // ====================================================================
-import { ME, $, h, esc, icon, api, apps, openApp, closePopovers, isMobile } from './core.js';
+import { ME, I18N, $, h, esc, icon, api, apps, openApp, closePopovers, isMobile } from './core.js';
 import './apps/files.js';
 import './apps/photos.js';
 import './apps/system.js';
@@ -32,6 +32,7 @@ $('#tb-start').onclick = (e) => {
   }
   $('.av', m).textContent = (ME.username || '?')[0].toUpperCase();
   $('.nm b', m).textContent = ME.username; $('.nm .muted', m).textContent = ME.is_admin ? 'مدير النظام' : 'مستخدم';
+  if (window.I18N && I18N.switcher) m.appendChild(I18N.switcher());
   document.body.appendChild(m);
   setTimeout(() => document.addEventListener('pointerdown', function off(ev) {
     if (!m.contains(ev.target)) { m.remove(); document.removeEventListener('pointerdown', off, true); }
@@ -40,7 +41,7 @@ $('#tb-start').onclick = (e) => {
 
 // الساعة
 const clock = $('#tb-clock');
-const tick = () => { clock.textContent = new Intl.DateTimeFormat('ar', { weekday: 'short', hour: '2-digit', minute: '2-digit', numberingSystem: 'latn' }).format(new Date()); };
+const tick = () => { clock.textContent = new Intl.DateTimeFormat(I18N.locale, { weekday: 'short', hour: '2-digit', minute: '2-digit', numberingSystem: 'latn' }).format(new Date()); };
 tick(); setInterval(tick, 15000);
 
 desktop.addEventListener('contextmenu', e => { if (e.target === desktop || e.target === icons) e.preventDefault(); });

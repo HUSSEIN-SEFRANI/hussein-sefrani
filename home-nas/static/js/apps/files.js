@@ -3,7 +3,7 @@
 // ====================================================================
 import {
   $, $$, h, esc, icon, api, guard, toast, modal, form, confirmBox, promptBox, menu, menuAt, shareDialog,
-  pickFolder, registerApp, openApp, uploads, filesFromDrop, chooseFiles, openViewer, fmtSize, fmtEpoch,
+  pickFolder, registerApp, openApp, uploads, ARROW, filesFromDrop, chooseFiles, openViewer, fmtSize, fmtEpoch,
   fileType, THUMBABLE, TEXT_EDITABLE, encPath, isTouch, debounce, download,
 } from '../core.js';
 
@@ -33,8 +33,8 @@ class FilesApp {
       <section class="app-main">
         <div class="toolbar">
           <button class="btn ghost icon side-toggle" data-a="side">${icon('menu')}</button>
-          <button class="btn ghost icon" data-a="back" title="رجوع">${icon('right')}</button>
-          <button class="btn ghost icon" data-a="fwd" title="تقدّم">${icon('left')}</button>
+          <button class="btn ghost icon" data-a="back" title="رجوع">${icon(ARROW.back)}</button>
+          <button class="btn ghost icon" data-a="fwd" title="تقدّم">${icon(ARROW.fwd)}</button>
           <button class="btn ghost icon" data-a="up" title="المجلد الأعلى">${icon('up')}</button>
           <div class="crumbs"></div>
           <label class="search"><input class="field" placeholder="بحث في هذا المجلد…">${icon('search')}</label>
@@ -107,8 +107,8 @@ class FilesApp {
     const parts = this.path.split('/').filter(Boolean); let acc = '';
     parts.forEach((p, i) => {
       acc += '/' + p; const target = acc;
-      if (i) c.appendChild(h('<span class="sep">‹</span>'));
-      const b = h('<button></button>'); b.textContent = i === 0 ? this.rootLabel(p) : p; b.onclick = () => this.go(target);
+      if (i) c.appendChild(h(`<span class="sep">${ARROW.sep}</span>`));
+      const b = h(i ? '<button translate="no"></button>' : '<button></button>'); b.textContent = i === 0 ? this.rootLabel(p) : p; b.onclick = () => this.go(target);
       c.appendChild(b);
     });
     c.scrollLeft = -c.scrollWidth;
@@ -132,7 +132,7 @@ class FilesApp {
     } else if (this.view === 'grid') {
       const g = h('<div class="fgrid"></div>');
       list.forEach((it, idx) => {
-        const t = h(`<div class="tile" data-i="${idx}">${fileIcon(it, it.parent || this.path, true)}<div class="nm"></div></div>`);
+        const t = h(`<div class="tile" data-i="${idx}">${fileIcon(it, it.parent || this.path, true)}<div class="nm" translate="no"></div></div>`);
         $('.nm', t).textContent = it.name; this.bindItem(t, it, idx); g.appendChild(t);
       });
       this.scroll.appendChild(g);
@@ -146,7 +146,7 @@ class FilesApp {
       });
       const tb = $('tbody', tbl);
       list.forEach((it, idx) => {
-        const tr = h(`<tr class="row" data-i="${idx}"><td><div class="nm">${fileIcon(it, it.parent || this.path)}<span></span></div></td>
+        const tr = h(`<tr class="row" data-i="${idx}"><td><div class="nm">${fileIcon(it, it.parent || this.path)}<span translate="no"></span></div></td>
           <td class="c-size">${it.dir ? '—' : fmtSize(it.size)}</td><td class="c-date">${fmtEpoch(it.mtime)}</td>
           <td class="c-more"><button class="btn ghost icon sm more">${icon('more')}</button></td></tr>`);
         $('.nm span', tr).textContent = it.name + (it.parent ? `  —  ${it.parent}` : '');
@@ -356,7 +356,7 @@ registerApp({
     let dirty = false;
     win.setTitle(path.split('/').pop());
     win.body.innerHTML = `<div class="toolbar"><button class="btn primary" data-a="save">${icon('save')} حفظ</button>
-      <span class="muted ltr" style="font-size:12px"></span><span class="grow"></span><span class="st muted"></span></div>
+      <span class="muted ltr" style="font-size:12px" translate="no"></span><span class="grow"></span><span class="st muted"></span></div>
       <textarea class="editor" spellcheck="false" dir="auto"></textarea>`;
     const ta = $('textarea', win.body); $('.ltr', win.body).textContent = path;
     guard(() => api.get('/api/files/text?path=' + encPath(path))).then(r => { if (r) ta.value = r.content; });

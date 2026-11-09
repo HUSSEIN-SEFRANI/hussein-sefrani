@@ -1,5 +1,5 @@
 // صفحة رابط المشاركة العامة (بدون تسجيل دخول)
-import { $, h, esc, icon, api, toast, openViewer, fmtSize, fmtEpoch, fmtDateTime, fileType, THUMBABLE, download } from './core.js';
+import { $, h, esc, icon, api, toast, ARROW, openViewer, fmtSize, fmtEpoch, fmtDateTime, fileType, THUMBABLE, download } from './core.js';
 
 const T = window.__TOKEN__, base = `/s/${T}`;
 const body = $('#sh-body'), actions = $('#sh-actions');
@@ -55,8 +55,8 @@ async function folder(sub) {
   const box = h(`<div class="sh-box"><div class="toolbar"><div class="crumbs"></div></div><table class="flist"><tbody></tbody></table></div>`);
   const cr = $('.crumbs', box); const parts = sub.split('/').filter(Boolean);
   const root = h(`<button>${icon('home')}</button>`); root.onclick = () => folder(''); cr.appendChild(root);
-  parts.forEach((p, i) => { const path = parts.slice(0, i + 1).join('/'); cr.appendChild(h('<span class="sep">‹</span>'));
-    const b = h('<button></button>'); b.textContent = p; b.onclick = () => folder(path); cr.appendChild(b); });
+  parts.forEach((p, i) => { const path = parts.slice(0, i + 1).join('/'); cr.appendChild(h(`<span class="sep">${ARROW.sep}</span>`));
+    const b = h('<button translate="no"></button>'); b.textContent = p; b.onclick = () => folder(path); cr.appendChild(b); });
   const media = res.items.filter(i => !i.dir && ['image', 'video', 'audio'].includes(fileType(i.ext)));
   const path = (it) => (sub ? sub + '/' : '') + it.name;
   if (!res.items.length) box.appendChild(h('<div class="empty-state">المجلد فارغ</div>'));
@@ -65,7 +65,7 @@ async function folder(sub) {
       : `<div class="ficon t-${fileType(it.ext)}">${esc((it.ext || '?').slice(0, 4))}</div>`;
     const tr = h(`<tr class="row"><td><div class="nm">${ic}<span></span></div></td><td class="c-size muted">${it.dir ? '' : fmtSize(it.size)}</td>
       <td class="c-date muted">${fmtEpoch(it.mtime)}</td><td class="c-more">${it.dir ? '' : `<button class="btn ghost icon sm">${icon('download')}</button>`}</td></tr>`);
-    $('.nm span', tr).textContent = it.name;
+    $('.nm span', tr).textContent = it.name; $('.nm span', tr).setAttribute('translate', 'no');
     tr.style.cursor = 'pointer';
     tr.onclick = (e) => {
       if (e.target.closest('button')) return download(`${base}/raw?dl=1&${q(path(it))}`);

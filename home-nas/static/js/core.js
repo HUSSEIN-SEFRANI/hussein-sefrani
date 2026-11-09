@@ -4,6 +4,10 @@
 // ====================================================================
 
 export const ME = window.__ME__ || {};
+export const I18N = window.I18N || { lang: 'ar', rtl: true, locale: 'ar', t: (x) => x };
+export const RTL = I18N.rtl;
+/** سهم «السابق/الرجوع» و«التالي» حسب اتجاه اللغة */
+export const ARROW = { back: RTL ? 'right' : 'left', fwd: RTL ? 'left' : 'right', sep: RTL ? '‹' : '›' };
 
 // ---------------------------------------------------------------- أيقونات
 const P = {
@@ -80,8 +84,8 @@ export function fmtSize(n) {
   while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
   return (i ? n.toFixed(n < 10 ? 2 : 1) : n) + ' ' + u[i];
 }
-const dtf = new Intl.DateTimeFormat('ar', { dateStyle: 'medium', timeStyle: 'short', numberingSystem: 'latn' });
-const df = new Intl.DateTimeFormat('ar', { dateStyle: 'medium', numberingSystem: 'latn' });
+const dtf = new Intl.DateTimeFormat(I18N.locale, { dateStyle: 'medium', timeStyle: 'short', numberingSystem: 'latn' });
+const df = new Intl.DateTimeFormat(I18N.locale, { dateStyle: 'medium', numberingSystem: 'latn' });
 export const fmtDateTime = (d) => d ? dtf.format(d instanceof Date ? d : new Date(d)) : '';
 export const fmtDate = (d) => d ? df.format(d instanceof Date ? d : new Date(d)) : '';
 export const fmtEpoch = (s) => s ? fmtDateTime(new Date(s * 1000)) : '';
@@ -269,13 +273,13 @@ export function pickFolder(title = 'اختر مجلداً', start = '') {
         return;
       }
       const parts = path.split('/').filter(Boolean); let acc = '';
-      parts.forEach((p, i) => { acc += '/' + p; const a = acc; cr.appendChild(h('<span class="sep">›</span>'));
-        const b = h(`<button>${esc(i === 0 ? (roots.find(r => r.name === p) || {}).label || p : p)}</button>`); b.onclick = () => load(a); cr.appendChild(b); });
+      parts.forEach((p, i) => { acc += '/' + p; const a = acc; cr.appendChild(h(`<span class="sep">${ARROW.sep}</span>`));
+        const b = h(`<button ${i ? 'translate="no"' : ''}>${esc(i === 0 ? (roots.find(r => r.name === p) || {}).label || p : p)}</button>`); b.onclick = () => load(a); cr.appendChild(b); });
       const res = await guard(() => api.get('/api/files/list?path=' + encPath(path)));
       if (!res) return;
       const dirs = res.items.filter(i => i.dir && i.name !== '#recycle');
       if (!dirs.length) list.appendChild(h('<div class="muted" style="padding:14px">لا توجد مجلدات فرعية</div>'));
-      for (const d of dirs) { const b = h(`<button>${icon('folder')} <span></span></button>`); $('span', b).textContent = d.name; b.onclick = () => load(path + '/' + d.name); list.appendChild(b); }
+      for (const d of dirs) { const b = h(`<button>${icon('folder')} <span translate="no"></span></button>`); $('span', b).textContent = d.name; b.onclick = () => load(path + '/' + d.name); list.appendChild(b); }
     }
     load(start);
     const r = await modal({ title, body, buttons: [{ label: 'إلغاء', value: null }, { label: 'اختيار هذا المجلد', cls: 'primary', value: () => cur,
@@ -412,7 +416,7 @@ export const uploads = (() => {
     ensurePanel();
     for (const j of jobs) {
       j.state = 'pending'; j.tries = 0; j.onDone = onDone; j.onAll = onAll; j.loaded = 0;
-      j.li = h(`<li><span class="n"></span><span class="s muted">بالانتظار</span></li>`);
+      j.li = h(`<li><span class="n" translate="no"></span><span class="s muted">بالانتظار</span></li>`);
       $('.n', j.li).textContent = j.name || j.file.name;
       $('ul', panel).appendChild(j.li);
       queue.push(j); st.total++; st.bytes += j.file.size || 1;
@@ -506,8 +510,8 @@ export function chooseFiles({ accept = '', multiple = true, folder = false } = {
 export function openViewer(items, index, opts) {
   closeViewer();
   let i = index;
-  const v = h(`<div id="viewer"><div class="vbar"><button class="vbtn close">${icon('x')}</button><div class="t"></div><div class="acts" style="display:flex;gap:6px"></div></div>
-    <div class="stage"></div><button class="nav prev">${icon('right')}</button><button class="nav next">${icon('left')}</button><div class="meta"></div></div>`);
+  const v = h(`<div id="viewer"><div class="vbar"><button class="vbtn close">${icon('x')}</button><div class="t" translate="no"></div><div class="acts" style="display:flex;gap:6px"></div></div>
+    <div class="stage"></div><button class="nav prev">${icon(ARROW.back)}</button><button class="nav next">${icon(ARROW.fwd)}</button><div class="meta"></div></div>`);
   const stage = $('.stage', v);
   const api_ = {
     get index() { return i; }, get item() { return items[i]; },
@@ -546,14 +550,14 @@ export function openViewer(items, index, opts) {
   stage.addEventListener('touchstart', e => { if (e.touches.length === 1) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; } }, { passive: true });
   stage.addEventListener('touchend', e => {
     if (sx === null) return; const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy; sx = null;
-    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) show(i + (dx > 0 ? 1 : -1));
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) show(i + ((dx > 0) === RTL ? 1 : -1));
     else if (dy > 120 && Math.abs(dy) > Math.abs(dx)) closeViewer();
   });
   v._key = e => {
     if ($('.modal-back')) return;
     if (e.key === 'Escape') closeViewer();
-    else if (e.key === 'ArrowLeft') show(i + 1);
-    else if (e.key === 'ArrowRight') show(i - 1);
+    else if (e.key === 'ArrowLeft') show(i + (RTL ? 1 : -1));
+    else if (e.key === 'ArrowRight') show(i + (RTL ? -1 : 1));
   };
   document.addEventListener('keydown', v._key);
   document.body.appendChild(v);

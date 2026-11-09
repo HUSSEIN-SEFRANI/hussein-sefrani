@@ -408,3 +408,19 @@ ol.steps { padding-inline-start: 20px; } ol.steps li { margin-bottom: 8px; }
 #tb-alert { background: var(--err) !important; font-weight: 600; animation: pulse 2s infinite; }
 #tb-alert.warn { background: var(--warn) !important; animation: none; }
 @keyframes pulse { 50% { opacity: .7; } }
+
+/* اختيار اللغة */
+.lang-switch { display: flex; gap: 4px; justify-content: center; margin-top: 18px; flex-wrap: wrap; }
+.lang-switch button { border: 1px solid var(--border); background: var(--surface-2); border-radius: 99px; padding: 4px 12px; cursor: pointer; font-size: 13px; color: var(--text); }
+.lang-switch button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+#startmenu .lang-switch { margin-top: 10px; justify-content: flex-start; }
+
+/* واجهة من اليسار إلى اليمين (English / Français) */
+[dir=ltr] #viewer .nav.prev { right: auto; left: 10px; }
+[dir=ltr] #viewer .nav.next { left: auto; right: 10px; }
+@media (max-width: 760px) {
+  [dir=ltr] .app-side { transform: translateX(-110%); }
+  [dir=ltr] .app-side.open { transform: none; }
+}
+
+[dir=ltr] .ar-only { display: none; }

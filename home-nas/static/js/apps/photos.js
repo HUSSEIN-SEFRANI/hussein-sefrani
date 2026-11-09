@@ -3,7 +3,7 @@
 // ====================================================================
 import {
   $, $$, h, esc, icon, api, guard, toast, modal, confirmBox, promptBox, menuAt, shareDialog, registerApp,
-  uploads, chooseFiles, openViewer, fmtSize, fmtDateTime, debounce, download, isTouch, isMobile,
+  uploads, chooseFiles, openViewer, ARROW, fmtSize, fmtDateTime, debounce, download, isTouch, isMobile,
 } from '../core.js';
 
 const MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
@@ -135,7 +135,7 @@ class PhotosApp {
     this.win.setTitle('الصور — ' + $('.v-title', this.win.body).textContent);
     if (this.view === 'album') {
       const bar = h(`<div class="toolbar" style="border:0;padding:12px 4px 0">
-        <button class="btn ghost" data-b="back">${icon('right')} الألبومات</button><span class="grow"></span>
+        <button class="btn ghost" data-b="back">${icon(ARROW.back)} الألبومات</button><span class="grow"></span>
         <button class="btn" data-b="share">${icon('link')} مشاركة</button>
         <button class="btn ghost icon" data-b="more">${icon('more')}</button></div>`);
       $('[data-b=back]', bar).onclick = () => { this.view = 'albums'; this.reload(); };
@@ -319,7 +319,7 @@ class PhotosApp {
     if (!albums.length) grid.appendChild(h(`<div class="empty-state" style="grid-column:1/-1">${icon('album')}<p>لا توجد ألبومات بعد</p></div>`));
     for (const a of albums) {
       const card = h(`<div class="album-card"><div class="cover">${a.cover ? `<img loading="lazy" src="/api/photos/${a.cover}/thumb" alt="">` : icon('album')}</div>
-        <div class="t"></div><div class="s">${a.count} عنصر</div></div>`);
+        <div class="t" translate="no"></div><div class="s">${a.count} عنصر</div></div>`);
       $('.t', card).textContent = a.name;
       card.onclick = () => { this.view = 'album'; this.album = a; this.reload(); };
       card.oncontextmenu = (e) => { e.preventDefault(); menuAt(card, [

@@ -21,7 +21,7 @@ registerApp({
         <p>أنشئ رابطاً من «الملفات» (زر مشاركة) أو من ألبوم في «الصور».</p></div>`; return; }
       const t = h(`<table class="tbl"><thead><tr><th>العنصر</th><th>النوع</th>${all ? '<th>المالك</th>' : ''}<th>الحالة</th><th>المشاهدات</th><th></th></tr></thead><tbody></tbody></table>`);
       for (const l of rows) {
-        const tr = h(`<tr><td><b></b><div class="muted ltr" style="font-size:12px"></div></td>
+        const tr = h(`<tr><td translate="no"><b></b><div class="muted ltr" style="font-size:12px"></div></td>
           <td>${l.kind === 'album' ? 'ألبوم' : 'ملف/مجلد'}</td>${all ? `<td>${esc(l.owner)}</td>` : ''}
           <td>${l.expired ? '<span class="badge err">منتهي</span>' : l.expires_at ? `<span class="badge warn">حتى ${esc(fmtDateTime(l.expires_at))}</span>` : '<span class="badge ok">دائم</span>'}
             ${l.has_password ? `<span class="badge">${icon('lock')}</span>` : ''}</td>
@@ -217,6 +217,10 @@ const CP = {
       if (await guard(() => api.post('/api/me/password', { old: v('old'), new: v('new') }))) { toast('تم تغيير كلمة المرور', 'ok'); $$('input', card).forEach(i => i.value = ''); }
     };
     p.appendChild(card);
+    if (window.I18N && I18N.switcher) {
+      const lc = h(`<div class="card" style="max-width:460px;margin-top:14px"><h4 translate="no">${icon('info')} Language · اللغة · Langue</h4></div>`);
+      const sw = I18N.switcher(); sw.style.justifyContent = 'flex-start'; sw.style.marginTop = '0'; lc.appendChild(sw); p.appendChild(lc);
+    }
     const out = h(`<p><a class="btn danger" href="/logout">${icon('logout')} تسجيل الخروج</a></p>`); p.appendChild(out);
   },
 
@@ -260,16 +264,16 @@ const CP = {
       <div class="card"><h4>${icon('phone')} من الآيفون / الآيباد</h4><ol class="steps">
         <li>افتح تطبيق <b>الملفات</b> ← زر <b>⋯</b> في الأعلى ← <b>الاتصال بالخادم</b>.</li>
         <li>اكتب: <span class="code">smb://${esc(host)}.local</span> (أو <span class="code">smb://${esc(ip)}</span>)</li>
-        <li>اختر «مستخدم مسجل» وأدخل اسم المستخدم وكلمة المرور. يظهر H.SEF بعدها في قائمة «المواقع».</li></ol></div>
+        <li>اختر «مستخدم مسجل» وأدخل اسم المستخدم وكلمة المرور. يظهر السيرفر بعدها في قائمة «المواقع».</li></ol></div>
       <div class="card"><h4>${icon('server')} من ماك</h4><ol class="steps">
         <li>Finder ← <b>انتقال</b> ← <b>الاتصال بالخادم</b> (⌘K).</li>
         <li>اكتب: <span class="code">smb://${esc(host)}.local</span></li></ol></div>
       <div class="card"><h4>${icon('video')} تلفاز سامسونغ</h4><ol class="steps">
         <li>تأكد أن التلفاز متصل بنفس شبكة المنزل.</li>
-        <li>اضغط زر <b>Home</b> ← <b>المصدر (Source)</b> أو <b>الأجهزة المتصلة</b>.</li>
+        <li>اضغط زر <b>Home</b> ← <b>المصدر <span class="ar-only">(Source)</span></b> أو <b>الأجهزة المتصلة</b>.</li>
         <li>اختر <b>${esc(n.host)}</b> / <b>H.SEF</b> ← تصفح المجلدات وشغّل الصور والفيديو.</li>
         <li>في الأجهزة الأقدم: تطبيق <b>Media</b> أو <b>AllShare</b>.</li></ol>
-        <p class="muted" style="font-size:12px">يعمل أيضاً مع أغلب أجهزة التلفاز الذكية (LG، سوني…) ومشغلات مثل VLC وKodi.</p></div></div>`));
+        <p class="muted" style="font-size:12px">يعمل أيضاً مع أغلب أجهزة التلفاز الذكية (LG، سوني…) ومشغلات مثل VLC و Kodi.</p></div></div>`));
 
     if (!ME.is_admin) return;
     // --- إعدادات المدير
@@ -364,7 +368,7 @@ const CP = {
     const t = h(`<table class="tbl"><thead><tr><th>الاسم</th><th>المسار على الكمبيوتر</th><th>المستخدمون</th><th></th></tr></thead><tbody></tbody></table>`);
     for (const f of rows) {
       const who = Object.entries(f.perms).map(([uid, perm]) => { const u = users.find(x => x.id == uid); return u ? `${esc(u.username)} <span class="muted">(${perm === 'rw' ? 'كتابة' : 'قراءة'})</span>` : ''; }).filter(Boolean).join('، ') || '<span class="muted">المدير فقط</span>';
-      const tr = h(`<tr><td><b></b><div class="muted" style="font-size:12px"></div></td><td class="ltr muted" style="font-size:12px"></td><td>${who}</td>
+      const tr = h(`<tr><td translate="no"><b></b><div class="muted" style="font-size:12px"></div></td><td class="ltr muted" style="font-size:12px"></td><td>${who}</td>
         <td style="white-space:nowrap"><button class="btn sm" data-x="edit">${icon('edit')} الصلاحيات</button>
         <button class="btn ghost icon sm danger" data-x="del">${icon('trash')}</button></td></tr>`);
       $('b', tr).textContent = f.name; $('div.muted', tr).textContent = f.description; $('td.ltr', tr).textContent = f.path + (f.exists ? '' : ' ⚠️');
