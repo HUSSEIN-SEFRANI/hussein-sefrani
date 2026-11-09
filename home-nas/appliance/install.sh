@@ -32,7 +32,7 @@ log "Installing system packages"
 retry apt-get update
 retry apt-get install -y --no-install-recommends \
     python3 python3-venv python3-pip ffmpeg avahi-daemon libnss-mdns sudo ca-certificates \
-    unattended-upgrades rsync parted e2fsprogs sqlite3
+    unattended-upgrades rsync parted e2fsprogs sqlite3 mdadm smartmontools
 
 log "Creating service user"
 id homenas >/dev/null 2>&1 || useradd --system --home-dir /var/lib/homenas --create-home \
@@ -100,7 +100,7 @@ EOF
 
 # Let the web panel reboot / power off the machine (and nothing else)
 cat > /etc/sudoers.d/homenas <<'EOF'
-homenas ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/bin/timedatectl set-timezone *
+homenas ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/bin/timedatectl set-timezone *, /usr/sbin/smartctl -j -H -A /dev/*
 EOF
 chmod 440 /etc/sudoers.d/homenas
 visudo -cf /etc/sudoers.d/homenas >/dev/null

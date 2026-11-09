@@ -78,6 +78,8 @@ registerApp({
         <div class="card span2"><h4>${icon('hdd')} التخزين</h4><div class="vols"></div></div>
         <div class="card"><h4>${icon('server')} النظام</h4><dl class="kv v-info"></dl></div>
         <div class="card"><h4>${icon('phone')} عنوان السيرفر</h4><div class="v-urls"></div><p class="muted" style="font-size:12px">افتحه من أي جهاز على نفس شبكة Wi-Fi.</p></div>
+        ${ME.is_admin ? `<div class="card span2"><h4>${icon('shield')} صحة الأقراص و RAID</h4><div class="v-health muted">جارٍ الفحص…</div></div>
+          <div class="card"><h4>${icon('save')} النسخ الاحتياطي</h4><div class="v-backup"></div></div>` : ''}
         ${ME.is_admin ? `<div class="card span2"><h4>${icon('clock')} آخر النشاطات</h4><div class="v-recent"></div></div>` : ''}`;
       built = true;
     }
@@ -111,9 +113,44 @@ registerApp({
       if (ME.is_admin && s.recent) $('.v-recent', cards).innerHTML = logTable(s.recent);
       last = s;
     }
-    tick(); const t = setInterval(tick, 2000); win.onClose(() => clearInterval(t));
+    async function health() {
+      if (!ME.is_admin || !built) return;
+      const r = await api.get('/api/system/health').catch(() => null); if (!r) return;
+      const box = $('.v-health', cards); if (!box) return;
+      box.classList.remove('muted');
+      box.innerHTML = healthHtml(r);
+      const b = r.backup;
+      $('.v-backup', cards).innerHTML = !b.enabled && !b.last ? '<p class="muted">غير مفعّل. فعّله من لوحة التحكم ← النسخ الاحتياطي.</p>'
+        : `<div style="margin-bottom:6px">${b.running ? '<span class="badge accent">يعمل الآن…</span>' : !b.connected ? '<span class="badge err">القرص غير موصول</span>'
+          : b.last && !b.last.ok ? '<span class="badge err">فشل آخر نسخ</span>' : '<span class="badge ok">سليم</span>'}</div>
+          <dl class="kv"><dt>آخر نسخة ناجحة</dt><dd>${esc(fmtDateTime(b.last_success) || '—')}</dd></dl>`;
+    }
+    tick(); const t = setInterval(tick, 2000);
+    setTimeout(health, 300); const t2 = setInterval(health, 30000);
+    win.onClose(() => { clearInterval(t); clearInterval(t2); });
   },
 });
+
+export function healthHtml(r) {
+  let html = '';
+  for (const a of r.alerts) html += `<div class="alert ${a.level}"><b>${esc(a.title)}</b><div>${esc(a.text)}</div></div>`;
+  for (const a of r.arrays) {
+    const st = !a.healthy ? '<span class="badge err">متدهورة</span>' : a.action ? `<span class="badge warn">${a.action === 'check' ? 'فحص' : 'إعادة بناء'} ${a.progress}%</span>` : '<span class="badge ok">سليمة</span>';
+    html += `<div style="margin:8px 0"><b>${esc(a.name)}</b> <span class="muted">${esc(a.level.toUpperCase())}</span> ${st}
+      <span class="muted" style="font-size:12px">— ${a.members.map(m => esc(m.dev) + (m.failed ? ' ❌' : '')).join('، ')}</span>
+      ${a.progress != null ? `<div class="meter ${a.healthy ? '' : 'err'}"><div style="width:${a.progress}%"></div></div>` : ''}</div>`;
+  }
+  if (r.disks.length) {
+    html += `<table class="tbl" style="margin-top:6px"><thead><tr><th>القرص</th><th>الحجم</th><th>SMART</th><th>الحرارة</th><th>ساعات التشغيل</th></tr></thead><tbody>
+      ${r.disks.map(d => `<tr><td><b>${esc(d.name)}</b> <span class="muted" style="font-size:12px">${esc(d.model)}${d.transport ? ' · ' + esc(d.transport) : ''}</span></td>
+        <td>${fmtSize(d.size)}</td>
+        <td>${d.passed === true ? '<span class="badge ok">سليم</span>' : d.passed === false ? '<span class="badge err">فشل</span>' : '<span class="muted">—</span>'}</td>
+        <td>${d.temp != null ? d.temp + '°' : '—'}</td><td>${d.hours != null ? d.hours.toLocaleString('en') : '—'}</td></tr>`).join('')}</tbody></table>`;
+  }
+  if (!html) html = '<p class="muted">لا توجد بيانات عن الأقراص على هذا الجهاز.</p>';
+  else if (!r.alerts.length) html = '<div class="alert ok"><b>كل شيء سليم ✓</b></div>' + html;
+  return html;
+}
 
 function logTable(rows) {
   if (!rows.length) return '<p class="muted">لا توجد سجلات</p>';
@@ -128,6 +165,7 @@ const SECTIONS = [
   { id: 'phone', label: 'ربط الآيفون', icon: 'phone' },
   { id: 'users', label: 'المستخدمون', icon: 'users', admin: true },
   { id: 'folders', label: 'المجلدات المشتركة', icon: 'hdd', admin: true },
+  { id: 'backup', label: 'النسخ الاحتياطي', icon: 'save', admin: true },
   { id: 'photos', label: 'إعدادات الصور', icon: 'image', admin: true },
   { id: 'general', label: 'عام', icon: 'sliders', admin: true },
   { id: 'logs', label: 'سجل النشاط', icon: 'clock', admin: true },
@@ -262,6 +300,79 @@ const CP = {
       $('tbody', t).appendChild(tr);
     }
     p.appendChild(t);
+  },
+
+  async backup(sc) {
+    const r = await guard(() => api.get('/api/backup')); if (!r) return;
+    const { settings: st, status, target: tg } = r;
+    const p = section(sc, 'النسخ الاحتياطي', 'نسخ تلقائي لكل الملفات والصور إلى قرص خارجي. كل نسخة محفوظة كمجلد بالتاريخ، والملفات غير المتغيرة لا تأخذ مساحة إضافية. احتفظ بالقرص في مكان آمن.');
+    const last = st.last;
+    const stateBadge = status.running ? '<span class="badge accent">يعمل الآن…</span>'
+      : !st.target ? '<span class="badge">غير مُعدّ</span>'
+      : !tg.connected ? '<span class="badge err">القرص غير موصول</span>'
+      : last && !last.ok ? '<span class="badge err">فشل آخر نسخ</span>'
+      : last ? '<span class="badge ok">سليم</span>' : '<span class="badge warn">لم يُنسخ بعد</span>';
+    const card = h(`<div class="cards" style="padding:0">
+      <div class="card"><h4>${icon('shield')} الحالة</h4><div style="margin-bottom:8px">${stateBadge}</div>
+        <dl class="kv">
+          <dt>آخر نسخة ناجحة</dt><dd>${esc(fmtDateTime(st.last_success) || '—')}</dd>
+          ${last ? `<dt>آخر محاولة</dt><dd>${esc(fmtDateTime(last.finished))}<br><span class="muted">${esc(last.ok ? (last.summary || '') : (last.error || last.summary || ''))}</span></dd>` : ''}
+          ${tg.connected && tg.total ? `<dt>مساحة القرص</dt><dd>${fmtSize(tg.free)} متاح من ${fmtSize(tg.total)}</dd>` : ''}
+          ${tg.connected ? `<dt>النسخ المحفوظة</dt><dd>${tg.mirror && !tg.snapshots.length ? 'مرآة واحدة (القرص لا يدعم الإصدارات)' : tg.snapshots.length}</dd>` : ''}
+        </dl>
+        <div class="run-st muted" style="font-size:12px;margin-top:8px"></div>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn primary" data-b="run" ${tg.connected && !status.running ? '' : 'disabled'}>${icon('save')} نسخ احتياطي الآن</button>
+          ${tg.connected && (tg.snapshots.length || tg.mirror) ? `<button class="btn" data-b="browse">${icon('folder')} استعراض واسترجاع</button>` : ''}
+        </div></div>
+      <div class="card"><h4>${icon('hdd')} الوجهة والجدولة</h4>
+        <label class="lbl">مجلد الوجهة (على القرص الخارجي)</label>
+        <input class="field" name="target" dir="ltr" placeholder="${esc(st.suggested || 'E:\\HomeNAS-Backup')}">
+        ${tg.exists && !tg.initialized ? `<div class="muted" style="font-size:12px;margin-top:6px">⚠️ المجلد موجود لكنه غير مُجهز كوجهة نسخ. اضغط «تجهيز».</div>` : ''}
+        ${st.target && !tg.exists ? `<div class="muted" style="font-size:12px;margin-top:6px">⚠️ المجلد غير موجود — صِل القرص.</div>` : ''}
+        <label class="check"><input type="checkbox" name="enabled" ${st.enabled ? 'checked' : ''}> نسخ تلقائي كل يوم</label>
+        <div style="display:flex;gap:10px">
+          <div style="flex:1"><label class="lbl">الساعة</label><select class="field" name="hour">${Array.from({ length: 24 }, (_, i) => `<option value="${i}" ${i === st.hour ? 'selected' : ''}>${String(i).padStart(2, '0')}:00</option>`).join('')}</select></div>
+          <div style="flex:1"><label class="lbl">عدد النسخ المحفوظة</label><input class="field" name="keep" type="number" min="1" max="365" value="${st.keep}"></div>
+        </div>
+        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn primary" data-b="save">حفظ</button>
+          ${tg.exists && !tg.initialized ? `<button class="btn" data-b="init">${icon('check')} تجهيز هذا المجلد</button>` : ''}
+        </div></div>
+      <div class="card span2"><h4>${icon('info')} ما الذي يُنسخ؟</h4>
+        <p style="margin:0">${r.sources.map(x => `<span class="code">${esc(x)}</span>`).join(' ')} <span class="code">@system/nas.db</span></p>
+        <p class="muted" style="font-size:13px">كل الملفات والصور لكل المستخدمين، والمجلدات المشتركة (حتى المربوطة بأقراص أخرى)، وقاعدة البيانات (الحسابات والألبومات والمفضلة). سلال المحذوفات والمصغرات لا تُنسخ.</p>
+        <p class="muted" style="font-size:13px"><b>على جهاز HomeNAS المخصص:</b> جهّز قرص USB مرة واحدة من شاشة الجهاز بالأمر
+          <span class="code">sudo homenas-disk backup-disk /dev/sdX</span> ثم استخدم المسار <span class="code">/srv/homenas/backup</span>.</p></div></div>`);
+    $('[name=target]', card).value = st.target || '';
+    const reload = () => { sc.innerHTML = ''; CP.backup(sc); };
+    $('[data-b=save]', card).onclick = async () => {
+      const d = { target: $('[name=target]', card).value, enabled: $('[name=enabled]', card).checked,
+        hour: +$('[name=hour]', card).value, keep: +$('[name=keep]', card).value };
+      if (await guard(() => api.post('/api/backup/settings', d))) { toast('تم الحفظ', 'ok'); reload(); }
+    };
+    const init = $('[data-b=init]', card);
+    if (init) init.onclick = async () => { if (await guard(() => api.post('/api/backup/init'))) { toast('أصبح المجلد جاهزاً للنسخ الاحتياطي', 'ok'); reload(); } };
+    const browse = $('[data-b=browse]', card);
+    if (browse) browse.onclick = () => openApp('files', { path: '/backup', forceNew: false });
+    const runBtn = $('[data-b=run]', card);
+    runBtn.onclick = async () => { if (await guard(() => api.post('/api/backup/run'))) { toast('بدأ النسخ الاحتياطي', 'ok'); setTimeout(poll, 700); } };
+    p.appendChild(card);
+    async function poll() {
+      const x = await api.get('/api/backup').catch(() => null);
+      if (!x || !document.body.contains(card)) return;
+      if (x.status.running) {
+        runBtn.disabled = true;
+        $('.run-st', card).textContent = `جارٍ النسخ: ${x.status.files} ملف (${x.status.copied} جديد) — ${x.status.current}`;
+        setTimeout(poll, 1500);
+      } else {
+        const ok = x.settings.last && x.settings.last.ok;
+        toast(ok ? 'اكتمل النسخ الاحتياطي' : 'فشل النسخ الاحتياطي', ok ? 'ok' : 'err');
+        window.dispatchEvent(new Event('nas-health'));
+        reload();
+      }
+    }
+    if (status.running) poll();
   },
 
   async photos(sc) {

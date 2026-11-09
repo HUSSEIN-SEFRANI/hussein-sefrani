@@ -1,107 +1,225 @@
 #!/bin/bash
 # =====================================================================
-#  homenas-disk — manage extra hard drives on a HomeNAS machine.
+#  homenas-disk — manage hard drives on a HomeNAS machine.
 #
 #    sudo homenas-disk list
 #        Show all disks and which one holds the system.
 #
+#    sudo homenas-disk status
+#        RAID and disk health (SMART) summary.
+#
+#    sudo homenas-disk mirror /dev/sdX /dev/sdY
+#        ERASE both disks and make them a RAID 1 mirror (same data on both)
+#        that becomes the main HomeNAS storage. All data is copied onto it.
+#        If one disk dies, nothing is lost.
+#
+#    sudo homenas-disk replace /dev/sdZ
+#        After a RAID disk failed and was physically replaced with /dev/sdZ:
+#        ERASE /dev/sdZ and rebuild every degraded mirror onto it.
+#
 #    sudo homenas-disk move-data /dev/sdX
-#        ERASE /dev/sdX and make it the main storage: all HomeNAS data
-#        (users' files and photos) is copied onto it.
+#        ERASE /dev/sdX and make it the main storage (single disk, no RAID).
 #
 #    sudo homenas-disk add /dev/sdX NAME
-#        ERASE /dev/sdX and mount it at /srv/homenas/disks/NAME.
-#        Then in the web panel: Control Panel > Shared folders > New,
-#        path /srv/homenas/disks/NAME.
+#        ERASE /dev/sdX and mount it at /srv/homenas/disks/NAME
+#        (then add it in Control Panel > Shared folders).
+#
+#    sudo homenas-disk backup-disk /dev/sdX
+#        ERASE /dev/sdX (e.g. a USB disk) and prepare it as the backup disk,
+#        mounted automatically at /srv/homenas/backup whenever it is plugged in.
 # =====================================================================
 set -euo pipefail
 
 CONF=${HOMENAS_CONFIG:-/etc/homenas/config.json}
 DATA=$(python3 -c "import json;print(json.load(open('$CONF')).get('data_dir','/srv/homenas/data'))" 2>/dev/null || echo /srv/homenas/data)
+BACKUP_MNT=/srv/homenas/backup
 
 die() { echo "Error: $*" >&2; exit 1; }
 [ "$(id -u)" -eq 0 ] || die "run with sudo"
 
-root_disk() { lsblk -no PKNAME "$(findmnt -no SOURCE /)" | head -n1; }
+# disks (not partitions) that hold the operating system — may be 2 with a mirrored system
+system_disks() {
+    local src; src=$(findmnt -no SOURCE /)
+    lsblk -nso NAME,TYPE "$src" 2>/dev/null | awk '$2=="disk"{gsub(/[^a-zA-Z0-9]/,"",$1); print $1}' | sort -u
+}
+
+part_name() { case "$1" in *[0-9]) echo "${1}p$2" ;; *) echo "$1$2" ;; esac; }
 
 check_disk() {
     local dev=$1
     [ -b "$dev" ] || die "$dev is not a disk"
     [ "$(lsblk -dno TYPE "$dev")" = "disk" ] || die "$dev is a partition; give the whole disk (e.g. /dev/sdb)"
-    [ "$(basename "$dev")" != "$(root_disk)" ] || die "$dev holds the operating system"
+    system_disks | grep -qx "$(basename "$dev")" && die "$dev holds the operating system"
     if lsblk -no MOUNTPOINT "$dev" | grep -q .; then die "$dev (or one of its partitions) is mounted"; fi
+    if lsblk -no TYPE "$dev" | grep -q raid; then die "$dev is already part of a RAID array"; fi
+}
+
+confirm_erase() {
     echo
-    lsblk -o NAME,SIZE,MODEL,FSTYPE,LABEL "$dev"
+    lsblk -o NAME,SIZE,MODEL,FSTYPE,LABEL "$@"
     echo
-    echo "ALL DATA ON $dev WILL BE ERASED."
+    echo "ALL DATA ON $* WILL BE ERASED."
     read -r -p "Type ERASE to continue: " ans
     [ "$ans" = "ERASE" ] || die "cancelled"
 }
 
-format_disk() {   # $1=device $2=label → prints partition path
-    local dev=$1 label=$2
+new_partition() {   # $1=device $2=name $3=type(ext4|raid) → prints partition path
+    local dev=$1
     wipefs -aq "$dev"
-    parted -s "$dev" mklabel gpt mkpart "$label" ext4 1MiB 100%
+    parted -s "$dev" mklabel gpt mkpart "$2" ext4 1MiB 100%
+    [ "$3" = raid ] && parted -s "$dev" set 1 raid on
     partprobe "$dev" 2>/dev/null || true; udevadm settle
-    local part
-    part=$(lsblk -lnpo NAME,TYPE "$dev" | awk '$2=="part"{print $1; exit}')
-    [ -n "$part" ] || die "partition was not created"
-    mkfs.ext4 -q -F -L "$label" -m 1 "$part"
+    local part; part=$(part_name "$dev" 1)
+    [ -b "$part" ] || die "partition $part was not created"
+    wipefs -aq "$part"
     echo "$part"
 }
 
-add_fstab() {   # $1=partition $2=mountpoint
-    local uuid
-    uuid=$(blkid -s UUID -o value "$1")
+add_fstab() {   # $1=UUID $2=mountpoint $3=extra options
     sed -i "\# $2 #d" /etc/fstab
-    echo "UUID=$uuid $2 ext4 defaults,noatime,nofail 0 2" >> /etc/fstab
+    echo "UUID=$1 $2 ext4 defaults,noatime,nofail${3:+,$3} 0 2" >> /etc/fstab
     systemctl daemon-reload
 }
 
-case "${1:-}" in
-list)
-    echo "System disk: /dev/$(root_disk)"
-    echo
-    lsblk -o NAME,SIZE,TYPE,MODEL,FSTYPE,LABEL,MOUNTPOINT -e 7,11
-    ;;
-move-data)
-    dev=${2:-}; [ -n "$dev" ] || die "usage: homenas-disk move-data /dev/sdX"
-    check_disk "$dev"
-    part=$(format_disk "$dev" HOMENAS-DATA | tail -n1)
-    tmp=$(mktemp -d)
-    mount "$part" "$tmp"
+move_data_to() {   # $1=block device holding the new (empty, formatted) filesystem
+    local tmp; tmp=$(mktemp -d)
+    mount "$1" "$tmp"
     echo "Stopping HomeNAS and copying data (this can take a while)..."
     systemctl stop homenas.service
     rsync -aHAX --info=progress2 "$DATA"/ "$tmp"/
     umount "$tmp"; rmdir "$tmp"
-    mv "$DATA" "$DATA.on-system-disk"
+    if mountpoint -q "$DATA"; then umount "$DATA"; sed -i "\# $DATA #d" /etc/fstab; fi
+    mv "$DATA" "$DATA.old-$(date +%Y%m%d-%H%M)"
     mkdir -p "$DATA"
-    add_fstab "$part" "$DATA"
+    add_fstab "$(blkid -s UUID -o value "$1")" "$DATA"
     mount "$DATA"
     chown homenas:homenas "$DATA"
     systemctl start homenas.service
+    echo "The previous copy was kept as $DATA.old-* — delete it once you have checked everything."
+}
+
+save_mdadm_conf() {
+    mkdir -p /etc/mdadm
+    touch /etc/mdadm/mdadm.conf
+    grep -q '^MAILADDR' /etc/mdadm/mdadm.conf || echo "MAILADDR root" >> /etc/mdadm/mdadm.conf
+    mdadm --detail --scan | while read -r line; do
+        uuid=$(echo "$line" | grep -o 'UUID=[^ ]*')
+        grep -q "$uuid" /etc/mdadm/mdadm.conf || echo "$line" >> /etc/mdadm/mdadm.conf
+    done
+    update-initramfs -u >/dev/null 2>&1 || true
+}
+
+case "${1:-}" in
+list)
+    echo "System disk(s): $(system_disks | sed 's#^#/dev/#' | tr '\n' ' ')"
     echo
+    lsblk -o NAME,SIZE,TYPE,MODEL,FSTYPE,LABEL,MOUNTPOINT -e 7,11
+    ;;
+status)
+    echo "== RAID =="
+    if grep -q '^md' /proc/mdstat 2>/dev/null; then cat /proc/mdstat; else echo "no RAID arrays"; fi
+    echo
+    echo "== Disk health (SMART) =="
+    for d in $(lsblk -dno NAME,TYPE | awk '$2=="disk"{print $1}'); do
+        printf "/dev/%-10s " "$d"
+        smartctl -H "/dev/$d" 2>/dev/null | grep -E 'overall-health|SMART Health Status' | sed 's/.*: *//' || echo "n/a"
+    done
+    ;;
+mirror)
+    a=${2:-}; b=${3:-}
+    [ -n "$a" ] && [ -n "$b" ] || die "usage: homenas-disk mirror /dev/sdX /dev/sdY"
+    [ "$a" != "$b" ] || die "give two different disks"
+    check_disk "$a"; check_disk "$b"
+    confirm_erase "$a" "$b"
+    pa=$(new_partition "$a" homenas-raid raid | tail -n1)
+    pb=$(new_partition "$b" homenas-raid raid | tail -n1)
+    md=/dev/md/homenas-data
+    mdadm --create "$md" --level=1 --raid-devices=2 --metadata=1.2 --homehost=any --name=homenas-data --run "$pa" "$pb"
+    mkfs.ext4 -q -F -L HOMENAS-DATA -m 1 "$md"
+    save_mdadm_conf
+    move_data_to "$md"
+    echo
+    echo "Done. HomeNAS data is now on a RAID 1 mirror ($a + $b)."
+    echo "The disks are synchronising in the background (see: cat /proc/mdstat)."
+    echo "HomeNAS can be used normally meanwhile."
+    ;;
+replace)
+    new=${2:-}; [ -n "$new" ] || die "usage: homenas-disk replace /dev/sdZ"
+    check_disk "$new"
+    degraded=$(awk '/^md/{name=$1} /\[[U_]*_[U_]*\]/{print name}' /proc/mdstat)
+    [ -n "$degraded" ] || die "no degraded RAID array found — nothing to rebuild"
+    # a healthy member disk to copy the partition layout from
+    first=$(echo "$degraded" | head -n1)
+    member=$(mdadm --detail "/dev/$first" | awk '/active sync/{print $NF; exit}')
+    [ -n "$member" ] || die "could not find a healthy member of $first"
+    src_disk=/dev/$(lsblk -no PKNAME "$member" | head -n1)
+    echo "Degraded arrays: $degraded"
+    echo "Copying the partition layout from $src_disk"
+    confirm_erase "$new"
+    wipefs -aq "$new"
+    # same layout, but new unique IDs for the disk and its partitions
+    sfdisk -d "$src_disk" | sed -e '/^label-id:/d' -e 's/, *uuid=[^,]*//' | sfdisk -q "$new"
+    partprobe "$new" 2>/dev/null || true; udevadm settle
+    for md in $degraded; do
+        m=$(mdadm --detail "/dev/$md" | awk '/active sync/{print $NF; exit}')
+        num=$(echo "$m" | grep -o '[0-9]*$')
+        echo "Adding $(part_name "$new" "$num") to /dev/$md"
+        mdadm --manage "/dev/$md" --add "$(part_name "$new" "$num")"
+    done
+    # make the new disk bootable too when it carries the system
+    if [ "$(basename "$src_disk")" != "" ] && system_disks | grep -qx "$(basename "$src_disk")"; then
+        if [ -d /sys/firmware/efi ]; then
+            esp_src=$(lsblk -lnpo NAME,PARTTYPE "$src_disk" | awk 'tolower($2)=="c12a7328-f81f-11d2-ba4b-00a0c93ec93b"{print $1; exit}')
+            esp_new=$(lsblk -lnpo NAME,PARTTYPE "$new" | awk 'tolower($2)=="c12a7328-f81f-11d2-ba4b-00a0c93ec93b"{print $1; exit}')
+            [ -n "$esp_src" ] && [ -n "$esp_new" ] && dd if="$esp_src" of="$esp_new" bs=1M status=none
+        else
+            grub-install "$new" >/dev/null 2>&1 || echo "warning: grub-install on $new failed"
+        fi
+    fi
+    save_mdadm_conf
+    echo
+    echo "Rebuilding in the background. Progress: cat /proc/mdstat (or System Monitor in the web panel)."
+    ;;
+move-data)
+    dev=${2:-}; [ -n "$dev" ] || die "usage: homenas-disk move-data /dev/sdX"
+    check_disk "$dev"; confirm_erase "$dev"
+    part=$(new_partition "$dev" homenas-data ext4 | tail -n1)
+    mkfs.ext4 -q -F -L HOMENAS-DATA -m 1 "$part"
+    move_data_to "$part"
     echo "Done. HomeNAS now stores its data on $dev."
-    echo "The old copy is kept at $DATA.on-system-disk — delete it when you have checked everything:"
-    echo "    sudo rm -r $DATA.on-system-disk"
     ;;
 add)
     dev=${2:-}; name=${3:-}
     [ -n "$dev" ] && [ -n "$name" ] || die "usage: homenas-disk add /dev/sdX NAME"
     [[ "$name" =~ ^[A-Za-z0-9_-]{1,32}$ ]] || die "NAME: letters, digits, - and _ only"
-    check_disk "$dev"
-    part=$(format_disk "$dev" "$name" | tail -n1)
+    check_disk "$dev"; confirm_erase "$dev"
+    part=$(new_partition "$dev" "$name" ext4 | tail -n1)
+    mkfs.ext4 -q -F -L "$name" -m 1 "$part"
     mnt=/srv/homenas/disks/$name
     mkdir -p "$mnt"
-    add_fstab "$part" "$mnt"
-    mount "$mnt"
-    chown homenas:homenas "$mnt"
-    echo
+    add_fstab "$(blkid -s UUID -o value "$part")" "$mnt"
+    mount "$mnt"; chown homenas:homenas "$mnt"
     echo "Done. Disk mounted at $mnt"
     echo "Web panel: Control Panel > Shared folders > New, path: $mnt"
     ;;
+backup-disk)
+    dev=${2:-}; [ -n "$dev" ] || die "usage: homenas-disk backup-disk /dev/sdX"
+    check_disk "$dev"; confirm_erase "$dev"
+    part=$(new_partition "$dev" homenas-backup ext4 | tail -n1)
+    mkfs.ext4 -q -F -L HOMENAS-BKP -m 0 "$part"
+    mkdir -p "$BACKUP_MNT"
+    # mounted on access; unplugging is safe between backups
+    add_fstab "$(blkid -s UUID -o value "$part")" "$BACKUP_MNT" "x-systemd.automount,x-systemd.idle-timeout=600,x-systemd.device-timeout=5s"
+    systemctl restart "$(systemd-escape -p --suffix=automount "$BACKUP_MNT")" 2>/dev/null || mount "$BACKUP_MNT"
+    chown homenas:homenas "$BACKUP_MNT"
+    echo "HomeNAS backup destination" > "$BACKUP_MNT/.homenas-backup"
+    mkdir -p "$BACKUP_MNT/HomeNAS-Backup"
+    chown -R homenas:homenas "$BACKUP_MNT"
+    echo
+    echo "Done. In the web panel: Control Panel > Backup, destination: $BACKUP_MNT"
+    ;;
 *)
-    sed -n '3,17p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '3,30p' "$0" | sed 's/^# \{0,1\}//'
     exit 1
     ;;
 esac

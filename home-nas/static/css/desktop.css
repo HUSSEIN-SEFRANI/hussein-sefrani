@@ -397,3 +397,13 @@ ol.steps { padding-inline-start: 20px; } ol.steps li { margin-bottom: 8px; }
   .ph-cell .tick { opacity: 0; }
   .selecting .ph-cell .tick { opacity: 1; }
 }
+
+/* تنبيهات صحة التخزين */
+.alert { border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; font-size: 13px; border: 1px solid transparent; }
+.alert b { display: block; margin-bottom: 2px; }
+.alert.err { background: color-mix(in srgb, var(--err) 12%, transparent); border-color: color-mix(in srgb, var(--err) 30%, transparent); }
+.alert.warn { background: color-mix(in srgb, var(--warn) 12%, transparent); border-color: color-mix(in srgb, var(--warn) 30%, transparent); }
+.alert.ok { background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok); }
+#tb-alert { background: var(--err) !important; font-weight: 600; animation: pulse 2s infinite; }
+#tb-alert.warn { background: var(--warn) !important; animation: none; }
+@keyframes pulse { 50% { opacity: .7; } }

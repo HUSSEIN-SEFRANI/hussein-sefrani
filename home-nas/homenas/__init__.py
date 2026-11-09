@@ -7,9 +7,10 @@ from flask import Flask, g, jsonify, request
 from werkzeug.exceptions import HTTPException
 
 from .core import Paths, init_db
+from .backup import Backup
 from .photos import Indexer
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 
 
 def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
@@ -27,11 +28,13 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
     init_db(data_paths.db)
     app.extensions["nas_paths"] = data_paths
     app.extensions["nas_indexer"] = idx = Indexer(data_paths)
+    app.extensions["nas_backup"] = bk = Backup(data_paths)
     if start_indexer:
         idx.start()
+        bk.start()
 
-    from . import files, links, photos, system
-    for mod in (system, files, photos, links):
+    from . import backup, files, health, links, photos, system
+    for mod in (system, files, photos, links, backup, health):
         app.register_blueprint(mod.bp)
 
     @app.teardown_appcontext

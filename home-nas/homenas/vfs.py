@@ -42,6 +42,12 @@ def roots_for(user) -> list[Root]:
     roots = [Root("home", "المجلد الشخصي", home_dir(user["username"]), "rw", "home")]
     if user["is_admin"]:
         roots.append(Root("homes", "مجلدات المستخدمين", paths().homes, "rw", "homes"))
+    if user["is_admin"]:
+        from .backup import backup_root
+        from .core import get_setting
+        broot = backup_root(get_setting("backup_target"))
+        if broot and broot.is_dir():
+            roots.append(Root("backup", "النسخ الاحتياطية", broot, "ro", "backup"))
     for f in get_db().execute("SELECT * FROM folders ORDER BY name COLLATE NOCASE"):
         perm = folder_perm(user, f["id"])
         if perm:

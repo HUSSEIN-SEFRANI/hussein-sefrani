@@ -1,7 +1,7 @@
 // ====================================================================
 // HomeNAS — سطح المكتب: الأيقونات، شريط المهام، قائمة البدء، الساعة
 // ====================================================================
-import { ME, $, h, esc, icon, apps, openApp, closePopovers, isMobile } from './core.js';
+import { ME, $, h, esc, icon, api, apps, openApp, closePopovers, isMobile } from './core.js';
 import './apps/files.js';
 import './apps/photos.js';
 import './apps/system.js';
@@ -50,3 +50,22 @@ addEventListener('keydown', e => { if (e.key === 'Escape') closePopovers(); });
 const params = new URLSearchParams(location.search);
 const start = params.get('app');
 if (start) openApp(start, { maximize: true, path: params.get('path') || undefined, section: params.get('section') || undefined });
+
+// تنبيهات صحة التخزين (للمدير): زر أحمر في شريط المهام عند وجود مشكلة
+async function checkHealth() {
+  if (!ME.is_admin) return;
+  const r = await api.get('/api/system/health').catch(() => null);
+  let btn = $('#tb-alert');
+  if (!r || !r.alerts.length) { btn && btn.remove(); return; }
+  if (!btn) {
+    btn = h(`<button class="tb-btn" id="tb-alert">${icon('shield')}<span></span></button>`);
+    btn.onclick = () => openApp('monitor');
+    $('#tb-clock').before(btn);
+  }
+  const err = r.alerts.some(a => a.level === 'err');
+  btn.classList.toggle('warn', !err);
+  $('span', btn).textContent = r.alerts.length === 1 ? r.alerts[0].title : `${r.alerts.length} تنبيهات`;
+  btn.title = r.alerts.map(a => a.title).join('\n');
+}
+checkHealth(); setInterval(checkHealth, 120000);
+addEventListener('nas-health', checkHealth);

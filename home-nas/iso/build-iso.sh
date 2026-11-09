@@ -93,6 +93,10 @@ menuentry 'Install HomeNAS  (ERASES the computer disk)' {
     linux  $KERNEL $ARGS
     initrd /homenas/initrd.gz
 }
+menuentry 'Install HomeNAS with RAID 1 mirror  (2 disks, ERASES both)' {
+    linux  $KERNEL homenas_raid=1 $ARGS
+    initrd /homenas/initrd.gz
+}
 menuentry 'Standard Debian installer (manual)' {
     linux  $KERNEL vga=788 --- quiet
     initrd $INITRD
@@ -109,6 +113,9 @@ display homenas.msg
 label homenas
   kernel $KERNEL
   append initrd=/homenas/initrd.gz $ARGS
+label raid
+  kernel $KERNEL
+  append initrd=/homenas/initrd.gz homenas_raid=1 $ARGS
 label debian
   kernel $KERNEL
   append initrd=$INITRD vga=788 --- quiet
@@ -123,7 +130,8 @@ cat > "$STAGE/homenas.msg" <<'EOF'
          This installs HomeNAS on this computer and ERASES
          its internal disk. Keep the network cable plugged in.
 
-           Press  ENTER  to install HomeNAS
+           Press  ENTER  to install HomeNAS on one disk
+           Type   raid    then ENTER to mirror two disks (RAID 1)
            Type   debian  then ENTER for the normal Debian installer
 
         =====================================================
