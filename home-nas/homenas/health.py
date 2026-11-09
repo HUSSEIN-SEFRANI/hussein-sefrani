@@ -61,7 +61,7 @@ def list_disks() -> list[dict]:
         out = subprocess.run(["lsblk", "-J", "-d", "-b", "-o", "NAME,SIZE,MODEL,TYPE,TRAN,ROTA"],
                              capture_output=True, text=True, timeout=10).stdout
         return [d for d in json.loads(out)["blockdevices"] if d.get("type") == "disk"
-                and not d["name"].startswith(("zram", "loop", "sr"))]
+                and not d["name"].startswith(("zram", "loop", "sr", "fd"))]
     except Exception:
         return []
 
