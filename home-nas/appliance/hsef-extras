@@ -181,7 +181,7 @@ def tv_write():
         "AutofillCreditCardEnabled": False, "DefaultBrowserSettingEnabled": False, "BrowserSignin": 0,
         "SyncDisabled": True, "MetricsReportingEnabled": False, "SpellcheckEnabled": False,
         "AutoplayAllowed": True, "HardwareAccelerationModeEnabled": True,
-        "URLAllowlist": [f"http://127.0.0.1:{port}/*", "about:blank"], "URLBlocklist": ["*"],
+        "URLAllowlist": ["127.0.0.1", "localhost", "about:blank"], "URLBlocklist": ["*"],
         "DownloadRestrictions": 3, "DeveloperToolsAvailability": 2, "PrintingEnabled": False}, indent=1))
     TV_UNIT.write_text(f"""[Unit]
 Description=H.SEF TV screen (shows /tv on the attached screen)
