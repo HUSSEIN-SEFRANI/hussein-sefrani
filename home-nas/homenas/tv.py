@@ -413,6 +413,31 @@ def api_admin_kiosk():
     return jsonify(ok=True)
 
 
+@bp.get("/api/admin/tv/audio")
+@admin_required
+def api_admin_tv_audio():
+    ok, out = kiosk_helper("tv-audio-status", timeout=300)
+    if not ok:
+        return jsonify(error=out)
+    return jsonify(json.loads(out))
+
+
+@bp.post("/api/admin/tv/audio")
+@admin_required
+def api_admin_tv_audio_set():
+    d = body()
+    if d.get("action") == "test":
+        ok, out = kiosk_helper("tv-audio-test", timeout=60)
+    else:
+        card, prof = str(d.get("card") or ""), str(d.get("profile") or "")
+        if not re.fullmatch(r"[\w.:+-]{1,200}", card) or not re.fullmatch(r"[\w.:+-]{1,200}", prof):
+            abort(400)
+        ok, out = kiosk_helper("tv-audio-set", card, prof, timeout=60)
+    if not ok:
+        abort(400, out or "error")
+    return jsonify(ok=True)
+
+
 # ----------------------------------------------------------------------------- واجهة التلفاز
 
 def tv_allowed() -> bool:

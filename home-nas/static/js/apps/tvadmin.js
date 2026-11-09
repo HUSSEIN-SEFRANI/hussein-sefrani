@@ -50,7 +50,29 @@ function kioskCard(d, reload) {
     b.disabled = false;
   });
   if (k.installing) setTimeout(() => { if (document.body.contains(c)) reload(); }, 5000);
+  if (k.installed && k.active) c.appendChild(audioBox());
   return c;
+}
+
+function audioBox() {
+  const box = h(`<div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px"><h4 style="margin-top:0">${icon('audio')} صوت الشاشة</h4>
+    <div class="ab muted small">جارٍ قراءة مخارج الصوت…</div></div>`);
+  const ab = $('.ab', box);
+  (async () => {
+    const r = await api.get('/api/admin/tv/audio').catch(e => ({ error: e.message }));
+    if (r.error) { ab.innerHTML = `<span class="muted">تعذرت قراءة مخارج الصوت.</span> <span class="small" translate="no">${esc(r.error)}</span>`; return; }
+    ab.classList.remove('muted', 'small');
+    ab.innerHTML = `<label class="lbl" style="margin-top:0">مخرج الصوت</label>
+      <select class="field" style="max-width:420px">${r.outputs.map((o, i) => `<option value="${i}" ${o.active ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select>
+      <p class="muted small">لصوت التلفاز اختر المخرج الذي فيه <b translate="no">HDMI</b> أو <b translate="no">DisplayPort</b>. المستوى الحالي: <span translate="no">${r.volume ?? '—'}%</span>${r.muted ? ' (صامت)' : ''}</p>
+      <button class="btn primary sm" data-a="set">تطبيق</button> <button class="btn sm" data-a="test">${icon('play')} تجربة الصوت</button>`;
+    $('[data-a=set]', ab).onclick = async () => {
+      const o = r.outputs[+$('select', ab).value]; if (!o) return;
+      if (await guard(() => api.post('/api/admin/tv/audio', { card: o.card, profile: o.profile }))) toast('تم — جرّب الصوت الآن', 'ok');
+    };
+    $('[data-a=test]', ab).onclick = async () => { if (await guard(() => api.post('/api/admin/tv/audio', { action: 'test' }))) toast('يجب أن تسمع ثلاث نغمات من التلفاز', 'ok'); };
+  })();
+  return box;
 }
 
 // --------------------------------------------------------------------- ملف الشخص + مربعاته

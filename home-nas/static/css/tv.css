@@ -263,3 +263,14 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 .bg-kidsdark .hints b { color: #fff; border-color: rgba(255,255,255,.8); }
 .bg-kidsdark .bhead .back { color: #fff; }
 .it.focus .nm { color: var(--gold); }
+
+/* مستوى الصوت */
+.volosd { position: absolute; top: 50%; left: 40px; transform: translateY(-50%); z-index: 95; background: rgba(15,23,42,.85); border-radius: 24px; padding: 16px 14px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px; opacity: 0; transition: opacity .3s; pointer-events: none; }
+.volosd.show { opacity: 1; }
+.volosd .vb { width: 14px; height: 180px; border-radius: 99px; background: rgba(255,255,255,.2); display: flex; align-items: flex-end; overflow: hidden; }
+.volosd .vb i { display: block; width: 100%; background: var(--gold); border-radius: 99px; transition: height .2s; }
+.volosd .vp { font-size: 18px; font-weight: 700; direction: ltr; }
+.audio .vbtns { display: flex; justify-content: center; gap: 12px; margin-top: 16px; }
+.audio .vbtns .btn { padding: 8px 16px; }
+.audio .vbtns .btn svg { display: block; }

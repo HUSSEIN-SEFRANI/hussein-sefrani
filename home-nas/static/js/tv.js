@@ -157,10 +157,35 @@ function back() {
   else if (stack.length > 1) pop();
 }
 
+// ============================================================== مستوى الصوت (لكل الفيديو والصوت)
+let vol = 0.8, muted = false;
+try { const v = parseFloat(localStorage.getItem("tvvol")); if (v >= 0 && v <= 1) vol = v; } catch { /* */ }
+const VOL_ICON = (m) => `<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4z" fill="#fff"/>${m ? '<path d="M17 9l5 6M22 9l-5 6"/>' : '<path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>'}</svg>`;
+function applyVol(m) { m.volume = vol; m.muted = muted; }
+document.addEventListener("play", (e) => applyVol(e.target), true);
+let volEl = null, volT = 0;
+function showVol() {
+  stage.querySelectorAll("video, audio").forEach(applyVol);
+  try { localStorage.setItem("tvvol", vol); } catch { /* */ }
+  if (!volEl) { volEl = h(`<div class="volosd"><div class="vi"></div><div class="vb"><i></i></div><div class="vp"></div></div>`); stage.appendChild(volEl); }
+  volEl.querySelector(".vi").innerHTML = VOL_ICON(muted || vol === 0);
+  volEl.querySelector(".vb i").style.height = `${muted ? 0 : Math.round(vol * 100)}%`;
+  volEl.querySelector(".vp").textContent = muted ? "صامت" : `${Math.round(vol * 100)}%`;
+  volEl.classList.add("show");
+  clearTimeout(volT);
+  volT = setTimeout(() => volEl.classList.remove("show"), 1800);
+}
+function volUp() { muted = false; vol = Math.min(1, Math.round((vol + 0.1) * 10) / 10); showVol(); }
+function volDown() { vol = Math.max(0, Math.round((vol - 0.1) * 10) / 10); showVol(); }
+function volMute() { muted = !muted; showVol(); }
+const VOL_KEYS = { AudioVolumeUp: volUp, VolumeUp: volUp, "+": volUp, "=": volUp, AudioVolumeDown: volDown, VolumeDown: volDown, "-": volDown,
+  AudioVolumeMute: volMute, VolumeMute: volMute, m: volMute, M: volMute };
+
 const BACK_KEYS = new Set(["Escape", "Backspace", "BrowserBack", "GoBack"]);
 document.addEventListener("keydown", (e) => {
   activity();
   if (saverEl) { hideSaver(); e.preventDefault(); return; }
+  if (VOL_KEYS[e.key] && !e.target.closest?.("input")) { VOL_KEYS[e.key](); e.preventDefault(); return; }
   const t = top();
   if (t?.key && t.key(e) === true) { e.preventDefault(); return; }
   const k = e.key;
@@ -541,7 +566,7 @@ function videoScreen(t, paths, idx) {
   const el = h(`<div class="player"><video autoplay playsinline></video>
     <div class="bigplay" hidden>${A.PAUSE}</div><div class="counter"></div>
     <div class="osd"><div class="tt"></div><div class="bar"><i></i></div><div class="row"><span class="ct">0:00</span><span class="du">0:00</span></div>
-    <div class="keys"><span><b>موافق</b>إيقاف/تشغيل</span><span><b>← →</b>ترجيع/تقديم</span><span><b>↑ ↓</b>السابق/التالي</span><span><b>رجوع</b>خروج</span></div></div></div>`);
+    <div class="keys"><span><b>موافق</b>إيقاف/تشغيل</span><span><b>← →</b>ترجيع/تقديم</span><span><b>↑ ↓</b>الصوت</span><span><b>M</b>كتم</span><span><b>⏮ ⏭</b>السابق/التالي</span><span><b>رجوع</b>خروج</span></div></div></div>`);
   const v = el.querySelector("video"), osd = el.querySelector(".osd"), bar = el.querySelector(".bar i");
   const big = el.querySelector(".bigplay"), counter = el.querySelector(".counter");
   const fmt = (s) => (isFinite(s) ? `${Math.floor(s / 60)}:${pad(Math.floor(s % 60))}` : "0:00");
@@ -579,8 +604,10 @@ function videoScreen(t, paths, idx) {
       if (k === "Enter" || k === " " || k === "MediaPlayPause") { v.paused ? v.play() : v.pause(); return true; }
       if (k === "ArrowRight" || k === "MediaFastForward") { v.currentTime = Math.min(v.duration || 0, v.currentTime + 10); showOsd(); return true; }
       if (k === "ArrowLeft" || k === "MediaRewind") { v.currentTime = Math.max(0, v.currentTime - 10); showOsd(); return true; }
-      if (k === "ArrowDown" || k === "MediaTrackNext" || k === "PageDown") { if (idx + 1 < paths.length) load(idx + 1); else showOsd(); return true; }
-      if (k === "ArrowUp" || k === "MediaTrackPrevious" || k === "PageUp") { if (idx > 0) load(idx - 1); else { v.currentTime = 0; showOsd(); } return true; }
+      if (k === "ArrowUp") { volUp(); return true; }
+      if (k === "ArrowDown") { volDown(); return true; }
+      if (k === "MediaTrackNext" || k === "PageDown") { if (idx + 1 < paths.length) load(idx + 1); else showOsd(); return true; }
+      if (k === "MediaTrackPrevious" || k === "PageUp") { if (idx > 0) load(idx - 1); else { v.currentTime = 0; showOsd(); } return true; }
       return false;
     },
   });
@@ -594,9 +621,10 @@ function audioScreen(t, paths, idx) {
   const el = h(`<div class="bg-dark audio" style="--glow1:${(t.color || "#a855f7").split(",")[0]}66">
     ${header(t, t.title, "")}
     <div class="cover" style="background:${A.gradient(t.color)}">${A.icon(t.icon)}</div>
-    <div class="now"><div class="tt"></div><div class="bar"><i></i></div></div>
+    <div class="now"><div class="tt"></div><div class="bar"><i></i></div>
+      <div class="vbtns"><button class="btn f js-vd">${VOL_ICON(false).replace(/34/g, "24")} −</button><button class="btn f js-vm">${VOL_ICON(true).replace(/34/g, "24")}</button><button class="btn f js-vu">${VOL_ICON(false).replace(/34/g, "24")} +</button></div></div>
     <div class="list">${list}</div><audio autoplay></audio>
-    ${hints([["موافق", "تشغيل"], ["⏯", "إيقاف مؤقت"], ["رجوع", "خروج"]])}</div>`);
+    ${hints([["موافق", "تشغيل"], ["+ −", "الصوت"], ["M", "كتم"], ["رجوع", "خروج"]])}</div>`);
   const au = el.querySelector("audio"), bar = el.querySelector(".now .bar i"), cover = el.querySelector(".cover");
   const load = (i) => {
     idx = i;
@@ -611,6 +639,9 @@ function audioScreen(t, paths, idx) {
   au.addEventListener("ended", () => { if (idx + 1 < paths.length) load(idx + 1); });
   au.addEventListener("error", () => { toast("لا يمكن تشغيل هذا الملف"); if (idx + 1 < paths.length) setTimeout(() => load(idx + 1), 1500); });
   el.querySelector(".js-back").addEventListener("click", pop);
+  el.querySelector(".js-vd").addEventListener("click", volDown);
+  el.querySelector(".js-vu").addEventListener("click", volUp);
+  el.querySelector(".js-vm").addEventListener("click", volMute);
   el.querySelectorAll(".trk").forEach((b) => b.addEventListener("click", () => {
     const i = +b.dataset.i;
     if (i === idx) (au.paused ? au.play() : au.pause()); else load(i);
@@ -680,7 +711,8 @@ function viewerScreen(items, idx, slideshow = false) {
         if (items[idx].video && !playing) { v.paused ? v.play() : v.pause(); return true; }
         playing = !playing; toast(playing ? "عرض الشرائح" : "إيقاف عرض الشرائح", 1500); schedule(); return true;
       }
-      if (k === "ArrowUp" || k === "ArrowDown") { showOsd(); return true; }
+      if (k === "ArrowUp") { if (items[idx].video) volUp(); else showOsd(); return true; }
+      if (k === "ArrowDown") { if (items[idx].video) volDown(); else showOsd(); return true; }
       return false;
     },
   });

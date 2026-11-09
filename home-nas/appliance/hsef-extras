@@ -151,7 +151,7 @@ TV_USER = "hseftv"
 TV_HOME = Path("/var/lib/hseftv")
 TV_UNIT = Path("/etc/systemd/system/hsef-tv.service")
 TV_LOG = Path("/var/lib/homenas/tv-setup.log")
-TV_PKGS = ("cage", "chromium", "fonts-noto-core", "fonts-noto-color-emoji", "pipewire-audio", "wireplumber")
+TV_PKGS = ("cage", "chromium", "fonts-noto-core", "fonts-noto-color-emoji", "pipewire-audio", "wireplumber", "pulseaudio-utils")
 CHROMIUM_FLAGS = ("--kiosk --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble "
                   "--disable-features=Translate,TranslateUI,MediaRouter --autoplay-policy=no-user-gesture-required "
                   "--check-for-update-interval=31536000 --password-store=basic --ozone-platform=wayland "
@@ -280,6 +280,85 @@ def tv_cmd(action: str):
         run(["systemctl", "restart", "hsef-tv.service"])
 
 
+# ----------------------------------------------------------------------------- صوت شاشة التلفاز
+def tv_pactl(*args, check=False):
+    """pactl بصلاحية مستخدم الشاشة (الصوت يعمل داخل جلسته)."""
+    import pwd
+    if not shutil.which("pactl"):
+        apt_install("pulseaudio-utils")
+    try:
+        uid = pwd.getpwnam(TV_USER).pw_uid
+    except KeyError:
+        die("TV screen is not installed")
+    if not Path(f"/run/user/{uid}").exists():
+        die("TV screen is not running (start it first)")
+    r = subprocess.run(["runuser", "-u", TV_USER, "--", "env", f"XDG_RUNTIME_DIR=/run/user/{uid}", "pactl", *args],
+                       capture_output=True, text=True, timeout=30)
+    if check and r.returncode != 0:
+        die((r.stderr or r.stdout).strip()[-300:] or "pactl failed")
+    return r
+
+
+def tv_audio_status():
+    if FAKE:
+        print(json.dumps({"outputs": [{"card": "c0", "profile": "output:hdmi-stereo", "name": "HDMI (التلفاز)", "active": True},
+                                      {"card": "c0", "profile": "output:analog-stereo", "name": "Analog"}], "volume": 100, "muted": False}))
+        return
+    cards = json.loads(tv_pactl("-f", "json", "list", "cards", check=True).stdout or "[]")
+    outs = []
+    for c in cards:
+        active = c.get("active_profile")
+        for name, prof in (c.get("profiles") or {}).items():
+            if not name.startswith("output:") or prof.get("available") is False:
+                continue
+            outs.append({"card": c["name"], "profile": name, "name": prof.get("description") or name, "active": name == active})
+    vol, muted = None, None
+    sink = tv_pactl("get-default-sink").stdout.strip()
+    if sink:
+        v = tv_pactl("get-sink-volume", sink).stdout
+        import re
+        m = re.search(r"(\d+)%", v)
+        vol = int(m.group(1)) if m else None
+        muted = "yes" in tv_pactl("get-sink-mute", sink).stdout
+    print(json.dumps({"outputs": outs, "volume": vol, "muted": muted, "sink": sink}))
+
+
+def tv_audio_set(card: str, profile: str):
+    if FAKE:
+        return
+    tv_pactl("set-card-profile", card, profile, check=True)
+    sinks = json.loads(tv_pactl("-f", "json", "list", "sinks").stdout or "[]")
+    cards = {c.get("index"): c.get("name") for c in json.loads(tv_pactl("-f", "json", "list", "cards").stdout or "[]")}
+    mine = [x for x in sinks if cards.get(x.get("card")) == card] or sinks
+    if mine:
+        name = mine[0]["name"]
+        tv_pactl("set-default-sink", name)
+        tv_pactl("set-sink-mute", name, "0")
+        tv_pactl("set-sink-volume", name, "100%")
+
+
+def tv_audio_test():
+    if FAKE:
+        return
+    import math
+    import struct
+    import wave
+    f = Path("/tmp/hsef-tv-test.wav")
+    with wave.open(str(f), "wb") as w:
+        w.setnchannels(2)
+        w.setsampwidth(2)
+        w.setframerate(44100)
+        frames = bytearray()
+        for note, dur in ((523, .25), (659, .25), (784, .4)):
+            for i in range(int(44100 * dur)):
+                v = int(12000 * math.sin(2 * math.pi * note * i / 44100) * min(1, (int(44100 * dur) - i) / 2000))
+                frames += struct.pack("<hh", v, v)
+        w.writeframes(bytes(frames))
+    os.chmod(f, 0o644)
+    tv_pactl("upload-sample", str(f), "hsef-test")
+    tv_pactl("play-sample", "hsef-test", check=True)
+
+
 # ----------------------------------------------------------------------------- التحديث من داخل النظام
 REPO = "HUSSEIN-SEFRANI/hussein-sefrani"
 UPD_LOG = Path("/var/lib/homenas/update.log")
@@ -380,6 +459,12 @@ def main():
         tv_cmd(a[0][3:])
     elif a == ["tv-setup-run"]:
         tv_setup_run()
+    elif a == ["tv-audio-status"]:
+        tv_audio_status()
+    elif len(a) == 3 and a[0] == "tv-audio-set":
+        tv_audio_set(a[1], a[2])
+    elif a == ["tv-audio-test"]:
+        tv_audio_test()
     elif a == ["tv-wait"]:
         import time
         import urllib.request
