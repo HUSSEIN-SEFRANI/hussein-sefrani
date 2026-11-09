@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="{{ url_for('static', filename='img/icon.svg') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/desktop.css') }}">
+  <title>{{ title or 'مشاركة' }}</title>
+  <style>
+    body { overflow: auto; background: var(--bg); }
+    .sh-top { background: var(--wall); color: #fff; padding: calc(28px + env(safe-area-inset-top)) 20px 26px; }
+    .sh-top .in, .sh-body { max-width: 1100px; margin: 0 auto; }
+    .sh-top h1 { margin: 0; font-size: 22px; overflow-wrap: anywhere; }
+    .sh-top p { margin: 4px 0 0; opacity: .8; }
+    .sh-top .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .sh-top .row .grow { flex: 1; }
+    .sh-body { padding: 16px; }
+    .sh-box { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+    .pw { max-width: 360px; margin: 40px auto; padding: 24px; }
+    .one { text-align: center; padding: 30px 20px; }
+    .one .ficon { width: 84px; height: 84px; margin: 0 auto 12px; font-size: 16px; border-radius: 14px; }
+    .one img.prev { max-width: 100%; max-height: 60vh; border-radius: 12px; margin-bottom: 16px; cursor: zoom-in; }
+  </style>
+</head>
+<body>
+  <div class="sh-top"><div class="in row">
+    <div class="grow"><h1 id="sh-title">{{ title or 'الرابط غير متاح' }}</h1><p id="sh-sub"></p></div>
+    <div id="sh-actions"></div>
+  </div></div>
+  <div class="sh-body" id="sh-body">
+    {% if missing %}<div class="sh-box empty-state">الرابط غير موجود أو انتهت صلاحيته.</div>{% endif %}
+  </div>
+  {% if not missing %}
+  <script>window.__TOKEN__ = {{ token|tojson }};</script>
+  <script type="module" src="{{ url_for('static', filename='js/share.js') }}"></script>
+  {% endif %}
+</body>
+</html>

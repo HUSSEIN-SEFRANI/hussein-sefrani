@@ -1,0 +1,13 @@
+{% extends "auth_base.html" %}
+{% block content %}
+<h1>{{ server_name }}</h1>
+<p class="sub">سجّل الدخول للمتابعة</p>
+<form method="post">
+  {% if error %}<div class="err">{{ error }}</div>{% endif %}
+  <label class="lbl">اسم المستخدم</label>
+  <input class="field" name="username" dir="ltr" autocomplete="username" autocapitalize="none" autocorrect="off" required autofocus>
+  <label class="lbl">كلمة المرور</label>
+  <input class="field" type="password" name="password" autocomplete="current-password" required>
+  <button class="btn primary" type="submit">دخول</button>
+</form>
+{% endblock %}

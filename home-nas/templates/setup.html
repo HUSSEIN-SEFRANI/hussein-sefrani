@@ -1,0 +1,21 @@
+{% extends "auth_base.html" %}
+{% block content %}
+<h1>مرحباً بك 👋</h1>
+{% if remote %}
+<p class="sub">الإعداد الأول يتم من جهاز الكمبيوتر نفسه لحمايتك.<br>افتح <b dir="ltr">http://localhost:{{ request.host.split(':')[-1] }}</b> على الكمبيوتر الذي يعمل عليه السيرفر.</p>
+{% else %}
+<p class="sub">أنشئ حساب المدير لبدء استخدام النظام</p>
+<form method="post">
+  {% if error %}<div class="err">{{ error }}</div>{% endif %}
+  <label class="lbl">اسم السيرفر</label>
+  <input class="field" name="server_name" value="{{ request.form.server_name or 'HomeNAS' }}" maxlength="40">
+  <label class="lbl">اسم المستخدم للمدير (أحرف إنجليزية)</label>
+  <input class="field" name="username" dir="ltr" value="{{ request.form.username or 'admin' }}" autocapitalize="none" required>
+  <label class="lbl">كلمة المرور (6 أحرف على الأقل)</label>
+  <input class="field" type="password" name="password" autocomplete="new-password" required>
+  <label class="lbl">تأكيد كلمة المرور</label>
+  <input class="field" type="password" name="password2" autocomplete="new-password" required>
+  <button class="btn primary" type="submit">إنشاء الحساب والبدء</button>
+</form>
+{% endif %}
+{% endblock %}
