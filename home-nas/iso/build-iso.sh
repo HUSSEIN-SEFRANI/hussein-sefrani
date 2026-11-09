@@ -46,14 +46,14 @@ OUT=${2:-"$APPDIR/HSEF-$VERSION-debian-$DEB-amd64.iso"}
 
 echo ">> Inspecting $(basename "$SRC_ISO")"
 files=$(xorriso -indev "$SRC_ISO" -find / -type f 2>/dev/null | tr -d "'")
-if echo "$files" | grep -qx /install.amd/vmlinuz; then
+if grep -qx /install.amd/vmlinuz <<< "$files"; then
     KERNEL=/install.amd/vmlinuz; INITRD=/install.amd/initrd.gz; ISOLINUX_DIR=/isolinux       # netinst / DVD
-elif echo "$files" | grep -qx /linux; then
+elif grep -qx /linux <<< "$files"; then
     KERNEL=/linux; INITRD=/initrd.gz; ISOLINUX_DIR=""                                          # netboot mini.iso
 else
     echo "unsupported ISO layout"; exit 1
 fi
-HAS_ISOLINUX=0; echo "$files" | grep -qx "$ISOLINUX_DIR/isolinux.cfg" && HAS_ISOLINUX=1
+HAS_ISOLINUX=0; grep -qx "$ISOLINUX_DIR/isolinux.cfg" <<< "$files" && HAS_ISOLINUX=1
 
 STAGE="$WORK/stage"; rm -rf --one-file-system "$STAGE"; mkdir -p "$STAGE/payload/homenas/app" "$STAGE/iso/homenas"
 
