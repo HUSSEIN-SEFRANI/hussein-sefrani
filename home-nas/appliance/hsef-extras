@@ -1,0 +1,167 @@
+#!/usr/bin/env python3
+"""hsef-extras — root helper for optional H.SEF features (called by the web app via sudo).
+
+    hsef-extras faces-deps               install OpenCV (python3-opencv) for face recognition
+    hsef-extras ts-setup                 install Tailscale from its official repository
+    hsef-extras ts-login                 start sign-in (the sign-in link appears in ts-status)
+    hsef-extras ts-status                Tailscale state as JSON
+    hsef-extras ts-https on|off          serve H.SEF over HTTPS inside your tailnet
+    hsef-extras ts-logout                disconnect this server from Tailscale
+"""
+import json
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+FAKE = os.environ.get("HSEF_EXTRAS_FAKE") == "1"   # tests only
+HOSTNAME = "hsef"
+LOG = Path("/var/lib/homenas/extras.log")
+
+
+def die(msg):
+    print(f"hsef-extras: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def run(cmd, check=True, **kw):
+    if FAKE:
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+    r = subprocess.run(cmd, capture_output=True, text=True, **kw)
+    if check and r.returncode != 0:
+        die((r.stderr or r.stdout).strip()[-400:] or f"{cmd[0]} failed")
+    return r
+
+
+def apt_install(*pkgs):
+    env = dict(os.environ, DEBIAN_FRONTEND="noninteractive")
+    run(["apt-get", "update"], env=env, timeout=900)
+    run(["apt-get", "install", "-y", "--no-install-recommends", *pkgs], env=env, timeout=3600)
+
+
+def hsef_port() -> int:
+    try:
+        return int(json.loads(Path("/etc/homenas/config.json").read_text()).get("port", 80))
+    except Exception:
+        return 80
+
+
+def codename() -> str:
+    for line in Path("/etc/os-release").read_text().splitlines():
+        if line.startswith("VERSION_CODENAME="):
+            return line.split("=", 1)[1].strip().strip('"')
+    return "trixie"
+
+
+def ts_setup():
+    if shutil.which("tailscale") and not FAKE:
+        run(["systemctl", "enable", "--now", "tailscaled"], check=False)
+        return
+    import urllib.request
+    base = "https://pkgs.tailscale.com/stable/debian/"
+    code = codename()
+    keyring = Path("/usr/share/keyrings/tailscale-archive-keyring.gpg")
+    listf = Path("/etc/apt/sources.list.d/tailscale.list")
+    if not FAKE:
+        for c in (code, "bookworm"):
+            try:
+                key = urllib.request.urlopen(f"{base}{c}.noarmor.gpg", timeout=60).read()
+                lst = urllib.request.urlopen(f"{base}{c}.tailscale-keyring.list", timeout=60).read()
+                break
+            except Exception:
+                key = lst = None
+        if not key:
+            die("cannot reach pkgs.tailscale.com")
+        keyring.write_bytes(key)
+        listf.write_bytes(lst)
+    apt_install("tailscale")
+    run(["systemctl", "enable", "--now", "tailscaled"], check=False)
+
+
+def ts_status():
+    if FAKE:
+        state = Path("/tmp/hsef-ts-fake")
+        s = state.read_text().strip() if state.exists() else "NeedsLogin"
+        print(json.dumps({"installed": True, "state": s,
+                          "auth_url": "https://login.tailscale.com/a/test123" if s == "NeedsLogin" else None,
+                          "dns_name": "hsef.tail1234.ts.net" if s == "Running" else None,
+                          "ips": ["100.101.102.103"] if s == "Running" else [], "https": s == "Running",
+                          "user": "you@example.com" if s == "Running" else None}))
+        return
+    if not shutil.which("tailscale"):
+        print(json.dumps({"installed": False}))
+        return
+    r = subprocess.run(["tailscale", "status", "--json"], capture_output=True, text=True, timeout=30)
+    try:
+        d = json.loads(r.stdout or "{}")
+    except ValueError:
+        d = {}
+    me = d.get("Self") or {}
+    user = None
+    uid = str(me.get("UserID", ""))
+    if uid and d.get("User"):
+        user = (d["User"].get(uid) or {}).get("LoginName")
+    serve = subprocess.run(["tailscale", "serve", "status", "--json"], capture_output=True, text=True, timeout=30)
+    try:
+        https = bool((json.loads(serve.stdout or "{}") or {}).get("Web"))
+    except ValueError:
+        https = False
+    print(json.dumps({"installed": True, "state": d.get("BackendState", "Unknown"), "auth_url": d.get("AuthURL") or None,
+                      "dns_name": (me.get("DNSName") or "").rstrip(".") or None, "ips": me.get("TailscaleIPs") or [],
+                      "https": https, "user": user, "magic_dns": (d.get("CurrentTailnet") or {}).get("MagicDNSEnabled")}))
+
+
+def ts_login():
+    if FAKE:
+        return
+    if not shutil.which("tailscale"):
+        die("tailscale is not installed")
+    # 'tailscale up' waits until the user signs in; run it detached and read the link from ts-status
+    LOG.parent.mkdir(parents=True, exist_ok=True)
+    with open(LOG, "a") as log:
+        subprocess.Popen(["tailscale", "up", f"--hostname={HOSTNAME}", "--accept-dns=false", "--timeout=15m"],
+                         stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+
+
+def ts_https(on: bool):
+    if FAKE:
+        Path("/tmp/hsef-ts-fake").write_text("Running")
+        return
+    if on:
+        r = run(["tailscale", "serve", "--bg", "--https=443", f"http://127.0.0.1:{hsef_port()}"], check=False, timeout=120)
+        if r.returncode != 0:
+            msg = (r.stderr or r.stdout).strip()
+            if "HTTPS" in msg or "https" in msg:
+                die("HTTPS_DISABLED: " + msg[-300:])
+            die(msg[-300:])
+    else:
+        run(["tailscale", "serve", "reset"], check=False, timeout=60)
+
+
+def main():
+    if os.geteuid() != 0 and not FAKE:
+        die("must run as root")
+    a = sys.argv[1:]
+    if a == ["faces-deps"]:
+        apt_install("python3-opencv")
+    elif a == ["ts-setup"]:
+        ts_setup()
+    elif a == ["ts-status"]:
+        ts_status()
+    elif a == ["ts-login"]:
+        ts_login()
+    elif a in (["ts-https", "on"], ["ts-https", "off"]):
+        ts_https(a[1] == "on")
+    elif a == ["ts-logout"]:
+        if FAKE:
+            Path("/tmp/hsef-ts-fake").write_text("NeedsLogin")
+        else:
+            run(["tailscale", "serve", "reset"], check=False, timeout=60)
+            run(["tailscale", "logout"], check=False, timeout=60)
+    else:
+        die("usage: hsef-extras faces-deps | ts-setup | ts-login | ts-status | ts-https on|off | ts-logout")
+
+
+if __name__ == "__main__":
+    main()

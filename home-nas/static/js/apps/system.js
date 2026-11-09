@@ -164,6 +164,7 @@ const SECTIONS = [
   { id: 'account', label: 'حسابي', icon: 'user' },
   { id: 'phone', label: 'ربط الآيفون', icon: 'phone' },
   { id: 'network', label: 'الشبكة والتلفاز', icon: 'wifi' },
+  { id: 'remote', label: 'من خارج البيت', icon: 'shield', admin: true },
   { id: 'users', label: 'المستخدمون', icon: 'users', admin: true },
   { id: 'folders', label: 'المجلدات المشتركة', icon: 'hdd', admin: true },
   { id: 'backup', label: 'النسخ الاحتياطي', icon: 'save', admin: true },
@@ -299,6 +300,65 @@ const CP = {
     p.appendChild(admin);
   },
 
+  async remote(sc) {
+    const p = section(sc, 'الوصول من خارج البيت', 'افتح H.SEF من أي مكان في العالم بأمان، باتصال مشفّر (HTTPS)، عبر Tailscale المجاني. السيرفر لا يُفتح للإنترنت: لا يصل إليه إلا أجهزتك المسجّلة في حسابك.');
+    const box = h('<div></div>'); p.appendChild(box);
+    let timer = null;
+    const draw = async () => {
+      clearTimeout(timer);
+      const r = await api.get('/api/remote').catch(() => null);
+      if (!r || !document.body.contains(box)) return;
+      const ts = r.ts || {}, op = r.op || {};
+      if (!r.available) {
+        box.innerHTML = `<div class="card"><p>${icon('info')} هذه الميزة متاحة على جهاز H.SEF المخصص (المثبّت من ملف ISO).</p></div>`; return;
+      }
+      let html = '';
+      if (op.error) html += `<p class="alert err small" translate="no">${esc(op.error)}</p>`;
+      if (op.running) {
+        html += `<div class="card"><p><span class="badge accent">جارٍ العمل…</span> ${op.what === 'setup' ? 'تثبيت Tailscale قد يستغرق دقيقة أو دقيقتين.' : ''}</p></div>`;
+        timer = setTimeout(draw, 2500);
+      } else if (!ts.installed) {
+        html += `<div class="card"><h4>${icon('download')} الخطوة ١: التثبيت</h4>
+          <p>يُثبَّت Tailscale على هذا السيرفر من موقعه الرسمي (يحتاج إنترنت).</p>
+          <button class="btn primary" data-x="setup">${icon('download')} تثبيت Tailscale</button></div>`;
+      } else if (ts.state !== 'Running') {
+        html += `<div class="card"><h4>${icon('key')} الخطوة ٢: تسجيل الدخول</h4>
+          ${ts.auth_url ? `<p>اضغط الزر وسجّل الدخول بحساب Google أو Apple أو Microsoft (أو أنشئ حساب Tailscale مجاناً). هذا يربط السيرفر بحسابك.</p>
+            <a class="btn primary" href="${esc(ts.auth_url)}" target="_blank" rel="noopener">${icon('external')} تسجيل الدخول إلى Tailscale</a>
+            <p class="muted small">بعد تسجيل الدخول ستتحدث هذه الصفحة تلقائياً.</p>`
+          : `<p>جارٍ تجهيز رابط تسجيل الدخول…</p><button class="btn" data-x="login">${icon('refresh')} طلب رابط جديد</button>`}</div>`;
+        timer = setTimeout(draw, 3000);
+      } else {
+        const url = ts.dns_name ? `https://${ts.dns_name}` : '';
+        html += `<div class="cards" style="padding:0">
+          <div class="card"><h4>${icon('check')} متصل</h4><dl class="kv">
+            <dt>الحساب</dt><dd translate="no">${esc(ts.user || '—')}</dd>
+            <dt>اسم السيرفر</dt><dd class="ltr">${esc(ts.dns_name || '—')}</dd>
+            <dt>العنوان</dt><dd class="ltr">${esc((ts.ips || [])[0] || '—')}</dd></dl>
+            <label class="check" style="margin-top:12px"><input type="checkbox" name="https" ${ts.https ? 'checked' : ''}> <b>HTTPS</b> — اتصال مشفّر بشهادة حقيقية</label>
+            ${ts.https && url ? `<p>العنوان من أي مكان:</p><div class="lb"></div>` : ''}
+            <button class="btn danger ghost" data-x="logout" style="margin-top:10px">${icon('logout')} فصل السيرفر عن Tailscale</button></div>
+          <div class="card"><h4>${icon('phone')} على الآيفون</h4><ol class="steps">
+            <li>ثبّت تطبيق <b>Tailscale</b> من متجر App Store.</li>
+            <li>سجّل الدخول بنفس الحساب: <span translate="no">${esc(ts.user || '')}</span></li>
+            <li>شغّل الاتصال (VPN) في التطبيق.</li>
+            <li>افتح في Safari: ${url ? `<span class="code">${esc(url)}</span>` : '—'}</li>
+            <li>أضفه إلى الشاشة الرئيسية ليعمل كتطبيق في البيت وخارجه.</li></ol>
+            <p class="muted small">قرص الشبكة (SMB) يعمل أيضاً من خارج البيت: <span class="code">smb://${esc(ts.dns_name || '')}</span></p></div></div>
+          ${!ts.https ? `<p class="muted small">إن ظهر خطأ عند تفعيل HTTPS: افتح لوحة Tailscale ← DNS ← فعّل MagicDNS و HTTPS Certificates، ثم حاول مجدداً.</p>` : ''}`;
+      }
+      box.innerHTML = html;
+      const lb = $('.lb', box); if (lb && ts.dns_name) lb.appendChild(linkBox(`https://${ts.dns_name}`));
+      const act = (sel, fn) => { const b = $(sel, box); if (b) b.onclick = fn; };
+      act('[data-x=setup]', async () => { if (await guard(() => api.post('/api/remote/setup'))) draw(); });
+      act('[data-x=login]', async () => { if (await guard(() => api.post('/api/remote/login'))) setTimeout(draw, 3000); });
+      act('[data-x=logout]', async () => { if (await confirmBox('فصل السيرفر عن Tailscale؟ لن تصل إليه من خارج البيت حتى تسجل الدخول مجدداً.', { danger: true, ok: 'فصل' }) && await guard(() => api.post('/api/remote/logout'))) draw(); });
+      const hs = $('[name=https]', box);
+      if (hs) hs.onchange = async () => { toast('لحظة…'); await guard(() => api.post('/api/remote/https', { on: hs.checked })); draw(); };
+    };
+    draw();
+  },
+
   async phone(sc) {
     const [me, st] = await Promise.all([guard(() => api.get('/api/me')), guard(() => api.get('/api/system/status'))]);
     if (!me || !st) return;
@@ -308,26 +368,37 @@ const CP = {
       <div class="card span2"><h4>${icon('phone')} ١. افتح السيرفر من Safari</h4>
         <ol class="steps"><li>اتصل بنفس شبكة Wi-Fi التي يتصل بها الكمبيوتر.</li>
         <li>افتح Safari واكتب: ${st.urls.map(u => `<span class="code">${esc(u)}</span>`).join(' أو ')}</li>
-        <li>بعد تسجيل الدخول اضغط زر المشاركة <b>⎋</b> ثم <b>«إضافة إلى الشاشة الرئيسية»</b> ليظهر كتطبيق.</li>
+        <li>بعد تسجيل الدخول اضغط زر المشاركة <b>⎋</b> ثم <b>«إضافة إلى الشاشة الرئيسية»</b>: يظهر H.SEF كتطبيق بأيقونة الصقر ويفتح بملء الشاشة.</li>
         <li>لفتح الصور مباشرة استخدم: <span class="code">${esc(url)}/?app=photos</span></li></ol></div>
       <div class="card span2"><h4>${icon('upload')} ٢. رفع الصور</h4>
         <ol class="steps"><li>افتح تطبيق <b>الصور</b> ← <b>رفع</b> ← اختر الصور (يمكنك تحديد مئات الصور).</li>
-        <li>الصور المكررة تُتجاهل تلقائياً، فلا مشكلة في رفع نفس الصور مرة أخرى.</li>
+        <li>اختر كل صور الأيام الأخيرة دون تفكير: الصور المحفوظة مسبقاً تُكتشف قبل الرفع وتُتخطى خلال ثوانٍ.</li>
+        <li>💡 لتحديد صور كثيرة بسرعة: اضغط «تحديد» في نافذة الصور ثم اسحب إصبعك على الصور.</li>
         <li>تُحفظ في مجلدك الشخصي <span class="code">Photos/السنة/الشهر</span> حسب تاريخ الالتقاط.</li>
         <li>للحفاظ على صيغة HEIC الأصلية: في نافذة اختيار الصور اضغط <b>«الخيارات»</b> واختر <b>«الحالي»</b> إن ظهر.</li></ol></div>
       <div class="card span2"><h4>${icon('refresh')} ٣. نسخ احتياطي تلقائي (تطبيق «الاختصارات»)</h4>
-        <ol class="steps"><li>أنشئ اختصاراً جديداً وأضف: <b>البحث عن صور</b> (مثلاً: تاريخ الإنشاء ضمن آخر يوم).</li>
-        <li>أضف <b>تكرار مع كل عنصر</b>، وبداخله <b>الحصول على محتويات URL</b>:</li>
-        <li>الرابط: <span class="code">${esc(url)}/api/photos/upload</span> — الطريقة: <b>POST</b></li>
-        <li>الترويسات: <span class="code">Authorization</span> = <span class="code">Bearer الرمز</span></li>
-        <li>نص الطلب: <b>Form</b> — حقل من نوع <b>ملف</b> اسمه <span class="code">file</span> وقيمته «عنصر التكرار».</li>
-        <li>من تبويب <b>الأتمتة</b> شغّله تلقائياً عند الاتصال بشبكة المنزل أو كل ليلة.</li></ol>
-        <label class="lbl">رمز API الخاص بك (لا تشاركه مع أحد)</label><div class="tok"></div>
+        <p class="muted">يرفع الصور الجديدة تلقائياً كلما وصلت إلى البيت. الصور المحفوظة مسبقاً تُتجاهل.</p>
+        <ol class="steps">
+        <li>في تطبيق <b>الاختصارات</b> أنشئ اختصاراً جديداً باسم «H.SEF».</li>
+        <li>أضف <b>الحصول على محتويات URL</b> بهذا الرابط (تاريخ آخر نسخ):<div class="u-since"></div></li>
+        <li>أضف <b>البحث عن صور</b>: «تاريخ الالتقاط» <b>بعد</b> «محتويات URL»، ورتّبها حسب تاريخ الالتقاط.</li>
+        <li>أضف <b>تكرار مع كل عنصر</b>، وبداخله <b>الحصول على محتويات URL</b> بهذا الرابط:<div class="u-up"></div>
+          الطريقة <b>POST</b>، نص الطلب <b>Form</b>، أضف حقلاً من نوع <b>ملف</b> اسمه <span class="code">file</span> وقيمته «عنصر التكرار».</li>
+        <li>من تبويب <b>الأتمتة</b>: «عند الاتصال بشبكة Wi-Fi» ← اختر شبكة المنزل ← شغّل «H.SEF» مباشرة دون سؤال.</li></ol>
+        <p class="muted small">⚠️ الرابطان يحتويان رمزك السري: لا تشاركهما مع أحد. إن تسرّب الرمز ولّد رمزاً جديداً وحدّث الاختصار.</p>
+        <label class="lbl">رمز API الخاص بك</label><div class="tok"></div>
         <button class="btn" style="margin-top:8px">${icon('refresh')} توليد رمز جديد</button></div></div>`));
-    const tok = $('.tok', p); tok.appendChild(linkBox(me.api_token));
+    const tok = $('.tok', p);
+    const fill = (t) => {
+      tok.innerHTML = ''; tok.appendChild(linkBox(t));
+      for (const [sel, path] of [['.u-since', '/api/photos/since'], ['.u-up', '/api/photos/upload']]) {
+        const el = $(sel, p); el.innerHTML = ''; el.appendChild(linkBox(`${location.origin}${path}?token=${encodeURIComponent(t)}`));
+      }
+    };
+    fill(me.api_token);
     $('.tok + .btn', p).onclick = async () => {
       if (!await confirmBox('سيتوقف الرمز القديم عن العمل في الاختصارات. متابعة؟')) return;
-      const r = await guard(() => api.post('/api/me/token')); if (r) { tok.innerHTML = ''; tok.appendChild(linkBox(r.api_token)); }
+      const r = await guard(() => api.post('/api/me/token')); if (r) fill(r.api_token);
     };
   },
 
@@ -466,6 +537,34 @@ const CP = {
       <div style="margin-top:14px"><button class="btn primary">حفظ</button></div></div>`);
     $('button', card).onclick = async () => { if (await guard(() => api.post('/api/admin/settings', { photo_shared_folder: $('select', card).value }))) toast('تم الحفظ — بدأت فهرسة المساحة المشتركة', 'ok'); };
     p.appendChild(card);
+    const fs = await guard(() => api.get('/api/faces/status'));
+    if (fs) {
+      const fc = h(`<div class="card" style="max-width:560px;margin-top:14px"><h4>${icon('users')} تمييز الوجوه</h4>
+        <p class="muted">يجمع صور كل شخص في «الأشخاص» داخل تطبيق الصور، ويمكنك البحث باسم الشخص. تتم المعالجة على هذا الجهاز فقط، ولا تُرسل أي صورة إلى الإنترنت.</p>
+        <div class="fstate"></div></div>`);
+      const st = $('.fstate', fc);
+      const draw = (s) => {
+        if (s.installing) { st.innerHTML = `<p><span class="badge accent">جارٍ التثبيت…</span> تنزيل OpenCV ونماذج التمييز (حوالي 40 MB).</p>`; return true; }
+        if (!s.ready) {
+          st.innerHTML = `${s.error ? `<p class="alert err small" translate="no">${esc(s.error)}</p>` : ''}
+            <p class="muted small">يحتاج إنترنت مرة واحدة، وقد يكون بطيئاً على الأجهزة القديمة في البداية (يعمل في الخلفية بأولوية منخفضة).</p>
+            <button class="btn primary">${icon('download')} تثبيت وتفعيل</button>`;
+          $('button', st).onclick = async () => { if (await guard(() => api.post('/api/faces/setup'))) poll(); };
+          return false;
+        }
+        const pct = s.total ? Math.round(s.done / s.total * 100) : 100;
+        st.innerHTML = `<label class="check"><input type="checkbox" ${s.enabled ? 'checked' : ''}> تمييز الوجوه مفعّل</label>
+          ${s.enabled ? `<div class="meter"><div style="width:${pct}%"></div></div>
+          <p class="muted small">تمت معالجة ${s.done} من ${s.total} صورة · ${s.faces} وجه</p>` : ''}
+          <button class="btn ghost sm">${icon('refresh')} إعادة فحص كل الصور</button>`;
+        $('input', st).onchange = async (e) => { await guard(() => api.post('/api/faces/enable', { enabled: e.target.checked })); poll(); };
+        $('.btn', st).onclick = async () => { if (await confirmBox('إعادة البحث عن الوجوه في كل الصور؟ قد يستغرق ذلك وقتاً.')) { await guard(() => api.post('/api/faces/rescan')); poll(); } };
+        return s.enabled && s.done < s.total;
+      };
+      const poll = async () => { const s = await api.get('/api/faces/status').catch(() => null); if (s && document.body.contains(fc) && draw(s)) setTimeout(poll, 3000); };
+      if (draw(fs)) setTimeout(poll, 3000);
+      p.appendChild(fc);
+    }
     p.appendChild(h(`<div class="card" style="max-width:560px;margin-top:14px"><h4>${icon('info')} الدعم</h4>
       <dl class="kv"><dt>صور HEIC</dt><dd>${s.heif ? '<span class="badge ok">مدعومة</span>' : '<span class="badge err">غير مدعومة — ثبّت pillow-heif</span>'}</dd>
       <dt>مصغرات الفيديو</dt><dd>${s.ffmpeg ? '<span class="badge ok">مفعّلة (ffmpeg)</span>' : '<span class="badge warn">ثبّت ffmpeg لتفعيلها (اختياري)</span>'}</dd></dl></div>`));

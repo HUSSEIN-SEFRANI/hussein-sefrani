@@ -439,3 +439,18 @@ ol.steps { padding-inline-start: 20px; } ol.steps li { margin-bottom: 8px; }
 .warn-t { color: var(--warn); }
 pre.applog { background: #0f1420; color: #b8c4d6; font-size: 11px; border-radius: 8px; padding: 8px; margin: 0; max-height: 92px; overflow: auto; white-space: pre-wrap; direction: ltr; text-align: left; }
 pre.applog.big { max-height: 60vh; font-size: 12px; }
+
+/* الأشخاص */
+.people { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 18px; padding: 16px; }
+.person { text-align: center; cursor: pointer; border-radius: 14px; padding: 8px 4px; }
+.person:hover, .person.on { background: var(--surface-2); }
+.person.on { outline: 2px solid var(--accent); }
+.person .face { width: 96px; height: 96px; margin: 0 auto 8px; border-radius: 50%; overflow: hidden; background: var(--surface-3);
+  display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.person .face img { width: 100%; height: 100%; object-fit: cover; }
+.person .face svg { width: 40px; height: 40px; }
+.person .t { font-weight: 600; font-size: 14px; }
+.person .s { font-size: 12px; color: var(--muted); }
+.people.pick { max-height: 50vh; overflow: auto; padding: 4px; }
+.face-sm { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; }
+#viewer .people-line { margin-top: 4px; color: #e5e7eb; }

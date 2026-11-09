@@ -2,7 +2,7 @@
 // تطبيق «الصور» — خط زمني، فيديو، مفضلة، ألبومات، تحديد متعدد، رفع
 // ====================================================================
 import {
-  $, $$, h, esc, icon, api, guard, toast, modal, confirmBox, promptBox, menuAt, shareDialog, registerApp,
+  ME, $, $$, h, esc, icon, api, guard, toast, modal, confirmBox, promptBox, menuAt, shareDialog, registerApp, openApp,
   uploads, chooseFiles, openViewer, ARROW, fmtSize, fmtDateTime, debounce, download, isTouch, isMobile,
 } from '../core.js';
 
@@ -60,12 +60,12 @@ class PhotosApp {
       s.appendChild(h('<div class="sect">المكتبة</div>'));
       for (const l of this.libs) {
         const b = h(`<button class="side-item" data-lib="${l.id}">${icon(l.id === 's' ? 'users' : 'user')}<span>${esc(l.label)}</span></button>`);
-        b.onclick = () => { this.lib = l.id; if (this.view === 'albums' || this.view === 'album' || this.view === 'favorites') this.view = 'timeline'; this.reload(); this.closeSide(); };
+        b.onclick = () => { this.lib = l.id; if (['albums', 'album', 'favorites', 'people', 'person'].includes(this.view)) this.view = 'timeline'; this.reload(); this.closeSide(); };
         s.appendChild(b);
       }
     }
     s.appendChild(h('<div class="sect">عرض</div>'));
-    for (const [v, label, ic] of [['timeline', 'كل الصور', 'image'], ['videos', 'الفيديو', 'video'], ['favorites', 'المفضلة', 'heart'], ['albums', 'الألبومات', 'album']]) {
+    for (const [v, label, ic] of [['timeline', 'كل الصور', 'image'], ['videos', 'الفيديو', 'video'], ['favorites', 'المفضلة', 'heart'], ['people', 'الأشخاص', 'users'], ['albums', 'الألبومات', 'album']]) {
       const b = h(`<button class="side-item" data-view="${v}">${icon(ic)}<span>${label}</span></button>`);
       b.onclick = () => { this.view = v; this.album = null; this.reload(); this.closeSide(); };
       s.appendChild(b);
@@ -81,7 +81,7 @@ class PhotosApp {
 
   updateSide() {
     $$('[data-lib]', this.side).forEach(b => b.classList.toggle('active', b.dataset.lib === this.lib && ['timeline', 'videos'].includes(this.view)));
-    $$('[data-view]', this.side).forEach(b => b.classList.toggle('active', b.dataset.view === this.view || (this.view === 'album' && b.dataset.view === 'albums')));
+    $$('[data-view]', this.side).forEach(b => b.classList.toggle('active', b.dataset.view === this.view || (this.view === 'album' && b.dataset.view === 'albums') || (this.view === 'person' && b.dataset.view === 'people')));
   }
 
   async loadPeriods() {
@@ -106,6 +106,7 @@ class PhotosApp {
     const p = new URLSearchParams({ limit: PAGE, offset: this.next });
     if (this.view === 'favorites') p.set('fav', 1);
     else if (this.view === 'album') p.set('album', this.album.id);
+    else if (this.view === 'person') p.set('person', this.person.id);
     else p.set('lib', this.lib);
     if (this.view === 'videos') p.set('kind', 'videos');
     if (this.q) p.set('q', this.q);
@@ -119,6 +120,7 @@ class PhotosApp {
     this.updateSide(); this.renderHeader();
     if (this.periodBox) this.periodBox.innerHTML = '';
     if (this.view === 'albums') return this.renderAlbums();
+    if (this.view === 'people') return this.renderPeople();
     if (!['timeline', 'videos'].includes(this.view)) this.period = null;
     this.loadPeriods();
     this.loadMore();
@@ -126,12 +128,12 @@ class PhotosApp {
 
   renderHeader() {
     const lib = this.libs.find(l => l.id === this.lib);
-    const titles = { timeline: 'كل الصور', videos: 'الفيديو', favorites: 'المفضلة', albums: 'الألبومات' };
-    $('.v-title', this.win.body).textContent = this.view === 'album' ? this.album.name : titles[this.view] + (this.period ? ` — ${this.period}` : '');
+    const titles = { timeline: 'كل الصور', videos: 'الفيديو', favorites: 'المفضلة', albums: 'الألبومات', people: 'الأشخاص' };
+    $('.v-title', this.win.body).textContent = this.view === 'album' ? this.album.name : this.view === 'person' ? (this.person.name || 'بدون اسم') : titles[this.view] + (this.period ? ` — ${this.period}` : '');
     $('.v-sub', this.win.body).textContent = this.libs.length > 1 && ['timeline', 'videos'].includes(this.view) && lib ? '· ' + lib.label : '';
     const upBtn = $('[data-a=upload]', this.win.body);
     upBtn.disabled = !(lib && lib.writable);
-    $('[data-a=select]', this.win.body).classList.toggle('hidden', this.view === 'albums');
+    $('[data-a=select]', this.win.body).classList.toggle('hidden', this.view === 'albums' || this.view === 'people');
     this.win.setTitle('الصور — ' + $('.v-title', this.win.body).textContent);
     if (this.view === 'album') {
       const bar = h(`<div class="toolbar" style="border:0;padding:12px 4px 0">
@@ -147,10 +149,86 @@ class PhotosApp {
       ]);
       this.scroll.appendChild(bar);
     }
+    if (this.view === 'person') {
+      const pr = this.person;
+      const bar = h(`<div class="toolbar" style="border:0;padding:12px 4px 0">
+        <button class="btn ghost" data-b="back">${icon(ARROW.back)} الأشخاص</button>
+        ${pr.cover ? `<img class="face-sm" src="/api/faces/${pr.cover}/thumb" alt="">` : ''}<span class="grow"></span>
+        <button class="btn" data-b="name">${icon('edit')} ${pr.name ? 'تعديل الاسم' : 'إضافة اسم'}</button>
+        <button class="btn ghost icon" data-b="more">${icon('more')}</button></div>`);
+      $('[data-b=back]', bar).onclick = () => { this.view = 'people'; this.reload(); };
+      $('[data-b=name]', bar).onclick = () => this.renamePerson(pr);
+      $('[data-b=more]', bar).onclick = (e) => menuAt(e.currentTarget, [
+        { label: 'دمج مع شخص آخر', icon: 'users', fn: () => this.mergePerson(pr) },
+        { label: pr.hidden ? 'إظهار في قائمة الأشخاص' : 'إخفاء من قائمة الأشخاص', icon: 'minus', fn: () => this.hidePerson(pr, !pr.hidden) },
+      ]);
+      this.scroll.appendChild(bar);
+    }
+  }
+
+  // ------------------------------------------------------------ الأشخاص (تمييز الوجوه)
+  async renderPeople() {
+    const st = await guard(() => api.get('/api/faces/status')); if (!st) return;
+    if (!st.enabled || !st.ready) {
+      const box = h(`<div class="empty-state">${icon('users')}<p><b>تمييز الوجوه غير مفعّل</b></p>
+        <p>يجمع H.SEF صور كل شخص تلقائياً، على هذا الجهاز فقط، دون إرسال أي صورة إلى الإنترنت.</p>
+        ${ME.is_admin ? `<button class="btn primary">${icon('sliders')} تفعيل من إعدادات الصور</button>` : '<p class="muted">اطلب من المدير تفعيله.</p>'}</div>`);
+      const b = $('button', box); if (b) b.onclick = () => openApp('control', { section: 'photos' });
+      this.scroll.appendChild(box); return;
+    }
+    const people = await guard(() => api.get('/api/people?lib=' + encodeURIComponent(this.lib))) || [];
+    const wrap = h('<div></div>');
+    if (st.done < st.total) wrap.appendChild(h(`<p class="index-note">جارٍ البحث عن الوجوه… ${st.done} / ${st.total}</p>`));
+    const shown = people.filter(p => !p.hidden), hidden = people.filter(p => p.hidden);
+    const grid = h('<div class="people"></div>');
+    if (!shown.length) grid.appendChild(h(`<div class="empty-state" style="grid-column:1/-1">${icon('users')}<p>لم يُعثر على أشخاص بعد</p><p class="muted">يظهر الشخص هنا عندما يتكرر وجهه في صورتين على الأقل.</p></div>`));
+    for (const p of shown) grid.appendChild(this.personCard(p));
+    wrap.appendChild(grid);
+    if (hidden.length) {
+      const more = h(`<button class="btn ghost" style="margin:16px">${icon('minus')} الأشخاص المخفيون (${hidden.length})</button>`);
+      more.onclick = () => { more.remove(); const g2 = h('<div class="people" style="opacity:.6"></div>'); hidden.forEach(p => g2.appendChild(this.personCard(p))); wrap.appendChild(g2); };
+      wrap.appendChild(more);
+    }
+    this.scroll.appendChild(wrap);
+  }
+
+  personCard(p) {
+    const c = h(`<div class="person"><div class="face">${p.cover ? `<img loading="lazy" src="/api/faces/${p.cover}/thumb" alt="">` : icon('user')}</div>
+      <div class="t" ${p.name ? 'translate="no"' : ''}></div><div class="s">${p.photos} صورة</div></div>`);
+    $('.t', c).textContent = p.name || 'بدون اسم';
+    if (!p.name) $('.t', c).classList.add('muted');
+    c.onclick = () => { this.view = 'person'; this.person = p; this.reload(); };
+    return c;
+  }
+
+  async renamePerson(p) {
+    const name = await promptBox(p.name ? 'تعديل الاسم' : 'إضافة اسم', 'الاسم', p.name || ''); if (name === null) return;
+    if (await guard(() => api.patch(`/api/people/${p.id}`, { name }))) { p.name = name || null; this.reload(); }
+  }
+
+  async hidePerson(p, hidden) {
+    if (await guard(() => api.patch(`/api/people/${p.id}`, { hidden }))) { this.view = 'people'; this.reload(); }
+  }
+
+  async mergePerson(p) {
+    const people = (await guard(() => api.get('/api/people?lib=' + encodeURIComponent(this.lib))) || []).filter(x => x.id !== p.id);
+    if (!people.length) return toast('لا يوجد أشخاص آخرون للدمج', 'err');
+    const body = h(`<div><p class="muted">اختر الشخص نفسه في القائمة. ستُجمع صورهما في شخص واحد.</p><div class="people pick"></div></div>`);
+    let chosen = null;
+    for (const x of people) {
+      const card = this.personCard(x);
+      card.onclick = () => { $$('.person', body).forEach(e => e.classList.remove('on')); card.classList.add('on'); chosen = x; };
+      $('.pick', body).appendChild(card);
+    }
+    const ok = await modal({ title: 'دمج مع شخص آخر', body, wide: true, buttons: [{ label: 'إلغاء', value: null },
+      { label: 'دمج', cls: 'primary', value: true, validate: () => { if (!chosen) { toast('اختر شخصاً', 'err'); return false; } return true; } }] });
+    if (!ok) return;
+    const r = await guard(() => api.post(`/api/people/${p.id}/merge`, { into: chosen.id }));
+    if (r) { toast('تم الدمج', 'ok'); this.person = { ...chosen, name: chosen.name || p.name }; this.reload(); }
   }
 
   async loadMore() {
-    if (this.loading || this.next === null || ['albums'].includes(this.view)) return;
+    if (this.loading || this.next === null || ['albums', 'people'].includes(this.view)) return;
     this.loading = true;
     try {
       const r = await guard(() => api.get(this.query())); if (!r) return;
@@ -295,6 +373,7 @@ class PhotosApp {
       src: it => `/api/photos/${it.id}/view`, thumb: it => `/api/photos/${it.id}/thumb`,
       title: it => it.name,
       meta: it => [fmtDateTime(it.taken_at), it.camera, it.width ? `${it.width}×${it.height}` : '', fmtSize(it.size)].filter(Boolean).join(' · '),
+      onIndex: (i) => this.showPeopleInViewer(this.items[i]),
       actions: (it, v) => [
         { icon: 'heart', label: 'مفضلة', on: it.fav, fn: async () => {
           if (await guard(() => api.post('/api/photos/favorite', { ids: [it.id], value: !it.fav }))) { this.setFav(it, !it.fav); v.refresh(); }
@@ -304,6 +383,16 @@ class PhotosApp {
         { icon: 'trash', label: 'حذف', fn: async () => { if (await this.deleteIds([it.id], true)) { it.el.remove(); v.remove(); } } },
       ],
     });
+  }
+
+  async showPeopleInViewer(it) {
+    const meta = document.querySelector('#viewer .meta'); if (!meta || it.is_video) return;
+    const faces = await api.get(`/api/photos/${it.id}/faces`).catch(() => []);
+    const named = [...new Set(faces.filter(f => f.name).map(f => f.name))];
+    if (named.length && document.querySelector('#viewer .meta') === meta) {
+      const s = document.createElement('div'); s.className = 'people-line'; s.setAttribute('translate', 'no');
+      s.textContent = '👤 ' + named.join('، '); meta.appendChild(s);
+    }
   }
 
   // ------------------------------------------------------------ الألبومات
@@ -352,10 +441,19 @@ class PhotosApp {
     if (a === 'upload') chooseFiles({ accept: 'image/*,video/*,.heic,.heif,.mov,.dng' }).then(f => this.upload(f));
   }
 
-  upload(files) {
+  async upload(files) {
     if (!files.length) return;
     const lib = this.libs.find(l => l.id === this.lib) || this.libs[0];
     if (!lib.writable) return toast('لا تملك صلاحية الرفع لهذه المكتبة', 'err');
+    // نسأل السيرفر أولاً: الصور المحفوظة مسبقاً لا تُرفع من جديد (يوفر وقتاً كبيراً عند اختيار مئات الصور)
+    const chk = await api.post('/api/photos/check', { lib: lib.id, files: files.map(f => ({ name: f.name, size: f.size })) }).catch(() => null);
+    if (chk && chk.exists) {
+      const before = files.length;
+      files = files.filter((_, i) => !chk.exists[i]);
+      const skipped = before - files.length;
+      if (!files.length) return toast('كل الصور المختارة محفوظة مسبقاً ✓', 'ok');
+      if (skipped) toast(`${skipped} صورة محفوظة مسبقاً — تم تخطيها`, 'ok');
+    }
     const refresh = debounce(() => { if (['timeline', 'videos'].includes(this.view)) this.reload(); }, 1500);
     uploads.add(files.map(file => ({ file, url: `/api/photos/upload?lib=${encodeURIComponent(lib.id)}` })), { onAll: refresh });
   }

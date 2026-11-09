@@ -63,6 +63,9 @@ tick(); setInterval(tick, 15000);
 desktop.addEventListener('contextmenu', e => { if (e.target === desktop || e.target === icons) e.preventDefault(); });
 addEventListener('keydown', e => { if (e.key === 'Escape') closePopovers(); });
 
+// تطبيق قابل للتثبيت: عامل الخدمة يعمل عبر HTTPS (مثل Tailscale) أو localhost
+if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('/sw.js').catch(() => { });
+
 // فتح تطبيق مباشرة من الرابط: /?app=photos
 const params = new URLSearchParams(location.search);
 const start = params.get('app');

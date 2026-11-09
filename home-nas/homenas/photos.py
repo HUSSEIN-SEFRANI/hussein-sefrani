@@ -294,6 +294,13 @@ def api_items():
         args.append(album)
         where.append(f"m.library IN ({','.join('?' * len(libs))})")
         args += libs
+    elif request.args.get("person", type=int):
+        pid = request.args.get("person", type=int)
+        prow = db.execute("SELECT library FROM persons WHERE id=?", (pid,)).fetchone()
+        if not prow or prow["library"] not in libs:
+            abort(404)
+        where.append("m.id IN (SELECT media_id FROM faces WHERE person_id=?)")
+        args.append(pid)
     elif request.args.get("fav"):
         joins = "JOIN favorites f ON f.media_id=m.id AND f.user_id=?"
         args.append(user["id"])
@@ -312,8 +319,9 @@ def api_items():
         where.append("m.is_video=0")
     q = (request.args.get("q") or "").strip()
     if q:
-        where.append("(m.name LIKE ? OR m.camera LIKE ? OR m.taken_at LIKE ?)")
-        args += [f"%{q}%"] * 3
+        where.append("(m.name LIKE ? OR m.camera LIKE ? OR m.taken_at LIKE ? OR m.id IN "
+                     "(SELECT f.media_id FROM faces f JOIN persons p ON p.id=f.person_id WHERE p.name LIKE ?))")
+        args += [f"%{q}%"] * 4
     period = request.args.get("period")
     if period:
         where.append("m.taken_at LIKE ?")
@@ -360,6 +368,9 @@ def api_upload():
     client_mtime = request.form.get("last_modified", type=float)
     results = [save_media_upload(user, lib, f, client_mtime) for f in files]
     saved = sum(1 for r in results if r["status"] == "saved")
+    if "token" in request.args or request.headers.get("Authorization") or request.headers.get("X-Token"):
+        from .core import set_setting as _set
+        _set(f"last_shortcut_{user['id']}", now_iso())
     if saved:
         log_action("رفع صور", f"{saved} ملف إلى {lib['label']}")
     return jsonify(results=results)
@@ -419,11 +430,49 @@ def save_media_upload(user, lib: dict, fs, client_mtime: float | None) -> dict:
                  meta["height"], meta["camera"], taken.isoformat(timespec="seconds"), now_iso()))
             db.commit()
             mid = db.execute("SELECT id FROM media WHERE library=? AND rel_path=?", (lib["id"], rel)).fetchone()["id"]
+        fe = current_app.extensions.get("nas_faces")
+        if fe:
+            fe.event.set()
         return {"name": original, "status": "saved", "id": mid}
     except Exception as exc:  # pragma: no cover
         return {"name": original, "status": "error", "error": str(exc)}
     finally:
         tmp.unlink(missing_ok=True)
+
+
+@bp.post("/api/photos/check")
+@login_required
+def api_check():
+    """أي من هذه الملفات موجود مسبقاً؟ (بالاسم والحجم) — لتجنب رفع الصور المحفوظة من جديد."""
+    user = current_user()
+    data = body()
+    lib = get_library(user, data.get("lib"))
+    files = data.get("files") or []
+    have = {(r["name"].lower(), r["size"]) for r in get_db().execute(
+        "SELECT name, size FROM media WHERE library=?", (lib["id"],))}
+
+    def key(name, size):
+        # الاسم كما حُفظ قد يحمل لاحقة «(1)» عند تكرار الاسم
+        return (str(name or "").lower(), int(size or 0))
+    out = []
+    for f in files[:5000]:
+        k = key(f.get("name"), f.get("size"))
+        out.append(k in have)
+    return jsonify(exists=out)
+
+
+@bp.get("/api/photos/since")
+@login_required
+def api_since():
+    """لتطبيق «الاختصارات»: تاريخ آخر نسخ احتياطي (نص) ليبحث عن الصور الأحدث منه فقط."""
+    from datetime import datetime, timedelta
+    user = current_user()
+    last = get_setting(f"last_shortcut_{user['id']}")
+    if last:
+        dt = datetime.fromisoformat(last) - timedelta(days=1)  # هامش أمان؛ المكرر يُتجاهل تلقائياً
+    else:
+        dt = datetime.now() - timedelta(days=30)
+    return Response(dt.strftime("%Y-%m-%d %H:%M:%S"), mimetype="text/plain")
 
 
 @bp.get("/api/photos/<int:mid>/thumb")

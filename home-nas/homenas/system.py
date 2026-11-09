@@ -1,6 +1,7 @@
 """تسجيل الدخول، الحساب الشخصي، لوحة التحكم (المستخدمون والمجلدات والإعدادات والسجلات)، ومراقب النظام."""
 from __future__ import annotations
 
+import json
 import os
 import platform
 import re
@@ -144,6 +145,28 @@ def setup():
 def logout():
     session.clear()
     return redirect(url_for("auth.login"))
+
+
+@bp.get("/manifest.webmanifest")
+def manifest():
+    """يجعل H.SEF قابلاً للتثبيت كتطبيق (إضافة إلى الشاشة الرئيسية)."""
+    name = server_name()
+    data = {
+        "name": name, "short_name": name, "start_url": "/", "scope": "/", "display": "standalone",
+        "background_color": "#0d2547", "theme_color": "#0d2547", "dir": "auto",
+        "icons": [{"src": "/static/img/icon.png", "sizes": "180x180", "type": "image/png"},
+                  {"src": "/static/img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}],
+        "shortcuts": [{"name": "Photos", "url": "/?app=photos"}, {"name": "Files", "url": "/?app=files"}],
+    }
+    return current_app.response_class(json.dumps(data, ensure_ascii=False), mimetype="application/manifest+json")
+
+
+@bp.get("/sw.js")
+def service_worker():
+    resp = current_app.send_static_file("js/sw.js")
+    resp.headers["Service-Worker-Allowed"] = "/"
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
 
 
 @bp.get("/")

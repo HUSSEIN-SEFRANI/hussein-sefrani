@@ -111,7 +111,7 @@ EOF
 
 # Let the web panel reboot / power off the machine (and nothing else)
 cat > /etc/sudoers.d/homenas <<'EOF'
-homenas ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/bin/timedatectl set-timezone *, /usr/sbin/smartctl -j -H -A /dev/*, /usr/local/sbin/hsef-net, /usr/local/sbin/hsef-apps
+homenas ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/bin/timedatectl set-timezone *, /usr/sbin/smartctl -j -H -A /dev/*, /usr/local/sbin/hsef-net, /usr/local/sbin/hsef-apps, /usr/local/sbin/hsef-extras
 EOF
 chmod 440 /etc/sudoers.d/homenas
 visudo -cf /etc/sudoers.d/homenas >/dev/null
@@ -130,6 +130,7 @@ EOF
 install -m 755 "$APP/appliance/homenas-disk" /usr/local/sbin/homenas-disk
 install -m 755 "$APP/appliance/hsef-net" /usr/local/sbin/hsef-net
 install -m 755 "$APP/appliance/hsef-apps" /usr/local/sbin/hsef-apps
+install -m 755 "$APP/appliance/hsef-extras" /usr/local/sbin/hsef-extras
 # App Center: user choices written by the app, logs written by hsef-apps
 mkdir -p "$CONF_DIR/apps" /var/lib/homenas/apps /srv/homenas/apps
 chown homenas:homenas "$CONF_DIR/apps"
