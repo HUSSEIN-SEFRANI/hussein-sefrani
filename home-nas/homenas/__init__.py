@@ -14,7 +14,7 @@ from .faces import migrate as faces_migrate
 from .network import Network
 from .photos import Indexer
 
-__version__ = "1.4"
+__version__ = "1.4.1"
 
 
 def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
@@ -42,6 +42,8 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
     app.extensions["nas_net"] = nw = Network(data_paths)
     app.extensions["nas_apps"] = AppStore(data_paths)
     app.extensions["nas_faces"] = fc = FaceEngine(data_paths)
+    from .iphone import IphoneSync
+    app.extensions["nas_iphone"] = iph = IphoneSync(data_paths, idx)
     def _on_indexed(lib):
         fc.event.set()
         nw.request(tv=True)
@@ -51,9 +53,10 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
         bk.start()
         nw.start()
         fc.start()
+        iph.start()
 
-    from . import appstore, backup, faces, files, health, links, network, photos, profile, remote, sysadmin, system, tv
-    for mod in (system, files, photos, links, backup, health, network, appstore, faces, remote, tv, profile, sysadmin):
+    from . import appstore, backup, faces, files, health, iphone, links, network, photos, profile, remote, sysadmin, system, tv
+    for mod in (system, files, photos, links, backup, health, network, appstore, faces, remote, tv, profile, sysadmin, iphone):
         app.register_blueprint(mod.bp)
 
     @app.teardown_appcontext

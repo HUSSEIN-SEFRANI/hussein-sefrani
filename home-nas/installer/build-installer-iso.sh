@@ -88,7 +88,7 @@ in_root apt-get install -y --no-install-recommends \
     firmware-linux-free firmware-misc-nonfree firmware-realtek firmware-iwlwifi firmware-atheros \
     firmware-intel-graphics firmware-amd-graphics firmware-intel-sound \
     cage chromium fonts-noto-core fonts-noto-color-emoji pipewire-audio wireplumber pulseaudio-utils wlr-randr \
-    python3-opencv less nano
+    python3-opencv usbmuxd libimobiledevice-utils ifuse fuse3 less nano
 
 log "H.SEF"
 mkdir -p "$ROOT/opt/homenas-src"

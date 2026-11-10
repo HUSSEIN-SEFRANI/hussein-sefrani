@@ -591,7 +591,7 @@ def api_status():
         "os": f"{platform.system()} {platform.release()}",
         "python": platform.python_version(),
         "server_uptime": time.time() - STARTED,
-        "urls": server_urls(cfg["port"]),
+        "urls": server_urls(cfg.get("port", 80)),
         "volumes": list(volumes.values()),
         "time": time.time(),
         "indexer": indexer().status,

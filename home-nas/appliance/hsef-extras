@@ -852,6 +852,114 @@ def tv_session(url: str):
     os.execv("/usr/bin/chromium", ["chromium", *CHROMIUM_FLAGS.split(), url])
 
 
+# ----------------------------------------------------------------------------- الآيفون بالكابل (USB)
+IPH_RUN = Path("/run/hsef-iphone")
+IPH_STATUS = IPH_RUN / "status.json"
+IPH_PKGS = ("usbmuxd", "libimobiledevice-utils", "ifuse")
+
+
+def iph_write(**st):
+    IPH_RUN.mkdir(parents=True, exist_ok=True)
+    os.chmod(IPH_RUN, 0o755)
+    st["ts"] = _time.time()
+    tmp = IPH_STATUS.with_suffix(".tmp")
+    tmp.write_text(json.dumps(st))
+    os.chmod(tmp, 0o644)
+    tmp.replace(IPH_STATUS)
+
+
+def iph_cmd(*cmd, timeout=20):
+    try:
+        return subprocess.run(list(cmd), capture_output=True, text=True, timeout=timeout)
+    except (subprocess.TimeoutExpired, OSError):
+        return subprocess.CompletedProcess(cmd, 1, "", "")
+
+
+def iphone_attach():
+    """يعمل عند توصيل جهاز Apple: يطلب «الوثوق» ثم يفتح صور الهاتف للقراءة فقط."""
+    if FAKE:
+        iph_write(state="mounted", udid="00008030-FAKE", name="iPhone de Hussein", mount="/tmp/hsef-iphone-fake",
+                  attach_id=str(int(_time.time())))
+        return
+    if not shutil.which("ifuse"):
+        iph_write(state="not_installed")
+        return
+    iph_write(state="detected")
+    udid = ""
+    for _ in range(30):
+        udid = iph_cmd("idevice_id", "-l").stdout.split("\n")[0].strip()
+        if udid:
+            break
+        _time.sleep(1)
+    if not udid:
+        iph_write(state="none")
+        return
+    # الاقتران: يظهر على الهاتف سؤال «الوثوق بهذا الكمبيوتر؟»
+    paired = False
+    for _ in range(90):
+        if iph_cmd("idevicepair", "-u", udid, "validate").returncode == 0:
+            paired = True
+            break
+        r = iph_cmd("idevicepair", "-u", udid, "pair")
+        if r.returncode == 0:
+            paired = True
+            break
+        out = (r.stdout + r.stderr).lower()
+        iph_write(state="locked" if "passcode" in out or "locked" in out else "need_trust", udid=udid)
+        _time.sleep(2)
+    if not paired:
+        iph_write(state="need_trust", udid=udid, error="timeout")
+        return
+    name = iph_cmd("ideviceinfo", "-u", udid, "-k", "DeviceName").stdout.strip() or "iPhone"
+    mnt = IPH_RUN / udid
+    subprocess.run(["fusermount", "-uz", str(mnt)], capture_output=True)
+    mnt.mkdir(parents=True, exist_ok=True)
+    r = iph_cmd("ifuse", str(mnt), "-u", udid, "-o", "allow_other,ro", timeout=60)
+    if r.returncode != 0 or not (mnt / "DCIM").is_dir():
+        iph_write(state="error", udid=udid, name=name, error=(r.stderr or r.stdout or "mount failed")[-300:])
+        return
+    iph_write(state="mounted", udid=udid, name=name, mount=str(mnt), attach_id=str(int(_time.time())))
+
+
+def iphone_detach():
+    if IPH_RUN.exists():
+        for m in IPH_RUN.iterdir():
+            if m.is_dir():
+                subprocess.run(["fusermount", "-uz", str(m)], capture_output=True)
+                try:
+                    m.rmdir()
+                except OSError:
+                    pass
+    iph_write(state="none")
+
+
+def iphone_install():
+    apt_install(*IPH_PKGS)
+    write_iphone_rules()
+
+
+def write_iphone_rules():
+    """قاعدة udev: عند توصيل جهاز Apple تبدأ خدمة النسخ، وعند فصله تتوقف."""
+    Path("/etc/udev/rules.d/90-hsef-iphone.rules").write_text(
+        'ACTION=="add", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="05ac", '
+        'TAG+="systemd", ENV{SYSTEMD_WANTS}+="hsef-iphone.service"\n'
+        'ACTION=="remove", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ENV{PRODUCT}=="5ac/*", '
+        'RUN+="/usr/bin/systemctl --no-block stop hsef-iphone.service"\n')
+    Path("/etc/systemd/system/hsef-iphone.service").write_text("""[Unit]
+Description=H.SEF iPhone over USB (pair and open the photos)
+After=usbmuxd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/hsef-extras iphone-attach
+ExecStop=/usr/local/sbin/hsef-extras iphone-detach
+TimeoutStartSec=400
+""")
+    subprocess.run(["systemctl", "daemon-reload"], capture_output=True)
+    subprocess.run(["udevadm", "control", "--reload"], capture_output=True)
+
+
 def main():
     if sys.argv[1:2] == ["tv-session"]:  # يعمل بصلاحية مستخدم الشاشة
         tv_session(sys.argv[2] if len(sys.argv) > 2 else "")
@@ -925,6 +1033,14 @@ def main():
         tv_modes()
     elif len(a) in (1, 2) and a[0] == "tv-mode-set":
         tv_mode_set(a[1] if len(a) == 2 else "")
+    elif a == ["iphone-attach"]:
+        iphone_attach()
+    elif a == ["iphone-detach"]:
+        iphone_detach()
+    elif a == ["iphone-install"]:
+        iphone_install()
+    elif a == ["iphone-rules"]:
+        write_iphone_rules()
     elif a == ["tv-wait"]:
         import time
         import urllib.request

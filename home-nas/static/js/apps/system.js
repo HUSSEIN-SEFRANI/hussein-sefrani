@@ -373,6 +373,7 @@ const CP = {
     if (!me || !st) return;
     const url = st.urls[0];
     const p = section(sc, 'ربط الآيفون', 'احفظ صور هاتفك على هذا الكمبيوتر عبر شبكة Wi-Fi المنزلية — بدون إنترنت وبدون أي خدمة سحابية.');
+    if (ME.is_admin) p.appendChild(usbIphoneCard());
     p.appendChild(h(`<div class="cards" style="padding:0">
       <div class="card span2"><h4>${icon('phone')} ١. افتح السيرفر من Safari</h4>
         <ol class="steps"><li>اتصل بنفس شبكة Wi-Fi التي يتصل بها الكمبيوتر.</li>
@@ -677,6 +678,64 @@ async function lookCard() {
     if (await guard(() => api.del('/api/me/photo'))) { draw({ photo_v: 0 }); tell({ ...l, photo_v: 0 }); }
   };
   draw({});
+  return c;
+}
+
+function usbIphoneCard() {
+  const c = h(`<div class="card" style="margin-bottom:14px"><h4>${icon('phone')} نسخ الصور بالكابل (USB)</h4>
+    <ol class="steps"><li>صِل الآيفون بأي منفذ USB في جهاز السيرفر بكابل الشحن.</li>
+      <li>افتح قفل الهاتف، واضغط <b>«الوثوق»</b> عند السؤال، وأدخل رمز الهاتف.</li>
+      <li>تُنسخ كل الصور والفيديوهات الجديدة تلقائياً إلى «الصور» لصاحب الهاتف. النسخ القادم ينسخ الجديد فقط.</li></ol>
+    <div class="ub"></div></div>`);
+  const box = $('.ub', c);
+  const STATE = { none: 'لا يوجد هاتف موصول', detected: 'تم اكتشاف جهاز Apple…', need_trust: 'افتح قفل الهاتف واضغط «الوثوق»',
+    locked: 'افتح قفل الهاتف أولاً', mounted: 'الهاتف موصول', error: 'تعذر فتح صور الهاتف', not_installed: 'يحتاج تثبيت أدوات الآيفون' };
+  let timer = 0;
+  const draw = async () => {
+    clearTimeout(timer);
+    if (!document.body.contains(c) && box.dataset.drawn) return;
+    box.dataset.drawn = 1;
+    const r = await api.get('/api/admin/iphone').catch(() => null);
+    if (!r) return;
+    if (!r.installed) {
+      box.innerHTML = r.appliance ? `<p class="muted">أدوات الآيفون غير مثبتة على هذا السيرفر (تُثبّت مرة واحدة وتحتاج إنترنت).</p>
+        <button class="btn primary" data-x="inst">${icon('download')} تثبيت</button>` : '<p class="muted">متاح على جهاز H.SEF المخصص.</p>';
+      const b = $('[data-x=inst]', box);
+      if (b) b.onclick = async () => { b.disabled = true; toast('جارٍ التثبيت…'); if (await guard(() => api.post('/api/admin/iphone/install', {}))) { toast('تم', 'ok'); draw(); } b.disabled = false; };
+      return;
+    }
+    const st = r.status || {}, pr = r.progress || {};
+    const pct = pr.total ? Math.round(pr.done / pr.total * 100) : 0;
+    let html = `<p><span class="badge ${st.state === 'mounted' ? 'ok' : st.state === 'need_trust' || st.state === 'locked' ? 'warn' : ''}">${esc(STATE[st.state] || st.state)}</span>
+      ${st.name ? ` <b>${esc(st.name)}</b>` : ''}</p>`;
+    if (pr.running) {
+      html += `<div style="height:10px;border-radius:99px;background:var(--surface-3);overflow:hidden" dir="ltr"><div style="height:100%;width:${pct}%;background:var(--accent)"></div></div>
+        <p class="small">جارٍ النسخ إلى «${esc(pr.user || '')}»: ${pr.done} من ${pr.total} · جديدة ${pr.copied}</p>`;
+    } else if (pr.finished && pr.udid === st.udid) {
+      html += `<p class="small"><span class="badge ok">انتهى</span> نُسخت ${pr.copied} صورة جديدة من ${pr.total}${pr.error ? ` · <span class="badge err">${esc(pr.error)}</span>` : ''}. يمكنك فصل الهاتف.</p>`;
+    }
+    const devs = Object.entries(r.devices || {});
+    if (devs.length) {
+      html += `<table class="tbl" style="margin-top:8px"><thead><tr><th>الهاتف</th><th>صاحبه (تُنسخ الصور إلى صوره)</th><th>تلقائي</th><th>آخر نسخ</th><th></th></tr></thead><tbody>
+        ${devs.map(([udid, d]) => `<tr data-u="${esc(udid)}"><td><b>${esc(d.name)}</b><div class="muted small ltr">${esc(udid.slice(0, 13))}…</div></td>
+          <td><select class="field" style="min-width:140px"><option value="">— اختر —</option>${r.users.map(u => `<option value="${u.id}" ${u.id === d.user_id ? 'selected' : ''}>${esc(u.name)}</option>`).join('')}</select></td>
+          <td><input type="checkbox" ${d.auto ? 'checked' : ''}></td>
+          <td class="small">${d.last ? `${esc(d.last.at.replace('T', ' '))} · ${d.last.copied} جديدة` : '—'}</td>
+          <td style="white-space:nowrap">${st.udid === udid && st.state === 'mounted' && !pr.running ? `<button class="btn sm" data-x="sync">نسخ الآن</button>` : ''}
+            <button class="btn ghost icon sm danger" data-x="forget" title="نسيان">${icon('trash')}</button></td></tr>`).join('')}</tbody></table>
+        <p class="muted small">عند توصيل هاتف جديد يظهر هنا، فاختر صاحبه مرة واحدة.</p>`;
+    }
+    box.innerHTML = html;
+    $$('tr[data-u]', box).forEach(tr => {
+      const udid = tr.dataset.u;
+      $('select', tr).onchange = (e) => guard(() => api.post('/api/admin/iphone/device', { udid, user_id: e.target.value || null })).then(draw);
+      $('input', tr).onchange = (e) => guard(() => api.post('/api/admin/iphone/device', { udid, auto: e.target.checked }));
+      const s = $('[data-x=sync]', tr); if (s) s.onclick = () => guard(() => api.post('/api/admin/iphone/sync', {})).then(draw);
+      $('[data-x=forget]', tr).onclick = async () => { if (await confirmBox('نسيان هذا الهاتف؟ الصور المنسوخة تبقى.')) guard(() => api.post('/api/admin/iphone/device', { udid, forget: true })).then(draw); };
+    });
+    timer = setTimeout(draw, pr.running || ['detected', 'need_trust', 'locked'].includes(st.state) ? 1500 : 4000);
+  };
+  draw();
   return c;
 }
 

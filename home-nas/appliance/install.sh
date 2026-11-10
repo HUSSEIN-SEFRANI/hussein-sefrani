@@ -32,7 +32,7 @@ log "Installing system packages"
 PKGS="python3 python3-venv python3-pip ffmpeg avahi-daemon libnss-mdns sudo ca-certificates \
     unattended-upgrades rsync parted e2fsprogs sqlite3 mdadm smartmontools samba minidlna \
     python3-flask python3-waitress python3-pil python3-psutil libheif-examples libheif-plugin-libde265 \
-    poppler-utils"
+    poppler-utils usbmuxd libimobiledevice-utils ifuse"
 # بدون إنترنت (تحديث من فلاشة): نكمل إذا كانت الحزم الأساسية مثبتة مسبقاً
 OFFLINE=0
 if ! apt-get update >/dev/null 2>&1; then
@@ -145,6 +145,8 @@ install -m 755 "$APP/appliance/homenas-disk" /usr/local/sbin/homenas-disk
 install -m 755 "$APP/appliance/hsef-net" /usr/local/sbin/hsef-net
 install -m 755 "$APP/appliance/hsef-apps" /usr/local/sbin/hsef-apps
 install -m 755 "$APP/appliance/hsef-extras" /usr/local/sbin/hsef-extras
+# الآيفون بالكابل: تبدأ خدمة النسخ عند توصيله
+/usr/local/sbin/hsef-extras iphone-rules >/dev/null 2>&1 || true
 # App Center: user choices written by the app, logs written by hsef-apps
 mkdir -p "$CONF_DIR/apps" /var/lib/homenas/apps /srv/homenas/apps
 chown homenas:homenas "$CONF_DIR/apps"
