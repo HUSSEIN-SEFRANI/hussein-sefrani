@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>سارة والتفكير</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <!-- شاشة البداية -->
+  <section id="start" class="screen on">
+    <div class="owl" aria-hidden="true"><i></i></div>
+    <h1>سارة والتفكير</h1>
+    <p class="sub">Sara et la réflexion</p>
+    <div class="levels" id="levels"></div>
+    <div class="help"><b>← →</b> اختاري المستوى &nbsp; <b>موافق</b> ابدئي</div>
+  </section>
+
+  <!-- السؤال -->
+  <section id="quiz" class="screen">
+    <div class="top">
+      <div class="pill" id="lvl"></div>
+      <div class="progress"><i id="bar"></i></div>
+      <div class="pill gold" id="score"></div>
+    </div>
+    <div class="question">
+      <div class="kind" id="kind"></div>
+      <div class="ar" id="qar"></div>
+      <div class="fr" id="qfr" dir="ltr"></div>
+    </div>
+    <div class="answers" id="answers"></div>
+    <div class="feedback" id="fb"></div>
+    <div class="help"><b>الأسهم</b> للتنقل &nbsp; <b>موافق</b> للاختيار</div>
+  </section>
+
+  <!-- نهاية المستوى -->
+  <section id="done" class="screen">
+    <div class="stars" id="stars"></div>
+    <h2 id="dt"></h2>
+    <p class="sub" id="ds"></p>
+    <div class="levels" id="next"></div>
+    <div class="help"><b>موافق</b> للمتابعة</div>
+  </section>
+</div>
+<div id="confetti"></div>
+<script src="questions.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
