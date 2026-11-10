@@ -6,6 +6,7 @@ import {
   fmtSize, fmtDateTime, fmtDuration,
 } from '../core.js';
 import { tvSection } from './tvadmin.js';
+import { deviceSection } from './device.js';
 
 // --------------------------------------------------------------------- روابط المشاركة
 registerApp({
@@ -165,6 +166,7 @@ const SECTIONS = [
   { id: 'account', label: 'حسابي', icon: 'user' },
   { id: 'phone', label: 'ربط الآيفون', icon: 'phone' },
   { id: 'network', label: 'الشبكة والتلفاز', icon: 'wifi' },
+  { id: 'device', label: 'الجهاز والاتصال', icon: 'server', admin: true },
   { id: 'remote', label: 'من خارج البيت', icon: 'shield', admin: true },
   { id: 'users', label: 'المستخدمون', icon: 'users', admin: true },
   { id: 'folders', label: 'المجلدات المشتركة', icon: 'hdd', admin: true },
@@ -207,6 +209,7 @@ function section(sc, title, desc, actions = '') {
 
 const CP = {
   tv(sc) { return tvSection(sc, section); },
+  device(sc) { return deviceSection(sc, section); },
 
   async account(sc) {
     const me = await guard(() => api.get('/api/me')); if (!me) return;
@@ -765,7 +768,23 @@ async function editUser(u, done) {
     <label class="lbl">${u ? 'كلمة مرور جديدة (اتركها فارغة لعدم التغيير)' : 'كلمة المرور (6 أحرف على الأقل)'}</label><input class="field" name="password" type="password" autocomplete="new-password">
     <label class="check"><input type="checkbox" name="is_admin" ${u && u.is_admin ? 'checked' : ''}> مدير (صلاحية كاملة على كل شيء)</label>
     ${u ? `<label class="check"><input type="checkbox" name="disabled" ${u.disabled ? 'checked' : ''}> تعطيل الحساب</label>` : ''}
+    ${u ? `<label class="lbl">الصورة الشخصية</label><div style="display:flex;align-items:center;gap:10px"><div class="me-photo" style="width:56px;height:56px;font-size:22px"><img src="/api/users/${u.id}/photo?t=${Date.now()}" alt="" onerror="this.replaceWith(document.createTextNode('${esc((u.username || '?')[0].toUpperCase())}'))"></div>
+      <button type="button" class="btn sm" data-ph="up">${icon('upload')} رفع صورة</button><button type="button" class="btn ghost sm" data-ph="del">إزالة</button><input type="file" accept="image/*" class="hidden" data-ph="file"></div>` : ''}
     ${folders.length ? '<label class="lbl">الصلاحيات على المجلدات المشتركة</label><div class="perm-grid"></div>' : ''}</div>`);
+  if (u) {
+    const fin = $('[data-ph=file]', body), box = $('.me-photo', body);
+    $('[data-ph=up]', body).onclick = () => fin.click();
+    fin.onchange = async () => {
+      const f = fin.files[0]; fin.value = ''; if (!f) return;
+      const fd = new FormData(); fd.append('image', f);
+      try {
+        const res = await fetch(`/api/admin/users/${u.id}/photo`, { method: 'POST', body: fd, credentials: 'same-origin' });
+        const r = await res.json(); if (!res.ok) throw new Error(r.error || res.status);
+        box.innerHTML = `<img src="/api/users/${u.id}/photo?v=${r.photo_v}" alt="">`; toast('تم رفع الصورة', 'ok');
+      } catch (e) { toast(e.message, 'err'); }
+    };
+    $('[data-ph=del]', body).onclick = async () => { if (await guard(() => api.del(`/api/admin/users/${u.id}/photo`))) box.textContent = (u.username || '?')[0].toUpperCase(); };
+  }
   const grid = $('.perm-grid', body);
   for (const f of folders) {
     grid.appendChild(h(`<span>${icon('hdd')} ${esc(f.name)}</span>`));

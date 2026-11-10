@@ -50,8 +50,27 @@ function kioskCard(d, reload) {
     b.disabled = false;
   });
   if (k.installing) setTimeout(() => { if (document.body.contains(c)) reload(); }, 5000);
-  if (k.installed && k.active) c.appendChild(audioBox());
+  if (k.installed && k.active) { c.appendChild(displayBox()); c.appendChild(audioBox()); }
   return c;
+}
+
+function displayBox() {
+  const box = h(`<div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px"><h4 style="margin-top:0">${icon('video')} دقة الشاشة</h4>
+    <div class="db muted small">جارٍ القراءة…</div></div>`);
+  const db = $('.db', box);
+  api.get('/api/admin/tv/display').then((r) => {
+    if (r.error) { db.textContent = 'تعذرت قراءة الشاشة.'; return; }
+    db.classList.remove('muted', 'small');
+    const opts = (r.modes || []).map(m => `<option ${m === r.saved ? 'selected' : ''}>${m}</option>`).join('');
+    db.innerHTML = `<select class="field" style="max-width:240px" dir="ltr"><option value="">تلقائي (أفضل دقة للتلفاز)</option>${opts}</select>
+      <button class="btn sm" data-a="set">تطبيق</button>
+      <p class="muted small">الحالية: <span class="ltr">${esc(r.current || '—')}</span>. ${r.available ? '' : 'اختيار الدقة يثبّت أداة صغيرة (يحتاج إنترنت مرة واحدة).'}
+      للفيديو الأنعم على تلفاز 4K اختر <span class="ltr">1920x1080</span>.</p>`;
+    $('[data-a=set]', db).onclick = async () => {
+      if (await guard(() => api.post('/api/admin/tv/display', { mode: $('select', db).value }))) toast('تم — تُعاد تشغيل الشاشة', 'ok');
+    };
+  }).catch(e => { db.textContent = e.message; });
+  return box;
 }
 
 function audioBox() {
@@ -253,6 +272,8 @@ function settingsCard(d, reload) {
       <label>شاشة التوقف بعد (دقيقة، 0 = أبداً)<input class="field" type="number" min="0" max="240" name="saver_min"></label>
       <label>إطفاء الشاشة ليلاً من<input class="field" type="time" name="night_from"></label>
       <label>إلى<input class="field" type="time" name="night_to"></label>
+      <label>حجم الواجهة على الشاشة (%)<input class="field" type="number" min="70" max="130" step="5" name="zoom"></label>
+      <label>هامش حول الواجهة (% إن كان التلفاز يقص الأطراف)<input class="field" type="number" min="0" max="8" name="margin"></label>
     </div>
     <label class="check"><input type="checkbox" name="nosleep"> منع الشاشة من الانطفاء أثناء الاستخدام</label>
     <h4 style="margin-top:16px">${icon('clock')} مواقيت الصلاة</h4>
@@ -271,6 +292,7 @@ function settingsCard(d, reload) {
     <div style="margin-top:14px"><button class="btn primary" data-x="save">حفظ</button></div></div>`);
   const f = (n) => $(`[name=${n}]`, c);
   f('wallpaper').value = s.wallpaper; f('saver_min').value = s.saver_min; f('nosleep').checked = s.nosleep;
+  f('zoom').value = s.zoom || 100; f('margin').value = s.margin || 0;
   f('night_from').value = nf || ''; f('night_to').value = nt || '';
   f('prayer').checked = s.prayer; f('city').value = s.city || ''; f('lat').value = s.lat || ''; f('lon').value = s.lon || '';
   f('method').value = s.method; f('hanafi').checked = s.hanafi;
@@ -284,6 +306,7 @@ function settingsCard(d, reload) {
     const nightFrom = f('night_from').value, nightTo = f('night_to').value;
     const data = {
       wallpaper: f('wallpaper').value, saver_min: +f('saver_min').value || 0, nosleep: f('nosleep').checked,
+      zoom: +f('zoom').value || 100, margin: +f('margin').value || 0,
       night_off: nightFrom && nightTo ? `${nightFrom}-${nightTo}` : '',
       prayer: f('prayer').checked, city: f('city').value, method: f('method').value, hanafi: f('hanafi').checked,
       words: ['ar', ...(f('w_fr').checked ? ['fr'] : []), ...(f('w_en').checked ? ['en'] : [])],

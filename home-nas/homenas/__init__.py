@@ -14,7 +14,7 @@ from .faces import migrate as faces_migrate
 from .network import Network
 from .photos import Indexer
 
-__version__ = "1.2.5"
+__version__ = "1.3"
 
 
 def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
@@ -52,8 +52,8 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
         nw.start()
         fc.start()
 
-    from . import appstore, backup, faces, files, health, links, network, photos, profile, remote, system, tv
-    for mod in (system, files, photos, links, backup, health, network, appstore, faces, remote, tv, profile):
+    from . import appstore, backup, faces, files, health, links, network, photos, profile, remote, sysadmin, system, tv
+    for mod in (system, files, photos, links, backup, health, network, appstore, faces, remote, tv, profile, sysadmin):
         app.register_blueprint(mod.bp)
 
     @app.teardown_appcontext

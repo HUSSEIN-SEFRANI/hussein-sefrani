@@ -641,6 +641,9 @@ def api_update_check():
     status = json.loads(st) if ok else {}
     if status.get("running"):
         return jsonify(appliance=True, current=__version__, status=status)
+    from .sysadmin import is_offline
+    if is_offline():
+        return jsonify(appliance=True, current=__version__, status=status, offline=True, error="offline")
     ok, out = _extras("update-check")
     if not ok:
         return jsonify(appliance=True, current=__version__, error=out, status=status)

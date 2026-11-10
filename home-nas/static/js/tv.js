@@ -45,7 +45,9 @@ function toast(msg, ms = 3000) {
 }
 
 function fit() {
-  scale = Math.min(innerWidth / 1280, innerHeight / 720);
+  const m = Math.max(0, Math.min(8, +(settings && settings.margin) || 0)) / 100;
+  const z = Math.max(70, Math.min(130, +(settings && settings.zoom) || 100)) / 100;
+  scale = Math.min((innerWidth * (1 - 2 * m)) / 1280, (innerHeight * (1 - 2 * m)) / 720) * z;
   stage.style.transform = `translate(${(innerWidth - 1280 * scale) / 2}px, ${(innerHeight - 720 * scale) / 2}px) scale(${scale})`;
 }
 addEventListener("resize", fit);
@@ -910,6 +912,7 @@ async function keepAwake() {
   try { if (!wakeLock || wakeLock.released) wakeLock = await navigator.wakeLock.request("screen"); } catch { /* غير متاح */ }
 }
 function applyPrefs() {
+  fit();
   if (settings.nosleep) keepAwake();
   else if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
 }

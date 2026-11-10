@@ -151,11 +151,12 @@ TV_USER = "hseftv"
 TV_HOME = Path("/var/lib/hseftv")
 TV_UNIT = Path("/etc/systemd/system/hsef-tv.service")
 TV_LOG = Path("/var/lib/homenas/tv-setup.log")
-TV_PKGS = ("cage", "chromium", "fonts-noto-core", "fonts-noto-color-emoji", "pipewire-audio", "wireplumber", "pulseaudio-utils")
+TV_PKGS = ("cage", "chromium", "fonts-noto-core", "fonts-noto-color-emoji", "pipewire-audio", "wireplumber", "pulseaudio-utils", "wlr-randr")
 CHROMIUM_FLAGS = ("--kiosk --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble "
                   "--disable-features=Translate,TranslateUI,MediaRouter --autoplay-policy=no-user-gesture-required "
                   "--check-for-update-interval=31536000 --password-store=basic --ozone-platform=wayland "
-                  "--disable-pinch --overscroll-history-navigation=0 --user-data-dir=/var/lib/hseftv/chromium")
+                  "--disable-pinch --overscroll-history-navigation=0 --user-data-dir=/var/lib/hseftv/chromium "
+                  "--ignore-gpu-blocklist --enable-gpu-rasterization")
 
 
 def unit_active(name: str) -> bool:
@@ -205,7 +206,7 @@ UtmpIdentifier=tty1
 UtmpMode=user
 Environment=XDG_SESSION_TYPE=wayland
 ExecStartPre=+/usr/local/sbin/hsef-extras tv-wait
-ExecStart=/usr/bin/cage -d -s -- /usr/bin/chromium {CHROMIUM_FLAGS} {url}
+ExecStart=/usr/bin/cage -d -s -- /usr/local/sbin/hsef-extras tv-session {url}
 Restart=always
 RestartSec=5
 
@@ -463,7 +464,385 @@ def update_status():
     print(json.dumps({"running": running, "failed": failed, "log": tail(UPD_LOG, 6), "current": current_version()}))
 
 
+# ============================================================================= v1.3: الشبكة، الوقت، بدون إنترنت، البلوتوث، الشاشة
+import re as _re
+import time as _time
+
+IFACES = Path("/etc/network/interfaces")
+IFACES_BAK = Path("/etc/network/interfaces.hsef-bak")
+RESOLV_BAK = Path("/etc/resolv.conf.hsef-bak")
+WIFI_FILE = Path("/etc/network/interfaces.d/hsef-wifi")
+OFFLINE_FLAG = Path("/etc/homenas/offline")
+TV_MODE = Path("/etc/homenas/tv-mode")
+IP_RE = _re.compile(r"^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$")
+MAC_RE = _re.compile(r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$")
+
+
+def valid_ip(s: str) -> bool:
+    m = IP_RE.match(s or "")
+    return bool(m) and all(0 <= int(x) <= 255 for x in m.groups())
+
+
+def jrun(cmd) -> list:
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+    try:
+        return json.loads(r.stdout or "[]")
+    except ValueError:
+        return []
+
+
+def wired_iface() -> str | None:
+    for l in jrun(["ip", "-j", "link"]):
+        n = l.get("ifname", "")
+        if n != "lo" and not n.startswith(("wl", "docker", "br-", "veth", "tailscale")) and l.get("link_type") == "ether":
+            return n
+    return None
+
+
+def wifi_iface() -> str | None:
+    for l in jrun(["ip", "-j", "link"]):
+        n = l.get("ifname", "")
+        if n.startswith("wl"):
+            return n
+    return None
+
+
+def net_status():
+    if FAKE:
+        print(json.dumps({"iface": "enp1s0", "mode": "dhcp", "ip": "192.168.1.25", "prefix": 24, "gateway": "192.168.1.1",
+                          "dns": ["192.168.1.1"], "pending": False, "wifi": {"iface": None}, "supported": True}))
+        return
+    ifc = wired_iface()
+    addr = next((a for l in jrun(["ip", "-j", "addr"]) if l.get("ifname") == ifc for a in l.get("addr_info", []) if a.get("family") == "inet"), {})
+    gw = next((r.get("gateway") for r in jrun(["ip", "-j", "route", "show", "default"]) if r.get("gateway")), None)
+    dns = [l.split()[1] for l in Path("/etc/resolv.conf").read_text().splitlines() if l.startswith("nameserver")] if Path("/etc/resolv.conf").exists() else []
+    txt = IFACES.read_text() if IFACES.exists() else ""
+    mode = "static" if ifc and _re.search(rf"iface\s+{_re.escape(ifc)}\s+inet\s+static", txt) else "dhcp"
+    wi = wifi_iface()
+    wifi = {"iface": wi, "installed": bool(shutil.which("wpa_supplicant")), "ssid": None}
+    if wi and WIFI_FILE.exists():
+        m = _re.search(r'wpa-ssid\s+"?(.*?)"?\s*$', WIFI_FILE.read_text(), _re.M)
+        wifi["ssid"] = m.group(1) if m else None
+        wifi["ip"] = next((a.get("local") for l in jrun(["ip", "-j", "addr"]) if l.get("ifname") == wi for a in l.get("addr_info", []) if a.get("family") == "inet"), None)
+    print(json.dumps({"iface": ifc, "mode": mode, "ip": addr.get("local"), "prefix": addr.get("prefixlen"), "gateway": gw, "dns": dns,
+                      "pending": unit_active("hsef-net-revert.timer"), "supported": IFACES.exists() and bool(ifc), "wifi": wifi}))
+
+
+def iface_stanza(ifc, static=None) -> str:
+    if not static:
+        return f"allow-hotplug {ifc}\niface {ifc} inet dhcp\n"
+    return (f"allow-hotplug {ifc}\niface {ifc} inet static\n    address {static['ip']}/{static['prefix']}\n"
+            f"    gateway {static['gateway']}\n")
+
+
+def rewrite_ifaces(ifc, static=None):
+    txt = IFACES.read_text()
+    # احذف كتلة الواجهة القديمة (allow-hotplug/auto + iface + أسطرها المزاحة)
+    out, skip = [], False
+    for line in txt.splitlines():
+        s = line.strip()
+        if _re.match(rf"^(allow-hotplug|auto)\s+{_re.escape(ifc)}\s*$", s):
+            continue
+        if _re.match(rf"^iface\s+{_re.escape(ifc)}\s+inet6?\s", s):
+            skip = True
+            continue
+        if skip and (line.startswith((" ", "\t")) or not s):
+            if not s:
+                skip = False
+            continue
+        skip = False
+        out.append(line)
+    IFACES.write_text("\n".join(out).rstrip() + "\n\n" + iface_stanza(ifc, static))
+
+
+def net_set(mode: str, ip="", prefix="24", gateway="", dns=""):
+    """يغيّر العنوان مع شبكة أمان: إن لم يُؤكَّد من العنوان الجديد خلال 3 دقائق يعود الإعداد القديم."""
+    ifc = wired_iface()
+    if not ifc or not IFACES.exists():
+        die("network configuration not supported on this machine")
+    static = None
+    if mode == "static":
+        if not (valid_ip(ip) and valid_ip(gateway) and str(prefix).isdigit() and 8 <= int(prefix) <= 30):
+            die("invalid address")
+        dns_list = [d for d in dns.split(",") if valid_ip(d.strip())] or [gateway]
+        static = {"ip": ip, "prefix": int(prefix), "gateway": gateway}
+    if FAKE:
+        return
+    if not IFACES_BAK.exists():
+        shutil.copyfile(IFACES, IFACES_BAK)
+        if Path("/etc/resolv.conf").exists() and not Path("/etc/resolv.conf").is_symlink():
+            shutil.copyfile("/etc/resolv.conf", RESOLV_BAK)
+    rewrite_ifaces(ifc, static)
+    if static:
+        Path("/etc/resolv.conf").write_text("".join(f"nameserver {d.strip()}\n" for d in dns_list))
+    subprocess.run(["systemctl", "stop", "hsef-net-revert.timer"], capture_output=True)
+    run(["systemd-run", "--unit=hsef-net-revert", "--on-active=180", "--collect", "/usr/local/sbin/hsef-extras", "net-revert"])
+    # إعادة تشغيل الواجهة في الخلفية (الاتصال الحالي سينقطع)
+    run(["systemd-run", "--unit=hsef-net-apply", "--collect", "/bin/sh", "-c", f"sleep 2; ifdown --force {ifc}; ifup {ifc}; systemctl restart avahi-daemon"])
+
+
+def net_revert():
+    ifc = wired_iface()
+    if IFACES_BAK.exists():
+        shutil.copyfile(IFACES_BAK, IFACES)
+        IFACES_BAK.unlink()
+    if RESOLV_BAK.exists():
+        shutil.copyfile(RESOLV_BAK, "/etc/resolv.conf")
+        RESOLV_BAK.unlink()
+    if ifc:
+        subprocess.run(["sh", "-c", f"ifdown --force {ifc}; ifup {ifc}; systemctl restart avahi-daemon"], capture_output=True)
+
+
+def net_confirm():
+    if FAKE:
+        return
+    subprocess.run(["systemctl", "stop", "hsef-net-revert.timer", "hsef-net-revert.service"], capture_output=True)
+    IFACES_BAK.unlink(missing_ok=True)
+    RESOLV_BAK.unlink(missing_ok=True)
+
+
+# ----------------------------------------------------------------------------- الوايفاي
+WIFI_PKGS = ("wpasupplicant", "iw", "firmware-iwlwifi", "firmware-realtek", "firmware-atheros", "firmware-misc-nonfree")
+
+
+def wifi_install():
+    env = dict(os.environ, DEBIAN_FRONTEND="noninteractive")
+    run(["apt-get", "update"], env=env, timeout=900)
+    for p in WIFI_PKGS:  # بعض الحزم قد لا تكون متاحة: نثبّت ما يتوفر
+        subprocess.run(["apt-get", "install", "-y", "--no-install-recommends", p], env=env, capture_output=True, timeout=1800)
+    if not shutil.which("wpa_supplicant"):
+        die("could not install wpasupplicant")
+
+
+def wifi_scan():
+    if FAKE:
+        print(json.dumps([{"ssid": "Home-WiFi", "signal": -45}, {"ssid": "Neighbour", "signal": -80}]))
+        return
+    wi = wifi_iface()
+    if not wi:
+        die("no wifi adapter found")
+    subprocess.run(["ip", "link", "set", wi, "up"], capture_output=True)
+    r = subprocess.run(["iw", "dev", wi, "scan"], capture_output=True, text=True, timeout=40)
+    nets, cur = {}, {}
+    for line in r.stdout.splitlines():
+        s = line.strip()
+        if s.startswith("BSS "):
+            cur = {}
+        elif s.startswith("signal:"):
+            try:
+                cur["signal"] = float(s.split()[1])
+            except (IndexError, ValueError):
+                pass
+        elif s.startswith("SSID:"):
+            ss = s[5:].strip()
+            if ss and (ss not in nets or nets[ss] < cur.get("signal", -100)):
+                nets[ss] = cur.get("signal", -100)
+    print(json.dumps(sorted(({"ssid": k, "signal": v} for k, v in nets.items()), key=lambda x: -x["signal"])))
+
+
+def wifi_connect(ssid: str):
+    psk = sys.stdin.read().strip()
+    if not ssid or len(ssid) > 32 or any(c in ssid for c in '"\n\r\\'):
+        die("invalid network name")
+    if psk and (len(psk) < 8 or len(psk) > 63 or any(c in psk for c in '"\n\r\\')):
+        die("invalid password (8-63 characters)")
+    wi = wifi_iface()
+    if not wi:
+        die("no wifi adapter found")
+    if FAKE:
+        return
+    WIFI_FILE.parent.mkdir(parents=True, exist_ok=True)
+    body = f'allow-hotplug {wi}\niface {wi} inet dhcp\n    wpa-ssid "{ssid}"\n'
+    body += f'    wpa-psk "{psk}"\n' if psk else "    wpa-key-mgmt NONE\n"
+    WIFI_FILE.write_text(body)
+    os.chmod(WIFI_FILE, 0o600)
+    subprocess.run(["sh", "-c", f"ifdown --force {wi} 2>/dev/null; ifup {wi}"], capture_output=True, timeout=90)
+
+
+def wifi_forget():
+    wi = wifi_iface()
+    if wi and not FAKE:
+        subprocess.run(["ifdown", "--force", wi], capture_output=True, timeout=60)
+    WIFI_FILE.unlink(missing_ok=True)
+
+
+# ----------------------------------------------------------------------------- الوقت ووضع بدون إنترنت
+def time_set(value: str):
+    if not _re.match(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$", value):
+        die("invalid date/time")
+    if FAKE:
+        return
+    subprocess.run(["timedatectl", "set-ntp", "false"], capture_output=True)
+    run(["timedatectl", "set-time", value])
+    subprocess.run(["hwclock", "--systohc"], capture_output=True)
+
+
+def offline_set(on: bool):
+    if FAKE:
+        return
+    units = ["apt-daily.timer", "apt-daily-upgrade.timer"]
+    if on:
+        OFFLINE_FLAG.write_text("1\n")
+        subprocess.run(["systemctl", "disable", "--now", *units], capture_output=True)
+        subprocess.run(["timedatectl", "set-ntp", "false"], capture_output=True)
+    else:
+        OFFLINE_FLAG.unlink(missing_ok=True)
+        subprocess.run(["systemctl", "enable", "--now", *units], capture_output=True)
+        subprocess.run(["timedatectl", "set-ntp", "true"], capture_output=True)
+
+
+def sys_status():
+    ntp = subprocess.run(["timedatectl", "show", "-p", "NTP", "--value"], capture_output=True, text=True).stdout.strip() if not FAKE else "no"
+    print(json.dumps({"offline": OFFLINE_FLAG.exists(), "ntp": ntp == "yes", "now": _time.strftime("%Y-%m-%d %H:%M:%S")}))
+
+
+# ----------------------------------------------------------------------------- البلوتوث (ويد بلايستيشن 5)
+def bt_ctl(commands, timeout=40) -> str:
+    """يرسل أوامر إلى bluetoothctl مع انتظار بعد كل أمر."""
+    p = subprocess.Popen(["bluetoothctl"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    try:
+        for cmd, wait in commands:
+            p.stdin.write(cmd + "\n")
+            p.stdin.flush()
+            _time.sleep(wait)
+        p.stdin.write("quit\n")
+        p.stdin.flush()
+        out, _ = p.communicate(timeout=timeout)
+    except Exception:
+        p.kill()
+        out = ""
+    return _re.sub(r"\x1b\[[0-9;]*[A-Za-z]|\x01|\x02", "", out or "")
+
+
+def bt_install():
+    apt_install("bluez")
+    run(["systemctl", "enable", "--now", "bluetooth"], check=False)
+
+
+def bt_devices() -> list:
+    out = subprocess.run(["bluetoothctl", "devices"], capture_output=True, text=True, timeout=20).stdout
+    devs = []
+    for line in out.splitlines():
+        m = _re.match(r"Device\s+([0-9A-F:]{17})\s+(.*)", line.strip())
+        if not m:
+            continue
+        info = subprocess.run(["bluetoothctl", "info", m.group(1)], capture_output=True, text=True, timeout=20).stdout
+        get = lambda k: (_re.search(rf"{k}:\s*(\S+)", info) or [None, ""])[1]
+        devs.append({"mac": m.group(1), "name": m.group(2), "paired": get("Paired") == "yes", "connected": get("Connected") == "yes",
+                     "icon": get("Icon")})
+    return devs
+
+
+def bt_status():
+    if FAKE:
+        print(json.dumps({"installed": True, "adapter": True, "powered": True,
+                          "devices": [{"mac": "AA:BB:CC:DD:EE:FF", "name": "DualSense Wireless Controller", "paired": True, "connected": True, "icon": "input-gaming"}]}))
+        return
+    if not shutil.which("bluetoothctl"):
+        print(json.dumps({"installed": False}))
+        return
+    show = subprocess.run(["bluetoothctl", "show"], capture_output=True, text=True, timeout=20).stdout
+    print(json.dumps({"installed": True, "adapter": "Controller" in show, "powered": "Powered: yes" in show,
+                      "devices": bt_devices() if "Controller" in show else []}))
+
+
+def bt_scan():
+    if FAKE:
+        return
+    bt_ctl([("power on", 1), ("scan on", 14), ("scan off", 1)], timeout=30)
+
+
+def bt_pair(mac: str):
+    if not MAC_RE.match(mac):
+        die("invalid device")
+    if FAKE:
+        return
+    out = bt_ctl([("power on", 1), ("agent NoInputNoOutput", 1), ("default-agent", 1), (f"pair {mac}", 10),
+                  (f"trust {mac}", 2), (f"connect {mac}", 6)], timeout=40)
+    info = subprocess.run(["bluetoothctl", "info", mac], capture_output=True, text=True, timeout=20).stdout
+    if "Paired: yes" not in info and "Connected: yes" not in info:
+        die("pairing failed: " + " ".join(out.split()[-25:]))
+
+
+def bt_remove(mac: str):
+    if not MAC_RE.match(mac):
+        die("invalid device")
+    if not FAKE:
+        subprocess.run(["bluetoothctl", "remove", mac], capture_output=True, timeout=20)
+
+
+# ----------------------------------------------------------------------------- دقة شاشة التلفاز
+def tv_env():
+    import pwd
+    uid = pwd.getpwnam(TV_USER).pw_uid
+    return uid, dict(os.environ, XDG_RUNTIME_DIR=f"/run/user/{uid}", WAYLAND_DISPLAY="wayland-0")
+
+
+def tv_modes():
+    if FAKE:
+        print(json.dumps({"available": True, "current": "1920x1080", "saved": "", "modes": ["3840x2160", "1920x1080", "1280x720"]}))
+        return
+    saved = TV_MODE.read_text().strip() if TV_MODE.exists() else ""
+    if not shutil.which("wlr-randr"):
+        print(json.dumps({"available": False, "saved": saved}))
+        return
+    try:
+        uid, env = tv_env()
+        r = subprocess.run(["runuser", "-u", TV_USER, "--", "env", f"XDG_RUNTIME_DIR={env['XDG_RUNTIME_DIR']}", "WAYLAND_DISPLAY=wayland-0",
+                            "wlr-randr", "--json"], capture_output=True, text=True, timeout=20)
+        outs = json.loads(r.stdout or "[]")
+    except Exception:
+        outs = []
+    modes, cur = [], None
+    for o in outs:
+        if not o.get("enabled", True):
+            continue
+        for m in o.get("modes", []):
+            res = f"{m['width']}x{m['height']}"
+            if res not in modes:
+                modes.append(res)
+            if m.get("current"):
+                cur = res
+        break
+    print(json.dumps({"available": True, "current": cur, "saved": saved, "modes": modes}))
+
+
+def tv_mode_set(mode: str):
+    if mode and not _re.match(r"^\d{3,4}x\d{3,4}$", mode):
+        die("invalid resolution")
+    if FAKE:
+        return
+    if mode:
+        if not shutil.which("wlr-randr"):
+            apt_install("wlr-randr")
+        TV_MODE.write_text(mode + "\n")
+    else:
+        TV_MODE.unlink(missing_ok=True)
+    if TV_UNIT.exists():
+        tv_write()
+        subprocess.run(["systemctl", "try-restart", "hsef-tv.service"], capture_output=True)
+
+
+def tv_session(url: str):
+    """يعمل داخل جلسة الشاشة (مستخدم hseftv): يضبط الدقة المحفوظة ثم يشغّل المتصفح."""
+    mode = TV_MODE.read_text().strip() if TV_MODE.exists() else ""
+    if mode and shutil.which("wlr-randr"):
+        try:
+            outs = json.loads(subprocess.run(["wlr-randr", "--json"], capture_output=True, text=True, timeout=10).stdout or "[]")
+            name = next((o["name"] for o in outs if o.get("enabled", True)), None)
+            if name:
+                subprocess.run(["wlr-randr", "--output", name, "--mode", mode], capture_output=True, timeout=10)
+        except Exception:
+            pass
+    if not _re.match(r"^http://127\.0\.0\.1(:\d+)?/tv$", url):
+        url = "http://127.0.0.1/tv"
+    os.execv("/usr/bin/chromium", ["chromium", *CHROMIUM_FLAGS.split(), url])
+
+
 def main():
+    if sys.argv[1:2] == ["tv-session"]:  # يعمل بصلاحية مستخدم الشاشة
+        tv_session(sys.argv[2] if len(sys.argv) > 2 else "")
+        return
     if os.geteuid() != 0 and not FAKE:
         die("must run as root")
     a = sys.argv[1:]
@@ -495,6 +874,44 @@ def main():
         tv_audio_set(a[1], a[2])
     elif a == ["tv-audio-test"]:
         tv_audio_test()
+    elif a == ["net-status"]:
+        net_status()
+    elif a == ["net-set", "dhcp"]:
+        net_set("dhcp")
+    elif len(a) == 6 and a[:2] == ["net-set", "static"]:
+        net_set("static", a[2], a[3], a[4], a[5])
+    elif a == ["net-confirm"]:
+        net_confirm()
+    elif a == ["net-revert"]:
+        net_revert()
+    elif a == ["wifi-install"]:
+        wifi_install()
+    elif a == ["wifi-scan"]:
+        wifi_scan()
+    elif len(a) == 2 and a[0] == "wifi-connect":
+        wifi_connect(a[1])
+    elif a == ["wifi-forget"]:
+        wifi_forget()
+    elif len(a) == 2 and a[0] == "time-set":
+        time_set(a[1])
+    elif a in (["offline", "on"], ["offline", "off"]):
+        offline_set(a[1] == "on")
+    elif a == ["sys-status"]:
+        sys_status()
+    elif a == ["bt-install"]:
+        bt_install()
+    elif a == ["bt-status"]:
+        bt_status()
+    elif a == ["bt-scan"]:
+        bt_scan()
+    elif len(a) == 2 and a[0] == "bt-pair":
+        bt_pair(a[1])
+    elif len(a) == 2 and a[0] == "bt-remove":
+        bt_remove(a[1])
+    elif a == ["tv-modes"]:
+        tv_modes()
+    elif len(a) in (1, 2) and a[0] == "tv-mode-set":
+        tv_mode_set(a[1] if len(a) == 2 else "")
     elif a == ["tv-wait"]:
         import time
         import urllib.request

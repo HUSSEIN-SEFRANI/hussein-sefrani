@@ -126,6 +126,7 @@ def tv_settings() -> dict:
         "hanafi": g("tv_hanafi", "0") == "1", "prayer": g("tv_prayer", "1") == "1",
         "words": json.loads(g("tv_words", '["ar","fr","en"]')), "nosleep": g("tv_nosleep", "1") == "1",
         "saver_min": int(g("tv_saver_min", "10")), "night_off": g("tv_night_off", ""),
+        "zoom": int(g("tv_zoom", "100")), "margin": int(g("tv_margin", "0")), "text": int(g("tv_text", "100")),
     }
 
 
@@ -271,6 +272,9 @@ def api_admin_tv_settings():
     for key, sk in (("hanafi", "tv_hanafi"), ("prayer", "tv_prayer"), ("nosleep", "tv_nosleep")):
         if key in d:
             set_setting(sk, "1" if d[key] else "0")
+    for key, sk, lo, hi in (("zoom", "tv_zoom", 70, 130), ("margin", "tv_margin", 0, 8), ("text", "tv_text", 80, 150)):
+        if key in d:
+            set_setting(sk, str(max(lo, min(hi, int(d[key] or 0)))))
     if "saver_min" in d:
         set_setting("tv_saver_min", str(max(0, min(240, int(d["saver_min"] or 0)))))
     if "words" in d:
@@ -412,6 +416,27 @@ def api_admin_kiosk():
     if not ok:
         abort(400, out or "error")
     log_action("وضع التلفاز على الشاشة", action)
+    return jsonify(ok=True)
+
+
+@bp.get("/api/admin/tv/display")
+@admin_required
+def api_admin_tv_display():
+    ok, out = kiosk_helper("tv-modes", timeout=60)
+    if not ok:
+        return jsonify(error=out)
+    return jsonify(json.loads(out))
+
+
+@bp.post("/api/admin/tv/display")
+@admin_required
+def api_admin_tv_display_set():
+    mode = str(body().get("mode") or "")
+    if mode and not re.fullmatch(r"\d{3,4}x\d{3,4}", mode):
+        abort(400)
+    ok, out = kiosk_helper("tv-mode-set", *( [mode] if mode else [] ), timeout=900)
+    if not ok:
+        abort(400, out or "error")
     return jsonify(ok=True)
 
 
