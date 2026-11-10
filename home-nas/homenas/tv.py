@@ -87,7 +87,8 @@ def migrate(db):
     db.executescript(SCHEMA)
     cols = {r[1] for r in db.execute("PRAGMA table_info(users)")}
     for col, decl in (("display_name", "TEXT"), ("tv_role", "TEXT NOT NULL DEFAULT 'none'"), ("birthdate", "TEXT"),
-                      ("avatar", "INTEGER NOT NULL DEFAULT 0"), ("tv_pin", "TEXT")):
+                      ("avatar", "INTEGER NOT NULL DEFAULT 0"), ("tv_pin", "TEXT"),
+                      ("photo_v", "INTEGER NOT NULL DEFAULT 0"), ("wallpaper", "TEXT")):
         if col not in cols:
             db.execute(f"ALTER TABLE users ADD COLUMN {col} {decl}")
     db.commit()
@@ -238,6 +239,7 @@ def api_admin_tv():
         tiles = [tile_dict(t) for t in db.execute("SELECT * FROM tv_tiles WHERE user_id=? ORDER BY position, id", (u["id"],))]
         users.append({"id": u["id"], "username": u["username"], "display_name": u["display_name"] or "",
                       "tv_role": u["tv_role"] or "none", "birthdate": u["birthdate"] or "", "avatar": u["avatar"] or 0,
+                      "photo_v": u["photo_v"] or 0,
                       "has_pin": bool(u["tv_pin"]), "disabled": bool(u["disabled"]), "tiles": tiles, **age_info(u["birthdate"])})
     kiosk = None
     if APPLIANCE and os.path.exists(HELPER):
@@ -464,7 +466,7 @@ def tv_user():
 
 def profile_dict(u) -> dict:
     return {"id": u["id"], "name": display_name(u), "role": u["tv_role"], "avatar": u["avatar"] or 0,
-            "has_pin": bool(u["tv_pin"]), **age_info(u["birthdate"])}
+            "photo_v": u["photo_v"] or 0, "has_pin": bool(u["tv_pin"]), **age_info(u["birthdate"])}
 
 
 @bp.get("/tv")

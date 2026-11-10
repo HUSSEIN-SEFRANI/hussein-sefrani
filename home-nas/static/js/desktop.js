@@ -8,6 +8,14 @@ import './apps/system.js';
 import { appUrl } from './apps/appstore.js';
 
 const desktop = $('#desktop');
+// خلفية سطح المكتب وصورة المستخدم (تتغير من لوحة التحكم ← حسابي)
+function applyLook(l) {
+  Object.assign(ME, l);
+  desktop.style.background = l.wallpaper_css || '';
+  if (l.wallpaper_css) desktop.style.backgroundAttachment = 'fixed';
+}
+applyLook(ME);
+window.addEventListener('hsef-look', (e) => applyLook(e.detail));
 const visible = () => apps().filter(a => !a.hidden);
 
 // أيقونات سطح المكتب
@@ -46,7 +54,8 @@ $('#tb-start').onclick = (e) => {
     b.onclick = () => { m.remove(); a.launch ? a.launch() : openApp(a.id); };
     $('.apps', m).appendChild(b);
   }
-  $('.av', m).textContent = (ME.username || '?')[0].toUpperCase();
+  if (ME.photo_v) $('.av', m).innerHTML = `<img src="/api/users/${ME.id}/photo?v=${ME.photo_v}" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover">`;
+  else $('.av', m).textContent = (ME.username || '?')[0].toUpperCase();
   $('.nm b', m).textContent = ME.username; $('.nm .muted', m).textContent = ME.is_admin ? 'مدير النظام' : 'مستخدم';
   if (window.I18N && I18N.switcher) m.appendChild(I18N.switcher());
   document.body.appendChild(m);

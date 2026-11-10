@@ -78,7 +78,7 @@ function audioBox() {
 // --------------------------------------------------------------------- ملف الشخص + مربعاته
 function userCard(u, d, reload) {
   const c = h(`<div class="card tv-user ${u.tv_role === 'none' ? 'off' : ''}">
-    <div class="tv-uh"><button class="tv-ava" title="تغيير الصورة">${A.avatar(u.avatar)}</button>
+    <div class="tv-uh"><button class="tv-ava" title="تغيير الصورة">${u.photo_v ? `<img src="/api/users/${u.id}/photo?v=${u.photo_v}" alt="" style="width:100%;height:100%;object-fit:cover">` : A.avatar(u.avatar)}</button>
       <div class="tv-uf">
         <div class="tv-row"><label>الاسم على التلفاز<input class="field" name="display_name" placeholder="${esc(u.username)}"></label>
           <label>النوع<select class="field" name="tv_role">${Object.entries(ROLE_LABEL).map(([k, v]) => `<option value="${k}" ${u.tv_role === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
@@ -102,7 +102,24 @@ function userCard(u, d, reload) {
   };
   role.onchange = syncRole; syncRole();
   $('.tv-ava', c).onclick = async () => {
-    const grid = h(`<div class="tv-avas">${Array.from({ length: A.AVATAR_COUNT }, (_, i) => `<button data-i="${i}" class="${i === avatar ? 'on' : ''}" title="${A.avatarLabels[i]}">${A.avatar(i)}</button>`).join('')}</div>`);
+    const grid = h(`<div><div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+        <button class="btn primary sm" data-p="up">${icon('upload')} رفع صورة حقيقية</button>
+        ${u.photo_v ? `<button class="btn sm" data-p="del">إزالة الصورة الحقيقية</button>` : ''}
+        <span class="muted small">أو اختر رسماً:</span><input type="file" accept="image/*" class="hidden"></div>
+      <div class="tv-avas">${Array.from({ length: A.AVATAR_COUNT }, (_, i) => `<button data-i="${i}" class="${i === avatar ? 'on' : ''}" title="${A.avatarLabels[i]}">${A.avatar(i)}</button>`).join('')}</div></div>`);
+    const fin = $('input[type=file]', grid);
+    $('[data-p=up]', grid).onclick = () => fin.click();
+    fin.onchange = async () => {
+      const f = fin.files[0]; if (!f) return;
+      const fd = new FormData(); fd.append('image', f);
+      try {
+        const res = await fetch(`/api/admin/users/${u.id}/photo`, { method: 'POST', body: fd, credentials: 'same-origin' });
+        const r = await res.json(); if (!res.ok) throw new Error(r.error || res.status);
+        toast('تم رفع الصورة', 'ok'); $('.modal-back')?.remove(); reload();
+      } catch (e) { toast(e.message, 'err'); }
+    };
+    const pd = $('[data-p=del]', grid);
+    if (pd) pd.onclick = async () => { if (await guard(() => api.del(`/api/admin/users/${u.id}/photo`))) { $('.modal-back')?.remove(); reload(); } };
     const pick = await modal({ title: 'اختر صورة', body: grid, buttons: [{ label: 'إلغاء', value: null }],
       onOpen: (back) => $$('button[data-i]', back).forEach(b => b.onclick = () => { avatar = +b.dataset.i; $('.tv-ava', c).innerHTML = A.avatar(avatar); $('.modal .btn', back)?.click(); }) });
     void pick;

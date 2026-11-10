@@ -282,6 +282,11 @@ function wordCard(w, topPx, kids = false) {
     <div class="ar">${esc(w.ar)}</div><div class="tr">${tr}</div></div></div>`;
 }
 
+// صورة الشخص الحقيقية إن رُفعت، وإلا الرسم المختار
+function face(p) {
+  return p.photo_v ? `<img src="/api/users/${p.id}/photo?v=${p.photo_v}" alt="" style="width:100%;height:100%;object-fit:cover;display:block">` : A.avatar(p.avatar);
+}
+
 // ============================================================== من يشاهد؟
 async function whoScreen(boot = false) {
   let d;
@@ -298,7 +303,7 @@ async function whoScreen(boot = false) {
       else if (p.role === "little") sub = `<span class="chip">وضع الأطفال</span>`;
     } else if (p.has_pin) sub = `<span style="display:flex">${A.LOCK}</span>`;
     const age = (p.role === "kid" || p.role === "little") && p.age != null ? `<div class="sub">عمري ${ageText(p.age)}</div>` : "";
-    return `<button class="pf f" data-id="${p.id}"><div class="ring">${A.avatar(p.avatar)}</div>
+    return `<button class="pf f" data-id="${p.id}"><div class="ring">${face(p)}</div>
       <div class="nm baloo">${esc(p.name)}</div><div class="sub">${sub}</div>${age}</button>`;
   }).join("");
   const el = h(`<div class="who bg-night">${nightBg()}
@@ -313,7 +318,7 @@ async function whoScreen(boot = false) {
 
 async function chooseProfile(p) {
   if (p.has_pin) {
-    pinScreen({ title: `أهلاً ${p.name}`, sub: "أدخل رمزك", avatar: p.avatar }, async (pin) => {
+    pinScreen({ title: `أهلاً ${p.name}`, sub: "أدخل رمزك", avatar: p.avatar, face: face(p) }, async (pin) => {
       await api("/api/tv/login", { json: { id: p.id, pin } });
       await homeScreen();
     });
@@ -329,7 +334,7 @@ async function chooseProfile(p) {
 function pinScreen(opt, submit) {
   let pin = "";
   const keys = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => `<button class="key f" data-k="${n}">${n}</button>`).join("");
-  const ava = opt.avatar != null ? `<div class="ava">${A.avatar(opt.avatar)}</div>`
+  const ava = opt.face ? `<div class="ava">${opt.face}</div>` : opt.avatar != null ? `<div class="ava">${A.avatar(opt.avatar)}</div>`
     : `<div class="ava" style="background:#facc15;display:flex;align-items:center;justify-content:center;color:#713f12">${A.LOCK.replace(/18/g, "96")}</div>`;
   const el = h(`<div class="bg-night">${nightBg()}
     <div class="pin-wrap"><div class="pin-who">${ava}<h2>${esc(opt.title)}</h2><p>${esc(opt.sub || "")}</p>
@@ -393,7 +398,7 @@ function adultHome(d) {
   const hasPrayer = d.prayer && settings.prayer;
   const el = h(`<div class="${bgCls}">${bgHtml}
     <div class="topbar"><div style="display:flex;align-items:center;gap:12px">${A.falcon(46)}
-      <div class="user-pill glass"><div class="mini">${A.avatar(u.avatar)}</div><span style="font-weight:700;font-size:16px">${esc(u.name)}</span></div></div>
+      <div class="user-pill glass"><div class="mini">${face(u)}</div><span style="font-weight:700;font-size:16px">${esc(u.name)}</span></div></div>
       <button class="pill glass f js-switch">تبديل المستخدم</button></div>
     <div class="clockbig"><div class="tm js-tm"></div><div class="dt js-dt"></div><div class="hj js-hj"></div></div>
     <div class="cards">${hasPrayer ? prayerCard(d.prayer, 112) : ""}${wordCard(d.word, hasPrayer ? 336 : 112)}</div>

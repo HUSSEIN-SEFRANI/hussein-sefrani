@@ -488,3 +488,10 @@ pre.applog.big { max-height: 60vh; font-size: 12px; }
 .tv-icons button.on, .tv-colors button.on { box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--accent); }
 .tv-fold { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .tv-fold .fp { direction: ltr; unicode-bidi: plaintext; background: var(--surface-3); padding: 3px 10px; border-radius: 8px; font-size: 13px; }
+
+/* صورتي وخلفية سطح المكتب */
+.me-photo { width: 72px; height: 72px; border-radius: 50%; overflow: hidden; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 700; flex: none; }
+.me-photo img { width: 100%; height: 100%; object-fit: cover; }
+.walls { display: flex; flex-wrap: wrap; gap: 8px; }
+.walls .wall { width: 74px; height: 46px; border-radius: 10px; border: 2px solid var(--border); cursor: pointer; padding: 0; }
+.walls .wall.on { box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--accent); }

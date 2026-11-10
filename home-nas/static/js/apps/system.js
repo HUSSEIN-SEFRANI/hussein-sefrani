@@ -222,6 +222,7 @@ const CP = {
       if (await guard(() => api.post('/api/me/password', { old: v('old'), new: v('new') }))) { toast('تم تغيير كلمة المرور', 'ok'); $$('input', card).forEach(i => i.value = ''); }
     };
     p.appendChild(card);
+    p.appendChild(await lookCard());
     if (window.I18N && I18N.switcher) {
       const lc = h(`<div class="card" style="max-width:460px;margin-top:14px"><h4 translate="no">${icon('info')} Language · اللغة · Langue</h4></div>`);
       const sw = I18N.switcher(); sw.style.justifyContent = 'flex-start'; sw.style.marginTop = '0'; lc.appendChild(sw); p.appendChild(lc);
@@ -630,6 +631,49 @@ const CP = {
     load(true);
   },
 };
+
+async function lookCard() {
+  const l = await guard(() => api.get('/api/me/look')); if (!l) return h('<div></div>');
+  const c = h(`<div class="card" style="max-width:560px;margin-top:14px"><h4>${icon('image')} صورتي وخلفية سطح المكتب</h4>
+    <div style="display:flex;align-items:center;gap:14px">
+      <div class="me-photo"></div>
+      <div><button class="btn" data-x="photo">${icon('upload')} رفع صورة</button> <button class="btn ghost" data-x="nophoto">إزالة الصورة</button>
+        <div class="muted small" style="margin-top:4px">تظهر على التلفاز وفي قائمة البداية.</div></div></div>
+    <label class="lbl" style="margin-top:14px">الخلفية</label>
+    <div class="walls"></div>
+    <div style="margin-top:10px"><button class="btn" data-x="wall">${icon('upload')} صورة من جهازي كخلفية</button></div>
+    <input type="file" accept="image/*" class="hidden" data-f="photo"><input type="file" accept="image/*" class="hidden" data-f="wall"></div>`);
+  const tell = (x) => window.dispatchEvent(new CustomEvent('hsef-look', { detail: x }));
+  const draw = (x) => {
+    Object.assign(l, x);
+    $('.me-photo', c).innerHTML = l.photo_v ? `<img src="/api/users/${ME.id}/photo?v=${l.photo_v}" alt="">` : `<span>${esc((ME.username || '?')[0].toUpperCase())}</span>`;
+    $('[data-x=nophoto]', c).style.display = l.photo_v ? '' : 'none';
+    $('.walls', c).innerHTML = Object.entries(l.presets).map(([k, v]) => `<button class="wall ${l.wallpaper === 'preset:' + k ? 'on' : ''}" data-w="${k}"
+      style="background:${v || 'var(--wall)'}"></button>`).join('') + (l.wallpaper.startsWith('image:') ? `<button class="wall on" style="background:${l.wallpaper_css}"></button>` : '');
+    $$('.walls [data-w]', c).forEach(b => b.onclick = async () => {
+      const r = await guard(() => api.post('/api/me/wallpaper', { preset: b.dataset.w })); if (r) { draw(r); tell(r); }
+    });
+  };
+  const upload = async (url, f) => {
+    const fd = new FormData(); fd.append('image', f);
+    toast('جارٍ الرفع…');
+    try {
+      const res = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin' });
+      const r = await res.json(); if (!res.ok) throw new Error(r.error || res.status);
+      draw(r); tell(r); toast('تم', 'ok');
+    } catch (e) { toast(e.message, 'err'); }
+  };
+  for (const k of ['photo', 'wall']) {
+    const inp = $(`[data-f=${k}]`, c);
+    $(`[data-x=${k}]`, c).onclick = () => inp.click();
+    inp.onchange = () => { const f = inp.files[0]; inp.value = ''; if (f) upload(k === 'photo' ? '/api/me/photo' : '/api/me/wallpaper', f); };
+  }
+  $('[data-x=nophoto]', c).onclick = async () => {
+    if (await guard(() => api.del('/api/me/photo'))) { draw({ photo_v: 0 }); tell({ ...l, photo_v: 0 }); }
+  };
+  draw({});
+  return c;
+}
 
 function updateCard() {
   const c = h(`<div class="card" style="max-width:560px;margin-top:14px"><h4>${icon('download')} تحديث النظام</h4><div class="ub muted">جارٍ البحث عن تحديث…</div>
