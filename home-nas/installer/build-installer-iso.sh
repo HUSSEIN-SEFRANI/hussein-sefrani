@@ -27,7 +27,7 @@ log() { echo -e "\n\033[1;34m[H.SEF ISO]\033[0m $*"; }
 [ "$(id -u)" -eq 0 ] || { echo "run as root"; exit 1; }
 for t in debootstrap mksquashfs xorriso mkfs.vfat mcopy; do command -v $t >/dev/null || { echo "missing $t (apt install debootstrap squashfs-tools xorriso dosfstools mtools)"; exit 1; }; done
 
-umount_all() { for m in dev/pts dev proc sys; do umount -l "$ROOT/$m" 2>/dev/null || true; done; }
+umount_all() { for m in var/cache/apt/archives dev/pts dev proc sys; do umount -l "$ROOT/$m" 2>/dev/null || true; done; }
 trap umount_all EXIT
 
 log "Fresh work folder $WORK"
@@ -72,7 +72,10 @@ printf '#!/bin/sh\nexit 101\n' > "$ROOT/usr/sbin/policy-rc.d"; chmod +x "$ROOT/u
 
 mount --bind /dev "$ROOT/dev"; mount --bind /dev/pts "$ROOT/dev/pts"
 mount -t proc proc "$ROOT/proc"; mount -t sysfs sys "$ROOT/sys"
-in_root() { chroot "$ROOT" env DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8 "$@"; }
+in_root() { chroot "$ROOT" /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/root \
+    DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8 "$@"; }
+# مخزن الحزم المحمّلة (يسرّع إعادة البناء)
+if [ -n "${APT_CACHE:-}" ]; then mkdir -p "$APT_CACHE"; mount --bind "$APT_CACHE" "$ROOT/var/cache/apt/archives"; fi
 
 log "System packages (kernel, boot loaders, drivers, TV screen)"
 in_root apt-get update
@@ -93,7 +96,7 @@ tar -C "$HERE" --exclude=./installer/build --exclude=./iso/build --exclude=./dat
     --exclude='__pycache__' --exclude='*.iso' --exclude=./games -cf - . | tar -C "$ROOT/opt/homenas-src" -xf -
 in_root bash /opt/homenas-src/appliance/install.sh --appliance
 # شاشة التلفاز جاهزة من البداية
-in_root /usr/local/sbin/hsef-extras tv-write
+in_root /usr/local/sbin/hsef-extras tv-write --create
 in_root systemctl enable hsef-tv.service
 in_root systemctl set-default graphical.target
 
@@ -138,6 +141,7 @@ EOF
 in_root systemctl enable hsef-installer.service
 
 log "Clean up"
+[ -n "${APT_CACHE:-}" ] && umount "$ROOT/var/cache/apt/archives" || true
 rm -f "$ROOT/usr/sbin/policy-rc.d"
 cat > "$ROOT/etc/apt/sources.list" <<EOF
 deb $FINAL_MIRROR $SUITE main contrib non-free non-free-firmware

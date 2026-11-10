@@ -493,7 +493,7 @@ def local_ips() -> list[str]:
             ips.add(info[4][0])
     except OSError:
         pass
-    ips.discard("127.0.0.1")
+    ips = {ip for ip in ips if not ip.startswith("127.")}
     return sorted(ips) or ["127.0.0.1"]
 
 

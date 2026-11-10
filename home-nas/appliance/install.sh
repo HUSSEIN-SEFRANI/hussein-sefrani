@@ -213,7 +213,7 @@ EOF
     fi
 fi
 
-systemctl daemon-reload
+systemctl daemon-reload 2>/dev/null || true
 systemctl enable avahi-daemon.service >/dev/null 2>&1 || true
 systemctl enable homenas.service
 # داخل بيئة المثبّت لا يعمل systemd؛ الخدمة ستبدأ عند أول إقلاع

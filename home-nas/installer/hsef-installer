@@ -36,7 +36,7 @@ except Exception:
 
 STEPS = ["welcome", "disk", "prepare", "copy", "configure", "boot"]
 # حصة كل خطوة من شريط التقدم الكلي
-WEIGHTS = {"prepare": (0, 6), "copy": (6, 82), "configure": (82, 93), "boot": (93, 100)}
+WEIGHTS = {"prepare": (0, 5), "copy": (5, 75), "configure": (75, 93), "boot": (93, 100)}
 
 state = {"stage": "welcome", "step": 0, "percent": 0, "detail": "", "error": None, "hint": None,
          "lang": "ar", "version": VERSION, "started": None, "eta_min": None}

@@ -741,7 +741,15 @@ def bt_status():
     if not shutil.which("bluetoothctl"):
         print(json.dumps({"installed": False}))
         return
-    show = subprocess.run(["bluetoothctl", "show"], capture_output=True, text=True, timeout=20).stdout
+    # بدون محوّل بلوتوث يتجمد bluetoothctl: نتحقق أولاً من وجوده
+    if not any(Path("/sys/class/bluetooth").glob("hci*")):
+        print(json.dumps({"installed": True, "adapter": False, "powered": False, "devices": []}))
+        return
+    subprocess.run(["systemctl", "start", "bluetooth"], capture_output=True)
+    try:
+        show = subprocess.run(["bluetoothctl", "show"], capture_output=True, text=True, timeout=20).stdout
+    except subprocess.TimeoutExpired:
+        show = ""
     print(json.dumps({"installed": True, "adapter": "Controller" in show, "powered": "Powered: yes" in show,
                       "devices": bt_devices() if "Controller" in show else []}))
 
@@ -937,6 +945,8 @@ def main():
     elif a == ["tv-write"]:
         if TV_UNIT.exists():
             tv_write()
+    elif a == ["tv-write", "--create"]:
+        tv_write()
     elif a == ["update-check"]:
         update_check()
     elif a == ["update-run"]:
