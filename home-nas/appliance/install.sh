@@ -29,12 +29,24 @@ export DEBIAN_FRONTEND=noninteractive
 retry() { local n=0; until "$@"; do n=$((n+1)); [ $n -ge 4 ] && return 1; echo "retrying ($n)..."; sleep $((n*5)); done; }
 
 log "Installing system packages"
-retry apt-get update
-retry apt-get install -y --no-install-recommends \
-    python3 python3-venv python3-pip ffmpeg avahi-daemon libnss-mdns sudo ca-certificates \
+PKGS="python3 python3-venv python3-pip ffmpeg avahi-daemon libnss-mdns sudo ca-certificates \
     unattended-upgrades rsync parted e2fsprogs sqlite3 mdadm smartmontools samba minidlna \
     python3-flask python3-waitress python3-pil python3-psutil libheif-examples libheif-plugin-libde265 \
-    poppler-utils
+    poppler-utils"
+# بدون إنترنت (تحديث من فلاشة): نكمل إذا كانت الحزم الأساسية مثبتة مسبقاً
+OFFLINE=0
+if ! apt-get update >/dev/null 2>&1; then
+    OFFLINE=1
+    echo "warning: no internet - using the packages already installed"
+fi
+if [ "$OFFLINE" -eq 0 ]; then
+  retry apt-get install -y --no-install-recommends $PKGS || OFFLINE=1
+fi
+if [ "$OFFLINE" -eq 1 ]; then
+  for p in python3 python3-flask python3-waitress python3-pil sqlite3; do
+    dpkg -s "$p" >/dev/null 2>&1 || { echo "Package $p is missing and there is no internet."; exit 1; }
+  done
+fi
 
 # Windows network discovery (shows H.SEF under "Network" in Explorer)
 apt-get install -y --no-install-recommends wsdd2 >/dev/null 2>&1 || apt-get install -y --no-install-recommends wsdd >/dev/null 2>&1 || true

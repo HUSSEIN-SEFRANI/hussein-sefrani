@@ -400,31 +400,61 @@ def update_check():
                       "available": bool(r["url"]) and vtuple(r["version"]) > vtuple(cur)}))
 
 
-def update_apply():
+def install_pkg(pkg: Path):
     import tarfile
+    import tempfile
+    tmp = Path(tempfile.mkdtemp(prefix="hsef-update-"))
+    try:
+        with tarfile.open(pkg) as t:
+            t.extractall(tmp, filter="data")
+        inst = tmp / "appliance" / "install.sh"
+        if not inst.exists():
+            die("package is missing appliance/install.sh")
+        print("installing ...", flush=True)
+        rc = subprocess.run(["bash", str(inst), "--appliance"]).returncode
+        if rc != 0:
+            die(f"install.sh failed ({rc})")
+        print("done", flush=True)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def update_apply():
     import tempfile
     import urllib.request
     r = latest_release()
     if not r["url"]:
         die("the latest release has no app package")
     print(f"downloading H.SEF {r['version']} ...", flush=True)
-    tmp = Path(tempfile.mkdtemp(prefix="hsef-update-"))
+    tmp = Path(tempfile.mkdtemp(prefix="hsef-dl-"))
     pkg = tmp / "app.tar.gz"
     with urllib.request.urlopen(r["url"], timeout=120) as resp, open(pkg, "wb") as f:
         shutil.copyfileobj(resp, f)
-    src = tmp / "src"
-    src.mkdir()
-    with tarfile.open(pkg) as t:
-        t.extractall(src, filter="data")
-    inst = src / "appliance" / "install.sh"
-    if not inst.exists():
-        die("package is missing appliance/install.sh")
-    print("installing ...", flush=True)
-    rc = subprocess.run(["bash", str(inst), "--appliance"]).returncode
-    shutil.rmtree(tmp, ignore_errors=True)
-    if rc != 0:
-        die(f"install.sh failed ({rc})")
-    print("done", flush=True)
+    try:
+        install_pkg(pkg)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+UPD_PKG = Path("/var/lib/homenas/update-pkg.tar.gz")
+
+
+def update_file(src: str):
+    """تحديث من ملف رُفع من المتصفح (من فلاشة): يُنسخ أولاً إلى مكان يملكه root ثم يُثبَّت في الخلفية."""
+    try:
+        data = Path(json.loads(Path("/etc/homenas/config.json").read_text()).get("data_dir", "/srv/homenas/data"))
+    except Exception:
+        data = Path("/srv/homenas/data")
+    allowed = (data / "@system" / "tmp").resolve()
+    p = Path(src).resolve()
+    if p.parent != allowed or not p.name.endswith(".tar.gz") or not p.is_file():
+        die("invalid package path")
+    if FAKE:
+        return
+    UPD_PKG.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(p, UPD_PKG)
+    os.chmod(UPD_PKG, 0o600)
+    background("hsef-update", "update-apply-file", log=UPD_LOG)
 
 
 def update_status():
@@ -487,6 +517,13 @@ def main():
         background("hsef-update", "update-apply", log=UPD_LOG)
     elif a == ["update-apply"]:
         update_apply()
+    elif len(a) == 2 and a[0] == "update-file":
+        update_file(a[1])
+    elif a == ["update-apply-file"]:
+        try:
+            install_pkg(UPD_PKG)
+        finally:
+            UPD_PKG.unlink(missing_ok=True)
     elif a == ["update-status"]:
         if FAKE:
             print(json.dumps({"running": False, "failed": False, "log": "", "current": current_version()}))

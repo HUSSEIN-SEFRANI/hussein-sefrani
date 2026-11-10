@@ -632,8 +632,37 @@ const CP = {
 };
 
 function updateCard() {
-  const c = h(`<div class="card" style="max-width:560px;margin-top:14px"><h4>${icon('download')} تحديث النظام</h4><div class="ub muted">جارٍ البحث عن تحديث…</div></div>`);
+  const c = h(`<div class="card" style="max-width:560px;margin-top:14px"><h4>${icon('download')} تحديث النظام</h4><div class="ub muted">جارٍ البحث عن تحديث…</div>
+    <div class="uf" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
+      <b>تحديث من فلاشة (بدون إنترنت)</b>
+      <p class="muted small" style="margin:4px 0 8px">ضع ملف <span class="code">hsef-app-…tar.gz</span> من صفحة الإصدارات على فلاشة، صِلها بهذا الكمبيوتر واختر الملف.</p>
+      <input type="file" accept=".gz,application/gzip" class="hidden"><button class="btn">${icon('upload')} اختيار ملف التحديث</button></div></div>`);
   const box = $('.ub', c);
+  const fileIn = $('.uf input', c);
+  $('.uf button', c).onclick = () => fileIn.click();
+  fileIn.onchange = async () => {
+    const f = fileIn.files[0]; fileIn.value = ''; if (!f) return;
+    const fd = new FormData(); fd.append('pkg', f);
+    toast('جارٍ رفع الملف…');
+    let r;
+    try {
+      const res = await fetch('/api/admin/update/upload', { method: 'POST', body: fd, credentials: 'same-origin' });
+      r = await res.json(); if (!res.ok) throw new Error(r.error || res.status);
+    } catch (e) { toast(e.message, 'err'); return; }
+    const msg = r.version === r.current ? `الملف هو نفس الإصدار الحالي v${r.version}. إعادة تثبيته؟` : `تحديث H.SEF من v${r.current} إلى v${r.version}؟ سيتوقف السيرفر لحظات.`;
+    if (!await confirmBox(msg, { ok: 'تحديث' })) return;
+    if (await guard(() => api.post('/api/admin/update/apply-file', {}))) {
+      toast('بدأ التحديث', 'ok');
+      let was = false;
+      const wait = async () => {
+        const s = await api.get('/api/admin/update').catch(() => null);
+        if (s && s.status && s.status.running) was = true;
+        if (s && (was || s.current === r.version) && !(s.status && s.status.running)) { location.reload(); return; }
+        setTimeout(wait, 4000);
+      };
+      setTimeout(draw, 1500); setTimeout(wait, 5000);
+    }
+  };
   let timer = 0;
   const draw = async () => {
     clearTimeout(timer);
@@ -646,7 +675,7 @@ function updateCard() {
       $('pre', box).textContent = st.log || '';
       timer = setTimeout(draw, 4000); return;
     }
-    if (r.error) { box.innerHTML = `<p class="muted">تعذر التحقق من التحديثات (يحتاج إنترنت).</p>`; return; }
+    if (r.error) { box.innerHTML = `<p class="muted">الإصدار الحالي <b translate="no">v${esc(r.current)}</b>. تعذر التحقق من التحديثات عبر الإنترنت — استخدم التحديث من فلاشة.</p>`; return; }
     if (!r.available) {
       box.innerHTML = `<p><span class="badge ok">النظام محدّث</span> الإصدار الحالي <b translate="no">v${esc(r.current)}</b></p>`
         + (st.failed ? `<p class="alert err small" translate="no">${esc(st.log || '')}</p>` : '');

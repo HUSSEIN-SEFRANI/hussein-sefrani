@@ -654,3 +654,41 @@ def api_update_run():
         abort(400, out or "error")
     log_action("تحديث النظام")
     return jsonify(ok=True)
+
+
+@bp.post("/api/admin/update/upload")
+@admin_required
+def api_update_upload():
+    """تحديث من ملف hsef-app-X.Y.tar.gz (من فلاشة على الكمبيوتر): نتحقق منه ونعيد رقم إصداره."""
+    import tarfile
+    f = request.files.get("pkg")
+    if not f or not (f.filename or "").endswith(".tar.gz"):
+        abort(400, "اختر ملف التحديث hsef-app-….tar.gz")
+    dest = paths().tmp / "hsef-update.tar.gz"
+    f.save(dest)
+    try:
+        with tarfile.open(dest) as t:
+            names = {n.lstrip("./") for n in t.getnames()}
+            if "appliance/install.sh" not in names or "homenas/__init__.py" not in names:
+                raise ValueError
+            m = t.extractfile(next(x for x in t.getmembers() if x.name.lstrip("./") == "homenas/__init__.py"))
+            ver = re.search(r'__version__ = "(.+?)"', m.read().decode()).group(1)
+    except Exception:
+        dest.unlink(missing_ok=True)
+        abort(400, "هذا ليس ملف تحديث H.SEF صالحاً")
+    from . import __version__
+    return jsonify(ok=True, version=ver, current=__version__, appliance=APPLIANCE)
+
+
+@bp.post("/api/admin/update/apply-file")
+@admin_required
+def api_update_apply_file():
+    dest = paths().tmp / "hsef-update.tar.gz"
+    if not dest.exists():
+        abort(400, "ارفع ملف التحديث أولاً")
+    os.chmod(dest, 0o644)
+    ok, out = _extras("update-file", str(dest))
+    if not ok:
+        abort(400, out or "error")
+    log_action("تحديث النظام من ملف")
+    return jsonify(ok=True)
