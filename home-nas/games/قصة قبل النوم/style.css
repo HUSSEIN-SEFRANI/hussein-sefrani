@@ -1,0 +1,32 @@
+#sky { --sky: linear-gradient(180deg, #0f172a 0%, #1e1b4b 60%, #312e81 100%); }
+#sky i { opacity: .12; }
+.sun { background: transparent; box-shadow: inset 3.5vh -2vh 0 0 #fef9c3; width: 12vh; height: 12vh; left: auto; right: 6vw; transform: rotate(-20deg); filter: drop-shadow(0 0 2vh #fde68a88); }
+h1 { -webkit-text-stroke-color: #4338ca; }
+h2 { color: #e0e7ff; font-size: 5vh; }
+.sub { color: #c7d2fe; }
+.help { background: rgba(255,255,255,.15); color: #c7d2fe; }
+.help b { color: #fde68a; }
+.btn { background: #e0e7ff; }
+.btn.go { background: #fbbf24; color: #1e1b4b; }
+.books { display: grid; grid-template-columns: repeat(3, auto); gap: 2.5vh 2.5vw; margin-top: 3vh; }
+.book { width: 26vw; height: 20vh; border: 0; border-radius: 3vh; background: linear-gradient(135deg, var(--c), #1e1b4b); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .6vh;
+  box-shadow: 0 1.5vh 3vh rgba(0,0,0,.4); }
+.book .emo { font-size: 8vh; }
+.book b { font-size: 3.6vh; }
+.book small { font-size: 2.2vh; color: #bbf7d0; }
+.page { margin-top: 2vh; width: 80vw; height: 60vh; background: #fffbeb; border-radius: 5vh; border: 1vh solid var(--c); box-shadow: 0 2vh 5vh rgba(0,0,0,.45);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3vh; padding: 3vh 5vw; }
+.page p { margin: 0; font-size: 5.2vh; line-height: 1.7; font-weight: 700; color: #1e1b4b; text-align: center; }
+.scene { display: flex; gap: 2vw; font-size: 16vh; }
+.scene span { display: inline-block; animation: bob 3.2s ease-in-out infinite; }
+.scene.big { font-size: 22vh; margin: 2vh 0; }
+.night { position: fixed; inset: 0; background: radial-gradient(ellipse at 70% 20%, #1e1b4b, #020617 70%); overflow: hidden; }
+.night i { position: absolute; color: #fef9c3; font-style: normal; animation: tw 4s ease-in-out infinite; }
+@keyframes tw { 50% { opacity: .2; } }
+.moon { position: absolute; top: 10vh; right: 14vw; width: 22vh; height: 22vh; border-radius: 50%; box-shadow: inset 6vh -3vh 0 0 #fef9c3; transform: rotate(-20deg); filter: drop-shadow(0 0 3vh #fde68a88); }
+.gn { position: absolute; bottom: 18vh; width: 100%; text-align: center; font-size: 7vh; font-weight: 800; color: #e0e7ff; opacity: .8; animation: fadeOut 30s forwards; }
+.gn small { display: block; font-size: 2.6vh; opacity: .6; }
+@keyframes fadeOut { to { opacity: .15; } }
+.dark { position: absolute; inset: 0; background: #000; opacity: 0; transition: opacity 20s; pointer-events: none; }
+.dark.on { opacity: 1; }
+.hidden-btn, .hidden-btn.f.sel { position: fixed; bottom: 2vh; left: 2vw; opacity: .25; font-size: 2.4vh; }

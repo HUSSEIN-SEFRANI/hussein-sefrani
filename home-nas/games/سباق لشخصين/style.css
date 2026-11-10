@@ -1,0 +1,8 @@
+#sky { --sky: linear-gradient(180deg, #38bdf8 0%, #bae6fd 62%, #4ade80 62%, #16a34a 100%); }
+.mode { width: 26vw; height: 38vh; }
+.help { font-size: 2.3vh; }
+canvas.race { position: fixed; inset: 0; width: 100vw; height: 100vh; }
+.msg { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.msg .count { font-size: 24vh; font-weight: 800; color: #fff; -webkit-text-stroke: 1vh #1e3a8a; paint-order: stroke fill; }
+.msg .win { background: #fff; border: 1.2vh solid var(--c); border-radius: 6vh; padding: 4vh 6vw; font-size: 9vh; font-weight: 800; color: var(--c); text-align: center; box-shadow: 0 3vh 6vh rgba(0,0,0,.35); }
+.msg .win small { display: block; font-size: 3vh; color: #334155; margin-top: 2vh; }

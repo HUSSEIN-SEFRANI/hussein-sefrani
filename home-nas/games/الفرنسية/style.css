@@ -1,0 +1,24 @@
+#sky { --sky: linear-gradient(180deg, #93c5fd 0%, #dbeafe 70%, #fecaca 70%, #fca5a5 100%); }
+.modes.sm3 { display: grid; grid-template-columns: repeat(3, auto); gap: 2.5vh 2.5vw; margin-top: 2vh; }
+.modes.sm3 .mode { width: 24vw; height: 26vh; }
+.modes.sm3 .mode { gap: .4vh; }
+.modes.sm3 .mode .big { font-size: 7.5vh; }
+.mode .st { font-size: 2.8vh; }
+.words { display: flex; flex-wrap: wrap; gap: 1.4vh 1vw; justify-content: center; margin-top: 3vh; max-width: 92vw; }
+.word { width: 13vh; height: 15vh; font-size: 2.4vh; gap: .2vh; }
+.word .emo { font-size: 6vh; }
+.word small { color: #64748b; font-size: 2.1vh; }
+.dot { display: inline-block; width: 6vh; height: 6vh; border-radius: 50%; border: .4vh solid #cbd5e1; }
+.dot.big { width: 20vh; height: 20vh; border-width: .8vh; }
+.opt .dot { width: 14vh; height: 14vh; }
+.digit { font-size: 6vh; font-weight: 800; color: #be185d; }
+.pic .digit { font-size: 20vh; }
+.opt .digit { font-size: 14vh; }
+.ear { font-size: 16vh; animation: bob 1.6s ease-in-out infinite; }
+.wtxt, .wbig { font-family: "Baloo", sans-serif; font-weight: 800; color: #1e3a8a; }
+.wtxt { font-size: 6vh; }
+.wbig { font-size: 12vh; }
+.meaning { font-size: 4.4vh; color: #16a34a; font-weight: 800; }
+.prompt .col { display: flex; flex-direction: column; align-items: center; gap: 1vh; }
+.opts.pics .opt { font-size: 13vh; }
+.opts.fr .opt { font-size: 6vh; }

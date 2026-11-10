@@ -1,0 +1,18 @@
+#sky { --sky: linear-gradient(180deg, #fbcfe8 0%, #fef9c3 100%); }
+#sky i, .sun { display: none; }
+.arts { display: flex; flex-wrap: wrap; gap: 2.4vh 2vw; justify-content: center; margin-top: 2vh; max-width: 92vw; }
+.art { width: 30vh; border: 0; background: #fff; border-radius: 3vh; padding: 1vh 1vh .6vh; display: flex; flex-direction: column; align-items: center; gap: .4vh; box-shadow: 0 1vh 2vh rgba(30,58,138,.2); }
+.art svg { width: 100%; border-radius: 2vh; }
+.art b { font-size: 3.2vh; }
+svg .rg { stroke: #1f2937; stroke-width: 3; stroke-linejoin: round; }
+svg .ln { fill: none; stroke: #1f2937; stroke-width: 3; stroke-linecap: round; pointer-events: none; }
+.art svg .rg, .art svg .ln { stroke-width: 4; }
+.studio { display: flex; align-items: center; gap: 3vw; margin-top: 1vh; }
+.canvas { background: #fff; border-radius: 3vh; padding: 1.2vh; box-shadow: 0 2vh 4vh rgba(30,58,138,.25); }
+.canvas svg { display: block; width: 104vh; height: 78vh; }
+svg .rg.f.sel { transform: none; stroke: #f59e0b; stroke-width: 7; box-shadow: none !important; filter: drop-shadow(0 0 4px #f59e0b); }
+.palette { display: grid; grid-template-columns: repeat(2, auto); gap: 1.4vh; align-items: center; justify-items: center; }
+.palette .now { grid-column: 1 / -1; width: 13vh; height: 7vh; border-radius: 2vh; border: .6vh solid #fff; box-shadow: 0 .8vh 1.6vh rgba(30,58,138,.3); margin-bottom: .6vh; }
+.sw { width: 8vh; height: 8vh; border-radius: 50%; border: .5vh solid #fff; box-shadow: 0 .6vh 1.2vh rgba(30,58,138,.3); }
+.sw.on { outline: .7vh solid #1e3a8a; outline-offset: .3vh; }
+.top h2 { font-size: 5vh; }

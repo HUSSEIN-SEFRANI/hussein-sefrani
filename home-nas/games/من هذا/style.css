@@ -1,0 +1,12 @@
+#sky { --sky: linear-gradient(180deg, #c4b5fd 0%, #ede9fe 70%, #86efac 70%, #4ade80 100%); }
+.faces { display: flex; gap: 1.2vw; margin-top: 2vh; flex-wrap: wrap; justify-content: center; max-width: 90vw; }
+.face { display: flex; flex-direction: column; align-items: center; background: #fff; border-radius: 2.5vh; padding: .8vh; box-shadow: 0 .8vh 1.6vh rgba(30,58,138,.2); }
+.face img { width: 10vh; height: 10vh; object-fit: cover; border-radius: 2vh; }
+.face b { font-size: 2.2vh; }
+.prompt .col { display: flex; flex-direction: column; align-items: center; gap: 1vh; }
+.prompt img { height: 32vh; width: 32vh; object-fit: cover; border-radius: 3vh; }
+.prompt .q.big { font-size: 8vh; max-width: none; }
+.prompt .q.big b { color: #be185d; }
+.opts.txt .opt { font-size: 6vh; }
+.opts.photos .opt { width: 28vh; height: 28vh; padding: 1vh; }
+.opts.photos .opt img { width: 100%; height: 100%; object-fit: cover; border-radius: 3vh; }

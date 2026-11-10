@@ -1,0 +1,44 @@
+@font-face { font-family: "AmiriQ"; src: url(fonts/amiri-quran.woff2) format("woff2"); }
+#sky { --sky: linear-gradient(180deg, #0f766e 0%, #14b8a6 55%, #99f6e4 100%); }
+.sun { background: #fef9c3; box-shadow: 0 0 6vh #fef08a; }
+h1 { -webkit-text-stroke-color: #0f766e; }
+h2 { color: #fff; text-shadow: 0 .3vh 0 #0f766e; }
+.sub { color: #fff; }
+.qr { font-family: "AmiriQ", "Amiri", "Noto Naskh Arabic", serif; font-weight: 400; }
+.num { display: inline-flex; align-items: center; justify-content: center; min-width: 1.5em; height: 1.5em; padding: 0 .2em; border: .12em solid #d97706; border-radius: 50%;
+  font-family: "Baloo", sans-serif; font-size: .55em; font-weight: 800; color: #b45309; vertical-align: middle; line-height: 1; }
+
+.surah { width: 15vh; height: 16vh; background: #fff; gap: 0; padding: .5vh; }
+.surah b { font-size: 3.6vh; line-height: 1.8; color: #0f766e; white-space: nowrap; }
+.surah small { font-size: 2.2vh; color: #64748b; }
+.surah .st { font-size: 1.9vh; }
+.surah.done { background: linear-gradient(135deg, #fde68a, #fbbf24); }
+.surah.done small { color: #92400e; }
+.title h1 { font-size: 8vh; }
+.title .mascot { font-size: 9vh; }
+
+.mushaf { margin-top: 2vh; width: 86vw; min-height: 50vh; background: #fffdf5; border: .8vh solid #fbbf24; border-radius: 5vh; box-shadow: 0 2vh 5vh rgba(15,118,110,.35);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2vh; padding: 3vh 4vw; text-align: center; color: #1f2937; }
+.basmala { font-size: 5vh; color: #0f766e; line-height: 1.9; }
+.basmala.sm { font-size: 3.6vh; line-height: 1.6; }
+.ayah { line-height: 2; color: #111827; }
+.nexthint { font-size: 3.4vh; color: #94a3b8; line-height: 2; opacity: .8; }
+.mushaf.full { justify-content: flex-start; height: 72vh; overflow: hidden; }
+.mushaf.full p { margin: 0; line-height: 2.1; text-align: justify; text-align-last: center; }
+
+.prompt .col { display: flex; flex-direction: column; align-items: center; gap: 1vh; }
+.prompt .q { max-width: 70vw; font-size: 4.2vh; }
+.prompt .ctx { font-size: 4.6vh; line-height: 2; color: #111827; text-align: center; max-width: 76vw; }
+.prompt .ctx .dim { color: #94a3b8; }
+.prompt .fillq { font-size: 6vh; max-width: 80vw; text-align: center; }
+.prompt { min-height: 26vh; }
+.hole { display: inline-block; min-width: 14vh; border-bottom: .7vh solid #f59e0b; color: #f59e0b; text-align: center; font-family: "Baloo", sans-serif; font-weight: 800; }
+.hole.got { color: #16a34a; border-color: #16a34a; font-family: "AmiriQ", serif; font-weight: 400; }
+.opts.qr .opt { font-family: "AmiriQ", serif; font-weight: 400; color: #111827; }
+.opts.wide .opt { font-size: 4.4vh; line-height: 1.9; }
+.opts.wide.long .opt { font-size: 3.4vh; min-height: 9vh; }
+.opts.txt .opt { font-size: 7vh; min-width: 22vw; height: 15vh; }
+.cheer { -webkit-text-stroke-color: #0f766e; }
+.won b { color: #0f766e; }
+.nav { flex-wrap: wrap; justify-content: center; }
+.nav .btn { font-size: 3vh; }

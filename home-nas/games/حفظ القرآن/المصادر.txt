@@ -1,0 +1,2 @@
+نص القرآن الكريم: الرسم العثماني من حزمة quran-json 3.1.2 (المصدر: quranenc.com)، الترخيص CC BY 4.0 — منقول كما هو دون أي تعديل.
+الخط: Amiri Quran — مشروع أميري، ترخيص SIL Open Font License 1.1 (انظر fonts/OFL-amiri.txt).

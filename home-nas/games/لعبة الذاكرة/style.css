@@ -1,0 +1,16 @@
+#sky { --sky: linear-gradient(180deg, #f9a8d4 0%, #fce7f3 70%, #86efac 70%, #4ade80 100%); }
+.mode .st { font-size: 3vh; }
+.cards { display: grid; gap: 2.2vh 1.6vw; margin-top: 3vh; justify-content: center; perspective: 120vh; }
+.card { width: 17vh; height: 21vh; border: 0; padding: 0; background: none; border-radius: 2.5vh; }
+.card .in { position: relative; width: 100%; height: 100%; transition: transform .45s; transform-style: preserve-3d; border-radius: 2.5vh; }
+.card.up .in { transform: rotateY(180deg); }
+.card .back, .card .front { position: absolute; inset: 0; backface-visibility: hidden; border-radius: 2.5vh; display: flex; align-items: center; justify-content: center; box-shadow: 0 1vh 2vh rgba(30,58,138,.25); }
+.card .back { background: linear-gradient(135deg, #8b5cf6, #ec4899); font-size: 8vh; color: #fde047; }
+.card .front { background: #fff; transform: rotateY(180deg); overflow: hidden; }
+.card .front .emo { font-size: 11vh; }
+.card .front img { width: 100%; height: 100%; object-fit: cover; }
+.card.got .front { box-shadow: 0 0 0 .8vh #22c55e; }
+.card.got { opacity: .85; }
+.card.f.sel { box-shadow: none !important; }
+.card.f.sel .in { box-shadow: 0 0 0 .9vh #fff, 0 2vh 4vh rgba(30,58,138,.35); }
+.cheer { min-height: 7vh; }
