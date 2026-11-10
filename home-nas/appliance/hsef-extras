@@ -484,7 +484,10 @@ def valid_ip(s: str) -> bool:
 
 
 def jrun(cmd) -> list:
-    r = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+    except (OSError, subprocess.TimeoutExpired):
+        return []
     try:
         return json.loads(r.stdout or "[]")
     except ValueError:
@@ -510,7 +513,8 @@ def wifi_iface() -> str | None:
 def net_status():
     if FAKE:
         print(json.dumps({"iface": "enp1s0", "mode": "dhcp", "ip": "192.168.1.25", "prefix": 24, "gateway": "192.168.1.1",
-                          "dns": ["192.168.1.1"], "pending": False, "wifi": {"iface": None}, "supported": True}))
+                          "dns": ["192.168.1.1"], "pending": False, "supported": True,
+                          "wifi": {"iface": "wlan0", "installed": True, "ssid": None}}))
         return
     ifc = wired_iface()
     addr = next((a for l in jrun(["ip", "-j", "addr"]) if l.get("ifname") == ifc for a in l.get("addr_info", []) if a.get("family") == "inet"), {})
@@ -521,7 +525,8 @@ def net_status():
     wi = wifi_iface()
     wifi = {"iface": wi, "installed": bool(shutil.which("wpa_supplicant")), "ssid": None}
     if wi and WIFI_FILE.exists():
-        m = _re.search(r'wpa-ssid\s+"?(.*?)"?\s*$', WIFI_FILE.read_text(), _re.M)
+        txt = WIFI_CONF.read_text() if WIFI_CONF.exists() else WIFI_FILE.read_text()
+        m = _re.search(r'ssid="(.*?)"', txt) or _re.search(r'wpa-ssid\s+"?(.*?)"?\s*$', txt, _re.M)
         wifi["ssid"] = m.group(1) if m else None
         wifi["ip"] = next((a.get("local") for l in jrun(["ip", "-j", "addr"]) if l.get("ifname") == wi for a in l.get("addr_info", []) if a.get("family") == "inet"), None)
     print(json.dumps({"iface": ifc, "mode": mode, "ip": addr.get("local"), "prefix": addr.get("prefixlen"), "gateway": gw, "dns": dns,
@@ -640,23 +645,68 @@ def wifi_scan():
     print(json.dumps(sorted(({"ssid": k, "signal": v} for k, v in nets.items()), key=lambda x: -x["signal"])))
 
 
+WIFI_CONF = Path("/etc/wpa_supplicant/hsef-wifi.conf")
+SYSCTL_NET = Path("/etc/sysctl.d/90-hsef-net.conf")
+
+
+def ensure_linkdown_sysctl():
+    """عند فصل الكابل لا يحاول النظام الإرسال عبر المنفذ المفصول (فيعمل الوايفاي وحده)."""
+    SYSCTL_NET.write_text("net.ipv4.conf.all.ignore_routes_with_linkdown = 1\n"
+                          "net.ipv4.conf.default.ignore_routes_with_linkdown = 1\n"
+                          "net.ipv6.conf.all.ignore_routes_with_linkdown = 1\n")
+    subprocess.run(["sysctl", "-q", "-p", str(SYSCTL_NET)], capture_output=True)
+
+
+def iface_ipv4(name: str) -> str | None:
+    return next((a.get("local") for l in jrun(["ip", "-j", "addr"]) if l.get("ifname") == name
+                 for a in l.get("addr_info", []) if a.get("family") == "inet"), None)
+
+
 def wifi_connect(ssid: str):
     psk = sys.stdin.read().strip()
-    if not ssid or len(ssid) > 32 or any(c in ssid for c in '"\n\r\\'):
+    if not ssid or len(ssid.encode()) > 32 or any(c in ssid for c in '"\n\r\\'):
         die("invalid network name")
     if psk and (len(psk) < 8 or len(psk) > 63 or any(c in psk for c in '"\n\r\\')):
         die("invalid password (8-63 characters)")
+    if FAKE:
+        print(json.dumps({"ok": True, "ip": "192.168.1.77"}))
+        return
     wi = wifi_iface()
     if not wi:
         die("no wifi adapter found")
-    if FAKE:
-        return
+    ensure_linkdown_sysctl()
+    WIFI_CONF.parent.mkdir(parents=True, exist_ok=True)
+    net = f'network={{\n    ssid="{ssid}"\n    scan_ssid=1\n'
+    net += f'    psk="{psk}"\n' if psk else "    key_mgmt=NONE\n"
+    net += "}\n"
+    WIFI_CONF.write_text("ctrl_interface=/run/wpa_supplicant\nupdate_config=0\n\n" + net)
+    os.chmod(WIFI_CONF, 0o600)
     WIFI_FILE.parent.mkdir(parents=True, exist_ok=True)
-    body = f'allow-hotplug {wi}\niface {wi} inet dhcp\n    wpa-ssid "{ssid}"\n'
-    body += f'    wpa-psk "{psk}"\n' if psk else "    wpa-key-mgmt NONE\n"
-    WIFI_FILE.write_text(body)
-    os.chmod(WIFI_FILE, 0o600)
-    subprocess.run(["sh", "-c", f"ifdown --force {wi} 2>/dev/null; ifup {wi}"], capture_output=True, timeout=90)
+    WIFI_FILE.write_text(f"allow-hotplug {wi}\niface {wi} inet dhcp\n    wpa-conf {WIFI_CONF}\n")
+    subprocess.run(["sh", "-c", f"ifdown --force {wi} 2>/dev/null; ip link set {wi} up; ifup {wi}"], capture_output=True, timeout=90)
+    for _ in range(25):  # تأكد أن الاتصال نجح فعلاً وأخذ عنواناً
+        if iface_ipv4(wi):
+            subprocess.run(["systemctl", "restart", "avahi-daemon"], capture_output=True)
+            print(json.dumps({"ok": True, "ip": iface_ipv4(wi)}))
+            return
+        _time.sleep(1)
+    die("not connected: check the password or move closer to the router")
+
+
+def net_fixups():
+    """عند التحديث: إعداد الكابل المفصول، وتحويل اتصال وايفاي قديم (wpa-ssid بين علامات تنصيص) إلى الطريقة الجديدة."""
+    ensure_linkdown_sysctl()
+    if WIFI_FILE.exists() and "wpa-ssid" in WIFI_FILE.read_text():
+        txt = WIFI_FILE.read_text()
+        ssid = (_re.search(r'wpa-ssid\s+(.*)$', txt, _re.M) or [None, ""])[1].strip().strip('"')
+        psk = (_re.search(r'wpa-psk\s+(.*)$', txt, _re.M) or [None, ""])[1].strip().strip('"')
+        if ssid:
+            import io
+            sys.stdin = io.StringIO(psk)
+            try:
+                wifi_connect(ssid)
+            except SystemExit:
+                pass
 
 
 def wifi_forget():
@@ -664,6 +714,7 @@ def wifi_forget():
     if wi and not FAKE:
         subprocess.run(["ifdown", "--force", wi], capture_output=True, timeout=60)
     WIFI_FILE.unlink(missing_ok=True)
+    WIFI_CONF.unlink(missing_ok=True)
 
 
 # ----------------------------------------------------------------------------- الوقت ووضع بدون إنترنت
@@ -1039,6 +1090,8 @@ def main():
         iphone_detach()
     elif a == ["iphone-install"]:
         iphone_install()
+    elif a == ["net-fixups"]:
+        net_fixups()
     elif a == ["iphone-rules"]:
         write_iphone_rules()
     elif a == ["tv-wait"]:

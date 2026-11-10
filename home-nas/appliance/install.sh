@@ -147,6 +147,8 @@ install -m 755 "$APP/appliance/hsef-apps" /usr/local/sbin/hsef-apps
 install -m 755 "$APP/appliance/hsef-extras" /usr/local/sbin/hsef-extras
 # الآيفون بالكابل: تبدأ خدمة النسخ عند توصيله
 /usr/local/sbin/hsef-extras iphone-rules >/dev/null 2>&1 || true
+# الشبكة: الوايفاي يعمل وحده عند فصل الكابل
+/usr/local/sbin/hsef-extras net-fixups >/dev/null 2>&1 || true
 # App Center: user choices written by the app, logs written by hsef-apps
 mkdir -p "$CONF_DIR/apps" /var/lib/homenas/apps /srv/homenas/apps
 chown homenas:homenas "$CONF_DIR/apps"

@@ -491,7 +491,8 @@ def tv_user():
 
 def profile_dict(u) -> dict:
     return {"id": u["id"], "name": display_name(u), "role": u["tv_role"], "avatar": u["avatar"] or 0,
-            "photo_v": u["photo_v"] or 0, "has_pin": bool(u["tv_pin"]), **age_info(u["birthdate"])}
+            "photo_v": u["photo_v"] or 0, "has_pin": bool(u["tv_pin"]), "admin": bool(u["is_admin"]),
+            **age_info(u["birthdate"])}
 
 
 @bp.get("/tv")
@@ -767,3 +768,74 @@ def api_tv_pdf_page(tid):
         if not out.exists():
             abort(404)
     return send_file(out, mimetype="image/jpeg", max_age=86400 * 30)
+
+
+# ----------------------------------------------------------------------------- إعدادات من التلفاز (للمدير فقط)
+
+def tv_admin():
+    u = tv_user()
+    if not u["is_admin"]:
+        abort(403, "للمدير فقط")
+    if not u["tv_pin"]:
+        abort(403, "ضع رمز دخول (PIN) لحساب المدير على التلفاز أولاً")
+    return u
+
+
+@bp.get("/api/tv/admin/net")
+def api_tv_admin_net():
+    tv_admin()
+    from .sysadmin import available, helper
+    if not available():
+        return jsonify(available=False)
+    return jsonify(available=True, net=helper("net-status", as_json=True))
+
+
+@bp.post("/api/tv/admin/wifi/<action>")
+def api_tv_admin_wifi(action):
+    u = tv_admin()
+    from .sysadmin import helper
+    d = body()
+    if action == "scan":
+        return jsonify(networks=helper("wifi-scan", timeout=60, as_json=True))
+    if action == "connect":
+        ssid = str(d.get("ssid") or "").strip()
+        if not ssid:
+            abort(400)
+        helper("wifi-connect", ssid, stdin=str(d.get("password") or ""), timeout=120)
+        log_action("الاتصال بالوايفاي من التلفاز", ssid, u["username"])
+        return jsonify(ok=True, net=helper("net-status", as_json=True))
+    if action == "forget":
+        helper("wifi-forget", timeout=60)
+        return jsonify(ok=True)
+    if action == "install":
+        helper("wifi-install", timeout=3600)
+        return jsonify(ok=True)
+    abort(404)
+
+
+@bp.get("/api/tv/admin/bt")
+def api_tv_admin_bt():
+    tv_admin()
+    from .sysadmin import available, helper
+    if not available():
+        return jsonify(available=False)
+    return jsonify(available=True, **helper("bt-status", as_json=True))
+
+
+@bp.post("/api/tv/admin/bt/<action>")
+def api_tv_admin_bt_action(action):
+    u = tv_admin()
+    from .sysadmin import helper
+    mac = str(body().get("mac") or "")
+    if action == "install":
+        helper("bt-install", timeout=1800)
+    elif action == "scan":
+        helper("bt-scan", timeout=60)
+    elif action in ("pair", "remove"):
+        if not re.fullmatch(r"[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}", mac):
+            abort(400)
+        helper(f"bt-{action}", mac, timeout=90)
+        log_action("بلوتوث من التلفاز", f"{action} {mac}", u["username"])
+    else:
+        abort(404)
+    return jsonify(available=True, **helper("bt-status", as_json=True))

@@ -187,8 +187,9 @@ const BACK_KEYS = new Set(["Escape", "Backspace", "BrowserBack", "GoBack"]);
 document.addEventListener("keydown", (e) => {
   activity();
   if (saverEl) { hideSaver(); e.preventDefault(); return; }
-  if (VOL_KEYS[e.key] && !e.target.closest?.("input")) { VOL_KEYS[e.key](); e.preventDefault(); return; }
   const t = top();
+  if (VOL_KEYS[e.key] && !(t && t.typing)) { VOL_KEYS[e.key](); e.preventDefault(); return; }
+  if (e.key === "Home" && me && !(t && t.isGame)) { homeScreen(); e.preventDefault(); return; }
   if (t?.key && t.key(e) === true) { e.preventDefault(); return; }
   const k = e.key;
   if (k === "ArrowLeft") move("left");
@@ -401,6 +402,7 @@ function adultHome(d) {
   const bgHtml = wp === "photos" ? `<div class="layer photolayer"></div>` : wp === "dark" ? nightBg() : skyBg();
   const dock = d.tiles.length ? d.tiles.map((t) => `<button class="dk f" data-id="${t.id}"><div class="ic" style="background:${A.gradient(t.color)}">${A.icon(t.icon)}</div><span>${esc(t.title)}</span></button>`).join("")
     : `<div class="dock-empty">أضف مربعات لهذا الحساب من لوحة التحكم ← وضع التلفاز</div>`;
+  const setTile = u.admin ? `<button class="dk f js-settings"><div class="ic" style="background:linear-gradient(135deg,#64748b,#1e293b)">${GEAR}</div><span>الإعدادات</span></button>` : "";
   const hasPrayer = d.prayer && settings.prayer;
   const el = h(`<div class="${bgCls}">${bgHtml}
     <div class="topbar"><div style="display:flex;align-items:center;gap:12px">${A.falcon(46)}
@@ -408,9 +410,10 @@ function adultHome(d) {
       <button class="pill glass f js-switch">تبديل المستخدم</button></div>
     <div class="clockbig"><div class="tm js-tm"></div><div class="dt js-dt"></div><div class="hj js-hj"></div></div>
     <div class="cards">${hasPrayer ? prayerCard(d.prayer, 112) : ""}${wordCard(d.word, hasPrayer ? 336 : 112)}</div>
-    <nav class="dock glass">${dock}</nav></div>`);
+    <nav class="dock glass">${dock}${setTile}</nav></div>`);
   const tiles = Object.fromEntries(d.tiles.map((t) => [String(t.id), t]));
-  el.querySelectorAll(".dk").forEach((b) => b.addEventListener("click", () => openTile(tiles[b.dataset.id])));
+  el.querySelector(".js-settings")?.addEventListener("click", settingsScreen);
+  el.querySelectorAll(".dk[data-id]").forEach((b) => b.addEventListener("click", () => openTile(tiles[b.dataset.id])));
   el.querySelector(".js-switch").addEventListener("click", leave);
   const scr = {
     el,
@@ -802,6 +805,7 @@ function gameScreen(t, path) {
   push({
     el,
     busy: () => true,
+    isGame: true,
     key(e) { if (e.key === "Escape" || BACK_KEYS.has(e.key)) { pop(); return true; } return false; },
   });
   setTimeout(() => { try { fr.contentWindow.focus(); } catch { /* */ } }, 300);
@@ -929,6 +933,221 @@ setInterval(async () => {
     stack.forEach((s) => s.refresh?.(c));
   } catch { /* */ }
 }, 30 * 60000);
+
+// ============================================================== يد التحكم (بلايستيشن وغيرها)
+// ✕ موافق، ○ رجوع، الأسهم أو العصا للتنقل، L1/R1 السابق/التالي، L2/R2 الصوت، Options تشغيل/إيقاف، PS الرئيسية.
+const padPrefs = { swap: false, rumble: true };
+try { Object.assign(padPrefs, JSON.parse(localStorage.getItem("tvpad") || "{}")); } catch { /* */ }
+const savePad = () => { try { localStorage.setItem("tvpad", JSON.stringify(padPrefs)); } catch { /* */ } };
+let padPrev = {}, padRep = {}, padState = {}, padName = "";
+const padKey = (key) => document.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+function rumble(gp, ms = 40) {
+  if (!padPrefs.rumble) return;
+  try { gp.vibrationActuator && gp.vibrationActuator.playEffect("dual-rumble", { duration: ms, strongMagnitude: 0.4, weakMagnitude: 0.6 }); } catch { /* */ }
+}
+function padFire(name, gp) {
+  const t = top();
+  if (t && t.isGame) { if (name === "ps") padKey("Escape"); return; }  // داخل اللعبة: اليد للعبة، وزر PS للخروج
+  const okB = padPrefs.swap ? "circle" : "cross", backB = padPrefs.swap ? "cross" : "circle";
+  const map = { up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight", options: "MediaPlayPause",
+    l1: "MediaTrackPrevious", r1: "MediaTrackNext", l2: "AudioVolumeDown", r2: "AudioVolumeUp", ps: "Home",
+    triangle: "ContextMenu", square: "F2" };
+  map[okB] = "Enter"; map[backB] = "Escape";
+  if (name === okB) rumble(gp);
+  if (map[name]) padKey(map[name]);
+}
+function pollPads() {
+  const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
+  const now = performance.now();
+  for (const gp of pads) {
+    const b = (i) => !!(gp.buttons[i] && gp.buttons[i].pressed);
+    const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0;
+    const st = { up: b(12) || ay < -0.6, down: b(13) || ay > 0.6, left: b(14) || ax < -0.6, right: b(15) || ax > 0.6,
+      cross: b(0), circle: b(1), square: b(2), triangle: b(3), l1: b(4), r1: b(5), l2: b(6), r2: b(7),
+      create: b(8), options: b(9), ps: b(16) };
+    const prev = padPrev[gp.index] || {};
+    for (const [name, on] of Object.entries(st)) {
+      const k = gp.index + name;
+      if (on && !prev[name]) { padRep[k] = now + 420; activity(); padFire(name, gp); }
+      else if (on && ["up", "down", "left", "right"].includes(name) && now > (padRep[k] || 0)) { padRep[k] = now + 140; padFire(name, gp); }
+    }
+    padPrev[gp.index] = st;
+    padState = st; padName = gp.id;
+  }
+  requestAnimationFrame(pollPads);
+}
+addEventListener("gamepadconnected", (e) => { toast(`🎮 ${e.gamepad.id.replace(/\(.*\)/, "").trim() || "يد تحكم"}`, 2000); rumble(e.gamepad, 120); });
+requestAnimationFrame(pollPads);
+
+// ============================================================== لوحة مفاتيح على الشاشة
+function oskScreen(opt, done) {
+  let val = opt.value || "", shift = false, sym = false, show = !opt.password;
+  const LET = ["1234567890", "qwertyuiop", "asdfghjkl@", "zxcvbnm-_."];
+  const SYM = ["1234567890", "!#$%&*()+=", "/\\:;?,'[]{", "<>|~^`€£§}"];
+  const el = h(`<div class="bg-dark osk"><div class="bhead"><button class="back f js-back">${A.CHEVRON}<span>رجوع</span></button><h1>${esc(opt.title)}</h1></div>
+    <div class="osk-in ltr"><span class="v"></span><i class="caret"></i></div><div class="osk-keys ltr"></div>
+    ${hints([["موافق", "اختيار الحرف"], ["△", "حذف"], ["رجوع", "إلغاء"]])}</div>`);
+  const draw = () => {
+    el.querySelector(".v").textContent = show ? val : "•".repeat(val.length);
+    const rows = (sym ? SYM : LET).map((r) => `<div class="osk-row">${[...r].map((c) => {
+      const ch = shift && !sym ? c.toUpperCase() : c;
+      return `<button class="key f" data-c="${esc(ch)}">${esc(ch)}</button>`;
+    }).join("")}</div>`).join("");
+    const keep = cur && cur.dataset ? (cur.dataset.c ? `[data-c="${CSS.escape(cur.dataset.c)}"]` : cur.dataset.a ? `[data-a="${cur.dataset.a}"]` : null) : null;
+    el.querySelector(".osk-keys").innerHTML = rows + `<div class="osk-row">
+      <button class="key wide f ${shift ? "on" : ""}" data-a="shift">⇧</button><button class="key wide f" data-a="sym">${sym ? "abc" : "#+="}</button>
+      <button class="key space f" data-a="space">مسافة</button><button class="key wide f" data-a="del">⌫</button>
+      ${opt.password ? `<button class="key wide f" data-a="eye">${show ? "إخفاء" : "إظهار"}</button>` : ""}
+      <button class="key ok wide f" data-a="ok">${esc(opt.okLabel || "تم")}</button></div>`;
+    el.querySelectorAll(".osk-keys [data-c]").forEach((b) => b.addEventListener("click", () => { val += b.dataset.c; if (shift) shift = false; draw(); }));
+    el.querySelectorAll(".osk-keys [data-a]").forEach((b) => b.addEventListener("click", () => act(b.dataset.a)));
+    if (keep) { const n = el.querySelector(keep); if (n) setFocus(n, false); }
+  };
+  const act = (a) => {
+    if (a === "shift") shift = !shift;
+    else if (a === "sym") sym = !sym;
+    else if (a === "space") val += " ";
+    else if (a === "del") val = val.slice(0, -1);
+    else if (a === "eye") show = !show;
+    else if (a === "ok") { pop(); done(val); return; }
+    draw();
+  };
+  el.querySelector(".js-back").addEventListener("click", pop);
+  draw();
+  push({
+    el, typing: true,
+    initial: () => el.querySelector('[data-c="q"]') || el.querySelector(".key"),
+    key(e) {
+      if (e.key.length === 1 && e.key !== " " && !e.ctrlKey) { val += e.key; draw(); return true; }
+      if (e.key === "Backspace" || e.key === "ContextMenu") { act("del"); return true; }
+      if (e.key === "F2") { act("space"); return true; }
+      return false;
+    },
+  });
+}
+
+// ============================================================== إعدادات التلفاز (للمدير فقط)
+function settingsScreen() {
+  const items = [["wifi", "الوايفاي", "الاتصال بشبكة لاسلكية", "#06b6d4,#2563eb"], ["bt", "البلوتوث", "يد بلايستيشن وأجهزة أخرى", "#8b5cf6,#06b6d4"],
+    ["pad", "يد التحكم", "الأزرار والاهتزاز وتجربتها", "#a855f7,#ec4899"]];
+  const el = h(`<div class="bg-dark"><div class="bhead"><button class="back f js-back">${A.CHEVRON}<span>الرئيسية</span></button>
+    <div class="ti" style="background:linear-gradient(135deg,#64748b,#1e293b)">${GEAR}</div><h1>الإعدادات</h1></div>
+    <div class="set-grid">${items.map(([k, t, s, c]) => `<button class="set-card f" data-k="${k}"><div class="ic" style="background:${A.gradient(c)}">${SET_ICON[k]}</div>
+      <b>${t}</b><span>${s}</span></button>`).join("")}</div>
+    ${hints([["موافق", "فتح"], ["رجوع", "الرئيسية"]])}</div>`);
+  el.querySelector(".js-back").addEventListener("click", pop);
+  el.querySelectorAll(".set-card").forEach((b) => b.addEventListener("click", () => ({ wifi: wifiScreen, bt: btScreen, pad: padScreen })[b.dataset.k]()));
+  push({ el, initial: () => el.querySelector(".set-card") });
+}
+const GEAR = `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>`;
+const SET_ICON = {
+  wifi: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1.2" fill="#fff"/></svg>`,
+  bt: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7l10 10-5 5V2l5 5L7 17"/></svg>`,
+  pad: A.icon("games"),
+};
+
+function subScreen(title, iconKey) {
+  const el = h(`<div class="bg-dark"><div class="bhead"><button class="back f js-back">${A.CHEVRON}<span>الإعدادات</span></button>
+    <div class="ti" style="background:linear-gradient(135deg,#06b6d4,#2563eb)">${SET_ICON[iconKey]}</div><h1>${title}</h1></div>
+    <div class="set-body"></div>${hints([["موافق", "اختيار"], ["رجوع", "الإعدادات"]])}</div>`);
+  el.querySelector(".js-back").addEventListener("click", pop);
+  return el;
+}
+
+async function wifiScreen() {
+  const el = subScreen("الوايفاي", "wifi"), body = el.querySelector(".set-body");
+  const scr = { el };
+  push(scr);
+  const draw = async (nets) => {
+    let d;
+    try { d = await api("/api/tv/admin/net"); } catch (e) { body.innerHTML = `<p class="set-msg">${esc(e.message)}</p>`; return; }
+    if (!d.available) { body.innerHTML = `<p class="set-msg">متاح على جهاز H.SEF المخصص فقط.</p>`; return; }
+    const w = d.net.wifi || {};
+    let html = `<div class="set-status"><div>الكابل: <b class="ltr">${esc(d.net.ip || "غير موصول")}</b></div>
+      <div>الوايفاي: ${w.ssid ? `<b>${esc(w.ssid)}</b> ${w.ip ? `<b class="ltr">${esc(w.ip)}</b>` : "<span class='bad'>بلا عنوان</span>"}` : "غير متصل"}</div></div>`;
+    if (!w.iface) html += `<p class="set-msg">لا توجد بطاقة وايفاي في هذا الجهاز.</p>`;
+    else if (!w.installed) html += `<button class="btn gold f" data-a="install">تثبيت الوايفاي (يحتاج الكابل والإنترنت)</button>`;
+    else {
+      html += `<div class="set-row"><button class="btn gold f" data-a="scan">البحث عن الشبكات</button>${w.ssid ? `<button class="btn f" data-a="forget">نسيان «${esc(w.ssid)}»</button>` : ""}</div>`;
+      if (nets) html += nets.length ? `<div class="set-list">${nets.map((n, i) => `<button class="set-item f" data-n="${i}"><span class="ltr">${n.signal > -55 ? "▂▄▆█" : n.signal > -70 ? "▂▄▆" : "▂▄"}</span><b>${esc(n.ssid)}</b></button>`).join("")}</div>`
+        : `<p class="set-msg">لم تُعثر على شبكات.</p>`;
+    }
+    body.innerHTML = html;
+    body.querySelectorAll("[data-a]").forEach((b) => b.addEventListener("click", () => act(b.dataset.a)));
+    body.querySelectorAll("[data-n]").forEach((b) => b.addEventListener("click", () => {
+      const n = nets[+b.dataset.n];
+      oskScreen({ title: `كلمة مرور «${n.ssid}»`, password: true, okLabel: "اتصال" }, async (pw) => {
+        toast("جارٍ الاتصال…", 4000);
+        try { const r = await api("/api/tv/admin/wifi/connect", { json: { ssid: n.ssid, password: pw } }); toast(`تم الاتصال ✓ ${r.net && r.net.wifi && r.net.wifi.ip ? r.net.wifi.ip : ""}`, 5000); draw(); }
+        catch (e) { toast(`لم ينجح الاتصال: ${e.message}`, 6000); }
+      });
+    }));
+    setFocus(body.querySelector("[data-n]") || body.querySelector(".f") || el.querySelector(".js-back"));
+  };
+  const act = async (a) => {
+    try {
+      if (a === "scan") { toast("جارٍ البحث…", 3000); const r = await api("/api/tv/admin/wifi/scan", { json: {} }); return draw(r.networks); }
+      if (a === "forget") { await api("/api/tv/admin/wifi/forget", { json: {} }); toast("تم"); }
+      if (a === "install") { toast("جارٍ التثبيت… قد يستغرق دقائق", 6000); await api("/api/tv/admin/wifi/install", { json: {} }); toast("تم. أعد تشغيل الجهاز إن لم تظهر البطاقة", 6000); }
+    } catch (e) { toast(e.message, 5000); }
+    draw();
+  };
+  draw();
+}
+
+async function btScreen() {
+  const el = subScreen("البلوتوث", "bt"), body = el.querySelector(".set-body");
+  push({ el });
+  const draw = (r) => {
+    if (!r.available) { body.innerHTML = `<p class="set-msg">متاح على جهاز H.SEF المخصص فقط.</p>`; return; }
+    let html = "";
+    if (!r.installed) html = `<button class="btn gold f" data-a="install">تثبيت البلوتوث (يحتاج الإنترنت)</button>`;
+    else if (!r.adapter) html = `<p class="set-msg">لا يوجد بلوتوث في هذا الجهاز. يمكنك وصل قطعة بلوتوث USB صغيرة.</p>`;
+    else {
+      html = `<p class="set-msg">يد بلايستيشن 5: اضغط معاً <b>Create</b> و <b>PS</b> حتى يومض الضوء بسرعة، ثم «البحث».</p>
+        <div class="set-row"><button class="btn gold f" data-a="scan">البحث عن أجهزة</button></div>
+        <div class="set-list">${r.devices.map((d) => `<div class="set-item"><span>${d.icon === "input-gaming" ? "🎮" : "🔵"}</span><b>${esc(d.name)}</b>
+          ${d.connected ? `<span class="ok">متصل</span>` : d.paired ? `<span>مقترن</span>` : ""}
+          ${!d.connected ? `<button class="btn f" data-p="pair" data-m="${d.mac}">${d.paired ? "اتصال" : "ربط"}</button>` : ""}
+          ${d.paired ? `<button class="btn f" data-p="remove" data-m="${d.mac}">إزالة</button>` : ""}</div>`).join("") || `<p class="set-msg">لا توجد أجهزة بعد.</p>`}</div>`;
+    }
+    body.innerHTML = html;
+    body.querySelectorAll("[data-a]").forEach((b) => b.addEventListener("click", () => act(b.dataset.a)));
+    body.querySelectorAll("[data-p]").forEach((b) => b.addEventListener("click", () => act(b.dataset.p, b.dataset.m)));
+    setFocus(body.querySelector(".f") || el.querySelector(".js-back"));
+  };
+  const act = async (a, mac) => {
+    toast({ install: "جارٍ التثبيت…", scan: "جارٍ البحث 15 ثانية…", pair: "جارٍ الربط…", remove: "جارٍ الإزالة…" }[a], 5000);
+    try { draw(await api(`/api/tv/admin/bt/${a}`, { json: { mac } })); if (a === "pair") toast("تم الربط ✓"); }
+    catch (e) { toast(e.message, 5000); }
+  };
+  try { draw(await api("/api/tv/admin/bt")); } catch (e) { body.innerHTML = `<p class="set-msg">${esc(e.message)}</p>`; }
+}
+
+function padScreen() {
+  const el = subScreen("يد التحكم", "pad"), body = el.querySelector(".set-body");
+  const BTN = [["cross", "✕"], ["circle", "○"], ["square", "□"], ["triangle", "△"], ["up", "↑"], ["down", "↓"], ["left", "←"], ["right", "→"],
+    ["l1", "L1"], ["r1", "R1"], ["l2", "L2"], ["r2", "R2"], ["options", "Options"], ["create", "Create"], ["ps", "PS"]];
+  body.innerHTML = `<div class="set-status"><div>اليد: <b class="ltr js-pn">اضغط أي زر في اليد…</b></div></div>
+    <div class="pad-test ltr">${BTN.map(([k, t]) => `<span data-b="${k}">${t}</span>`).join("")}</div>
+    <div class="set-row"><button class="btn f js-swap"></button><button class="btn f js-rum"></button></div>
+    <p class="set-msg">✕ موافق · ○ رجوع · الأسهم أو العصا للتنقل · L1/R1 السابق/التالي · L2/R2 الصوت · Options تشغيل/إيقاف · PS الرئيسية (وفي الألعاب: الخروج)</p>`;
+  const lab = () => {
+    el.querySelector(".js-swap").textContent = padPrefs.swap ? "الموافقة بزر ○ (اضغط للتبديل)" : "الموافقة بزر ✕ (اضغط للتبديل)";
+    el.querySelector(".js-rum").textContent = padPrefs.rumble ? "الاهتزاز: يعمل" : "الاهتزاز: متوقف";
+  };
+  el.querySelector(".js-swap").addEventListener("click", () => { padPrefs.swap = !padPrefs.swap; savePad(); lab(); });
+  el.querySelector(".js-rum").addEventListener("click", () => { padPrefs.rumble = !padPrefs.rumble; savePad(); lab(); });
+  lab();
+  let raf = 0;
+  const live = () => {
+    el.querySelectorAll("[data-b]").forEach((s) => s.classList.toggle("on", !!padState[s.dataset.b]));
+    if (padName) el.querySelector(".js-pn").textContent = padName;
+    raf = requestAnimationFrame(live);
+  };
+  live();
+  push({ el, initial: () => el.querySelector(".js-swap"), destroy() { cancelAnimationFrame(raf); } });
+}
 
 // ============================================================== البدء
 if (TV.preview) {
