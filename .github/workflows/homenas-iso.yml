@@ -96,14 +96,23 @@ jobs:
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          name: "H.SEF v${{ steps.meta.outputs.version }} — نظام النسخ الاحتياطي المنزلي المجاني"
-          body_path: release-notes.md
+          name: "H.SEF"
+          body: ""
           make_latest: true
           files: |
             ${{ steps.meta.outputs.iso }}
             ${{ steps.meta.outputs.iso }}.sha256
             home-nas/hsef-app-${{ steps.meta.outputs.version }}.tar.gz
             home-nas/hsef-app-${{ steps.meta.outputs.version }}.tar.gz.sha256
+
+      - name: Hide release details (name H.SEF only, no notes)
+        if: github.event_name == 'workflow_dispatch' && inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for t in $(gh release list --limit 100 --json tagName -q '.[].tagName'); do
+            gh release edit "$t" --title "H.SEF" --notes "" || true
+          done
 
       - name: Delete old releases from before versioning
         if: github.event_name == 'workflow_dispatch' && inputs.cleanup_old

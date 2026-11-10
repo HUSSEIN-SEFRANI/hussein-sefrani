@@ -66,5 +66,6 @@ if code:
         "   (needed once, to create the administrator account)",
         "",
     ]
-lines += ["  ==========================================================", "", ""]
+lines += ["   H.SEF by Hussein Sefrani  -  +32 494 49 94 30  -  Hussein@sefrani.com",
+          "  ==========================================================", "", ""]
 Path("/etc/issue").write_text("\n".join(lines))

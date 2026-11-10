@@ -434,7 +434,7 @@ def api_settings():
     cfg = current_app.config["NAS_CFG"]
     from . import __version__
     return jsonify(version=__version__, server_name=server_name(), photo_shared_folder=get_setting("photo_shared_folder"), appliance=APPLIANCE,
-                   port=cfg["port"], data_dir=str(paths().data), heif=heic_supported(), ffmpeg=bool(FFMPEG),
+                   port=cfg.get("port", 80), data_dir=str(paths().data), heif=heic_supported(), ffmpeg=bool(FFMPEG),
                    psutil=psutil is not None)
 
 

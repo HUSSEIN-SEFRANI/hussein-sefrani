@@ -230,6 +230,7 @@ const CP = {
       const lc = h(`<div class="card" style="max-width:460px;margin-top:14px"><h4 translate="no">${icon('info')} Language · اللغة · Langue</h4></div>`);
       const sw = I18N.switcher(); sw.style.justifyContent = 'flex-start'; sw.style.marginTop = '0'; lc.appendChild(sw); p.appendChild(lc);
     }
+    if (!ME.is_admin) p.appendChild(aboutCard());
     const out = h(`<p><a class="btn danger" href="/logout">${icon('logout')} تسجيل الخروج</a></p>`); p.appendChild(out);
   },
 
@@ -581,6 +582,7 @@ const CP = {
   async general(sc) {
     const s = await guard(() => api.get('/api/admin/settings')); if (!s) return;
     const p = section(sc, 'عام', '');
+    p.appendChild(aboutCard());
     const card = h(`<div class="card" style="max-width:560px"><h4>${icon('server')} اسم السيرفر</h4>
       <input class="field" maxlength="40"><div style="margin-top:14px"><button class="btn primary">حفظ</button></div></div>`);
     $('input', card).value = s.server_name;
@@ -676,6 +678,18 @@ async function lookCard() {
   };
   draw({});
   return c;
+}
+
+function aboutCard() {
+  return h(`<div class="card about-card" style="max-width:560px;margin-top:14px"><h4>${icon('info')} حول النظام</h4>
+    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+      <img src="/static/img/whatsapp-qr.png" alt="رمز QR للتواصل عبر واتساب" style="width:132px;height:132px;border-radius:10px;background:#fff;padding:4px">
+      <div style="line-height:1.9">
+        <div>صمّم هذا النظام وكتبه: <b translate="no">Hussein Sefrani</b></div>
+        <div>الهاتف وواتساب: <a dir="ltr" href="tel:+32494499430" translate="no">0032 494 49 94 30</a></div>
+        <div>البريد: <a dir="ltr" href="mailto:Hussein@sefrani.com" translate="no">Hussein@sefrani.com</a></div>
+        <div class="muted small">امسح الرمز بكاميرا الهاتف للتواصل عبر واتساب</div>
+      </div></div></div>`);
 }
 
 function updateCard() {

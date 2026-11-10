@@ -100,6 +100,10 @@ menuentry 'Advanced: manual installation' {
     linux  $KERNEL vga=788 --- quiet
     initrd $INITRD
 }
+menuentry '-- H.SEF by Hussein Sefrani  -  +32 494 49 94 30  -  Hussein@sefrani.com' {
+    echo 'H.SEF by Hussein Sefrani - +32 494 49 94 30 - Hussein@sefrani.com'
+    sleep 5
+}
 EOF
 
 # ---- BIOS (isolinux) menu
@@ -132,6 +136,9 @@ cat > "$STAGE/homenas.msg" <<'EOF'
            Press  ENTER  to install H.SEF on one disk
            Type   raid    then ENTER to mirror two disks (RAID 1)
            Type   debian  then ENTER for manual installation
+
+         H.SEF by Hussein Sefrani  -  +32 494 49 94 30
+         Hussein@sefrani.com
 
         =====================================================
 
