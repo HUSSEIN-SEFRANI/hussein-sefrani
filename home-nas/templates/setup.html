@@ -7,7 +7,8 @@
 <p class="sub">أنشئ حساب المدير لبدء استخدام النظام</p>
 <form method="post">
   {% if need_code %}
-  <label class="lbl">رمز الإعداد (يظهر على شاشة جهاز السيرفر)</label>
+  <label class="lbl">رمز الإعداد</label>
+  <div style="display:flex;gap:10px;align-items:center;margin:4px 0 8px"><img src="{{ url_for('static', filename='img/whatsapp-qr.png') }}" alt="" style="width:84px;height:84px;border-radius:8px;background:#fff;padding:3px"><span class="muted" style="font-size:13px">للحصول على الرمز تواصل مع المطوّر عبر واتساب<br><span dir="ltr">+32 494 49 94 30</span></span></div>
   <input class="field" name="code" dir="ltr" inputmode="numeric" maxlength="16" autocomplete="one-time-code" required style="letter-spacing:6px;text-align:center;font-size:22px">
   {% endif %}
   {% if error %}<div class="err">{{ error }}</div>{% endif %}

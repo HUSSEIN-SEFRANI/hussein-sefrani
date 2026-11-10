@@ -36,12 +36,12 @@ def user_count() -> int:
 code = None
 if user_count() == 0:
     system.mkdir(parents=True, exist_ok=True)
-    code = "0554609954"  # ثابت، مثل homenas/core.py SETUP_CODE
-    code_file.write_text(code)
+    code = "ask"  # الرمز سرّي: يُطلب من المطوّر
+    code_file.unlink(missing_ok=True)
     try:
         pw = pwd.getpwnam("homenas")
         for p in (data, system, code_file):
-            os.chown(p, pw.pw_uid, pw.pw_gid)
+            os.chown(p, pw.pw_uid, pw.pw_gid) if p.exists() else None
     except KeyError:
         pass
 
@@ -60,12 +60,26 @@ lines = [
     f"        http://{host}.local{suffix}",
     "",
 ]
+QR = [
+    "     █████████████████████████████",
+    "     ██ ▄▄▄▄▄ █ ▀▀▄ ███▄█ ▄▄▄▄▄ ██",
+    "     ██ █   █ ███ ▄▄ █▄▀█ █   █ ██",
+    "     ██ █▄▄▄█ █ ▄▄ █▄▀█▄█ █▄▄▄█ ██",
+    "     ██▄▄▄▄▄▄▄█ █ ▀ █▄▀▄█▄▄▄▄▄▄▄██",
+    "     ██▄  ▀█▄▄▀▄  ███  █▄  ▄▀█  ██",
+    "     ███▄▀▀▀█▄▀▄▀█▄█▄█ █ ▄▀█ ▄█▄██",
+    "     ██▄▀▄▀▄█▄ ▀ █▄ ▀  █▄ ▀███▀ ██",
+    "     ██▄▄▀▄▀█▄▄▀▀▄▀ ▄  ▀█▀▀▀ ▄█▄██",
+    "     ██▄▄██▄▄▄▄ ▄▄█▄▀ █ ▄▄▄ ██▄▀██",
+    "     ██ ▄▄▄▄▄ █▀  ▄▄▄ █ █▄█ ██▀▄██",
+    "     ██ █   █ ██▀█ ██  ▄ ▄▄ █▀ ███",
+    "     ██ █▄▄▄█ █ ▀▄ █▄██  ▀  ▄█▄▄██",
+    "     ██▄▄▄▄▄▄▄█▄██▄██▄█▄█▄██▄██▄██",
+    "     █████████████████████████████",
+]
 if code:
-    lines += [
-        "   First-time setup code:   " + code,
-        "   (needed once, to create the administrator account)",
-        "",
-    ]
+    lines += ["   First-time setup code: ask the developer on WhatsApp", ""] + QR + [
+        "     WhatsApp: +32 494 49 94 30", ""]
 lines += ["   H.SEF by Hussein Sefrani  -  +32 494 49 94 30  -  Hussein@sefrani.com",
           "  ==========================================================", "", ""]
-Path("/etc/issue").write_text("\n".join(lines))
+Path("/etc/issue").write_text("\n".join(lines), encoding="utf-8")

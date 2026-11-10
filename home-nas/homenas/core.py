@@ -97,16 +97,23 @@ def setup_code_file(p: Paths) -> Path:
     return p.system / "setup_code"
 
 
-# رمز ثابت لإنشاء حساب المدير أول مرة من الهاتف أو الكمبيوتر (لا يحتاج النظر إلى شاشة السيرفر)
-SETUP_CODE = "0554609954"
+# رمز الإعداد الأول سرّي: يحفظ هنا كبصمة فقط (PBKDF2)، ويعطيه المطوّر لمن يريد التثبيت.
+SETUP_SALT = "2f3c5d8d6101bdd4"
+SETUP_HASH = "7d9125db702ada58c758f14a7af422d1cc07a153a458cc02f67310d6e891dd70"
+SETUP_CONTACT = "+32 494 49 94 30"
+
+
+def setup_code_ok(code: str) -> bool:
+    import hashlib
+    import hmac
+    d = hashlib.pbkdf2_hmac("sha256", (code or "").encode(), SETUP_SALT.encode(), 300000).hex()
+    return hmac.compare_digest(d, SETUP_HASH)
 
 
 def ensure_setup_code(p: Paths) -> str:
-    """رمز الإعداد الأول: ثابت دائماً، ويُكتب في الملف أيضاً لمن يبحث عنه على الجهاز."""
-    f = setup_code_file(p)
-    if not f.exists() or f.read_text().strip() != SETUP_CODE:
-        f.write_text(SETUP_CODE)
-    return SETUP_CODE
+    """لم يعد هناك رمز يُعرض: الملف القديم يُحذف إن وُجد."""
+    setup_code_file(p).unlink(missing_ok=True)
+    return ""
 
 
 def paths() -> Paths:

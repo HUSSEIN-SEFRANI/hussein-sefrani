@@ -16,7 +16,7 @@ from flask import (Blueprint, abort, current_app, jsonify, redirect, render_temp
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from .core import (FFMPEG, admin_required, heic_supported, body, current_user, get_db, get_setting, home_dir,
-                   human_size, log_action, login_required, now_iso, paths, set_setting, setup_code_file, SETUP_CODE)
+                   human_size, log_action, login_required, now_iso, paths, set_setting, setup_code_file, setup_code_ok)
 from .network import on_change, on_password, on_user_deleted
 from .photos import indexer
 
@@ -106,7 +106,7 @@ def setup():
         if need_code and len(attempts) >= 10:
             return render_template("setup.html", need_code=True, error="محاولات خاطئة كثيرة. انتظر 10 دقائق.",
                                    server_name="H.SEF"), 429
-        if need_code and not secrets.compare_digest(given, SETUP_CODE):
+        if need_code and not setup_code_ok(given):
             _failed[ip] = attempts + [time.time()]
             return render_template("setup.html", need_code=True, error="رمز الإعداد غير صحيح",
                                    server_name="H.SEF"), 403

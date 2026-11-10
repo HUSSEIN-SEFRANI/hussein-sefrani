@@ -67,7 +67,7 @@ def main() -> None:
     print(f"\n{line}\n  H.SEF {__version__} يعمل الآن\n{line}")
     if first_run:
         print("\n  ★ الإعداد الأول: افتح الرابط وأنشئ حساب المدير.\n"
-              f"    من جهاز آخر سيُطلب رمز الإعداد: {code}\n")
+              "    من جهاز آخر سيُطلب رمز الإعداد: اطلبه من المطوّر عبر واتساب +32 494 49 94 30\n")
     print("  من الهاتف أو أي جهاز على نفس شبكة Wi-Fi افتح:")
     for url in server_urls(port):
         print(f"       {url}")
