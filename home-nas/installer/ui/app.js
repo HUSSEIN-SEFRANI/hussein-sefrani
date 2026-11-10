@@ -1,12 +1,12 @@
-// شاشات تنصيب H.SEF — تُعرض بملء الشاشة من الفلاشة. الأسهم و Enter أو الفأرة.
+// شاشات تنصيب HOME ANAB — تُعرض بملء الشاشة من الفلاشة. الأسهم و Enter أو الفأرة.
 (function () {
   "use strict";
   const T = {
     ar: {
       setup: "تنصيب النظام", overall: "التقدم الكلي", eta: "الوقت المتبقي: حوالي {n} دقائق", eta1: "أقل من دقيقة",
-      steps: ["الترحيب واللغة", "اختيار القرص", "تجهيز القرص", "نسخ النظام", "تثبيت إعدادات H.SEF", "محمّل الإقلاع"],
+      steps: ["الترحيب واللغة", "اختيار القرص", "تجهيز القرص", "نسخ النظام", "تثبيت إعدادات HOME ANAB", "محمّل الإقلاع"],
       now: "جارٍ الآن…", stopped: "توقف هنا",
-      w_h: "أهلاً بك في H.SEF", w_p: "سنحوّل هذا الكمبيوتر إلى خزنة منزلية لصورك وملفاتك، مع شاشة تلفاز للعائلة. التنصيب تلقائي ويأخذ من 5 إلى 15 دقيقة.",
+      w_h: "أهلاً بك في HOME ANAB", w_p: "سنحوّل هذا الكمبيوتر إلى خزنة منزلية لصورك وملفاتك، مع شاشة تلفاز للعائلة. التنصيب تلقائي ويأخذ من 5 إلى 15 دقيقة.",
       lang: "اختر لغة النظام", offline: "كل البرامج داخل الفلاشة: لا حاجة للإنترنت", next: "التالي", keys: "الأسهم و Enter، أو الفأرة",
       d_h: "أين نثبّت النظام؟", d_p: "هذه الأقراص الموجودة في الجهاز. الفلاشة التي تقلع منها مخفية حتى لا تُمسح.",
       chosen: "مُختار", raid: "استخدم قرصين كمرآة (RAID 1): كل ملف يُحفظ على القرصين", raid2: "اختر القرص الثاني للمرآة",
@@ -14,7 +14,7 @@
       back: "رجوع", nodisk: "لم يُعثر على قرص صالح (8 غيغابايت أو أكثر). تأكد من تركيب القرص.", ssd: "قرص SSD", hdd: "قرص صلب", nvme: "قرص NVMe", usb: "قرص USB",
       i_top: "يمكنك ترك الجهاز الآن، سيكمل وحده", did: "هل تعلم؟",
       done_h: "تم التثبيت بنجاح!", done_p: "اسحب الفلاشة الآن. سيعيد الجهاز التشغيل خلال {n} ثانية.", open: "افتح من هاتفك أو كمبيوترك",
-      code: "رمز الإعداد سرّي", code2: "اطلبه من المطوّر عبر واتساب", reboot: "إعادة التشغيل الآن", tv: "إن وصلت تلفازاً تظهر عليه شاشة H.SEF بعد الإقلاع",
+      code: "رمز الإعداد سرّي", code2: "اطلبه من المطوّر عبر واتساب", reboot: "إعادة التشغيل الآن", tv: "إن وصلت تلفازاً تظهر عليه شاشة HOME ANAB بعد الإقلاع",
       e_h: "توقف التثبيت", e_disk: "القرص لا يستجيب للقراءة. غالباً هو مقفول بكلمة مرور، أو كابله غير مثبت، أو معطوب.",
       e_space: "لا توجد مساحة كافية على القرص.", e_other: "حدثت مشكلة أثناء التثبيت.",
       fix: ["تأكد من تركيب القرص وكابله جيداً.", "أزل كلمة مرور القرص من إعدادات BIOS إن وُجدت.", "جرّب قرصاً آخر."],
@@ -22,9 +22,9 @@
     },
     en: {
       setup: "System setup", overall: "Overall progress", eta: "Time left: about {n} minutes", eta1: "Less than a minute",
-      steps: ["Welcome & language", "Choose disk", "Prepare disk", "Copy system", "Configure H.SEF", "Boot loader"],
+      steps: ["Welcome & language", "Choose disk", "Prepare disk", "Copy system", "Configure HOME ANAB", "Boot loader"],
       now: "In progress…", stopped: "Stopped here",
-      w_h: "Welcome to H.SEF", w_p: "We will turn this computer into a home vault for your photos and files, with a TV screen for the family. Setup is automatic and takes 5 to 15 minutes.",
+      w_h: "Welcome to HOME ANAB", w_p: "We will turn this computer into a home vault for your photos and files, with a TV screen for the family. Setup is automatic and takes 5 to 15 minutes.",
       lang: "Choose the system language", offline: "Everything is on the USB stick: no internet needed", next: "Next", keys: "Arrows and Enter, or the mouse",
       d_h: "Where should we install?", d_p: "These are the disks in this computer. The USB stick you booted from is hidden so it is not erased.",
       chosen: "Selected", raid: "Use two disks as a mirror (RAID 1): every file is kept on both", raid2: "Choose the second disk for the mirror",
@@ -32,7 +32,7 @@
       back: "Back", nodisk: "No suitable disk found (8 GB or more). Check that the disk is connected.", ssd: "SSD", hdd: "Hard disk", nvme: "NVMe disk", usb: "USB disk",
       i_top: "You can leave the computer now, it finishes by itself", did: "Did you know?",
       done_h: "Installation complete!", done_p: "Remove the USB stick now. The computer restarts in {n} seconds.", open: "Open from your phone or computer",
-      code: "The setup code is private", code2: "Ask the developer on WhatsApp", reboot: "Restart now", tv: "If a TV is connected, it shows the H.SEF screen after restart",
+      code: "The setup code is private", code2: "Ask the developer on WhatsApp", reboot: "Restart now", tv: "If a TV is connected, it shows the HOME ANAB screen after restart",
       e_h: "Installation stopped", e_disk: "The disk does not respond. It may be password-locked, badly connected or faulty.",
       e_space: "Not enough space on the disk.", e_other: "Something went wrong during installation.",
       fix: ["Check the disk and its cable.", "Remove a disk password in the BIOS settings if there is one.", "Try another disk."],
@@ -40,9 +40,9 @@
     },
     fr: {
       setup: "Installation du système", overall: "Progression", eta: "Temps restant : environ {n} minutes", eta1: "Moins d'une minute",
-      steps: ["Bienvenue et langue", "Choix du disque", "Préparation du disque", "Copie du système", "Configuration de H.SEF", "Démarrage"],
+      steps: ["Bienvenue et langue", "Choix du disque", "Préparation du disque", "Copie du système", "Configuration de HOME ANAB", "Démarrage"],
       now: "En cours…", stopped: "Arrêté ici",
-      w_h: "Bienvenue dans H.SEF", w_p: "Cet ordinateur va devenir le coffre-fort de vos photos et fichiers, avec un écran TV pour la famille. L'installation est automatique et dure 5 à 15 minutes.",
+      w_h: "Bienvenue dans HOME ANAB", w_p: "Cet ordinateur va devenir le coffre-fort de vos photos et fichiers, avec un écran TV pour la famille. L'installation est automatique et dure 5 à 15 minutes.",
       lang: "Choisissez la langue", offline: "Tout est sur la clé USB : pas besoin d'internet", next: "Suivant", keys: "Flèches et Entrée, ou la souris",
       d_h: "Où installer le système ?", d_p: "Voici les disques de cet ordinateur. La clé USB de démarrage est masquée pour ne pas être effacée.",
       chosen: "Choisi", raid: "Utiliser deux disques en miroir (RAID 1) : chaque fichier est gardé sur les deux", raid2: "Choisissez le second disque du miroir",
@@ -50,7 +50,7 @@
       back: "Retour", nodisk: "Aucun disque adapté (8 Go ou plus). Vérifiez que le disque est branché.", ssd: "SSD", hdd: "Disque dur", nvme: "Disque NVMe", usb: "Disque USB",
       i_top: "Vous pouvez laisser l'ordinateur, il termine tout seul", did: "Le saviez-vous ?",
       done_h: "Installation terminée !", done_p: "Retirez la clé USB. L'ordinateur redémarre dans {n} secondes.", open: "Ouvrez depuis votre téléphone ou ordinateur",
-      code: "Le code d'installation est privé", code2: "Demandez-le au développeur sur WhatsApp", reboot: "Redémarrer", tv: "Si une TV est branchée, l'écran H.SEF s'y affiche au démarrage",
+      code: "Le code d'installation est privé", code2: "Demandez-le au développeur sur WhatsApp", reboot: "Redémarrer", tv: "Si une TV est branchée, l'écran HOME ANAB s'y affiche au démarrage",
       e_h: "Installation interrompue", e_disk: "Le disque ne répond pas. Il est peut-être verrouillé par mot de passe, mal branché ou défectueux.",
       e_space: "Pas assez d'espace sur le disque.", e_other: "Un problème est survenu pendant l'installation.",
       fix: ["Vérifiez le disque et son câble.", "Supprimez le mot de passe du disque dans le BIOS s'il y en a un.", "Essayez un autre disque."],

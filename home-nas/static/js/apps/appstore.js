@@ -48,8 +48,8 @@ class AppStore {
     const d = this.data, box = this.box;
     box.innerHTML = '';
     if (!d.available) {
-      box.appendChild(h(`<div class="empty-state">${icon('store')}<p><b>مركز التطبيقات متاح على جهاز H.SEF المخصص</b></p>
-        <p>ثبّت H.SEF من ملف ISO على كمبيوتر مخصص لاستخدام التطبيقات.</p></div>`));
+      box.appendChild(h(`<div class="empty-state">${icon('store')}<p><b>مركز التطبيقات متاح على جهاز HOME ANAB المخصص</b></p>
+        <p>ثبّت HOME ANAB من ملف ISO على كمبيوتر مخصص لاستخدام التطبيقات.</p></div>`));
       return;
     }
     const eng = d.engine || {};

@@ -29,7 +29,7 @@ export async function tvSection(sc, section) {
 // --------------------------------------------------------------------- الشاشة الموصولة (kiosk)
 function kioskCard(d, reload) {
   if (!d.available) {
-    return h(`<div class="card">${icon('info')} على جهاز H.SEF المخصص (المثبّت من ملف ISO) تظهر هذه الواجهة تلقائياً على الشاشة الموصولة بالسيرفر.
+    return h(`<div class="card">${icon('info')} على جهاز HOME ANAB المخصص (المثبّت من ملف ISO) تظهر هذه الواجهة تلقائياً على الشاشة الموصولة بالسيرفر.
       يمكنك الآن معاينتها من زر «معاينة» أعلاه (تحكّم بالأسهم و Enter و Esc).</div>`);
   }
   const k = d.kiosk || {};
@@ -82,12 +82,13 @@ function audioBox() {
     if (r.error) { ab.innerHTML = `<span class="muted">تعذرت قراءة مخارج الصوت.</span> <span class="small" translate="no">${esc(r.error)}</span>`; return; }
     ab.classList.remove('muted', 'small');
     ab.innerHTML = `<label class="lbl" style="margin-top:0">مخرج الصوت</label>
-      <select class="field" style="max-width:420px">${r.outputs.map((o, i) => `<option value="${i}" ${o.active ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select>
+      <select class="field" style="max-width:420px"><option value="auto" ${r.auto ? 'selected' : ''}>تلقائي: HDMI الموصول بالتلفاز (موصى به)</option>${r.outputs.map((o, i) => `<option value="${i}" ${!r.auto && o.active ? 'selected' : ''}>${esc(o.name)}${o.plugged ? ' — موصول' : ''}</option>`).join('')}</select>
       <p class="muted small">لصوت التلفاز اختر المخرج الذي فيه <b translate="no">HDMI</b> أو <b translate="no">DisplayPort</b>. المستوى الحالي: <span translate="no">${r.volume ?? '—'}%</span>${r.muted ? ' (صامت)' : ''}</p>
       <button class="btn primary sm" data-a="set">تطبيق</button> <button class="btn sm" data-a="test">${icon('play')} تجربة الصوت</button>`;
     $('[data-a=set]', ab).onclick = async () => {
-      const o = r.outputs[+$('select', ab).value]; if (!o) return;
-      if (await guard(() => api.post('/api/admin/tv/audio', { card: o.card, profile: o.profile }))) toast('تم — جرّب الصوت الآن', 'ok');
+      const v = $('select', ab).value, o = r.outputs[+v];
+      if (v !== 'auto' && !o) return;
+      if (await guard(() => api.post('/api/admin/tv/audio', v === 'auto' ? { action: 'auto' } : { card: o.card, profile: o.profile }))) toast('تم — جرّب الصوت الآن', 'ok');
     };
     $('[data-a=test]', ab).onclick = async () => { if (await guard(() => api.post('/api/admin/tv/audio', { action: 'test' }))) toast('يجب أن تسمع ثلاث نغمات من التلفاز', 'ok'); };
   })();

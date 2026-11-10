@@ -1,4 +1,4 @@
-name: Build H.SEF ISO
+name: Build HOME ANAB ISO
 
 on:
   push:
@@ -38,20 +38,20 @@ jobs:
           pip install -q -r home-nas/requirements.txt
           cd home-nas && python -c "from homenas import create_app"
 
-      - name: Build the offline installer ISO (live system + H.SEF installer)
-        run: sudo WORK=/mnt/hsef-build ./home-nas/installer/build-installer-iso.sh && sudo chown -R "$USER" home-nas/HSEF-*
+      - name: Build the offline installer ISO (live system + HOME ANAB installer)
+        run: sudo WORK=/mnt/hsef-build ./home-nas/installer/build-installer-iso.sh && sudo chown -R "$USER" home-nas/HOME-ANAB-*
 
       - name: Name the release
         id: meta
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ISO=$(ls home-nas/HSEF-*.iso)
+          ISO=$(ls home-nas/HOME-ANAB-*.iso)
           VERSION=$(python3 -c "import re;print(re.search(r'__version__ = \"(.+?)\"', open('home-nas/homenas/__init__.py').read()).group(1))")
           echo "iso=$ISO" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
-          ls -lh home-nas/HSEF-*
+          ls -lh home-nas/HOME-ANAB-*
           # release notes = this version's section of CHANGELOG.md, then the install steps
           python3 - "$VERSION" > release-notes.md <<'PY'
           import re, sys
@@ -87,7 +87,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: homenas-iso
-          path: home-nas/HSEF-*
+          path: home-nas/HOME-ANAB-*
           retention-days: 7
 
       - name: Publish release
@@ -96,7 +96,7 @@ jobs:
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          name: "H.SEF"
+          name: "HOME ANAB"
           body: ""
           make_latest: true
           files: |
@@ -105,13 +105,13 @@ jobs:
             home-nas/hsef-app-${{ steps.meta.outputs.version }}.tar.gz
             home-nas/hsef-app-${{ steps.meta.outputs.version }}.tar.gz.sha256
 
-      - name: Hide release details (name H.SEF only, no notes)
+      - name: Hide release details (name HOME ANAB only, no notes)
         if: github.event_name == 'workflow_dispatch' && inputs.publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           for t in $(gh release list --limit 100 --json tagName -q '.[].tagName'); do
-            gh release edit "$t" --title "H.SEF" --notes "" || true
+            gh release edit "$t" --title "HOME ANAB" --notes "" || true
           done
 
       - name: Delete old releases from before versioning

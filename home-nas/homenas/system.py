@@ -32,7 +32,7 @@ RESERVED_NAMES = {"home", "homes", "backup", "@system", "#recycle"}
 
 
 def server_name() -> str:
-    return get_setting("server_name") or "H.SEF"
+    return get_setting("server_name") or "HOME ANAB"
 
 
 def is_local_request() -> bool:
@@ -105,11 +105,11 @@ def setup():
         given = re.sub(r"\D", "", (request.form.get("code") or "").translate(_DIGITS))
         if need_code and len(attempts) >= 10:
             return render_template("setup.html", need_code=True, error="محاولات خاطئة كثيرة. انتظر 10 دقائق.",
-                                   server_name="H.SEF"), 429
+                                   server_name="HOME ANAB"), 429
         if need_code and not setup_code_ok(given):
             _failed[ip] = attempts + [time.time()]
             return render_template("setup.html", need_code=True, error="رمز الإعداد غير صحيح",
-                                   server_name="H.SEF"), 403
+                                   server_name="HOME ANAB"), 403
         username = (request.form.get("username") or "").strip()
         pw = request.form.get("password", "")
         if not USERNAME_RE.match(username) or username.lower() in RESERVED_NAMES:
@@ -138,7 +138,7 @@ def setup():
             if tz and APPLIANCE:
                 set_timezone(tz)
             return redirect("/")
-    return render_template("setup.html", need_code=need_code, error=error, server_name="H.SEF")
+    return render_template("setup.html", need_code=need_code, error=error, server_name="HOME ANAB")
 
 
 @bp.get("/logout")
@@ -149,11 +149,11 @@ def logout():
 
 @bp.get("/manifest.webmanifest")
 def manifest():
-    """يجعل H.SEF قابلاً للتثبيت كتطبيق (إضافة إلى الشاشة الرئيسية)."""
+    """يجعل HOME ANAB قابلاً للتثبيت كتطبيق (إضافة إلى الشاشة الرئيسية)."""
     name = server_name()
     data = {
         "name": name, "short_name": name, "start_url": "/", "scope": "/", "display": "standalone",
-        "background_color": "#0d2547", "theme_color": "#0d2547", "dir": "auto",
+        "background_color": "#ffffff", "theme_color": "#581c87", "dir": "auto",
         "icons": [{"src": "/static/img/icon.png", "sizes": "180x180", "type": "image/png"},
                   {"src": "/static/img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}],
         "shortcuts": [{"name": "Photos", "url": "/?app=photos"}, {"name": "Files", "url": "/?app=files"}],
@@ -443,7 +443,7 @@ def api_settings():
 def api_settings_save():
     data = body()
     if "server_name" in data:
-        set_setting("server_name", (data["server_name"] or "H.SEF").strip()[:40])
+        set_setting("server_name", (data["server_name"] or "HOME ANAB").strip()[:40])
         on_change()
     if "photo_shared_folder" in data:
         old = get_setting("photo_shared_folder")
@@ -525,7 +525,7 @@ def current_timezone() -> str:
 
 
 def set_timezone(tz: str) -> bool:
-    """يغيّر المنطقة الزمنية للجهاز (فقط على جهاز H.SEF المخصص)."""
+    """يغيّر المنطقة الزمنية للجهاز (فقط على جهاز HOME ANAB المخصص)."""
     if not APPLIANCE or tz not in list_timezones():
         return False
     import subprocess
@@ -616,7 +616,7 @@ def api_status():
 
 
 # ==========================================================================
-# التحديث من داخل النظام (جهاز H.SEF المخصص فقط)
+# التحديث من داخل النظام (جهاز HOME ANAB المخصص فقط)
 # ==========================================================================
 
 def _extras(*args, timeout=60) -> tuple[bool, str]:
@@ -679,7 +679,7 @@ def api_update_upload():
             ver = re.search(r'__version__ = "(.+?)"', m.read().decode()).group(1)
     except Exception:
         dest.unlink(missing_ok=True)
-        abort(400, "هذا ليس ملف تحديث H.SEF صالحاً")
+        abort(400, "هذا ليس ملف تحديث HOME ANAB صالحاً")
     from . import __version__
     return jsonify(ok=True, version=ver, current=__version__, appliance=APPLIANCE)
 

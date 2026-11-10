@@ -3,7 +3,7 @@
 
 It tells the user which address to open from a phone or computer and, before the
 first admin account exists, the 6-digit setup code needed to create it remotely.
-Runs as root just before the H.SEF service starts (ExecStartPre=+ in the unit).
+Runs as root just before the HOME ANAB service starts (ExecStartPre=+ in the unit).
 """
 import json
 import os
@@ -51,7 +51,7 @@ lines = [
     r"\S{PRETTY_NAME}  -  \l",
     "",
     "  ==========================================================",
-    "          H.SEF - Free Home Backup System is running",
+    "          HOME ANAB - Free Home Backup System is running",
     "  ==========================================================",
     "",
     "   On your phone or computer (same network), open:",
@@ -80,6 +80,6 @@ QR = [
 if code:
     lines += ["   First-time setup code: ask the developer on WhatsApp", ""] + QR + [
         "     WhatsApp: +32 494 49 94 30", ""]
-lines += ["   H.SEF by Hussein Sefrani  -  +32 494 49 94 30  -  Hussein@sefrani.com",
+lines += ["   HOME ANAB by Hussein Sefrani  -  +32 494 49 94 30  -  Hussein@sefrani.com",
           "  ==========================================================", "", ""]
 Path("/etc/issue").write_text("\n".join(lines), encoding="utf-8")

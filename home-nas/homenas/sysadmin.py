@@ -25,7 +25,7 @@ def available() -> bool:
 
 def helper(*args, timeout=120, stdin: str | None = None, as_json=False):
     if not available():
-        abort(400, "متاح على جهاز H.SEF المخصص فقط")
+        abort(400, "متاح على جهاز HOME ANAB المخصص فقط")
     try:
         r = subprocess.run(["sudo", "-n", HELPER, *args], capture_output=True, text=True, timeout=timeout, input=stdin)
     except subprocess.TimeoutExpired:

@@ -1,8 +1,8 @@
 #!/bin/bash
 # =====================================================================
-#  Builds the H.SEF installer ISO: a live Debian 13 system that boots
-#  into the H.SEF installer screens and copies itself onto the disk.
-#  Everything (H.SEF, TV screen, Wi-Fi/Bluetooth drivers, face models)
+#  Builds the HOME ANAB installer ISO: a live Debian 13 system that boots
+#  into the HOME ANAB installer screens and copies itself onto the disk.
+#  Everything (HOME ANAB, TV screen, Wi-Fi/Bluetooth drivers, face models)
 #  is inside the ISO: installing needs no internet.
 #
 #    sudo ./installer/build-installer-iso.sh
@@ -18,12 +18,12 @@ MIRROR="${MIRROR:-http://deb.debian.org/debian}"               # used while buil
 FINAL_MIRROR="http://deb.debian.org/debian"                    # written into the installed system
 SUITE=trixie
 VERSION=$(python3 -c "import re;print(re.search(r'__version__ = \"(.+?)\"', open('$HERE/homenas/__init__.py').read()).group(1))")
-OUT="${OUT:-$HERE/HSEF-$VERSION-Free-Home-Backup-System-amd64.iso}"
+OUT="${OUT:-$HERE/HOME-ANAB-$VERSION-amd64.iso}"
 ROOT="$WORK/chroot"
 ISO="$WORK/iso"
 COMP="${COMP:-xz}"
 
-log() { echo -e "\n\033[1;34m[H.SEF ISO]\033[0m $*"; }
+log() { echo -e "\n\033[1;34m[HOME ANAB ISO]\033[0m $*"; }
 [ "$(id -u)" -eq 0 ] || { echo "run as root"; exit 1; }
 for t in debootstrap mksquashfs xorriso mkfs.vfat mcopy; do command -v $t >/dev/null || { echo "missing $t (apt install debootstrap squashfs-tools xorriso dosfstools mtools)"; exit 1; }; done
 
@@ -63,7 +63,7 @@ mkdir -p "$ROOT/etc/default"
 cat > "$ROOT/etc/default/grub" <<'EOF'
 GRUB_DEFAULT=0
 GRUB_TIMEOUT=2
-GRUB_DISTRIBUTOR="H.SEF"
+GRUB_DISTRIBUTOR="HOME ANAB"
 GRUB_CMDLINE_LINUX_DEFAULT="quiet loglevel=3"
 GRUB_CMDLINE_LINUX=""
 EOF
@@ -90,7 +90,7 @@ in_root apt-get install -y --no-install-recommends \
     cage chromium fonts-noto-core fonts-noto-color-emoji pipewire-audio wireplumber pulseaudio-utils wlr-randr \
     python3-opencv usbmuxd libimobiledevice-utils ifuse fuse3 less nano
 
-log "H.SEF"
+log "HOME ANAB"
 mkdir -p "$ROOT/opt/homenas-src"
 tar -C "$HERE" --exclude=./installer/build --exclude=./iso/build --exclude=./data --exclude=./.venv \
     --exclude='__pycache__' --exclude='*.iso' --exclude=./games -cf - . | tar -C "$ROOT/opt/homenas-src" -xf -
@@ -127,7 +127,7 @@ cp "$HERE"/static/fonts/*.woff2 "$UIDIR/fonts/"
 cp "$HERE/static/img/icon.svg" "$HERE/static/img/whatsapp-qr.png" "$UIDIR/"
 cat > "$ROOT/etc/systemd/system/hsef-installer.service" <<'EOF'
 [Unit]
-Description=H.SEF installer (only when booted from the H.SEF USB stick)
+Description=HOME ANAB installer (only when booted from the HOME ANAB USB stick)
 ConditionKernelCommandLine=hsef_installer
 Before=hsef-tv.service
 
@@ -157,13 +157,13 @@ log "Boot files"
 mkdir -p "$ISO/live" "$ISO/boot/grub" "$ISO/EFI/boot" "$ISO/isolinux" "$ISO/.disk"
 cp "$(ls -1 "$ROOT"/boot/vmlinuz-* | tail -1)" "$ISO/live/vmlinuz"
 cp "$(ls -1 "$ROOT"/boot/initrd.img-* | tail -1)" "$ISO/live/initrd.img"
-echo "H.SEF $VERSION" > "$ISO/.disk/info"
+echo "HOME ANAB $VERSION" > "$ISO/.disk/info"
 umount_all
 
 log "Compressing the system (this takes a while)"
 mksquashfs "$ROOT" "$ISO/live/filesystem.squashfs" -comp "$COMP" -b 1M -noappend -e boot/efi
 
-CREDIT="H.SEF by Hussein Sefrani  -  +32 494 49 94 30  -  Hussein@sefrani.com"
+CREDIT="HOME ANAB by Hussein Sefrani  -  +32 494 49 94 30  -  Hussein@sefrani.com"
 ARGS="boot=live hsef_installer quiet loglevel=3 consoleblank=0"
 cat > "$ISO/boot/grub/grub.cfg" <<EOF
 set default=0
@@ -173,11 +173,11 @@ set menu_color_highlight=black/light-cyan
 insmod all_video
 insmod gfxterm
 terminal_output gfxterm
-menuentry 'Install H.SEF $VERSION' {
+menuentry 'Install HOME ANAB $VERSION' {
     linux /live/vmlinuz $ARGS
     initrd /live/initrd.img
 }
-menuentry 'Install H.SEF (safe graphics)' {
+menuentry 'Install HOME ANAB (safe graphics)' {
     linux /live/vmlinuz $ARGS nomodeset
     initrd /live/initrd.img
 }
@@ -199,14 +199,14 @@ cp "$ROOT/usr/lib/ISOLINUX/isolinux.bin" "$ISO/isolinux/"
 cp "$ROOT"/usr/lib/syslinux/modules/bios/{ldlinux.c32,libcom32.c32,libutil.c32,menu.c32} "$ISO/isolinux/"
 cat > "$ISO/isolinux/isolinux.cfg" <<EOF
 ui menu.c32
-menu title H.SEF $VERSION
+menu title HOME ANAB $VERSION
 timeout 80
 label install
-  menu label Install H.SEF $VERSION
+  menu label Install HOME ANAB $VERSION
   kernel /live/vmlinuz
   append initrd=/live/initrd.img $ARGS
 label safe
-  menu label Install H.SEF (safe graphics)
+  menu label Install HOME ANAB (safe graphics)
   kernel /live/vmlinuz
   append initrd=/live/initrd.img $ARGS nomodeset
 label credit

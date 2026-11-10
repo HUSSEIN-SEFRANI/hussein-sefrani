@@ -1,6 +1,6 @@
 {% extends "auth_base.html" %}
 {% block content %}
-<h1>{{ server_name }}</h1>
+{% if server_name != 'HOME ANAB' %}<h1>{{ server_name }}</h1>{% endif %}
 <p class="sub">سجّل الدخول للمتابعة</p>
 <form method="post">
   {% if error %}<div class="err">{{ error }}</div>{% endif %}

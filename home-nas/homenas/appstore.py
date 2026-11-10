@@ -159,7 +159,7 @@ def api_installed():
 @admin_required
 def api_engine():
     if not available():
-        abort(400, "هذه الميزة متاحة على جهاز H.SEF المخصص فقط")
+        abort(400, "هذه الميزة متاحة على جهاز HOME ANAB المخصص فقط")
     store().run("_engine", ["setup"])
     log_action("تثبيت محرك التطبيقات")
     return jsonify(ok=True)
@@ -169,7 +169,7 @@ def api_engine():
 @admin_required
 def api_install(app_id):
     if not available():
-        abort(400, "هذه الميزة متاحة على جهاز H.SEF المخصص فقط")
+        abort(400, "هذه الميزة متاحة على جهاز HOME ANAB المخصص فقط")
     cat = load_catalog()
     app = cat.get(app_id)
     if not app:

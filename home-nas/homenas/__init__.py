@@ -1,4 +1,4 @@
-"""H.SEF - نظام تخزين منزلي شخصي يعمل على جهاز الكمبيوتر."""
+"""HOME ANAB - نظام تخزين منزلي شخصي يعمل على جهاز الكمبيوتر."""
 from __future__ import annotations
 
 from datetime import timedelta
@@ -14,7 +14,7 @@ from .faces import migrate as faces_migrate
 from .network import Network
 from .photos import Indexer
 
-__version__ = "1.4.2"
+__version__ = "1.5"
 
 
 def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
@@ -35,6 +35,8 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
     faces_migrate(_db)
     from . import tv as _tv
     _tv.migrate(_db)
+    from . import stars as _stars
+    _stars.migrate(_db)
     _db.close()
     app.extensions["nas_paths"] = data_paths
     app.extensions["nas_indexer"] = idx = Indexer(data_paths)
@@ -55,8 +57,8 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
         fc.start()
         iph.start()
 
-    from . import appstore, backup, faces, files, health, iphone, links, network, photos, profile, remote, sysadmin, system, tv
-    for mod in (system, files, photos, links, backup, health, network, appstore, faces, remote, tv, profile, sysadmin, iphone):
+    from . import appstore, backup, faces, files, health, iphone, links, network, photos, profile, remote, stars, sysadmin, system, tv
+    for mod in (system, files, photos, links, backup, health, network, appstore, faces, remote, tv, profile, sysadmin, iphone, stars):
         app.register_blueprint(mod.bp)
 
     @app.teardown_appcontext

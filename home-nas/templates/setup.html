@@ -13,7 +13,7 @@
   {% endif %}
   {% if error %}<div class="err">{{ error }}</div>{% endif %}
   <label class="lbl">اسم السيرفر</label>
-  <input class="field" name="server_name" value="{{ request.form.server_name or 'H.SEF' }}" maxlength="40">
+  <input class="field" name="server_name" value="{{ request.form.server_name or 'HOME ANAB' }}" maxlength="40">
   <label class="lbl">اسم المستخدم للمدير (أحرف إنجليزية)</label>
   <input class="field" name="username" dir="ltr" value="{{ request.form.username or 'admin' }}" autocapitalize="none" required>
   <label class="lbl">كلمة المرور (6 أحرف على الأقل)</label>

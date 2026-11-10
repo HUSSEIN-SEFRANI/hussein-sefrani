@@ -1,5 +1,6 @@
-// H.SEF TV — واجهة التلفاز. تعمل بالأسهم و«موافق» و«رجوع» (ريموت أو لوحة مفاتيح)، والفأرة أيضاً.
+// HOME ANAB TV — واجهة التلفاز. تعمل بالأسهم و«موافق» و«رجوع» (ريموت أو لوحة مفاتيح)، والفأرة أيضاً.
 import * as A from "./tv-art.js";
+import * as F from "./tv-fruit.js";
 
 const TV = window.__TV__ || {};
 const stage = document.getElementById("stage");
@@ -240,8 +241,111 @@ function kidsBg() {
   <div class="cloud" style="top:110px;left:860px;width:150px;animation-duration:22s">${A.CLOUD}</div></div>`;
 }
 function brand(size = 54) {
-  return `<div class="brand">${A.falcon(size)}<div><div class="t1">H.SEF</div><div class="t2">نظام النسخ الاحتياطي المنزلي المجاني</div></div></div>`;
+  return `<div class="brand">${F.LOGO(Math.round(size * 0.8))}<div class="t2">منزل العنب</div></div>`;
 }
+// ============================================================== نجوم العائلة
+async function fillBalance(el) {
+  try { const r = await api("/api/tv/stars"); el.querySelectorAll(".js-sb").forEach((b) => { b.textContent = r.my_balance ?? ""; }); } catch { /* لا شيء */ }
+}
+const STAR_REASONS = {
+  give: ["ترتيب الغرفة 🧹", "المساعدة في البيت 🏠", "الصلاة في وقتها 🕌", "قراءة القرآن 📖", "إنهاء الواجبات 📚", "إنهاء الطعام 🍽️", "النوم مبكراً 😴", "الكلام اللطيف 💬", "مشاركة الإخوة 🤝"],
+  take: ["عدم سماع الكلام", "الشجار", "التأخر عن النوم", "عدم ترتيب الأغراض", "الكلام غير اللطيف"],
+  transfer: ["هدية 🎁", "شكراً لمساعدتك 🙏", "لأنك لطيف 💖", "تهنئة 🎉", "أردّ ما استلفته 🤝"],
+};
+function starBurst() {
+  const fx = h(`<div class="starburst">${Array.from({ length: 26 }, (_, i) => `<i class="emo" style="left:${(i * 37) % 100}%;animation-delay:${(i % 7) * 0.12}s">${i % 3 ? "⭐" : "🌟"}</i>`).join("")}</div>`);
+  stage.appendChild(fx); setTimeout(() => fx.remove(), 3200);
+}
+function ago(ts) {
+  const m = Math.round((Date.now() - new Date(ts).getTime()) / 60000);
+  return m < 1 ? "الآن" : m < 60 ? `قبل ${m} د` : m < 1440 ? `قبل ${Math.round(m / 60)} س` : `قبل ${Math.round(m / 1440)} يوم`;
+}
+function starsLine(x) {
+  const n = `<b class="sv">⭐ ${x.amount}</b>`;
+  const what = x.kind === "transfer" ? `${esc(x.from || "?")} ← ${esc(x.to || "?")} ${n}` : x.kind === "give" ? `${esc(x.by || "?")} أعطى ${esc(x.to || "?")} ${n}` : `${esc(x.by || "?")} خصم من ${esc(x.to || "?")} ${n}`;
+  return `<div class="sl ${x.kind}"><span>${what}</span><i>${esc(x.reason)}</i><small>${ago(x.ts)}</small></div>`;
+}
+async function starsScreen() {
+  let r;
+  try { r = await api("/api/tv/stars"); } catch (e) { toast(e.message); return; }
+  const el = h(`<div class="bg-dark stars-scr"><div class="bhead"><button class="back f js-back">${A.CHEVRON}<span>الرئيسية</span></button>
+    <div class="ti emo" style="background:linear-gradient(135deg,#fef3c7,#f59e0b);font-size:34px">⭐</div><h1>نجوم العائلة</h1></div>
+    <div class="sp-row"></div><div class="sp-acts"></div><div class="sp-log"></div>
+    ${hints([["موافق", "اختيار"], ["رجوع", "الرئيسية"]])}</div>`);
+  const draw = (d) => {
+    r = d;
+    const top1 = Math.max(...d.people.map((p) => p.balance));
+    el.querySelector(".sp-row").innerHTML = [...d.people].sort((a, b) => b.balance - a.balance).map((p) => `<div class="sp${p.id === d.me ? " me" : ""}">
+      ${p.balance === top1 && top1 > 0 ? `<span class="crown emo">👑</span>` : ""}<div class="ring">${face(p)}</div><b>${esc(p.name)}</b><div class="bal"><span class="emo">⭐</span> ${p.balance}</div></div>`).join("");
+    const acts = [];
+    if (d.my_balance != null) acts.push(`<button class="btn gold f" data-a="transfer">🎁 أهدِ نجوماً (رصيدك ${d.my_balance})</button>`);
+    if (d.can_manage) acts.push(`<button class="btn f" data-a="give">➕ أضف نجوماً</button><button class="btn f" data-a="take">➖ اخصم نجوماً</button>`);
+    el.querySelector(".sp-acts").innerHTML = acts.join("");
+    el.querySelector(".sp-log").innerHTML = d.log.length ? d.log.slice(0, 7).map(starsLine).join("") : `<p class="set-msg">لا توجد حركات بعد. كل شخص يبدأ بـ ${d.start} نجوم ⭐</p>`;
+    el.querySelectorAll("[data-a]").forEach((b) => b.addEventListener("click", () => starFlow(b.dataset.a, r, draw)));
+  };
+  draw(r);
+  el.querySelector(".js-back").addEventListener("click", pop);
+  push({ el, isStars: true, initial: () => el.querySelector("[data-a]") || el.querySelector(".js-back") });
+}
+function choiceScreen(title, items, onPick, cols = 4) {
+  const el = h(`<div class="bg-dark"><div class="bhead"><button class="back f js-back">${A.CHEVRON}<span>رجوع</span></button><h1>${title}</h1></div>
+    <div class="choice-grid" style="grid-template-columns:repeat(${cols},1fr)">${items.map((it, i) => `<button class="choice f" data-i="${i}">${it.html}</button>`).join("")}</div>
+    ${hints([["موافق", "اختيار"], ["رجوع", "رجوع"]])}</div>`);
+  el.querySelector(".js-back").addEventListener("click", pop);
+  el.querySelectorAll(".choice").forEach((b) => b.addEventListener("click", () => onPick(items[+b.dataset.i].value)));
+  push({ el, initial: () => el.querySelector(".choice") });
+}
+function starFlow(kind, r, redraw) {
+  const meP = r.people.find((p) => p.id === r.me);
+  const verb = { transfer: "أهدِ نجوماً", give: "أضف نجوماً", take: "اخصم نجوماً" }[kind];
+  const people = r.people.filter((p) => kind !== "transfer" || p.id !== r.me);
+  const backToStars = () => { while (stack.length > 1 && !top().isStars) pop(); };
+  choiceScreen(`${verb}: لمن؟`, people.map((p) => ({ value: p, html: `<div class="ring">${face(p)}</div><b>${esc(p.name)}</b><small>⭐ ${p.balance}</small>` })), (to) => {
+    const max = kind === "transfer" ? meP.balance : kind === "take" ? to.balance : 100;
+    const amounts = [1, 2, 3, 5, 10, 20].filter((n) => n <= max);
+    if (!amounts.length) { toast(kind === "transfer" ? "رصيدك لا يكفي" : "الرصيد صفر"); return; }
+    choiceScreen(`${verb} لـ ${esc(to.name)}: كم نجمة؟`, amounts.map((n) => ({ value: n, html: `<span class="big">${n}</span><span class="emo">${"⭐".repeat(Math.min(n, 5))}</span>` })), (amount) => {
+      const reasons = STAR_REASONS[kind].map((t) => ({ value: t, html: `<b>${esc(t)}</b>` }));
+      reasons.push({ value: null, html: `<b>✏️ سبب آخر…</b>` });
+      choiceScreen("ما السبب؟", reasons, (reason) => {
+        const send = async (why, pin) => {
+          const url = kind === "transfer" ? "/api/tv/stars/transfer" : "/api/tv/stars/adjust";
+          const d = await api(url, { json: { to: to.id, amount, reason: why, kind, pin } });
+          backToStars(); redraw(d); starBurst();
+          toast(kind === "take" ? `خُصمت ${amount} من ${to.name}` : `⭐ ${amount} لـ ${to.name}`, 3500);
+        };
+        const withPin = (why) => {
+          if (kind === "transfer" && r.has_pin) pinScreen({ title: "رمزك للتأكيد", sub: `${amount} ⭐ ← ${to.name}`, face: face(meP) }, (pin) => send(why, pin));
+          else send(why).catch((e) => toast(e.message, 5000));
+        };
+        if (reason) withPin(reason);
+        else oskScreen({ title: "اكتب السبب", okLabel: "تم" }, (txt) => { if (txt && txt.trim()) withPin(txt.trim()); });
+      }, 3);
+    }, 6);
+  }, Math.min(6, Math.max(3, people.length)));
+}
+
+// ثيم الفاكهة: الدالية أعلى الشاشة ولون التوهج
+function vineLayer(theme, hang) { return `<div class="vinelayer">${F.vine(theme, hang ? { hang } : undefined)}</div>`; }
+function setTheme(theme) { stage.style.setProperty("--glow1", F.themeOf(theme).glow); stage.style.setProperty("--accent", F.themeOf(theme).accent); }
+
+function themeScreen() {
+  const cur = (me && me.user && me.user.theme) || "grape";
+  const el = h(`<div class="bg-dark"><div class="bhead"><button class="back f js-back">${A.CHEVRON}<span>الرئيسية</span></button>
+    <div class="ti emo" style="background:linear-gradient(135deg,#faf5ff,#e9d5ff);font-size:34px">${F.themeOf(cur).emoji}</div><h1>ثيمي: اختر فاكهتك</h1></div>
+    <div class="theme-grid">${Object.entries(F.THEMES).map(([k, t]) => `<button class="theme-card f${k === cur ? " on" : ""}" data-k="${k}" style="--c:${t.accent}">
+      <div class="tv-prev">${F.vine(k, { hang: [640] })}</div><div class="tm">${F.mascot(k, 96)}</div><b>${t.name}</b>${k === cur ? "<i>✓ ثيمي الآن</i>" : ""}</button>`).join("")}</div>
+    ${hints([["موافق", "اختيار"], ["رجوع", "الرئيسية"]])}</div>`);
+  el.querySelector(".js-back").addEventListener("click", pop);
+  el.querySelectorAll(".theme-card").forEach((b) => b.addEventListener("click", async () => {
+    try { await api("/api/tv/theme", { json: { theme: b.dataset.k } }); } catch (e) { toast(e.message); return; }
+    toast(`صار ثيمك: ${F.themeOf(b.dataset.k).name} ${F.themeOf(b.dataset.k).emoji}`, 3000);
+    homeScreen();
+  }));
+  push({ el, initial: () => el.querySelector(".theme-card.on") || el.querySelector(".theme-card") });
+}
+
 function hints(list) {
   return `<div class="hints">${list.map(([k, t]) => `<span><b>${k}</b>${t}</span>`).join("")}</div>`;
 }
@@ -309,10 +413,11 @@ async function whoScreen(boot = false) {
     return `<button class="pf f" data-id="${p.id}"><div class="ring">${face(p)}</div>
       <div class="nm baloo">${esc(p.name)}</div><div class="sub">${sub}</div>${age}</button>`;
   }).join("");
-  const el = h(`<div class="who bg-night">${nightBg()}
+  setTheme("grape");
+  const el = h(`<div class="who bg-night">${nightBg()}${vineLayer("grape")}
     <div class="topbar">${brand()}<div style="text-align:left"><div class="baloo js-tm" style="font-weight:700;font-size:34px;line-height:1;direction:ltr"></div><div class="js-dt" style="font-size:14px;color:#bfd3f2"></div></div></div>
     ${d.setup ? "" : "<h1>من يشاهد الآن؟</h1>"}
-    ${d.setup ? `<div class="empty-who"><b style="font-size:30px;color:#fff">أهلاً بك في H.SEF!</b><br>لإنشاء حساب المدير افتح من هاتفك أو كمبيوترك:<br>
+    ${d.setup ? `<div class="empty-who"><b style="font-size:30px;color:#fff">أهلاً بك في HOME ANAB!</b><br>لإنشاء حساب المدير افتح من هاتفك أو كمبيوترك:<br>
       ${d.setup.urls.map((u) => `<bdi dir="ltr"><b style="font-size:30px;color:#fde68a">${esc(u)}</b></bdi>`).join("<br>")}
       <div style="display:flex;gap:18px;align-items:center;justify-content:center;margin-top:18px"><img src="/static/img/whatsapp-qr.png" alt="" style="width:120px;height:120px;border-radius:12px;background:#fff;padding:4px">
       <span style="text-align:right">رمز الإعداد: اطلبه من المطوّر عبر واتساب<br><bdi dir="ltr"><b>+32 494 49 94 30</b></bdi></span></div></div>`
@@ -402,10 +507,13 @@ function adultHome(d) {
   const bgHtml = wp === "photos" ? `<div class="layer photolayer"></div>` : wp === "dark" ? nightBg() : skyBg();
   const dock = d.tiles.length ? d.tiles.map((t) => `<button class="dk f" data-id="${t.id}"><div class="ic" style="background:${A.gradient(t.color)}">${A.icon(t.icon)}</div><span>${esc(t.title)}</span></button>`).join("")
     : `<div class="dock-empty">أضف مربعات لهذا الحساب من لوحة التحكم ← وضع التلفاز</div>`;
-  const setTile = u.admin ? `<button class="dk f js-settings"><div class="ic" style="background:linear-gradient(135deg,#64748b,#1e293b)">${GEAR}</div><span>الإعدادات</span></button>` : "";
+  const setTile = `<button class="dk f js-stars"><div class="ic emo" style="background:linear-gradient(135deg,#fef3c7,#f59e0b)">⭐</div><span>النجوم <b class="js-sb"></b></span></button>`
+    + `<button class="dk f js-theme"><div class="ic emo" style="background:linear-gradient(135deg,#faf5ff,#e9d5ff)">${F.themeOf(u.theme).emoji}</div><span>ثيمي</span></button>`
+    + (u.admin ? `<button class="dk f js-settings"><div class="ic" style="background:linear-gradient(135deg,#64748b,#1e293b)">${GEAR}</div><span>الإعدادات</span></button>` : "");
   const hasPrayer = d.prayer && settings.prayer;
-  const el = h(`<div class="${bgCls}">${bgHtml}
-    <div class="topbar"><div style="display:flex;align-items:center;gap:12px">${A.falcon(46)}
+  setTheme(u.theme);
+  const el = h(`<div class="${bgCls}">${bgHtml}${vineLayer(u.theme, [490, 620, 750])}
+    <div class="topbar"><div style="display:flex;align-items:center;gap:12px">${F.GRAPE(54)}
       <div class="user-pill glass"><div class="mini">${face(u)}</div><span style="font-weight:700;font-size:16px">${esc(u.name)}</span></div></div>
       <button class="pill glass f js-switch">تبديل المستخدم</button></div>
     <div class="clockbig"><div class="tm js-tm"></div><div class="dt js-dt"></div><div class="hj js-hj"></div></div>
@@ -413,6 +521,9 @@ function adultHome(d) {
     <nav class="dock glass">${dock}${setTile}</nav></div>`);
   const tiles = Object.fromEntries(d.tiles.map((t) => [String(t.id), t]));
   el.querySelector(".js-settings")?.addEventListener("click", settingsScreen);
+  el.querySelector(".js-theme").addEventListener("click", themeScreen);
+  el.querySelector(".js-stars").addEventListener("click", starsScreen);
+  fillBalance(el);
   el.querySelectorAll(".dk[data-id]").forEach((b) => b.addEventListener("click", () => openTile(tiles[b.dataset.id])));
   el.querySelector(".js-switch").addEventListener("click", leave);
   const scr = {
@@ -473,17 +584,22 @@ function kidsHome(d) {
     `<i style="left:${(i * 37) % 100}%;background:${["#f43f5e", "#facc15", "#22c55e", "#3b82f6", "#a855f7"][i % 5]};animation-duration:${4 + (i % 5)}s;animation-delay:-${(i * 0.7) % 6}s"></i>`).join("")}</div>` : "";
   const greet = u.birthday_today ? `عيد ميلاد سعيد يا ${esc(u.name)}!` : `مرحباً يا ${esc(u.name)}!`;
   const exitTxt = d.parent_lock ? `${A.LOCK} للخروج: رمز ماما أو بابا` : "تبديل المستخدم";
-  const el = h(`<div class="kids bg-kids">${kidsBg()}${confetti}
-    <div class="mascot">${A.mascot(150)}</div>
+  setTheme(u.theme);
+  const el = h(`<div class="kids bg-kids">${kidsBg()}${vineLayer(u.theme, [480, 610])}${confetti}
+    <div class="mascot">${F.mascot(u.theme, 150)}</div>
     <div class="kgreet"><div class="h">${greet}</div><div class="s">ماذا نشاهد اليوم؟</div></div>
     <div class="kclock"><div class="tm js-tm"></div><div class="dt js-dt"></div></div>
     ${bday}<div class="kwords">${wordCard(d.word, 180, true)}</div>
     <div class="ktiles">${tiles}</div>
     <button class="kexit f">${exitTxt}</button>
+    <div class="kbar"><button class="kstars f"><span class="emo">⭐</span> نجومي <b class="js-sb"></b></button><button class="ktheme f"><span class="emo">${F.themeOf(u.theme).emoji}</span> ثيمي</button></div>
     <div class="knote">${u.role === "little" ? "" : "فقط ما اختاره ماما وبابا"}</div></div>`);
   const byId = Object.fromEntries(d.tiles.map((t) => [String(t.id), t]));
   el.querySelectorAll(".kt").forEach((b) => b.addEventListener("click", () => openTile(byId[b.dataset.id])));
   el.querySelector(".kexit").addEventListener("click", leave);
+  el.querySelector(".ktheme").addEventListener("click", themeScreen);
+  el.querySelector(".kstars").addEventListener("click", starsScreen);
+  fillBalance(el);
   return {
     el,
     initial: () => el.querySelector(".kt"),
@@ -1029,14 +1145,14 @@ function oskScreen(opt, done) {
 // ============================================================== إعدادات التلفاز (للمدير فقط)
 function settingsScreen() {
   const items = [["wifi", "الوايفاي", "الاتصال بشبكة لاسلكية", "#06b6d4,#2563eb"], ["bt", "البلوتوث", "يد بلايستيشن وأجهزة أخرى", "#8b5cf6,#06b6d4"],
-    ["pad", "يد التحكم", "الأزرار والاهتزاز وتجربتها", "#a855f7,#ec4899"]];
+    ["pad", "يد التحكم", "الأزرار والاهتزاز وتجربتها", "#a855f7,#ec4899"], ["audio", "الصوت", "مخرج الصوت وتجربته", "#f59e0b,#ea580c"]];
   const el = h(`<div class="bg-dark"><div class="bhead"><button class="back f js-back">${A.CHEVRON}<span>الرئيسية</span></button>
     <div class="ti" style="background:linear-gradient(135deg,#64748b,#1e293b)">${GEAR}</div><h1>الإعدادات</h1></div>
     <div class="set-grid">${items.map(([k, t, s, c]) => `<button class="set-card f" data-k="${k}"><div class="ic" style="background:${A.gradient(c)}">${SET_ICON[k]}</div>
       <b>${t}</b><span>${s}</span></button>`).join("")}</div>
     ${hints([["موافق", "فتح"], ["رجوع", "الرئيسية"]])}</div>`);
   el.querySelector(".js-back").addEventListener("click", pop);
-  el.querySelectorAll(".set-card").forEach((b) => b.addEventListener("click", () => ({ wifi: wifiScreen, bt: btScreen, pad: padScreen })[b.dataset.k]()));
+  el.querySelectorAll(".set-card").forEach((b) => b.addEventListener("click", () => ({ wifi: wifiScreen, bt: btScreen, pad: padScreen, audio: soundSetScreen })[b.dataset.k]()));
   push({ el, initial: () => el.querySelector(".set-card") });
 }
 const GEAR = `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>`;
@@ -1044,6 +1160,7 @@ const SET_ICON = {
   wifi: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1.2" fill="#fff"/></svg>`,
   bt: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7l10 10-5 5V2l5 5L7 17"/></svg>`,
   pad: A.icon("games"),
+  audio: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>`,
 };
 
 function subScreen(title, iconKey) {
@@ -1061,7 +1178,7 @@ async function wifiScreen() {
   const draw = async (nets) => {
     let d;
     try { d = await api("/api/tv/admin/net"); } catch (e) { body.innerHTML = `<p class="set-msg">${esc(e.message)}</p>`; return; }
-    if (!d.available) { body.innerHTML = `<p class="set-msg">متاح على جهاز H.SEF المخصص فقط.</p>`; return; }
+    if (!d.available) { body.innerHTML = `<p class="set-msg">متاح على جهاز HOME ANAB المخصص فقط.</p>`; return; }
     const w = d.net.wifi || {};
     let html = `<div class="set-status"><div>الكابل: <b class="ltr">${esc(d.net.ip || "غير موصول")}</b></div>
       <div>الوايفاي: ${w.ssid ? `<b>${esc(w.ssid)}</b> ${w.ip ? `<b class="ltr">${esc(w.ip)}</b>` : "<span class='bad'>بلا عنوان</span>"}` : "غير متصل"}</div></div>`;
@@ -1099,7 +1216,7 @@ async function btScreen() {
   const el = subScreen("البلوتوث", "bt"), body = el.querySelector(".set-body");
   push({ el });
   const draw = (r) => {
-    if (!r.available) { body.innerHTML = `<p class="set-msg">متاح على جهاز H.SEF المخصص فقط.</p>`; return; }
+    if (!r.available) { body.innerHTML = `<p class="set-msg">متاح على جهاز HOME ANAB المخصص فقط.</p>`; return; }
     let html = "";
     if (!r.installed) html = `<button class="btn gold f" data-a="install">تثبيت البلوتوث (يحتاج الإنترنت)</button>`;
     else if (!r.adapter) html = `<p class="set-msg">لا يوجد بلوتوث في هذا الجهاز. يمكنك وصل قطعة بلوتوث USB صغيرة.</p>`;
@@ -1122,6 +1239,33 @@ async function btScreen() {
     catch (e) { toast(e.message, 5000); }
   };
   try { draw(await api("/api/tv/admin/bt")); } catch (e) { body.innerHTML = `<p class="set-msg">${esc(e.message)}</p>`; }
+}
+
+async function soundSetScreen() {
+  const el = subScreen("الصوت", "audio"), body = el.querySelector(".set-body");
+  push({ el });
+  const draw = async () => {
+    let r;
+    try { r = await api("/api/tv/admin/audio"); } catch (e) { body.innerHTML = `<p class="set-msg">${esc(e.message)}</p>`; return; }
+    if (r.error) { body.innerHTML = `<p class="set-msg">تعذرت قراءة مخارج الصوت: <span class="ltr">${esc(r.error)}</span></p>`; return; }
+    const cur = r.outputs.find((o) => o.active);
+    body.innerHTML = `<div class="set-status"><div>المخرج الحالي: <b>${esc(cur ? cur.name : "—")}</b></div>
+        <div>المستوى: <b class="ltr">${r.volume ?? "—"}%</b>${r.muted ? " <span class='bad'>صامت</span>" : ""} · الاختيار: <b>${r.auto ? "تلقائي" : "يدوي"}</b></div></div>
+      <div class="set-row"><button class="btn gold f" data-a="test">🔔 تجربة الصوت</button><button class="btn f" data-a="auto">${r.auto ? "✓ " : ""}تلقائي (HDMI التلفاز)</button></div>
+      <div class="set-list">${r.outputs.map((o, i) => `<button class="set-item f" data-o="${i}"><span>${o.active ? "🔊" : "🔈"}</span><b>${esc(o.name)}</b>${o.plugged ? `<span class="ok">موصول</span>` : ""}</button>`).join("")}</div>
+      <p class="set-msg">إن لم تسمع صوتاً: اختر المخرج الذي فيه <b class="ltr">HDMI</b> وعليه «موصول»، ثم «تجربة الصوت». وتأكد أن صوت التلفاز نفسه ليس صامتاً.</p>`;
+    body.querySelectorAll("[data-a]").forEach((b) => b.addEventListener("click", () => act({ action: b.dataset.a })));
+    body.querySelectorAll("[data-o]").forEach((b) => b.addEventListener("click", () => { const o = r.outputs[+b.dataset.o]; act({ card: o.card, profile: o.profile }); }));
+    setFocus(body.querySelector(".f") || el.querySelector(".js-back"));
+  };
+  const act = async (d) => {
+    try {
+      await api("/api/tv/admin/audio", { json: d });
+      toast(d.action === "test" ? "يجب أن تسمع ثلاث نغمات 🎵" : "تم ✓ جرّب الصوت", 4000);
+    } catch (e) { toast(e.message, 5000); }
+    if (d.action !== "test") draw();
+  };
+  draw();
 }
 
 function padScreen() {

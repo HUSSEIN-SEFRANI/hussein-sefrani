@@ -211,7 +211,7 @@ def api_iphone_sync():
 @admin_required
 def api_iphone_install():
     if not os.path.exists(HELPER):
-        abort(400, "متاح على جهاز H.SEF المخصص فقط")
+        abort(400, "متاح على جهاز HOME ANAB المخصص فقط")
     r = subprocess.run(["sudo", "-n", HELPER, "iphone-install"], capture_output=True, text=True, timeout=1800)
     if r.returncode != 0:
         abort(400, (r.stderr or r.stdout).strip()[-300:])

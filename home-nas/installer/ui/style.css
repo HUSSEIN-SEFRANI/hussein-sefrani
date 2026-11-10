@@ -7,10 +7,10 @@
 html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1630; }
 body { font-family: "Cairo", "Noto Sans Arabic", sans-serif; color: #fff; user-select: none; }
 #stage { position: absolute; top: 0; left: 0; width: 1280px; height: 720px; transform-origin: 0 0; overflow: hidden;
-  background: linear-gradient(135deg, #0b1630 0%, #12305e 55%, #0f5a6a 100%); }
+  background: linear-gradient(135deg, #1e0b3a 0%, #4c1d95 55%, #14532d 100%); }
 .blob { position: absolute; border-radius: 50%; filter: blur(110px); }
-.b1 { width: 640px; height: 640px; background: #2563eb; opacity: .35; top: -220px; left: -160px; }
-.b2 { width: 520px; height: 520px; background: #14b8a6; opacity: .25; bottom: -220px; left: 320px; }
+.b1 { width: 640px; height: 640px; background: #a855f7; opacity: .35; top: -220px; left: -160px; }
+.b2 { width: 520px; height: 520px; background: #22c55e; opacity: .25; bottom: -220px; left: 320px; }
 #stage.ok .b1 { background: #22c55e; opacity: .22; }
 #stage.bad .b1 { background: #f97316; opacity: .2; }
 [dir=ltr] { direction: ltr; }
@@ -19,8 +19,9 @@ aside { position: absolute; top: 0; bottom: 0; right: 0; width: 340px; backgroun
   padding: 34px 30px; display: flex; flex-direction: column; gap: 22px; }
 html[dir=ltr] aside { right: auto; left: 0; border-left: 0; border-right: 1px solid rgba(255,255,255,.12); }
 .brand { display: flex; align-items: center; gap: 12px; }
+.brand .logo { height: 46px; display: block; margin-bottom: 6px; }
 .brand .t1 { font-family: "Baloo", sans-serif; font-weight: 800; font-size: 26px; line-height: 1; }
-.brand .t2 { font-size: 13px; color: #bfd3f2; }
+.brand .t2 { font-size: 13px; color: #e9d5ff; }
 .brand .t3 { font-size: 11px; color: #94a3b8; }
 ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 li { display: flex; align-items: center; gap: 14px; padding: 10px 12px; border-radius: 14px; font-size: 17px; transition: background .3s; }

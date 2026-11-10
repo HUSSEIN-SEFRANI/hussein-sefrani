@@ -88,9 +88,11 @@ def migrate(db):
     cols = {r[1] for r in db.execute("PRAGMA table_info(users)")}
     for col, decl in (("display_name", "TEXT"), ("tv_role", "TEXT NOT NULL DEFAULT 'none'"), ("birthdate", "TEXT"),
                       ("avatar", "INTEGER NOT NULL DEFAULT 0"), ("tv_pin", "TEXT"),
-                      ("photo_v", "INTEGER NOT NULL DEFAULT 0"), ("wallpaper", "TEXT")):
+                      ("photo_v", "INTEGER NOT NULL DEFAULT 0"), ("wallpaper", "TEXT"), ("theme", "TEXT")):
         if col not in cols:
             db.execute(f"ALTER TABLE users ADD COLUMN {col} {decl}")
+    # v1.5: الاسم الجديد للسيرفر
+    db.execute("UPDATE settings SET value='HOME ANAB' WHERE key='server_name' AND value='H.SEF'")
     db.commit()
 
 
@@ -456,13 +458,19 @@ def api_admin_tv_audio_set():
     if d.get("action") == "test":
         ok, out = kiosk_helper("tv-audio-test", timeout=60)
     else:
-        card, prof = str(d.get("card") or ""), str(d.get("profile") or "")
-        if not re.fullmatch(r"[\w.:+-]{1,200}", card) or not re.fullmatch(r"[\w.:+-]{1,200}", prof):
-            abort(400)
-        ok, out = kiosk_helper("tv-audio-set", card, prof, timeout=60)
+        ok, out = audio_set(d)
     if not ok:
         abort(400, out or "error")
     return jsonify(ok=True)
+
+
+def audio_set(d) -> tuple[bool, str]:
+    if d.get("action") == "auto":
+        return kiosk_helper("tv-audio-set", "auto", "auto", timeout=60)
+    card, prof = str(d.get("card") or ""), str(d.get("profile") or "")
+    if not re.fullmatch(r"[\w.:+-]{1,200}", card) or not re.fullmatch(r"[\w.:+-]{1,200}", prof):
+        abort(400)
+    return kiosk_helper("tv-audio-set", card, prof, timeout=60)
 
 
 # ----------------------------------------------------------------------------- واجهة التلفاز
@@ -492,6 +500,7 @@ def tv_user():
 def profile_dict(u) -> dict:
     return {"id": u["id"], "name": display_name(u), "role": u["tv_role"], "avatar": u["avatar"] or 0,
             "photo_v": u["photo_v"] or 0, "has_pin": bool(u["tv_pin"]), "admin": bool(u["is_admin"]),
+            "theme": (u["theme"] if "theme" in u.keys() else None) or "grape",
             **age_info(u["birthdate"])}
 
 
@@ -572,6 +581,22 @@ def api_tv_home():
     s = tv_settings()
     return jsonify(user=profile_dict(u), tiles=tiles, settings=s, prayer=prayer_now(s), word=word_of_day(),
                    parent_lock=u["tv_role"] in ("kid", "little") and adults_have_pins())
+
+
+THEMES = ("grape", "apple", "orange", "strawberry", "lemon", "watermelon")
+
+
+@bp.post("/api/tv/theme")
+def api_tv_theme():
+    """كل شخص يختار ثيم الفاكهة الذي يحبه."""
+    u = tv_user()
+    t = str(body().get("theme") or "")
+    if t not in THEMES:
+        abort(400)
+    db = get_db()
+    db.execute("UPDATE users SET theme=? WHERE id=?", (t, u["id"]))
+    db.commit()
+    return jsonify(ok=True, theme=t)
 
 
 @bp.get("/api/tv/clock")
@@ -811,6 +836,27 @@ def api_tv_admin_wifi(action):
         helper("wifi-install", timeout=3600)
         return jsonify(ok=True)
     abort(404)
+
+
+@bp.get("/api/tv/admin/audio")
+def api_tv_admin_audio():
+    tv_admin()
+    ok, out = kiosk_helper("tv-audio-status", timeout=120)
+    if not ok:
+        return jsonify(error=out or "error")
+    return jsonify(json.loads(out))
+
+
+@bp.post("/api/tv/admin/audio")
+def api_tv_admin_audio_set():
+    u = tv_admin()
+    d = body()
+    ok, out = kiosk_helper("tv-audio-test", timeout=60) if d.get("action") == "test" else audio_set(d)
+    if not ok:
+        abort(400, out or "error")
+    if d.get("action") != "test":
+        log_action("مخرج صوت التلفاز", d.get("profile") or d.get("action") or "", u["username"])
+    return jsonify(ok=True)
 
 
 @bp.get("/api/tv/admin/bt")

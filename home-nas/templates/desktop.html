@@ -7,7 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="{{ server_name }}">
-  <meta name="theme-color" content="#102542">
+  <meta name="theme-color" content="#581c87">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/icon.png') }}">
   <link rel="icon" href="{{ url_for('static', filename='img/icon.svg') }}">
@@ -17,7 +17,7 @@
   <title>{{ server_name }}</title>
 </head>
 <body>
-  <div id="desktop"><div id="icons"></div></div>
+  <div id="desktop"><div id="desk-vine"></div><div id="icons"></div></div>
   <header id="taskbar">
     <button class="tb-btn tb-logo" id="tb-start" title="القائمة"><img class="logo-img" src="{{ url_for('static', filename='img/icon.svg') }}" alt=""><span class="name">{{ server_name }}</span></button>
     <div id="tb-windows"></div>

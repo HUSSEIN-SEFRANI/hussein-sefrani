@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""hsef-extras — root helper for optional H.SEF features (called by the web app via sudo).
+"""hsef-extras — root helper for optional HOME ANAB features (called by the web app via sudo).
 
     hsef-extras faces-deps               install OpenCV (python3-opencv) for face recognition
     hsef-extras ts-setup                 install Tailscale from its official repository
     hsef-extras ts-login                 start sign-in (the sign-in link appears in ts-status)
     hsef-extras ts-status                Tailscale state as JSON
-    hsef-extras ts-https on|off          serve H.SEF over HTTPS inside your tailnet
+    hsef-extras ts-https on|off          serve HOME ANAB over HTTPS inside your tailnet
     hsef-extras ts-logout                disconnect this server from Tailscale
     hsef-extras tv-setup                 install the TV screen (cage + chromium kiosk) in the background
     hsef-extras tv-status                TV screen state as JSON
     hsef-extras tv-enable|tv-disable|tv-restart
     hsef-extras tv-write                 (re)write the TV screen service (used by install.sh on upgrade)
-    hsef-extras update-check             latest H.SEF release as JSON
+    hsef-extras update-check             latest HOME ANAB release as JSON
     hsef-extras update-run               download and install the latest release in the background
     hsef-extras update-status            progress of update-run as JSON
 """
@@ -185,7 +185,7 @@ def tv_write():
         "URLAllowlist": ["127.0.0.1", "localhost", "about:blank"], "URLBlocklist": ["*"],
         "DownloadRestrictions": 3, "DeveloperToolsAvailability": 2, "PrintingEnabled": False}, indent=1))
     TV_UNIT.write_text(f"""[Unit]
-Description=H.SEF TV screen (shows /tv on the attached screen)
+Description=HOME ANAB TV screen (shows /tv on the attached screen)
 After=systemd-user-sessions.service plymouth-quit-wait.service homenas.service
 Wants=homenas.service
 Conflicts=getty@tty1.service
@@ -214,6 +214,8 @@ RestartSec=5
 WantedBy=graphical.target
 """)
     run(["systemctl", "daemon-reload"], check=False)
+    # الصوت داخل جلسة الشاشة: pipewire + wireplumber (بعض الأنظمة لا تفعّلها تلقائياً لمستخدم النظام)
+    subprocess.run(["systemctl", "--global", "enable", "pipewire.socket", "pipewire-pulse.socket", "wireplumber.service"], capture_output=True)
 
 
 def tv_installed() -> bool:
@@ -221,7 +223,7 @@ def tv_installed() -> bool:
 
 
 def tv_setup_run():
-    """يعمل في الخلفية (systemd-run) حتى لا يتوقف إذا أُعيد تشغيل خدمة H.SEF."""
+    """يعمل في الخلفية (systemd-run) حتى لا يتوقف إذا أُعيد تشغيل خدمة HOME ANAB."""
     apt_install(*TV_PKGS)
     tv_write()
     run(["systemctl", "set-default", "graphical.target"], check=False)
@@ -300,19 +302,93 @@ def tv_pactl(*args, check=False):
     return r
 
 
+TV_AUDIO_CHOICE = TV_HOME / "audio-choice.json"
+
+
+def audio_pick(pactl) -> dict:
+    """يختار مخرج الصوت: اختيار المدير إن وُجد، وإلا HDMI الموصول فعلاً (التلفاز). pactl(*args) -> stdout"""
+    cards = json.loads(pactl("-f", "json", "list", "cards") or "[]")
+    choice = None
+    try:
+        choice = json.loads(TV_AUDIO_CHOICE.read_text())
+    except (OSError, ValueError):
+        pass
+    target = None
+    if choice:
+        c = next((c for c in cards if c.get("name") == choice.get("card")), None)
+        if c and (c.get("profiles") or {}).get(choice.get("profile"), {}).get("available", True) is not False:
+            target = (c, choice["profile"])
+    if not target:
+        best = None
+        for c in cards:
+            profs = c.get("profiles") or {}
+            for pname, port in (c.get("ports") or {}).items():
+                is_hdmi = str(port.get("type", "")).upper() in ("HDMI", "DISPLAYPORT") or pname.startswith("hdmi-output")
+                if not is_hdmi or port.get("availability") != "available":
+                    continue
+                for prof in port.get("profiles") or []:
+                    if not prof.startswith("output:hdmi") or profs.get(prof, {}).get("available") is False:
+                        continue
+                    rank = (0 if prof.startswith("output:hdmi-stereo") and "+input" not in prof else 1, -int(profs.get(prof, {}).get("priority") or 0))
+                    if best is None or rank < best[0]:
+                        best = (rank, c, prof)
+        if best:
+            target = (best[1], best[2])
+    if not target:
+        return {"changed": False, "output": None}
+    card, prof = target
+    changed = False
+    if card.get("active_profile") != prof:
+        pactl("set-card-profile", card["name"], prof)
+        changed = True
+    sinks = json.loads(pactl("-f", "json", "list", "sinks") or "[]")
+    mine = [x for x in sinks if x.get("card") == card.get("index")]
+    if mine:
+        name = mine[0]["name"]
+        if pactl("get-default-sink").strip() != name:
+            pactl("set-default-sink", name)
+            changed = True
+        pactl("set-sink-mute", name, "0")
+    return {"changed": changed, "output": (card.get("profiles") or {}).get(prof, {}).get("description") or prof}
+
+
+def audio_watch():
+    """يعمل في الخلفية داخل جلسة الشاشة: يختار مخرج التلفاز عند البدء، وعند تشغيل التلفاز لاحقاً."""
+    def pactl(*args):
+        r = subprocess.run(["pactl", *args], capture_output=True, text=True, timeout=15)
+        return r.stdout if r.returncode == 0 else ""
+    first, tries = True, 0
+    while True:
+        try:
+            if pactl("info"):
+                r = audio_pick(pactl)
+                if first and r.get("output"):
+                    sink = pactl("get-default-sink").strip()
+                    if sink:
+                        pactl("set-sink-volume", sink, "100%")
+                    first = False
+        except Exception:
+            pass
+        tries += 1
+        _time.sleep(5 if tries < 24 else 30)
+
+
 def tv_audio_status():
     if FAKE:
-        print(json.dumps({"outputs": [{"card": "c0", "profile": "output:hdmi-stereo", "name": "HDMI (التلفاز)", "active": True},
-                                      {"card": "c0", "profile": "output:analog-stereo", "name": "Analog"}], "volume": 100, "muted": False}))
+        print(json.dumps({"outputs": [{"card": "c0", "profile": "output:hdmi-stereo", "name": "HDMI (التلفاز)", "active": True, "plugged": True},
+                                      {"card": "c0", "profile": "output:analog-stereo", "name": "Analog", "plugged": False}],
+                          "volume": 100, "muted": False, "auto": True, "sink": "fake"}))
         return
     cards = json.loads(tv_pactl("-f", "json", "list", "cards", check=True).stdout or "[]")
     outs = []
     for c in cards:
         active = c.get("active_profile")
+        ports = c.get("ports") or {}
         for name, prof in (c.get("profiles") or {}).items():
             if not name.startswith("output:") or prof.get("available") is False:
                 continue
-            outs.append({"card": c["name"], "profile": name, "name": prof.get("description") or name, "active": name == active})
+            plugged = any(name in (pt.get("profiles") or []) and pt.get("availability") == "available" for pt in ports.values())
+            outs.append({"card": c["name"], "profile": name, "name": prof.get("description") or name, "active": name == active, "plugged": plugged})
     vol, muted = None, None
     sink = tv_pactl("get-default-sink").stdout.strip()
     if sink:
@@ -321,21 +397,26 @@ def tv_audio_status():
         m = re.search(r"(\d+)%", v)
         vol = int(m.group(1)) if m else None
         muted = "yes" in tv_pactl("get-sink-mute", sink).stdout
-    print(json.dumps({"outputs": outs, "volume": vol, "muted": muted, "sink": sink}))
+    print(json.dumps({"outputs": outs, "volume": vol, "muted": muted, "sink": sink, "auto": not TV_AUDIO_CHOICE.exists()}))
 
 
 def tv_audio_set(card: str, profile: str):
+    """اختيار يدوي من المدير، أو profile=auto للعودة إلى الاختيار التلقائي (HDMI)."""
     if FAKE:
         return
-    tv_pactl("set-card-profile", card, profile, check=True)
-    sinks = json.loads(tv_pactl("-f", "json", "list", "sinks").stdout or "[]")
-    cards = {c.get("index"): c.get("name") for c in json.loads(tv_pactl("-f", "json", "list", "cards").stdout or "[]")}
-    mine = [x for x in sinks if cards.get(x.get("card")) == card] or sinks
-    if mine:
-        name = mine[0]["name"]
-        tv_pactl("set-default-sink", name)
-        tv_pactl("set-sink-mute", name, "0")
-        tv_pactl("set-sink-volume", name, "100%")
+    if profile == "auto":
+        TV_AUDIO_CHOICE.unlink(missing_ok=True)
+    else:
+        TV_AUDIO_CHOICE.parent.mkdir(parents=True, exist_ok=True)
+        TV_AUDIO_CHOICE.write_text(json.dumps({"card": card, "profile": profile}))
+        os.chmod(TV_AUDIO_CHOICE, 0o644)
+    r = audio_pick(lambda *a: tv_pactl(*a).stdout)
+    if profile != "auto" and not r.get("output"):
+        tv_pactl("set-card-profile", card, profile, check=True)
+    sink = tv_pactl("get-default-sink").stdout.strip()
+    if sink:
+        tv_pactl("set-sink-mute", sink, "0")
+        tv_pactl("set-sink-volume", sink, "100%")
 
 
 def tv_audio_test():
@@ -426,7 +507,7 @@ def update_apply():
     r = latest_release()
     if not r["url"]:
         die("the latest release has no app package")
-    print(f"downloading H.SEF {r['version']} ...", flush=True)
+    print(f"downloading HOME ANAB {r['version']} ...", flush=True)
     tmp = Path(tempfile.mkdtemp(prefix="hsef-dl-"))
     pkg = tmp / "app.tar.gz"
     with urllib.request.urlopen(r["url"], timeout=120) as resp, open(pkg, "wb") as f:
@@ -900,6 +981,12 @@ def tv_session(url: str):
             url = "http://127.0.0.1:9999/"
     except OSError:
         pass
+    if shutil.which("pactl") and os.fork() == 0:
+        try:
+            os.setsid()
+            audio_watch()
+        finally:
+            os._exit(0)
     os.execv("/usr/bin/chromium", ["chromium", *CHROMIUM_FLAGS.split(), url])
 
 
@@ -997,7 +1084,7 @@ def write_iphone_rules():
         'ACTION=="remove", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ENV{PRODUCT}=="5ac/*", '
         'RUN+="/usr/bin/systemctl --no-block stop hsef-iphone.service"\n')
     Path("/etc/systemd/system/hsef-iphone.service").write_text("""[Unit]
-Description=H.SEF iPhone over USB (pair and open the photos)
+Description=HOME ANAB iPhone over USB (pair and open the photos)
 After=usbmuxd.service
 
 [Service]

@@ -1,4 +1,4 @@
-// H.SEF service worker: makes the web app installable and quick to open.
+// HOME ANAB service worker: makes the web app installable and quick to open.
 // Only the app's own static files are cached; photos, files and API data are never stored here.
 const CACHE = 'hsef-static-v1';
 

@@ -1,9 +1,9 @@
 #!/bin/bash
 # =====================================================================
-#  H.SEF appliance installer
-#  Installs H.SEF as a system service on Debian 12/13 or Ubuntu 22.04+.
+#  HOME ANAB appliance installer
+#  Installs HOME ANAB as a system service on Debian 12/13 or Ubuntu 22.04+.
 #
-#  Used automatically by the H.SEF ISO, and can also be run by hand:
+#  Used automatically by the HOME ANAB ISO, and can also be run by hand:
 #      sudo ./appliance/install.sh              # service only
 #      sudo ./appliance/install.sh --appliance  # also tune the machine as a dedicated NAS
 #  Re-running it upgrades the app and keeps all data and settings.
@@ -20,7 +20,7 @@ PORT=${HOMENAS_PORT:-80}
 APPLIANCE=0
 [ "${1:-}" = "--appliance" ] && APPLIANCE=1
 
-log() { echo -e "\n\033[1;34m[H.SEF]\033[0m $*"; }
+log() { echo -e "\n\033[1;34m[HOME ANAB]\033[0m $*"; }
 [ "$(id -u)" -eq 0 ] || { echo "Please run as root (sudo)."; exit 1; }
 [ -f "$SRC/server.py" ] || { echo "server.py not found next to the installer ($SRC)."; exit 1; }
 
@@ -48,7 +48,7 @@ if [ "$OFFLINE" -eq 1 ]; then
   done
 fi
 
-# Windows network discovery (shows H.SEF under "Network" in Explorer)
+# Windows network discovery (shows HOME ANAB under "Network" in Explorer)
 apt-get install -y --no-install-recommends wsdd2 >/dev/null 2>&1 || apt-get install -y --no-install-recommends wsdd >/dev/null 2>&1 || true
 
 log "Creating service user"
@@ -100,7 +100,7 @@ chown homenas:homenas "$CONF"; chmod 600 "$CONF"
 log "Installing system service"
 cat > /etc/systemd/system/homenas.service <<EOF
 [Unit]
-Description=H.SEF home storage server
+Description=HOME ANAB home storage server
 After=network-online.target
 Wants=network-online.target
 ConditionKernelCommandLine=!hsef_installer
@@ -136,7 +136,7 @@ cat > /etc/avahi/services/homenas.service <<EOF
 <?xml version="1.0" standalone='no'?>
 <!DOCTYPE service-group SYSTEM "avahi-service.dtd">
 <service-group>
-  <name replace-wildcards="yes">H.SEF on %h</name>
+  <name replace-wildcards="yes">HOME ANAB on %h</name>
   <service><type>_http._tcp</type><port>$PORT</port></service>
 </service-group>
 EOF
@@ -163,7 +163,7 @@ chown homenas:homenas /var/lib/homenas/minidlna
 systemctl disable --now minidlna.service >/dev/null 2>&1 || true
 cat > /etc/systemd/system/hsef-dlna.service <<EOF
 [Unit]
-Description=H.SEF TV media server (DLNA)
+Description=HOME ANAB TV media server (DLNA)
 After=network-online.target
 Wants=network-online.target
 
@@ -235,4 +235,4 @@ if [ -f /etc/systemd/system/hsef-tv.service ] && [ -d /run/systemd/system ]; the
 fi
 
 touch /opt/homenas/.installed
-log "Done. H.SEF will be available at http://$(hostname).local$([ "$PORT" = 80 ] || echo ":$PORT")"
+log "Done. HOME ANAB will be available at http://$(hostname).local$([ "$PORT" = 80 ] || echo ":$PORT")"

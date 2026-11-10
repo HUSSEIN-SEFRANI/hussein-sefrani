@@ -1,18 +1,28 @@
 // ====================================================================
-// H.SEF — سطح المكتب: الأيقونات، شريط المهام، قائمة البدء، الساعة
+// HOME ANAB — سطح المكتب: الأيقونات، شريط المهام، قائمة البدء، الساعة
 // ====================================================================
 import { ME, I18N, $, h, esc, icon, api, apps, openApp, closePopovers, isMobile } from './core.js';
 import './apps/files.js';
 import './apps/photos.js';
 import './apps/system.js';
+import './apps/stars.js';
 import { appUrl } from './apps/appstore.js';
+import { vine } from './tv-fruit.js';
 
 const desktop = $('#desktop');
+const deskVine = $('#desk-vine');
+function drawVine(on) {
+  if (!deskVine) return;
+  deskVine.innerHTML = on ? vine('grape', { hang: [260, 520, 760, 1020] }) : '';
+  const sv = deskVine.querySelector('svg');
+  if (sv) { sv.setAttribute('preserveAspectRatio', 'xMidYMin slice'); sv.removeAttribute('width'); sv.removeAttribute('height'); }
+}
 // خلفية سطح المكتب وصورة المستخدم (تتغير من لوحة التحكم ← حسابي)
 function applyLook(l) {
   Object.assign(ME, l);
   desktop.style.background = l.wallpaper_css || '';
   if (l.wallpaper_css) desktop.style.backgroundAttachment = 'fixed';
+  drawVine(!l.wallpaper_css || String(l.wallpaper).startsWith('preset:'));
 }
 applyLook(ME);
 window.addEventListener('hsef-look', (e) => applyLook(e.detail));

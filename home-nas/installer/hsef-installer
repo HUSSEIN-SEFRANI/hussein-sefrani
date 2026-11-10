@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""H.SEF installer — runs as root inside the live system booted from the USB stick.
+"""HOME ANAB installer — runs as root inside the live system booted from the USB stick.
 
 It serves the installer screens on http://127.0.0.1:9999 (shown full screen by the
 TV kiosk) and copies the live system itself onto the chosen disk:
 
     1 welcome & language   2 choose disk   3 prepare disk   4 copy system
-    5 configure H.SEF      6 boot loader
+    5 configure HOME ANAB      6 boot loader
 
 Everything needed is on the stick: no internet connection is used.
 """
@@ -203,12 +203,12 @@ def do_install(cfg):
         if p.returncode not in (0, 24):
             raise Fail("rsync: " + p.stderr.read()[-300:])
 
-    # 5 — إعداد H.SEF
+    # 5 — إعداد HOME ANAB
     progress("configure", 0, "إعداد النظام")
     uuid = lambda dev: run(["blkid", "-s", "UUID", "-o", "value", dev]).stdout.strip() or "FAKE"
     if not FAKE:
         (TARGET / "etc/fstab").write_text(
-            "# H.SEF\n"
+            "# HOME ANAB\n"
             f"UUID={uuid(root_dev)}  /          ext4  errors=remount-ro  0 1\n"
             f"UUID={uuid(part(disk, 2))}  /boot/efi  vfat  umask=0077        0 1\n")
         (TARGET / "etc/hostname").write_text("hsef\n")
@@ -330,5 +330,5 @@ class H(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     port = int(os.environ.get("HSEF_INSTALLER_PORT", "9999"))
-    log(f"H.SEF installer {VERSION} on 127.0.0.1:{port}")
+    log(f"HOME ANAB installer {VERSION} on 127.0.0.1:{port}")
     ThreadingHTTPServer(("127.0.0.1", port), H).serve_forever()

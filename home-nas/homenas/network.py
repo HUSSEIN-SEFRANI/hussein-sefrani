@@ -92,7 +92,7 @@ class Network:
             "dlna_folders": [int(x) for x in json.loads(g("dlna_folders", "[]") or "[]")],
             "dlna_users": [int(r["key"].split("_")[-1]) for r in
                            db.execute("SELECT key FROM settings WHERE key LIKE 'dlna_user_%' AND value='1'")],
-            "server_name": g("server_name") or "H.SEF",
+            "server_name": g("server_name") or "HOME ANAB",
         }
 
     def build_config(self, db) -> dict:
@@ -271,7 +271,7 @@ def api_network():
 def api_network_save():
     data = body()
     if not helper_available():
-        abort(400, "هذه الميزة متاحة على جهاز H.SEF المخصص فقط")
+        abort(400, "هذه الميزة متاحة على جهاز HOME ANAB المخصص فقط")
     if "smb_enabled" in data:
         set_setting("smb_enabled", "1" if data["smb_enabled"] else "0")
     if "dlna_enabled" in data:

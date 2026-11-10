@@ -95,7 +95,7 @@ def api_remote():
 @admin_required
 def api_setup():
     if not available():
-        abort(400, "هذه الميزة متاحة على جهاز H.SEF المخصص فقط")
+        abort(400, "هذه الميزة متاحة على جهاز HOME ANAB المخصص فقط")
     _background("setup", ("ts-setup",), ("ts-login",))
     log_action("تثبيت Tailscale")
     return jsonify(ok=True)

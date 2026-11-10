@@ -107,7 +107,7 @@ registerApp({
           <div class="meter ${p > 90 ? 'err' : p > 75 ? 'warn' : ''}"><div style="width:${p}%"></div></div>
           ${v.path ? `<div class="muted ltr" style="font-size:12px">${esc(v.path)}</div>` : ''}</div>`;
       }).join('');
-      $('.v-info', cards).innerHTML = `<dt>الإصدار</dt><dd translate="no">H.SEF v${esc(s.version)}</dd><dt>الاسم</dt><dd>${esc(s.server_name)} (${esc(s.hostname)})</dd><dt>النظام</dt><dd class="ltr">${esc(s.os)}</dd>
+      $('.v-info', cards).innerHTML = `<dt>الإصدار</dt><dd translate="no">HOME ANAB v${esc(s.version)}</dd><dt>الاسم</dt><dd>${esc(s.server_name)} (${esc(s.hostname)})</dd><dt>النظام</dt><dd class="ltr">${esc(s.os)}</dd>
         ${s.uptime ? `<dt>تشغيل الجهاز</dt><dd>${fmtDuration(s.uptime)}</dd>` : ''}<dt>تشغيل السيرفر</dt><dd>${fmtDuration(s.server_uptime)}</dd>
         <dt>الوسائط</dt><dd>${s.media_count} (${fmtSize(s.media_size)})</dd><dt>المستخدمون</dt><dd>${s.users}</dd><dt>روابط المشاركة</dt><dd>${s.links}</dd>
         ${s.indexer.running ? `<dt>الفهرسة</dt><dd>${s.indexer.done}/${s.indexer.total}</dd>` : ''}`;
@@ -237,9 +237,9 @@ const CP = {
   async network(sc) {
     const n = await guard(() => api.get('/api/network')); if (!n) return;
     const host = n.host, ip = n.ips[0];
-    const p = section(sc, 'الشبكة والتلفاز', 'افتح ملفات H.SEF كقرص شبكة من الكمبيوتر وتطبيق «الملفات» في الآيفون، واعرض الصور والفيديو على التلفاز الذكي.');
+    const p = section(sc, 'الشبكة والتلفاز', 'افتح ملفات HOME ANAB كقرص شبكة من الكمبيوتر وتطبيق «الملفات» في الآيفون، واعرض الصور والفيديو على التلفاز الذكي.');
     if (!n.available) {
-      p.appendChild(h(`<div class="card"><p>${icon('info')} قرص الشبكة (SMB) وخادم التلفاز (DLNA) متاحان على جهاز H.SEF المخصص (المثبّت من ملف ISO).</p>
+      p.appendChild(h(`<div class="card"><p>${icon('info')} قرص الشبكة (SMB) وخادم التلفاز (DLNA) متاحان على جهاز HOME ANAB المخصص (المثبّت من ملف ISO).</p>
         <p class="muted">على ويندوز يمكنك بدلاً من ذلك مشاركة مجلد البيانات من خصائص المجلد ← مشاركة.</p></div>`));
       return;
     }
@@ -281,7 +281,7 @@ const CP = {
       <div class="card"><h4>${icon('video')} تلفاز سامسونغ</h4><ol class="steps">
         <li>تأكد أن التلفاز متصل بنفس شبكة المنزل.</li>
         <li>اضغط زر <b>Home</b> ← <b>المصدر <span class="ar-only">(Source)</span></b> أو <b>الأجهزة المتصلة</b>.</li>
-        <li>اختر <b>${esc(n.host)}</b> / <b>H.SEF</b> ← تصفح المجلدات وشغّل الصور والفيديو.</li>
+        <li>اختر <b>${esc(n.host)}</b> / <b>HOME ANAB</b> ← تصفح المجلدات وشغّل الصور والفيديو.</li>
         <li>في الأجهزة الأقدم: تطبيق <b>Media</b> أو <b>AllShare</b>.</li></ol>
         <p class="muted" style="font-size:12px">يعمل أيضاً مع أغلب أجهزة التلفاز الذكية (LG، سوني…) ومشغلات مثل VLC و Kodi.</p></div></div>`));
 
@@ -310,7 +310,7 @@ const CP = {
   },
 
   async remote(sc) {
-    const p = section(sc, 'الوصول من خارج البيت', 'افتح H.SEF من أي مكان في العالم بأمان، باتصال مشفّر (HTTPS)، عبر Tailscale المجاني. السيرفر لا يُفتح للإنترنت: لا يصل إليه إلا أجهزتك المسجّلة في حسابك.');
+    const p = section(sc, 'الوصول من خارج البيت', 'افتح HOME ANAB من أي مكان في العالم بأمان، باتصال مشفّر (HTTPS)، عبر Tailscale المجاني. السيرفر لا يُفتح للإنترنت: لا يصل إليه إلا أجهزتك المسجّلة في حسابك.');
     const box = h('<div></div>'); p.appendChild(box);
     let timer = null;
     const draw = async () => {
@@ -319,7 +319,7 @@ const CP = {
       if (!r || !document.body.contains(box)) return;
       const ts = r.ts || {}, op = r.op || {};
       if (!r.available) {
-        box.innerHTML = `<div class="card"><p>${icon('info')} هذه الميزة متاحة على جهاز H.SEF المخصص (المثبّت من ملف ISO).</p></div>`; return;
+        box.innerHTML = `<div class="card"><p>${icon('info')} هذه الميزة متاحة على جهاز HOME ANAB المخصص (المثبّت من ملف ISO).</p></div>`; return;
       }
       let html = '';
       if (op.error) html += `<p class="alert err small" translate="no">${esc(op.error)}</p>`;
@@ -378,7 +378,7 @@ const CP = {
       <div class="card span2"><h4>${icon('phone')} ١. افتح السيرفر من Safari</h4>
         <ol class="steps"><li>اتصل بنفس شبكة Wi-Fi التي يتصل بها الكمبيوتر.</li>
         <li>افتح Safari واكتب: ${st.urls.map(u => `<span class="code">${esc(u)}</span>`).join(' أو ')}</li>
-        <li>بعد تسجيل الدخول اضغط زر المشاركة <b>⎋</b> ثم <b>«إضافة إلى الشاشة الرئيسية»</b>: يظهر H.SEF كتطبيق بأيقونة الصقر ويفتح بملء الشاشة.</li>
+        <li>بعد تسجيل الدخول اضغط زر المشاركة <b>⎋</b> ثم <b>«إضافة إلى الشاشة الرئيسية»</b>: يظهر HOME ANAB كتطبيق بأيقونة العنب ويفتح بملء الشاشة.</li>
         <li>لفتح الصور مباشرة استخدم: <span class="code">${esc(url)}/?app=photos</span></li></ol></div>
       <div class="card span2"><h4>${icon('upload')} ٢. رفع الصور</h4>
         <ol class="steps"><li>افتح تطبيق <b>الصور</b> ← <b>رفع</b> ← اختر الصور (يمكنك تحديد مئات الصور).</li>
@@ -389,12 +389,12 @@ const CP = {
       <div class="card span2"><h4>${icon('refresh')} ٣. نسخ احتياطي تلقائي (تطبيق «الاختصارات»)</h4>
         <p class="muted">يرفع الصور الجديدة تلقائياً كلما وصلت إلى البيت. الصور المحفوظة مسبقاً تُتجاهل.</p>
         <ol class="steps">
-        <li>في تطبيق <b>الاختصارات</b> أنشئ اختصاراً جديداً باسم «H.SEF».</li>
+        <li>في تطبيق <b>الاختصارات</b> أنشئ اختصاراً جديداً باسم «HOME ANAB».</li>
         <li>أضف <b>الحصول على محتويات URL</b> بهذا الرابط (تاريخ آخر نسخ):<div class="u-since"></div></li>
         <li>أضف <b>البحث عن صور</b>: «تاريخ الالتقاط» <b>بعد</b> «محتويات URL»، ورتّبها حسب تاريخ الالتقاط.</li>
         <li>أضف <b>تكرار مع كل عنصر</b>، وبداخله <b>الحصول على محتويات URL</b> بهذا الرابط:<div class="u-up"></div>
           الطريقة <b>POST</b>، نص الطلب <b>Form</b>، أضف حقلاً من نوع <b>ملف</b> اسمه <span class="code">file</span> وقيمته «عنصر التكرار».</li>
-        <li>من تبويب <b>الأتمتة</b>: «عند الاتصال بشبكة Wi-Fi» ← اختر شبكة المنزل ← شغّل «H.SEF» مباشرة دون سؤال.</li></ol>
+        <li>من تبويب <b>الأتمتة</b>: «عند الاتصال بشبكة Wi-Fi» ← اختر شبكة المنزل ← شغّل «HOME ANAB» مباشرة دون سؤال.</li></ol>
         <p class="muted small">⚠️ الرابطان يحتويان رمزك السري: لا تشاركهما مع أحد. إن تسرّب الرمز ولّد رمزاً جديداً وحدّث الاختصار.</p>
         <label class="lbl">رمز API الخاص بك</label><div class="tok"></div>
         <button class="btn" style="margin-top:8px">${icon('refresh')} توليد رمز جديد</button></div></div>`));
@@ -503,7 +503,7 @@ const CP = {
       <div class="card span2"><h4>${icon('info')} ما الذي يُنسخ؟</h4>
         <p style="margin:0">${r.sources.map(x => `<span class="code">${esc(x)}</span>`).join(' ')} <span class="code">@system/nas.db</span></p>
         <p class="muted" style="font-size:13px">كل الملفات والصور لكل المستخدمين، والمجلدات المشتركة (حتى المربوطة بأقراص أخرى)، وقاعدة البيانات (الحسابات والألبومات والمفضلة). سلال المحذوفات والمصغرات لا تُنسخ.</p>
-        <p class="muted" style="font-size:13px"><b>على جهاز H.SEF المخصص:</b> جهّز قرص USB مرة واحدة من شاشة الجهاز بالأمر
+        <p class="muted" style="font-size:13px"><b>على جهاز HOME ANAB المخصص:</b> جهّز قرص USB مرة واحدة من شاشة الجهاز بالأمر
           <span class="code">sudo homenas-disk backup-disk /dev/sdX</span> ثم استخدم المسار <span class="code">/srv/homenas/backup</span>.</p></div></div>`);
     $('[name=target]', card).value = st.target || '';
     const reload = () => { sc.innerHTML = ''; CP.backup(sc); };
@@ -590,7 +590,7 @@ const CP = {
     $('button', card).onclick = async () => { if (await guard(() => api.post('/api/admin/settings', { server_name: $('input', card).value }))) { toast('تم الحفظ', 'ok'); document.title = $('input', card).value; } };
     p.appendChild(card);
     p.appendChild(h(`<div class="card" style="max-width:560px;margin-top:14px"><h4>${icon('info')} معلومات</h4><dl class="kv">
-      <dt>الإصدار</dt><dd translate="no">H.SEF v${esc(s.version)}</dd>
+      <dt>الإصدار</dt><dd translate="no">HOME ANAB v${esc(s.version)}</dd>
       <dt>مجلد البيانات</dt><dd class="ltr">${esc(s.data_dir)}</dd><dt>المنفذ</dt><dd>${s.port}</dd>
       <dt>مراقبة الأداء</dt><dd>${s.psutil ? '<span class="badge ok">مفعّلة</span>' : '<span class="badge warn">ثبّت psutil</span>'}</dd></dl>
       <p class="muted" style="font-size:12px">لتغيير المنفذ أو مجلد البيانات شغّل: <span class="code">python server.py --port 9000 --data "D:\\NAS"</span></p></div>`));
@@ -699,7 +699,7 @@ function usbIphoneCard() {
     if (!r) return;
     if (!r.installed) {
       box.innerHTML = r.appliance ? `<p class="muted">أدوات الآيفون غير مثبتة على هذا السيرفر (تُثبّت مرة واحدة وتحتاج إنترنت).</p>
-        <button class="btn primary" data-x="inst">${icon('download')} تثبيت</button>` : '<p class="muted">متاح على جهاز H.SEF المخصص.</p>';
+        <button class="btn primary" data-x="inst">${icon('download')} تثبيت</button>` : '<p class="muted">متاح على جهاز HOME ANAB المخصص.</p>';
       const b = $('[data-x=inst]', box);
       if (b) b.onclick = async () => { b.disabled = true; toast('جارٍ التثبيت…'); if (await guard(() => api.post('/api/admin/iphone/install', {}))) { toast('تم', 'ok'); draw(); } b.disabled = false; };
       return;
@@ -741,6 +741,8 @@ function usbIphoneCard() {
 
 function aboutCard() {
   return h(`<div class="card about-card" style="max-width:560px;margin-top:14px"><h4>${icon('info')} حول النظام</h4>
+    <div style="background:#fff;border-radius:12px;padding:12px 16px;margin-bottom:12px;text-align:center"><img src="/static/img/logo.svg" alt="HOME ANAB" style="height:56px;max-width:100%">
+      <div style="color:#15803d;font-weight:700">منزل العنب — نظام النسخ الاحتياطي المنزلي</div></div>
     <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
       <img src="/static/img/whatsapp-qr.png" alt="رمز QR للتواصل عبر واتساب" style="width:132px;height:132px;border-radius:10px;background:#fff;padding:4px">
       <div style="line-height:1.9">
@@ -769,7 +771,7 @@ function updateCard() {
       const res = await fetch('/api/admin/update/upload', { method: 'POST', body: fd, credentials: 'same-origin' });
       r = await res.json(); if (!res.ok) throw new Error(r.error || res.status);
     } catch (e) { toast(e.message, 'err'); return; }
-    const msg = r.version === r.current ? `الملف هو نفس الإصدار الحالي v${r.version}. إعادة تثبيته؟` : `تحديث H.SEF من v${r.current} إلى v${r.version}؟ سيتوقف السيرفر لحظات.`;
+    const msg = r.version === r.current ? `الملف هو نفس الإصدار الحالي v${r.version}. إعادة تثبيته؟` : `تحديث HOME ANAB من v${r.current} إلى v${r.version}؟ سيتوقف السيرفر لحظات.`;
     if (!await confirmBox(msg, { ok: 'تحديث' })) return;
     if (await guard(() => api.post('/api/admin/update/apply-file', {}))) {
       toast('بدأ التحديث', 'ok');
@@ -795,7 +797,21 @@ function updateCard() {
       $('pre', box).textContent = st.log || '';
       timer = setTimeout(draw, 4000); return;
     }
-    if (r.error) { box.innerHTML = `<p class="muted">الإصدار الحالي <b translate="no">v${esc(r.current)}</b>. تعذر التحقق من التحديثات عبر الإنترنت — استخدم التحديث من فلاشة.</p>`; return; }
+    if (r.error) {
+      const e = String(r.error);
+      const why = r.offline ? 'وضع «بدون إنترنت» مفعّل في إعدادات الجهاز (قسم الجهاز). أوقفه مؤقتاً للتحديث عبر الإنترنت.'
+        : /certificate|CERTIFICATE|not yet valid|expired/.test(e) ? 'ساعة الجهاز غير صحيحة، فرُفض الاتصال الآمن. صحّح التاريخ والوقت من قسم الجهاز ثم أعد المحاولة.'
+        : /name resolution|Name or service|getaddrinfo|Errno -[23]|No address/.test(e) ? 'السيرفر غير متصل بالإنترنت (الراوتر بلا إنترنت أو الكابل غير موصول).'
+        : /timed out|timeout/i.test(e) ? 'انتهت مهلة الاتصال: الإنترنت بطيء أو غير متاح.'
+        : /refused|unreachable|Network is/.test(e) ? 'لا يوجد اتصال بالشبكة الخارجية.'
+        : /403|rate limit/i.test(e) ? 'GitHub رفض الطلب مؤقتاً. أعد المحاولة بعد ساعة.' : '';
+      box.innerHTML = `<p class="muted">الإصدار الحالي <b translate="no">v${esc(r.current)}</b>. تعذر التحقق من التحديثات عبر الإنترنت.</p>
+        ${why ? `<p class="alert warn small">${why}</p>` : ''}
+        <details class="small"><summary>التفاصيل التقنية</summary><code translate="no" style="white-space:pre-wrap">${esc(e)}</code></details>
+        <p class="muted small">يمكنك دائماً التحديث من فلاشة (أدناه).</p> <button class="btn sm" data-a="retry">${icon('refresh')} إعادة المحاولة</button>`;
+      $('[data-a=retry]', box).onclick = () => { box.textContent = 'جارٍ التحقق…'; draw(); };
+      return;
+    }
     if (!r.available) {
       box.innerHTML = `<p><span class="badge ok">النظام محدّث</span> الإصدار الحالي <b translate="no">v${esc(r.current)}</b></p>`
         + (st.failed ? `<p class="alert err small" translate="no">${esc(st.log || '')}</p>` : '');
@@ -807,7 +823,7 @@ function updateCard() {
       <button class="btn primary">${icon('download')} تحديث الآن</button>`;
     $('details div', box).textContent = r.notes || '';
     $('button', box).onclick = async () => {
-      if (!await confirmBox(`تحديث H.SEF إلى v${r.latest}؟ سيتوقف السيرفر لحظات أثناء التحديث.`, { ok: 'تحديث' })) return;
+      if (!await confirmBox(`تحديث HOME ANAB إلى v${r.latest}؟ سيتوقف السيرفر لحظات أثناء التحديث.`, { ok: 'تحديث' })) return;
       if (await guard(() => api.post('/api/admin/update', {}))) {
         toast('بدأ التحديث', 'ok');
         let was = false;

@@ -1,4 +1,4 @@
-// H.SEF — interface language (العربية / English / Français).
+// HOME ANAB — interface language (العربية / English / Français).
 // Loaded in <head> on every page, before anything is drawn. The interface is written in
 // Arabic; for English and French every Arabic phrase on screen is replaced from
 // I18N_DICT as soon as it appears (pages, dialogs, server messages, dynamic text),

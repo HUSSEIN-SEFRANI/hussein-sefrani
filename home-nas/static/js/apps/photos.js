@@ -171,7 +171,7 @@ class PhotosApp {
     const st = await guard(() => api.get('/api/faces/status')); if (!st) return;
     if (!st.enabled || !st.ready) {
       const box = h(`<div class="empty-state">${icon('users')}<p><b>تمييز الوجوه غير مفعّل</b></p>
-        <p>يجمع H.SEF صور كل شخص تلقائياً، على هذا الجهاز فقط، دون إرسال أي صورة إلى الإنترنت.</p>
+        <p>يجمع HOME ANAB صور كل شخص تلقائياً، على هذا الجهاز فقط، دون إرسال أي صورة إلى الإنترنت.</p>
         ${ME.is_admin ? `<button class="btn primary">${icon('sliders')} تفعيل من إعدادات الصور</button>` : '<p class="muted">اطلب من المدير تفعيله.</p>'}</div>`);
       const b = $('button', box); if (b) b.onclick = () => openApp('control', { section: 'photos' });
       this.scroll.appendChild(box); return;

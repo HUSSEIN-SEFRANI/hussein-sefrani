@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""hsef-apps — root helper for the H.SEF App Center (Docker containers).
+"""hsef-apps — root helper for the HOME ANAB App Center (Docker containers).
 
 Called by the web app (user 'homenas') through sudo:
 
@@ -12,7 +12,7 @@ Called by the web app (user 'homenas') through sudo:
     hsef-apps logs ID               last lines of the app's own log
 
 Security: apps come only from the root-owned catalog; the user may only choose a
-port and folders. Folders must be under /srv, /mnt or /media (never H.SEF's
+port and folders. Folders must be under /srv, /mnt or /media (never HOME ANAB's
 @system folder). Output of long operations goes to /var/lib/homenas/apps/ID.log.
 """
 import json
