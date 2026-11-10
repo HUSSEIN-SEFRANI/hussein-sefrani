@@ -310,8 +310,12 @@ async function whoScreen(boot = false) {
   }).join("");
   const el = h(`<div class="who bg-night">${nightBg()}
     <div class="topbar">${brand()}<div style="text-align:left"><div class="baloo js-tm" style="font-weight:700;font-size:34px;line-height:1;direction:ltr"></div><div class="js-dt" style="font-size:14px;color:#bfd3f2"></div></div></div>
-    <h1>من يشاهد الآن؟</h1>
-    ${d.profiles.length ? `<div class="profiles">${cards}</div>` : `<div class="empty-who">لا توجد ملفات على التلفاز بعد.<br>من الكمبيوتر افتح لوحة التحكم ← <b>وضع التلفاز</b> واختر نوع كل مستخدم (بالغ أو طفل).</div>`}
+    ${d.setup ? "" : "<h1>من يشاهد الآن؟</h1>"}
+    ${d.setup ? `<div class="empty-who"><b style="font-size:30px;color:#fff">أهلاً بك في H.SEF!</b><br>لإنشاء حساب المدير افتح من هاتفك أو كمبيوترك:<br>
+      ${d.setup.urls.map((u) => `<bdi dir="ltr"><b style="font-size:30px;color:#fde68a">${esc(u)}</b></bdi>`).join("<br>")}
+      <div style="display:flex;gap:18px;align-items:center;justify-content:center;margin-top:18px"><img src="/static/img/whatsapp-qr.png" alt="" style="width:120px;height:120px;border-radius:12px;background:#fff;padding:4px">
+      <span style="text-align:right">رمز الإعداد: اطلبه من المطوّر عبر واتساب<br><bdi dir="ltr"><b>+32 494 49 94 30</b></bdi></span></div></div>`
+    : d.profiles.length ? `<div class="profiles">${cards}</div>` : `<div class="empty-who">لا توجد ملفات على التلفاز بعد.<br>من الكمبيوتر افتح لوحة التحكم ← <b>وضع التلفاز</b> واختر نوع كل مستخدم (بالغ أو طفل).</div>`}
     ${hints([["← →", "للتنقل"], ["موافق", "للدخول"]])}</div>`);
   const byId = Object.fromEntries(d.profiles.map((p) => [String(p.id), p]));
   el.querySelectorAll(".pf").forEach((b) => b.addEventListener("click", () => chooseProfile(byId[b.dataset.id])));

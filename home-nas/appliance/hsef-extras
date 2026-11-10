@@ -836,6 +836,11 @@ def tv_session(url: str):
             pass
     if not _re.match(r"^http://127\.0\.0\.1(:\d+)?/tv$", url):
         url = "http://127.0.0.1/tv"
+    try:
+        if "hsef_installer" in Path("/proc/cmdline").read_text().split():
+            url = "http://127.0.0.1:9999/"
+    except OSError:
+        pass
     os.execv("/usr/bin/chromium", ["chromium", *CHROMIUM_FLAGS.split(), url])
 
 
@@ -915,9 +920,15 @@ def main():
     elif a == ["tv-wait"]:
         import time
         import urllib.request
+        wait_url = f"http://127.0.0.1:{hsef_port()}/tv"
+        try:
+            if "hsef_installer" in Path("/proc/cmdline").read_text().split():
+                wait_url = "http://127.0.0.1:9999/"
+        except OSError:
+            pass
         for _ in range(90):  # انتظر حتى يجهز السيرفر قبل فتح المتصفح
             try:
-                urllib.request.urlopen(f"http://127.0.0.1:{hsef_port()}/tv", timeout=2)
+                urllib.request.urlopen(wait_url, timeout=2)
                 break
             except Exception as e:
                 if getattr(e, "code", None):

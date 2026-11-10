@@ -26,20 +26,20 @@ permissions:
 jobs:
   iso:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
       - name: Install build tools
-        run: sudo apt-get update && sudo apt-get install -y xorriso cpio
+        run: sudo apt-get update && sudo apt-get install -y xorriso cpio debootstrap squashfs-tools dosfstools mtools
 
       - name: Check the app imports
         run: |
           pip install -q -r home-nas/requirements.txt
           cd home-nas && python -c "from homenas import create_app"
 
-      - name: Build ISO from the latest Debian netinst
-        run: ./home-nas/iso/build-iso.sh
+      - name: Build the offline installer ISO (live system + H.SEF installer)
+        run: sudo WORK=/mnt/hsef-build ./home-nas/installer/build-installer-iso.sh && sudo chown -R "$USER" home-nas/HSEF-*
 
       - name: Name the release
         id: meta

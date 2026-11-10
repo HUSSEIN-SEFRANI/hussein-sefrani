@@ -103,6 +103,7 @@ cat > /etc/systemd/system/homenas.service <<EOF
 Description=H.SEF home storage server
 After=network-online.target
 Wants=network-online.target
+ConditionKernelCommandLine=!hsef_installer
 
 [Service]
 User=homenas

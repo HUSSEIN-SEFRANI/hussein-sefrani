@@ -511,7 +511,12 @@ def api_tv_profiles():
     order = {"adult": 0, "kid": 1, "little": 2}
     rows = [u for u in db.execute("SELECT * FROM users WHERE disabled=0") if (u["tv_role"] or "none") != "none"]
     rows.sort(key=lambda u: (order.get(u["tv_role"], 9), u["id"]))
-    return jsonify(profiles=[profile_dict(u) for u in rows], settings=tv_settings(), current=session.get("tv_uid"))
+    setup = None
+    if not db.execute("SELECT 1 FROM users LIMIT 1").fetchone():
+        from flask import current_app
+        from .system import server_urls
+        setup = {"urls": server_urls(current_app.config["NAS_CFG"].get("port", 80))}
+    return jsonify(profiles=[profile_dict(u) for u in rows], settings=tv_settings(), current=session.get("tv_uid"), setup=setup)
 
 
 def any_adult_pin_ok(pin: str) -> bool:
