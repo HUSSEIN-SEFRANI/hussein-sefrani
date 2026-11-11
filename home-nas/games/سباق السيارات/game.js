@@ -1,4 +1,4 @@
-// سباق الأبطال — لعبة سباق ثلاثية الأبعاد للأطفال (تعمل بدون إنترنت).
+// سباق كريم — لعبة سباق ثلاثية الأبعاد للأطفال (تعمل بدون إنترنت).
 // التحكم: ← → توجيه، ↑ توربو، ↓ تمهّل، موافق/مسافة = بوق. يد التحكم (Gamepad) مدعومة.
 import * as THREE from "./three.module.min.js";
 
@@ -62,6 +62,37 @@ function place(obj, s, x, y = 0) {
   obj.rotation.y = Math.atan2(t.x, t.z);
 }
 
+// ------------------------------------------------------------------ الجسور والمنحدرات والقفزات
+// ارتفاع الطريق عند كل مسافة s: نقاط [المسافة، الارتفاع] بينها انتقال ناعم
+const KN = [
+  [0, 0], [70, 0], [115, 7], [140, 7], [158, 6], [176, 6], [215, 0],          // جسر ثم قفزة إلى جسر آخر
+  [300, 0], [340, 6], [348, 6], [365, 5.5], [378, 5.5], [410, 0],            // قفزة ثانية بين جسرين
+  [545, 0], [612, 15], [626, 15], [664, 2.5], [671, 4], [690, 3.5], [702, 3.5], [735, 0], // نزول سريع ثم قفزة
+  [790, 0], [834, 10], [846, 10], [878, 1.5], [885, 3], [903, 2.5], [912, 2.5], [935, 0], // نزول سريع وقفزة أخرى
+];
+// الفجوات التي تطير فوقها المركبة (لا طريق فيها، وتحتها ماء)
+const GAPS = [[140, 158], [348, 365], [671, 690], [885, 903]];
+const wrapS = (s) => ((s % L) + L) % L;
+function H(s) {
+  s = wrapS(s);
+  for (let i = 1; i < KN.length; i++) {
+    if (s <= KN[i][0]) {
+      const [s0, h0] = KN[i - 1], [s1, h1] = KN[i];
+      const u = (s - s0) / (s1 - s0), e = u * u * (3 - 2 * u);
+      return h0 + (h1 - h0) * e;
+    }
+  }
+  return 0;
+}
+const slopeAt = (s) => (H(s + 1) - H(s - 1)) / 2;
+const gapAt = (s) => { s = wrapS(s); return GAPS.find(([a, b]) => s > a && s < b); };
+// ارتفاع مسار القفزة فوق الفجوة (قوس يهبط دائماً على الطريق التالي)
+function arcY(s, jump) {
+  const g = gapAt(s); if (!g) return H(s);
+  const u = (wrapS(s) - g[0]) / (g[1] - g[0]);
+  return H(g[0]) + (H(g[1]) - H(g[0])) * u + jump * 4 * u * (1 - u);
+}
+
 function canvasTex(w, h, draw, repeatU = 1) {
   const c = document.createElement("canvas");
   c.width = w; c.height = h;
@@ -72,15 +103,18 @@ function canvasTex(w, h, draw, repeatU = 1) {
   tx.repeat.set(repeatU, 1);
   return tx;
 }
-function strip(offA, offB, y, material, uScale) {
+// شريط على طول المسار: offA/offB إزاحة جانبية، yA/yB ارتفاع فوق الطريق (لعمل الجدران)، و only تختار المقاطع
+function strip(offA, offB, y, material, uScale, yB = y, only = null) {
   const pos = [], uv = [], idx = [];
   let acc = 0;
   for (let i = 0; i <= N; i++) {
     if (i) acc += P[i].distanceTo(P[i - 1]);
+    const h = H((i / N) * L);
     const a = P[i].clone().addScaledVector(NRM[i], offA), b = P[i].clone().addScaledVector(NRM[i], offB);
-    pos.push(a.x, y, a.z, b.x, y, b.z);
+    pos.push(a.x, h + y, a.z, b.x, h + yB, b.z);
     uv.push(acc / uScale, 0, acc / uScale, 1);
-    if (i < N) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
+    const sm = ((i + 0.5) / N) * L;
+    if (i < N && !gapAt(sm) && (!only || only(sm))) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
@@ -106,24 +140,89 @@ const curbMat = () => new THREE.MeshLambertMaterial({
 });
 strip(ROAD_W / 2 + 1.6, ROAD_W / 2, 0.06, curbMat(), 4);
 strip(-ROAD_W / 2, -ROAD_W / 2 - 1.6, 0.06, curbMat(), 4);
+// جوانب الجسور: حاجز إسمنتي من تحت الطريق حتى فوقه قليلاً
+const concrete = new THREE.MeshLambertMaterial({
+  map: canvasTex(64, 32, (g, w, h) => {
+    g.fillStyle = "#d4d8de"; g.fillRect(0, 0, w, h);
+    g.fillStyle = "#b8bec7"; g.fillRect(0, 0, w, 5); g.fillRect(w - 2, 0, 2, h);
+    g.fillStyle = "#f59e0b"; g.fillRect(0, 5, w, 3);
+  }),
+});
+const onBridge = (s) => H(s) > 0.3;
+[ROAD_W / 2 + 1.6, -ROAD_W / 2 - 1.6].forEach((x) => strip(x, x, 0.75, concrete, 6, -1.3, onBridge));
+strip(ROAD_W / 2 + 1.6, -ROAD_W / 2 - 1.6, -1.3, new THREE.MeshLambertMaterial({ color: "#9aa1ab" }), 10, -1.3, onBridge);
+// أعمدة تحت الجسور (مجسم واحد مكرر ليبقى خفيفاً)
+{
+  const spots = [];
+  for (let s = 0; s < L; s += 11) {
+    const h = H(s);
+    if (h > 1.6 && !gapAt(s) && !gapAt(s + 3) && !gapAt(s - 3)) [-ROAD_W / 2 + 2, ROAD_W / 2 - 2].forEach((x) => spots.push([s, x, h]));
+  }
+  // أكتاف على حافتي كل فجوة
+  GAPS.forEach(([a, b]) => [a - 1.5, b + 1.5].forEach((s) => [-ROAD_W / 2 + 2, 0, ROAD_W / 2 - 2].forEach((x) => spots.push([s, x, H(s)]))));
+  const col = new THREE.InstancedMesh(new THREE.BoxGeometry(1.8, 1, 1.8), new THREE.MeshLambertMaterial({ color: "#c3c8cf" }), spots.length);
+  const o = new THREE.Object3D();
+  spots.forEach(([s, x, h], i) => { place(o, s, x, (h - 1.2) / 2); o.scale.set(1, h - 1.2, 1); o.updateMatrix(); col.setMatrixAt(i, o.matrix); });
+  scene.add(col);
+}
+// ماء تحت كل فجوة، ولوحة تحذير صفراء عند حافة الانطلاق
+const water = new THREE.MeshLambertMaterial({
+  map: canvasTex(64, 64, (g, w, h) => {
+    g.fillStyle = "#2f8fd8"; g.fillRect(0, 0, w, h);
+    g.strokeStyle = "#7cc6f5"; g.lineWidth = 2;
+    for (let y = 6; y < h; y += 12) { g.beginPath(); for (let x = 0; x <= w; x += 4) g.lineTo(x, y + Math.sin(x / 5) * 2); g.stroke(); }
+  }, 4),
+});
+water.map.repeat.set(4, 3);
+const gapMids = GAPS.map(([a, b]) => frameAt((a + b) / 2).p);
+GAPS.forEach(([a, b]) => {
+  const w = new THREE.Mesh(new THREE.PlaneGeometry(46, b - a + 26), water);
+  w.rotation.x = -Math.PI / 2;
+  const holder = new THREE.Group(); holder.add(w); place(holder, (a + b) / 2, 0, 0.05); scene.add(holder);
+  const sign = box(ROAD_W + 3.2, 0.5, 0.3, new THREE.MeshLambertMaterial({
+    map: canvasTex(64, 8, (g, cw, ch) => { for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? "#111" : "#facc15"; g.beginPath(); g.moveTo(i * 8, ch); g.lineTo(i * 8 + 4, 0); g.lineTo(i * 8 + 12, 0); g.lineTo(i * 8 + 8, ch); g.fill(); } }),
+  }));
+  place(sign, a - 0.2, 0, H(a) - 0.3); scene.add(sign);
+  const sign2 = sign.clone(); place(sign2, b + 0.2, 0, H(b) - 0.3); scene.add(sign2);
+});
 
 // الأرض
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1400), mat("#7ccf5d"));
 ground.rotation.x = -Math.PI / 2;
 scene.add(ground);
 
-// خط البداية + قوس قزح
+// خط البداية + بوابة «سباق كريم»
 const startLine = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_W, 3), new THREE.MeshLambertMaterial({
   map: canvasTex(64, 16, (g) => { for (let x = 0; x < 16; x++) for (let y = 0; y < 4; y++) { g.fillStyle = (x + y) % 2 ? "#111" : "#fff"; g.fillRect(x * 4, y * 4, 4, 4); } }),
 }));
 startLine.rotation.x = -Math.PI / 2;
 const sl = new THREE.Group(); sl.add(startLine); place(sl, 0, 0, 0.08); scene.add(sl);
-const rainbow = new THREE.Group();
-["#ef4444", "#f97316", "#facc15", "#22c55e", "#3b82f6", "#a855f7"].forEach((c, i) => {
-  const r = new THREE.Mesh(new THREE.TorusGeometry(ROAD_W / 2 + 4 - i * 0.9, 0.48, 8, 40, Math.PI), mat(c));
-  rainbow.add(r);
-});
-place(rainbow, 2, 0); scene.add(rainbow);
+const gate = new THREE.Group();
+{
+  const c = document.createElement("canvas"); c.width = 1024; c.height = 192;
+  const bannerTex = new THREE.CanvasTexture(c); bannerTex.colorSpace = THREE.SRGBColorSpace; bannerTex.anisotropy = 4;
+  const draw = () => {
+    const g = c.getContext("2d");
+    const gr = g.createLinearGradient(0, 0, 0, 192); gr.addColorStop(0, "#1d4ed8"); gr.addColorStop(1, "#1e3a8a");
+    g.fillStyle = gr; g.fillRect(0, 0, 1024, 192);
+    for (let x = 0; x < 1024; x += 32) for (let y = 0; y < 2; y++) { g.fillStyle = (x / 32 + y) % 2 ? "#111" : "#fff"; g.fillRect(x, y * 16, 32, 16); g.fillRect(x, 160 + y * 16, 32, 16); }
+    g.direction = "rtl"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.font = '800 104px Baloo, "Noto Sans Arabic", Tahoma, sans-serif';
+    g.lineWidth = 10; g.strokeStyle = "#0b1d4d"; g.strokeText("سباق كريم", 512, 100);
+    g.fillStyle = "#fde047"; g.fillText("سباق كريم", 512, 100);
+    bannerTex.needsUpdate = true;
+  };
+  draw();
+  if (document.fonts) document.fonts.load('800 104px Baloo').then(draw, () => {});
+  const banner = new THREE.MeshLambertMaterial({ map: bannerTex }), side = mat("#1e3a8a");
+  const W = ROAD_W + 5;
+  const b = box(W, 2.7, 0.5, [side, side, side, side, banner, banner]); b.position.y = 9.6; gate.add(b);
+  [-W / 2 + 0.4, W / 2 - 0.4].forEach((x) => {
+    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.55, 11, 12), new THREE.MeshPhongMaterial({ color: "#e5e7eb", shininess: 60 }));
+    p.position.set(x, 5.5, 0); gate.add(p);
+  });
+}
+place(gate, 2, 0); scene.add(gate);
 
 // أشجار وجبال وغيوم بعيداً عن الطريق
 function nearRoad(x, z, margin) {
@@ -135,7 +234,7 @@ const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 const treeCols = ["#16a34a", "#22c55e", "#15803d", "#65a30d"], flowerCols = ["#f43f5e", "#facc15", "#ffffff", "#a855f7", "#fb923c"];
 for (let k = 0; k < 260; k++) {
   const x = -320 + rnd() * 640, z = -260 + rnd() * 560;
-  if (nearRoad(x, z, 6)) continue;
+  if (nearRoad(x, z, 6) || gapMids.some((m) => Math.hypot(m.x - x, m.z - z) < 34)) continue;
   const g = new THREE.Group();
   if (rnd() < 0.75) {
     const h = 5 + rnd() * 6;
@@ -429,7 +528,7 @@ for (let s = 60; s < L - 20; s += 34) {
   stars.push({ m, s, x, taken: false });
 }
 const pads = [];
-for (const s of [L * 0.22, L * 0.5, L * 0.78]) {
+for (const s of [255, 480, 965]) {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(5, 5), new THREE.MeshBasicMaterial({
     transparent: true,
     map: canvasTex(64, 64, (g) => {
@@ -443,7 +542,7 @@ for (const s of [L * 0.22, L * 0.5, L * 0.78]) {
   m.rotation.x = -Math.PI / 2;
   const holder = new THREE.Group(); holder.add(m);
   const x = (rnd() - 0.5) * 6;
-  place(holder, s, x, 0.09);
+  place(holder, s, x, H(s) + 0.09);
   holder.rotation.y += Math.PI;
   scene.add(holder);
   pads.push({ s, x });
@@ -480,6 +579,8 @@ const sfx = {
   turbo: () => tone(200, 0.6, "sawtooth", 0.06, 0, 900),
   win: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.3, "triangle", 0.15, i * 0.16)),
   move: () => tone(660, 0.06, "triangle", 0.08),
+  jump: () => tone(260, 0.45, "sine", 0.18, 0, 780),
+  land: () => { tone(110, 0.18, "triangle", 0.22); tone(70, 0.25, "sine", 0.2, 0.03); },
 };
 
 // ------------------------------------------------------------------ الحالة
@@ -488,8 +589,41 @@ let state = "menu", selV = 0, selC = 0, menuRow = 0;
 let racers = [], player = null, countdown = 0, starCount = 0, finishOrder = [], endT = 0;
 let preview = null;
 
+// صور المركبات في القائمة: تُرسم بنفس النماذج ثلاثية الأبعاد وباللون المختار
+const thumbScene = new THREE.Scene();
+thumbScene.background = new THREE.Color("#dbeafe");
+thumbScene.add(new THREE.HemisphereLight("#ffffff", "#9fb4c9", 1.2));
+const thumbSun = new THREE.DirectionalLight("#fff6dd", 1.6); thumbSun.position.set(6, 10, 8); thumbScene.add(thumbSun);
+const thumbCam = new THREE.PerspectiveCamera(28, 4 / 3, 0.5, 100);
+const thumbs = {}; let thumbColor = null;
+function renderThumbs() {
+  const TW = 240, TH = 180, pr = renderer.getPixelRatio();
+  const cssW = TW / pr, cssH = TH / pr, bufH = renderer.domElement.height;
+  const out = document.createElement("canvas"); out.width = TW; out.height = TH;
+  const ctx = out.getContext("2d");
+  renderer.setScissorTest(true);
+  renderer.setViewport(0, 0, cssW, cssH); renderer.setScissor(0, 0, cssW, cssH);
+  VEHICLES.forEach((v) => {
+    const obj = makeVehicle(v.id, COLORS[selC]);
+    thumbScene.add(obj);
+    const bb = new THREE.Box3().setFromObject(obj), c = bb.getCenter(new THREE.Vector3()), r = bb.getSize(new THREE.Vector3()).length() / 2;
+    const dir = new THREE.Vector3(1.1, 0.6, 1.3).normalize();
+    thumbCam.position.copy(c).addScaledVector(dir, r / Math.sin(THREE.MathUtils.degToRad(14)) * 0.62);
+    thumbCam.lookAt(c.x, c.y - r * 0.08, c.z);
+    renderer.render(thumbScene, thumbCam);
+    ctx.drawImage(renderer.domElement, 0, bufH - TH, TW, TH, 0, 0, TW, TH);
+    thumbs[v.id] = out.toDataURL("image/jpeg", 0.88);
+    thumbScene.remove(obj); obj.traverse((m) => { if (m.geometry) m.geometry.dispose(); });
+  });
+  renderer.setScissorTest(false);
+  renderer.setViewport(0, 0, innerWidth, innerHeight);
+  thumbColor = COLORS[selC];
+}
+function buildCards() {
+  $("vehicles").innerHTML = VEHICLES.map((v, i) => `<div class="card ${i === selV ? "sel" : ""}">${thumbs[v.id] ? `<img class="pic" src="${thumbs[v.id]}">` : `<div class="ic">${v.ic}</div>`}${v.name}</div>`).join("");
+}
 function buildMenu() {
-  $("vehicles").innerHTML = VEHICLES.map((v, i) => `<div class="card ${i === selV ? "sel" : ""}"><div class="ic">${v.ic}</div>${v.name}</div>`).join("");
+  buildCards();
   $("colors").innerHTML = COLORS.map((c, i) => `<div class="dot ${i === selC ? "sel" : ""}" style="background:${c}"></div>`).join("");
   $("vehicles").classList.toggle("dim", menuRow !== 0);
   $("colors").classList.toggle("dim", menuRow !== 1);
@@ -510,7 +644,7 @@ function startRace() {
     .map((r, i) => {
       const obj = makeVehicle(r.type, r.color);
       scene.add(obj);
-      return { ...r, obj, s: grid[i][1], x: grid[i][0], speed: 0, base: 17 + i * 1.3, lane: grid[i][0], laneT: 0, boost: 0, done: false };
+      return { ...r, obj, s: grid[i][1], x: grid[i][0], speed: 0, y: 0, air: 0, bump: 0, base: 17 + i * 1.3, lane: grid[i][0], laneT: 0, boost: 0, done: false };
     });
   // اللاعب يبدأ في المنتصف الخلفي ليسبق الآخرين
   player = racers[0];
@@ -608,7 +742,10 @@ function updateRacer(r, dt, ctl) {
     if (r.laneT <= 0) { r.lane = [-4.5, 0, 4.5][Math.floor(Math.random() * 3)]; r.laneT = 2 + Math.random() * 3; }
     r.x += Math.sign(r.lane - r.x) * Math.min(Math.abs(r.lane - r.x), 4 * dt);
   }
+  // النزول السريع: المنحدر يزيد السرعة كأن المركبة تنزلق
+  if (!r.air) target += Math.max(0, -slopeAt(r.s)) * 55;
   r.speed += (target - r.speed) * Math.min(1, dt * (target > r.speed ? 1.4 : 2.5));
+  if (r.air) r.speed = Math.max(r.speed, 16); // لا تتوقف في الهواء
   r.boost = Math.max(0, r.boost - dt);
   r.s += r.speed * dt;
   r.x = Math.max(-ROAD_W / 2 + 1.4, Math.min(ROAD_W / 2 - 1.4, r.x));
@@ -618,7 +755,22 @@ function updateRacer(r, dt, ctl) {
     if (ds < 2.5 && Math.abs(r.x - p.x) < 2.8 && r.boost < 1.6) { r.boost = 2; if (r.me) sfx.turbo(); }
   }
   // المظهر
-  place(r.obj, r.s, r.x);
+  // القفز فوق الفجوة: قوس محسوب يهبط دائماً على الطريق التالي
+  const g = gapAt(r.s);
+  let pitch;
+  if (g) {
+    if (!r.air) { r.air = 3 + r.speed * 0.13; if (r.me) sfx.jump(); }
+    r.y = arcY(r.s, r.air);
+    pitch = -Math.atan((arcY(r.s + 1, r.air) - arcY(r.s - 1, r.air)) / 2) * 0.8;
+  } else {
+    if (r.air) { r.air = 0; r.bump = 0.35; if (r.me) sfx.land(); }
+    r.y = H(r.s);
+    pitch = -Math.atan(slopeAt(r.s));
+  }
+  r.bump = Math.max(0, (r.bump || 0) - dt);
+  place(r.obj, r.s, r.x, r.y - Math.sin(r.bump / 0.35 * Math.PI) * 0.25);
+  r.obj.rotation.order = "YXZ";
+  r.obj.rotation.x = pitch;
   const tilt = r.me ? ctl.steer * 0.12 : 0;
   r.obj.rotation.z = tilt * 0.4; r.obj.rotation.y += tilt;
   r.obj.userData.wheels.forEach((w) => { w.rotation.x += r.speed * dt / 0.6; });
@@ -633,8 +785,9 @@ function tick() {
   const t = performance.now() / 1000;
   const pad = pollPad();
   clouds.forEach((c, i) => { c.position.x += dt * (1.5 + (i % 3)); if (c.position.x > 320) c.position.x = -320; });
-  stars.forEach((st) => { if (st.m.visible) { place(st.m, st.s, st.x, 1.6 + Math.sin(t * 3 + st.s) * 0.25); st.m.rotation.y = t * 2.5; } });
+  stars.forEach((st) => { if (st.m.visible) { place(st.m, st.s, st.x, arcY(st.s, 5) + 1.6 + Math.sin(t * 3 + st.s) * 0.25); st.m.rotation.y = t * 2.5; } });
 
+  gate.visible = state !== "menu";
   if (state === "menu") {
     if (preview) {
       menuAngle += dt * 0.5;
@@ -685,8 +838,8 @@ function tick() {
     }
     // الكاميرا خلف اللاعب
     const back = frameAt(player.s - 10), ahead = frameAt(player.s + 8);
-    camPos.copy(back.p).addScaledVector(back.n, player.x * 0.7); camPos.y = 5.2;
-    camLook.copy(ahead.p).addScaledVector(ahead.n, player.x * 0.5); camLook.y = 1.4;
+    camPos.copy(back.p).addScaledVector(back.n, player.x * 0.7); camPos.y = Math.max(player.y, H(player.s - 10)) + 5.2;
+    camLook.copy(ahead.p).addScaledVector(ahead.n, player.x * 0.5); camLook.y = (player.y + H(player.s + 8)) / 2 + 1.4;
     camera.position.lerp(camPos, Math.min(1, dt * 6));
     camera.lookAt(camLook);
     const fov = 62 + (player.speed > CRUISE + 2 ? 8 : 0);
@@ -701,6 +854,8 @@ function tick() {
     if (engineGain) { engine.frequency.value = 50 + player.speed * 4.5; engineGain.gain.value = state === "end" ? 0.015 : 0.035; }
     if (state === "end") endT += dt;
   }
+  // تحديث صور القائمة عند تغيّر اللون (قبل رسم المشهد مباشرة فلا يظهر أي وميض)
+  if (state === "menu" && thumbColor !== COLORS[selC]) { renderThumbs(); buildCards(); }
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }

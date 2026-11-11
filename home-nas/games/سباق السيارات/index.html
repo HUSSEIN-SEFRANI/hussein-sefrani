@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>سباق الأبطال</title>
+<title>سباق كريم</title>
 <style>
   @font-face { font-family: "Baloo"; src: url(/static/fonts/baloo-ar.woff2) format("woff2"); font-weight: 400 800; }
   @font-face { font-family: "Baloo"; src: url(/static/fonts/baloo-lat.woff2) format("woff2"); font-weight: 400 800; unicode-range: U+0000-00FF; }
@@ -26,6 +26,7 @@
   .row { display: flex; gap: 2.4vh; margin-top: 2vh; }
   .card { width: 19vh; height: 19vh; border-radius: 4vh; background: rgba(255,255,255,.88); color: #1e3a8a; text-shadow: none; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 3.4vh; font-weight: 800; transition: transform .2s, box-shadow .2s; }
   .card .ic { font-size: 8vh; line-height: 1.1; }
+  .card .pic { width: 16vh; height: 12vh; border-radius: 2.4vh; margin-bottom: .6vh; display: block; }
   .card.sel { transform: translateY(-1.5vh) scale(1.1); box-shadow: 0 0 0 1vh #fde047, 0 2vh 4vh rgba(0,0,0,.3); }
   .row.dim .card.sel, .row.dim .dot.sel { box-shadow: 0 0 0 .6vh rgba(255,255,255,.9); }
   .dot { width: 8vh; height: 8vh; border-radius: 50%; border: .6vh solid #fff; transition: transform .2s, box-shadow .2s; }
@@ -45,7 +46,7 @@
 <body>
 <div class="ui">
   <div class="menu" id="menu">
-    <h1>سباق الأبطال</h1>
+    <h1>سباق كريم</h1>
     <div class="row" id="vehicles"></div>
     <div class="row dim" id="colors"></div>
     <div class="help"><b>← →</b> اختر &nbsp; <b>↑ ↓</b> السيارة أو اللون &nbsp; <b>موافق</b> انطلق!</div>
