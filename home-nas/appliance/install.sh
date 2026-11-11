@@ -75,6 +75,9 @@ if [ "$SRC" != "$APP" ]; then
     fi
 fi
 chown -R root:root "$APP"
+# مهم: مصدر التحديث قد يكون مجلداً مؤقتاً مقفلاً (700)، فيجب أن يُقرأ البرنامج من خدمة homenas
+chmod 755 /opt/homenas "$APP"
+chmod -R u+rwX,go+rX,go-w "$APP"
 
 log "Installing Python libraries"
 # Flask, Waitress, Pillow and psutil come from Debian (same mirror as the installer).
@@ -268,12 +271,15 @@ PY
 # داخل بيئة المثبّت لا يعمل systemd؛ الخدمة ستبدأ عند أول إقلاع
 if [ -d /run/systemd/system ]; then
     systemctl restart avahi-daemon.service || true
+    if [ -n "${UPGRADED:-}" ]; then
+        # فحص الإقلاع جاهز قبل إعادة التشغيل: إن انقطع التحديث هنا يرجع السيرفر للإصدار السابق عند الإقلاع
+        mkdir -p /var/lib/homenas
+        python3 -c "import json,time;json.dump({'ts':time.time()},open('/var/lib/homenas/update-verify','w'))"
+    fi
     systemctl restart homenas.service
     if [ -n "${UPGRADED:-}" ]; then
         log "Checking that the new version works"
         if health 150; then
-            mkdir -p /var/lib/homenas
-            python3 -c "import json,time;json.dump({'ts':time.time(),'boots':0},open('/var/lib/homenas/update-verify','w'))"
             rm -f /var/lib/homenas/update-rolledback
             echo "OK"
         else

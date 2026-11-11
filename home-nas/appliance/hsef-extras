@@ -488,6 +488,7 @@ def install_pkg(pkg: Path):
     import tarfile
     import tempfile
     tmp = Path(tempfile.mkdtemp(prefix="hsef-update-"))
+    os.chmod(tmp, 0o755)  # وإلا يرث مجلد البرنامج صلاحية 700 فلا تقرؤه خدمة homenas
     try:
         with tarfile.open(pkg) as t:
             t.extractall(tmp, filter="data")
@@ -579,8 +580,10 @@ def update_rollback(reason: str = "manual"):
     broken = current_version()
     print(f"going back from {broken} to {prev} ...", flush=True)
     tmp = Path(tempfile.mkdtemp(prefix="hsef-rollback-"))
+    os.chmod(tmp, 0o755)
     try:
         shutil.copytree(APP_PREV, tmp / "app", symlinks=True)
+        os.chmod(tmp / "app", 0o755)
         rc = subprocess.run(["bash", str(tmp / "app" / "appliance" / "install.sh"), "--appliance"],
                             env=dict(os.environ, HSEF_ROLLBACK="1")).returncode
     finally:
