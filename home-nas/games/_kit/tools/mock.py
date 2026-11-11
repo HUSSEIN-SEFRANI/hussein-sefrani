@@ -6,6 +6,7 @@
 - يخدم مجلدات الألعاب كما يخدمها التلفاز (/tv/game/1/...)، والخطوط من /static.
 - /api/tv/tile/1/list?sub=<مجلد>: قائمة ملفات مجلد داخل games (مثل صور اللعبة).
 - /api/tv/wallpaper و /api/tv/photo/<n>/view: «صور الطفل» من مجلد tools/photos إن وُجد.
+- POST /api/tv/stars/earn: يحاكي إضافة النجوم (رصيد يبدأ بـ 10، وحد يومي 20)، انظر _kit/API.txt.
 """
 import http.server
 import json
@@ -18,6 +19,9 @@ TOOLS = os.path.dirname(os.path.abspath(__file__))
 GAMES = os.path.dirname(os.path.dirname(TOOLS))          # home-nas/games
 ROOT = os.path.dirname(GAMES)                             # home-nas
 PHOTOS = os.path.join(TOOLS, "photos")
+
+
+STARS = {"balance": 10, "today": 0, "limit": 20}
 
 
 class H(http.server.BaseHTTPRequestHandler):
@@ -59,6 +63,28 @@ class H(http.server.BaseHTTPRequestHandler):
             i = int(path.split("/")[4])
             return self.file(os.path.join(PHOTOS, photos[i - 1])) if 0 < i <= len(photos) else self.send(404, b"nf", "text/plain")
         self.send(404, b"not found", "text/plain")
+
+    def do_POST(self):
+        path = urllib.parse.unquote(urllib.parse.urlparse(self.path).path)
+        n = int(self.headers.get("Content-Length") or 0)
+        try:
+            d = json.loads(self.rfile.read(n) or b"{}")
+        except ValueError:
+            d = {}
+        if path != "/api/tv/stars/earn":
+            return self.send(404, b"not found", "text/plain")
+        try:
+            amount = int(d.get("amount"))
+        except (TypeError, ValueError):
+            return self.send(400, json.dumps({"error": "amount غير صالح"}).encode())
+        if not 1 <= amount <= 10 or not str(d.get("game") or "").strip():
+            return self.send(400, json.dumps({"error": "amount من 1 إلى 10، و game مطلوب"}).encode())
+        added = max(0, min(amount, STARS["limit"] - STARS["today"]))
+        STARS["balance"] += added
+        STARS["today"] += added
+        print(f"⭐ +{added} ({d.get('game')}: {d.get('reason')}) → {STARS['balance']}", flush=True)
+        self.send(200, json.dumps({"ok": True, "added": added, "balance": STARS["balance"], "today": STARS["today"],
+                                   "limit": STARS["limit"], "capped": added < amount}).encode())
 
 
 if __name__ == "__main__":

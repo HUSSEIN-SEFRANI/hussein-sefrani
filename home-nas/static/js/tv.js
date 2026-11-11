@@ -269,7 +269,8 @@ function ago(ts) {
 }
 function starsLine(x) {
   const n = `<b class="sv">⭐ ${x.amount}</b>`;
-  const what = x.kind === "transfer" ? `${esc(x.from || "?")} ← ${esc(x.to || "?")} ${n}` : x.kind === "give" ? `${esc(x.by || "?")} أعطى ${esc(x.to || "?")} ${n}` : `${esc(x.by || "?")} خصم من ${esc(x.to || "?")} ${n}`;
+  const what = x.kind === "transfer" ? `${esc(x.from || "?")} ← ${esc(x.to || "?")} ${n}` : x.kind === "give" ? `${esc(x.by || "?")} أعطى ${esc(x.to || "?")} ${n}`
+    : x.kind === "game" ? `🎮 ${esc(x.to || "?")} ربح ${n}` : `${esc(x.by || "?")} خصم من ${esc(x.to || "?")} ${n}`;
   return `<div class="sl ${x.kind}"><span>${what}</span><i>${esc(x.reason)}</i><small>${ago(x.ts)}</small></div>`;
 }
 async function starsScreen() {
@@ -571,6 +572,7 @@ function adultHome(d) {
     el,
     initial: () => el.querySelector(".dk"),
     back: () => setFocus(el.querySelector(".js-switch")),
+    onShow: () => fillBalance(el),
     refresh(c) {
       d.prayer = c.prayer;
       el.querySelector(".cards").innerHTML = (hasPrayer ? prayerCard(c.prayer, 112) : "") + wordCard(d.word, hasPrayer ? 336 : 112);
@@ -649,6 +651,7 @@ function kidsHome(d) {
     el,
     initial: () => el.querySelector(".kt"),
     back() {},
+    onShow: () => fillBalance(el),
     refresh(c) { el.querySelector(".js-wx").innerHTML = weatherLine(c.weather); },
   };
 }
@@ -1143,7 +1146,7 @@ function svCanvas(el, cls) {
 const starsHtml = (n, h0 = 720) => Array.from({ length: n }, () => `<i style="left:${rnd(0, 1280).toFixed(0)}px;top:${rnd(0, h0).toFixed(0)}px;--d:${rnd(2, 6).toFixed(1)}s;--s:${rnd(1, 3).toFixed(1)}px;animation-delay:-${rnd(0, 6).toFixed(1)}s"></i>`).join("");
 
 // ---------------------------------------------------------------- 1) مواقيت الصلاة بكامل الشاشة
-const MOSQUE = `<svg class="sp-mosque" viewBox="0 0 1280 220" preserveAspectRatio="xMidYMax slice" aria-hidden="true"><g fill="#070b1f">
+const MOSQUE = `<svg class="pr-mosque" viewBox="0 0 1280 220" preserveAspectRatio="xMidYMax slice" aria-hidden="true"><g fill="#070b1f">
   <rect x="150" y="96" width="18" height="124"/><path d="M146 96h26l-13-34z"/><rect x="143" y="120" width="32" height="6"/>
   <rect x="1112" y="96" width="18" height="124"/><path d="M1108 96h26l-13-34z"/><rect x="1105" y="120" width="32" height="6"/>
   <rect x="300" y="40" width="30" height="180"/><path d="M294 40h42l-21-48z"/><rect x="288" y="78" width="54" height="9"/><rect x="288" y="128" width="54" height="9"/>
@@ -1153,24 +1156,24 @@ const MOSQUE = `<svg class="sp-mosque" viewBox="0 0 1280 220" preserveAspectRati
   <rect x="380" y="158" width="520" height="62"/><rect x="480" y="130" width="320" height="40"/><rect x="0" y="206" width="1280" height="14"/></g>
   <g fill="#fbbf24" opacity=".75">${[420, 450, 480, 520, 560, 600, 680, 720, 760, 800, 830, 860].map((x) => `<path d="M${x} 200v-18a7 7 0 0 1 14 0v18z"/>`).join("")}
   <path d="M628 150v-22a12 12 0 0 1 24 0v22z"/></g></svg>`;
-const MOON = `<svg class="sp-moon" viewBox="0 0 100 120" aria-hidden="true"><path d="M60 8 A52 52 0 1 0 60 112 A40 52 0 1 1 60 8Z" fill="#fef3c7"/></svg>`;
+const MOON = `<svg class="pr-moon" viewBox="0 0 100 120" aria-hidden="true"><path d="M60 8 A52 52 0 1 0 60 112 A40 52 0 1 1 60 8Z" fill="#fef3c7"/></svg>`;
 function svPrayer(el) {
   const p = clockData.prayer;
-  el.innerHTML = `<div class="sp-sky">${starsHtml(90, 520)}</div>${MOON}${MOSQUE}
-    <div class="sp-wrap"><div class="sp-clock js-tm"></div><div class="sp-date"><span class="js-dt"></span>${fmtHijri ? ` · <span class="js-hj"></span>` : ""}</div>
-      <div class="sp-next"></div>
-      <div class="sp-row">${p.times.map((t) => `<div class="sp-p${t.key === "sunrise" ? " sr" : ""}" data-k="${t.key}" data-t="${t.time}" data-n="${esc(t.name)}"><b>${esc(t.name)}</b><span class="ltr">${t.time}</span></div>`).join("")}</div>
-      ${p.city ? `<div class="sp-city">${esc(p.city)}</div>` : ""}</div>`;
-  const wrap = el.querySelector(".sp-wrap");
+  el.innerHTML = `<div class="pr-sky">${starsHtml(90, 520)}</div>${MOON}${MOSQUE}
+    <div class="pr-wrap"><div class="pr-clock js-tm"></div><div class="pr-date"><span class="js-dt"></span>${fmtHijri ? ` · <span class="js-hj"></span>` : ""}</div>
+      <div class="pr-next"></div>
+      <div class="pr-row">${p.times.map((t) => `<div class="pr-p${t.key === "sunrise" ? " sr" : ""}" data-k="${t.key}" data-t="${t.time}" data-n="${esc(t.name)}"><b>${esc(t.name)}</b><span class="ltr">${t.time}</span></div>`).join("")}</div>
+      ${p.city ? `<div class="pr-city">${esc(p.city)}</div>` : ""}</div>`;
+  const wrap = el.querySelector(".pr-wrap");
   const mins = (t) => { const [a, b] = t.split(":").map(Number); return a * 60 + b; };
   const upd = () => {
     const now = new Date(), nowM = now.getHours() * 60 + now.getMinutes();
-    const cells = [...el.querySelectorAll(".sp-p")], cand = cells.filter((c) => c.dataset.k !== "sunrise");
+    const cells = [...el.querySelectorAll(".pr-p")], cand = cells.filter((c) => c.dataset.k !== "sunrise");
     let nx = cand.find((c) => mins(c.dataset.t) > nowM), diff;
     if (nx) diff = mins(nx.dataset.t) - nowM; else { nx = cand[0]; diff = 1440 - nowM + mins(nx.dataset.t); }
     cells.forEach((c) => { c.classList.toggle("nx", c === nx); c.classList.toggle("past", mins(c.dataset.t) <= nowM && c !== nx); });
     const hh = Math.floor(diff / 60), mm = diff % 60;
-    el.querySelector(".sp-next").innerHTML = `<span>${diff <= 1 ? `حان الآن وقت صلاة ${nx.dataset.n}` : `صلاة <b>${nx.dataset.n}</b> بعد ${hh ? `${hh} ساعة و ` : ""}${mm} دقيقة`}</span>`;
+    el.querySelector(".pr-next").innerHTML = `<span>${diff <= 1 ? `حان الآن وقت صلاة ${nx.dataset.n}` : `صلاة <b>${nx.dataset.n}</b> بعد ${hh ? `${hh} ساعة و ` : ""}${mm} دقيقة`}</span>`;
   };
   upd();
   const id = setInterval(upd, 15000);

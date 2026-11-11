@@ -3,20 +3,25 @@
 - لكل شخص في العائلة (من له ملف على التلفاز) رصيد يبدأ بـ 10 نجوم.
 - الأب والأم (ملف «بالغ») يضيفون نجوماً أو يخصمونها مع ذكر السبب.
 - كل شخص يستطيع تحويل نجوم من رصيده لغيره مع كتابة السبب (الوالدان أيضاً).
+- الألعاب على التلفاز تضيف نجوماً للطفل الذي يلعب (POST /api/tv/stars/earn)، بحدّ يومي يضبطه الأب أو الأم.
 - كل شيء مسجّل في سجل يراه الجميع.
 يعمل من التلفاز (جلسة التلفاز) ومن الهاتف أو الكمبيوتر (تسجيل الدخول العادي).
 """
 from __future__ import annotations
 
+from datetime import date
+
 from flask import Blueprint, abort, jsonify
 from werkzeug.security import check_password_hash
 
-from .core import body, current_user, get_db, log_action, login_required, now_iso
+from .core import body, current_user, get_db, get_setting, log_action, login_required, now_iso, set_setting
 
 bp = Blueprint("stars", __name__)
 
 START = 10
 MAX_MOVE = 100
+GAME_MAX_ONE = 10        # أكثر عدد تضيفه اللعبة في المرة الواحدة
+GAME_DAILY_DEFAULT = 20  # الحد اليومي لنجوم الألعاب لكل شخص (كل الألعاب معاً)
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS stars (user_id INTEGER PRIMARY KEY, balance INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS stars_log (
@@ -41,6 +46,20 @@ def balance(db, uid: int) -> int:
     return db.execute("SELECT balance FROM stars WHERE user_id=?", (uid,)).fetchone()["balance"]
 
 
+def game_daily_limit() -> int:
+    try:
+        return max(0, min(500, int(get_setting("stars_game_daily") or GAME_DAILY_DEFAULT)))
+    except ValueError:
+        return GAME_DAILY_DEFAULT
+
+
+def earned_today(db, uid: int) -> int:
+    """نجوم الألعاب التي ربحها الشخص اليوم (حسب ساعة السيرفر)."""
+    row = db.execute("SELECT COALESCE(SUM(amount),0) AS n FROM stars_log WHERE kind='game' AND to_id=? AND ts>=?",
+                     (uid, date.today().isoformat())).fetchone()
+    return int(row["n"])
+
+
 def is_parent(u) -> bool:
     return bool(u) and ((u["tv_role"] or "") == "adult")
 
@@ -62,7 +81,7 @@ def board(me, can_manage: bool) -> dict:
            for r in db.execute("SELECT * FROM stars_log ORDER BY id DESC LIMIT 40")]
     mine = next((p for p in people if me and p["id"] == me["id"]), None)
     return {"people": people, "log": log, "me": me["id"] if me else None, "my_balance": mine["balance"] if mine else None,
-            "can_manage": can_manage, "start": START}
+            "can_manage": can_manage, "start": START, "game_daily": game_daily_limit()}
 
 
 def _parse(d, me_id: int | None):
@@ -147,6 +166,36 @@ def api_tv_stars_transfer():
     return jsonify(board(u, is_parent(u) and bool(u["tv_pin"])))
 
 
+@bp.post("/api/tv/stars/earn")
+def api_tv_stars_earn():
+    """لعبة على التلفاز تضيف نجوماً للشخص الذي يلعب الآن.
+    JSON: {amount: 1..10, game: "اسم اللعبة", reason: "السبب"}
+    يرجع 200 مع: added (ما أُضيف فعلاً، قد يكون أقل أو صفراً عند بلوغ الحد اليومي)، balance، today، limit، capped."""
+    from .tv import tv_user
+    u = tv_user()
+    d = body()
+    try:
+        amount = int(d.get("amount"))
+    except (TypeError, ValueError):
+        abort(400, "amount غير صالح")
+    if not 1 <= amount <= GAME_MAX_ONE:
+        abort(400, f"amount من 1 إلى {GAME_MAX_ONE}")
+    game = " ".join(str(d.get("game") or "").split())[:40]
+    reason = " ".join(str(d.get("reason") or "").split())[:80]
+    if not game:
+        abort(400, "اسم اللعبة (game) مطلوب")
+    db = get_db()
+    limit, today = game_daily_limit(), earned_today(db, u["id"])
+    added = max(0, min(amount, limit - today))
+    bal = balance(db, u["id"])
+    if added:
+        db.execute("UPDATE stars SET balance=balance+? WHERE user_id=?", (added, u["id"]))
+        db.execute("INSERT INTO stars_log(ts, by_id, from_id, to_id, amount, kind, reason) VALUES(?,?,?,?,?,?,?)",
+                   (now_iso(), u["id"], None, u["id"], added, "game", f"{game}: {reason}" if reason else game))
+    db.commit()
+    return jsonify(ok=True, added=added, balance=bal + added, today=today + added, limit=limit, capped=added < amount)
+
+
 @bp.post("/api/tv/stars/adjust")
 def api_tv_stars_adjust():
     u = _tv_parent()
@@ -172,6 +221,22 @@ def api_stars_transfer():
     u = current_user()
     do_transfer(u, body())
     return jsonify(board(u, _web_can_manage(u)))
+
+
+@bp.post("/api/stars/settings")
+@login_required
+def api_stars_settings():
+    """الحد اليومي لنجوم الألعاب (للأب والأم والمدير). 0 = الألعاب لا تضيف نجوماً."""
+    u = current_user()
+    if not _web_can_manage(u):
+        abort(403, "للأب والأم فقط")
+    try:
+        n = max(0, min(500, int(body().get("game_daily"))))
+    except (TypeError, ValueError):
+        abort(400, "رقم غير صالح")
+    set_setting("stars_game_daily", str(n))
+    log_action("نجوم الألعاب: الحد اليومي", str(n), u["username"])
+    return jsonify(board(u, True))
 
 
 @bp.post("/api/stars/adjust")

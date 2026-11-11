@@ -349,7 +349,9 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 .theme-card.f.focus { transform: scale(1.05); box-shadow: 0 0 0 5px #fff, 0 16px 34px rgba(0,0,0,.45); }
 
 /* نجوم العائلة */
-.stars-scr .sp-row { position: absolute; top: 112px; right: 60px; left: 60px; display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; }
+.stars-scr .sp-row { position: absolute; top: 112px; right: 60px; left: 60px; display: flex; gap: 14px; justify-content: center; flex-wrap: nowrap; }
+.stars-scr .sp { flex: 0 1 150px; min-width: 0; }
+.stars-scr .sp b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sp { position: relative; width: 150px; padding: 14px 8px 12px; border-radius: 22px; background: rgba(255,255,255,.08); display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .sp.me { background: rgba(250,204,21,.16); box-shadow: inset 0 0 0 2px #facc15; }
 .sp .ring, .choice .ring { width: 74px; height: 74px; border-radius: 50%; overflow: hidden; background: #1e293b; }
@@ -364,6 +366,7 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 .sl small { color: #94a3b8; font-size: 14px; }
 .sl .sv { color: #fde68a; }
 .sl.take .sv { color: #fca5a5; }
+.sl.game .sv { color: #86efac; }
 .choice-grid { position: absolute; top: 130px; right: 70px; left: 70px; display: grid; gap: 20px; }
 .choice { min-height: 120px; border: 0; border-radius: 22px; background: rgba(255,255,255,.1); color: #fff; font-family: inherit; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 6px; padding: 12px; transition: transform .18s, box-shadow .18s; }
@@ -464,25 +467,25 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 
 /* مواقيت الصلاة */
 .saver.sv-prayer { background: linear-gradient(180deg, #050816 0%, #0f1a45 45%, #2b2370 78%, #4c2a6e 100%); }
-.sp-sky i, .tx-orbs i { position: absolute; }
-.sp-sky i { width: var(--s); height: var(--s); border-radius: 50%; background: #fff; animation: twinkle var(--d) ease-in-out infinite; }
+.pr-sky i, .tx-orbs i { position: absolute; }
+.pr-sky i { width: var(--s); height: var(--s); border-radius: 50%; background: #fff; animation: twinkle var(--d) ease-in-out infinite; }
 @keyframes twinkle { 0%, 100% { opacity: .15; } 50% { opacity: .95; } }
-.sp-moon { position: absolute; left: 90px; top: 46px; width: 74px; height: 90px; filter: drop-shadow(0 0 22px rgba(254,243,199,.7)); }
-.sp-mosque { position: absolute; left: 0; bottom: 0; width: 1280px; height: 220px; }
-.sp-wrap { position: absolute; left: 0; right: 0; top: 44px; display: flex; flex-direction: column; align-items: center; text-align: center; transition: transform 3s ease; }
-.sp-clock { font-family: "Baloo Bhaijaan 2", sans-serif; font-weight: 800; font-size: 150px; line-height: 1; direction: ltr; color: #fff; text-shadow: 0 6px 30px rgba(99,102,241,.6); }
-.sp-date { font-size: 26px; font-weight: 600; color: #c7d2fe; margin-top: 6px; }
-.sp-next { margin-top: 18px; font-size: 26px; color: #fde68a; min-height: 40px; }
-.sp-next b { font-family: "Baloo Bhaijaan 2", sans-serif; font-size: 32px; color: #fbbf24; }
-.sp-row { display: flex; gap: 14px; margin-top: 18px; }
-.sp-p { width: 150px; padding: 14px 6px 12px; border-radius: 22px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); display: flex; flex-direction: column; gap: 4px; backdrop-filter: blur(4px); }
-.sp-p b { font-family: "Baloo Bhaijaan 2", sans-serif; font-size: 26px; font-weight: 700; color: #e0e7ff; }
-.sp-p span { font-size: 34px; font-weight: 800; color: #fff; }
-.sp-p.sr { opacity: .7; }
-.sp-p.past { opacity: .45; }
-.sp-p.nx { background: linear-gradient(180deg, rgba(251,191,36,.32), rgba(251,191,36,.12)); border-color: #fbbf24; box-shadow: 0 0 34px rgba(251,191,36,.45); transform: scale(1.08); }
-.sp-p.nx b { color: #fde68a; }
-.sp-city { margin-top: 14px; font-size: 18px; color: #a5b4fc; }
+.pr-moon { position: absolute; left: 90px; top: 46px; width: 74px; height: 90px; filter: drop-shadow(0 0 22px rgba(254,243,199,.7)); }
+.pr-mosque { position: absolute; left: 0; bottom: 0; width: 1280px; height: 220px; }
+.pr-wrap { position: absolute; left: 0; right: 0; top: 44px; display: flex; flex-direction: column; align-items: center; text-align: center; transition: transform 3s ease; }
+.pr-clock { font-family: "Baloo Bhaijaan 2", sans-serif; font-weight: 800; font-size: 150px; line-height: 1; direction: ltr; color: #fff; text-shadow: 0 6px 30px rgba(99,102,241,.6); }
+.pr-date { font-size: 26px; font-weight: 600; color: #c7d2fe; margin-top: 6px; }
+.pr-next { margin-top: 18px; font-size: 26px; color: #fde68a; min-height: 40px; }
+.pr-next b { font-family: "Baloo Bhaijaan 2", sans-serif; font-size: 32px; color: #fbbf24; }
+.pr-row { display: flex; gap: 14px; margin-top: 18px; }
+.pr-p { width: 150px; padding: 14px 6px 12px; border-radius: 22px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); display: flex; flex-direction: column; gap: 4px; backdrop-filter: blur(4px); }
+.pr-p b { font-family: "Baloo Bhaijaan 2", sans-serif; font-size: 26px; font-weight: 700; color: #e0e7ff; }
+.pr-p span { font-size: 34px; font-weight: 800; color: #fff; }
+.pr-p.sr { opacity: .7; }
+.pr-p.past { opacity: .45; }
+.pr-p.nx { background: linear-gradient(180deg, rgba(251,191,36,.32), rgba(251,191,36,.12)); border-color: #fbbf24; box-shadow: 0 0 34px rgba(251,191,36,.45); transform: scale(1.08); }
+.pr-p.nx b { color: #fde68a; }
+.pr-city { margin-top: 14px; font-size: 18px; color: #a5b4fc; }
 
 /* نار */
 .saver.sv-fire { background: radial-gradient(ellipse at 50% 100%, #2a0e02 0%, #0d0401 55%, #000 100%); }
