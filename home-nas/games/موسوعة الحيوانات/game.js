@@ -1,5 +1,5 @@
 // موسوعة الحيوانات — صورة ومعلومات بالعربية لكل حيوان: أين يعيش، ماذا يأكل، كيف يتكاثر… ثم «اختبر نفسك».
-// صور حقيقية (اختياري): ضع صورة في مجلد «صور» داخل مجلد اللعبة باسم الحيوان، مثل: صور/القطة.jpg
+// صور حقيقية: في مجلد «صور» باسم الحيوان، ويمكن وضع أكثر من صورة بترقيمها: صور/القطة 1.jpg، صور/القطة 2.jpg…
 (() => {
   "use strict";
   const CATS = window.ZOO_CATS, ALL = window.ZOO;
@@ -8,11 +8,13 @@
   const catOf = (a) => CATS.find((c) => c.id === a.c);
   let photos = {};
 
-  const norm = (s) => String(s).replace(/\.[a-z0-9]+$/i, "").replace(/[ً-ْٰـ]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي")
+  const norm = (s) => String(s).replace(/\.[a-z0-9]+$/i, "").replace(/[\s_-]*\(?[0-9٠-٩]+\)?$/, "").replace(/[ً-ْٰـ]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي")
     .split(/[\s_-]+/).map((w) => w.replace(/^ال/, "")).filter(Boolean).join(" ");
+  const photosOf = (a) => photos[norm(a.n)] || [];
   const pic = (a, cls = "") => {
-    const ph = photos[norm(a.n)];
-    if (ph) return `<img class="photo ${cls}" src="${ph}" alt="">`;
+    const ph = photosOf(a);
+    // في الاختبار صورة عشوائية من صور الحيوان، وفي غيره الصورة الأولى
+    if (ph.length) return `<img class="photo ${cls}" src="${cls === "q" ? K.pick(ph) : ph[0]}" alt="">`;
     if (a.e.startsWith("svg:")) return `<span class="pic ${cls}">${window.ART[a.e.slice(4)]()}</span>`;
     return `<span class="pic emo ${cls}"${a.f ? ` style="filter:${a.f}"` : ""}>${a.e}</span>`;
   };
@@ -65,10 +67,25 @@
     K.paint(`<div class="top">${K.backBtn()}<span class="pill"><span class="emo">${c.icon}</span> ${c.name}</span>${say}
         <span class="pill">${i + 1} / ${list.length}</span></div>
       <div class="page">
-        <div class="hero" style="background:${c.bg}">${pic(a, "lg")}<h2>${a.n}</h2><div class="fr" dir="ltr">${a.fr}</div></div>
+        <div class="hero" style="background:${c.bg}">${gallery(a)}<h2>${a.n}</h2><div class="fr" dir="ltr">${a.fr}</div></div>
         <div class="info ${len > 520 ? "dense" : ""}">${rows}</div>
       </div>
       <div class="nav"><button class="btn f" ${K.act("prev", go(-1))}>→ السابق</button><button class="btn f go" ${K.act("next", go(1))}>التالي ←</button></div>`, "next");
+  }
+
+  // معرض الصور: الضغط على الصورة يعرض الصورة التالية
+  function gallery(a) {
+    const ph = photosOf(a);
+    if (ph.length < 2) return pic(a, "lg");
+    let k = 0;
+    const dots = () => ph.map((_, j) => `<i class="${j === k ? "on" : ""}"></i>`).join("");
+    return `<button class="gal f" ${K.act("photo", () => {
+      k = (k + 1) % ph.length;
+      const b = document.querySelector(".gal");
+      b.querySelector("img").src = ph[k];
+      b.querySelector(".dots").innerHTML = dots();
+      K.sfx.tick();
+    })}>${pic(a, "lg")}<span class="dots">${dots()}</span><span class="more emo">📷</span></button>`;
   }
 
   // ---------------------------------------------------------------- اختبر نفسك
@@ -105,7 +122,8 @@
 
   // صور حقيقية من مجلد «صور» إن وُجد
   K.listImages("صور").then((list) => {
-    for (const im of list) photos[norm(im.name)] = im.url;
+    list.sort((x, y) => x.name.localeCompare(y.name, "ar", { numeric: true }));
+    for (const im of list) (photos[norm(im.name)] ||= []).push(im.url);
     if (list.length && K.top()) K.render();
   });
   K.start(home);
