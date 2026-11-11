@@ -4,8 +4,15 @@
   "use strict";
   const save = K.store("freeze", { rounds: 8 });
   const POSES = [["كالتمثال", "🗿"], ["على رِجلٍ واحدة", "🦩"], ["كالشجرة", "🌳"], ["ارفعوا أيديكم", "🙌"], ["كالقطة", "🐈"], ["كالطائرة", "✈️"], ["كالنجمة", "⭐"], ["كالروبوت", "🤖"], ["كالأرنب", "🐰"], ["كالبطريق", "🐧"]];
-  // حركات تظهر أثناء الرقص وتتبدّل كل بضع ثوانٍ
-  const MOVES = [["اقفز اقفز", "🦘"], ["مُدّ لسانك", "😛"], ["انظر يمين يسار", "👀"], ["انظر يسار يسار", "👈"], ["ارفع يدك", "🙋"]];
+  // تمارين رياضية منظّمة تظهر أثناء الرقص بالترتيب: إحماء ← تمارين ← مرح ← تهدئة (في آخر جولة)
+  const STAGES = [
+    ["🔥 إحماء", [["امشِ في مكانك", "🚶"], ["ارفع يديك وتمدّد للأعلى", "🙆"], ["حرّك كتفيك في دوائر", "🔄"], ["انظر يمين يسار", "👀"], ["انظر يسار يسار", "👈"]]],
+    ["💪 تمرين", [["اقفز اقفز", "🦘"], ["اركض في مكانك", "🏃"], ["ارفع ركبتيك عالياً", "🦵"], ["افتح يديك ورجليك واقفز كالنجمة", "⭐"], ["انزل واجلس ثم قم", "🏋️"], ["ارفع يدك", "🙋"], ["المس أصابع قدميك", "🦶"], ["قف على رِجلٍ واحدة", "🦩"]]],
+    ["😄 مرح", [["مُدّ لسانك", "😛"], ["حرّك يديك كالطائرة", "✈️"], ["صفّق بيديك", "👏"], ["امشِ كالبطريق", "🐧"]]],
+  ];
+  const COOL = ["🌿 تهدئة", [["تنفّس بعمق ببطء", "🌬️"], ["هزّ يديك برفق", "👐"], ["ابتسم وارتح", "😊"]]];
+  const flat = (list) => list.flatMap(([tag, ms]) => ms.map(([m, e]) => [tag, m, e]));
+  const MOVES = flat(STAGES), COOLS = flat([COOL]);
   const DANCERS = ["💃", "🕺", "🐻", "🐵", "🐧", "🦄", "🐸", "🐼"];
   let songs = null;
 
@@ -106,12 +113,12 @@
       show("freeze", "🧊", "تجمّدوا!", `<span class="emo">${e}</span> ${p}`);
       wait(4000 + Math.random() * 2500, dance);
     };
-    let tid = 0, moveTid = 0, lastMove = -1;
+    let tid = 0, moveTid = 0, moveIdx = 0, coolIdx = 0;
     function moves() {
-      let i; do { i = Math.floor(Math.random() * MOVES.length); } while (i === lastMove && MOVES.length > 1);
-      lastMove = i; const [m, e] = MOVES[i];
-      $(".pose").innerHTML = `<span class="emo">${e}</span> ${m}`; K.sfx.tick();
-      moveTid = K.later(moves, 3500);
+      const last = round >= save.rounds;
+      const [tag, m, e] = last ? COOLS[coolIdx++ % COOLS.length] : MOVES[moveIdx++ % MOVES.length];
+      $(".pose").innerHTML = `<small class="tag">${tag}</small> <span class="emo">${e}</span> ${m}`; K.sfx.tick();
+      moveTid = K.later(moves, last ? 6000 : 5000);
     }
     function wait(ms, fn) { left = ms; tEnd = performance.now() + ms; tid = K.later(fn, ms); }
     function togglePause() {
