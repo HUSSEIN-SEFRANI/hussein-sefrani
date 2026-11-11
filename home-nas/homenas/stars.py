@@ -108,8 +108,10 @@ def do_transfer(me, d):
         abort(403, "ليس لك رصيد نجوم")
     target, amount, reason = _parse(d, me["id"])
     db = get_db()
-    if balance(db, me["id"]) < amount:
-        abort(400, "رصيدك لا يكفي")
+    bal = balance(db, me["id"])
+    if bal < amount:
+        hint = "، ولتعطي نجوماً دون أن ينقص رصيدك اختر «⭐ أعطِ نجوماً»" if is_parent(me) else ""
+        abort(400, f"الإهداء من رصيدك، ورصيدك ⭐ {bal} فقط{hint}")
     balance(db, target["id"])
     db.execute("UPDATE stars SET balance=balance-? WHERE user_id=?", (amount, me["id"]))
     db.execute("UPDATE stars SET balance=balance+? WHERE user_id=?", (amount, target["id"]))

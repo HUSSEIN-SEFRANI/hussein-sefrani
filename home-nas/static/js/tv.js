@@ -285,12 +285,17 @@ async function starsScreen() {
     const top1 = Math.max(...d.people.map((p) => p.balance));
     el.querySelector(".sp-row").innerHTML = [...d.people].sort((a, b) => b.balance - a.balance).map((p) => `<div class="sp${p.id === d.me ? " me" : ""}">
       ${p.balance === top1 && top1 > 0 ? `<span class="crown emo">👑</span>` : ""}<div class="ring">${face(p)}</div><b>${esc(p.name)}</b><div class="bal"><span class="emo">⭐</span> ${p.balance}</div></div>`).join("");
-    const acts = [];
-    if (d.my_balance != null) acts.push(`<button class="btn gold f" data-a="transfer">🎁 أهدِ نجوماً (رصيدك ${d.my_balance})</button>`);
-    if (d.can_manage) acts.push(`<button class="btn f" data-a="give">➕ أضف نجوماً</button><button class="btn f" data-a="take">➖ اخصم نجوماً</button>`);
+    // الأب والأم: «أعطِ» لا تنقص من رصيدهما، و«أهدِ من رصيدي» تنقل من رصيدهما
+    const acts = [], meP = d.people.find((p) => p.id === d.me), parent = meP && meP.parent;
+    if (d.can_manage) acts.push(`<button class="btn gold f" data-a="give">⭐ أعطِ نجوماً</button><button class="btn f" data-a="take">➖ اخصم نجوماً</button>`);
+    else if (parent) acts.push(`<button class="btn gold f" data-a="needpin">⭐ أعطِ نجوماً</button>`);
+    if (d.my_balance != null) acts.push(`<button class="btn ${parent ? "" : "gold "}f" data-a="transfer">🎁 أهدِ من رصيدي (${d.my_balance})</button>`);
     el.querySelector(".sp-acts").innerHTML = acts.join("");
     el.querySelector(".sp-log").innerHTML = d.log.length ? d.log.slice(0, 7).map(starsLine).join("") : `<p class="set-msg">لا توجد حركات بعد. كل شخص يبدأ بـ ${d.start} نجوم ⭐</p>`;
-    el.querySelectorAll("[data-a]").forEach((b) => b.addEventListener("click", () => starFlow(b.dataset.a, r, draw)));
+    el.querySelectorAll("[data-a]").forEach((b) => b.addEventListener("click", () => {
+      if (b.dataset.a === "needpin") { toast("لتعطي نجوماً من التلفاز ضع رمز دخول (PIN) لحسابك: لوحة التحكم ← وضع التلفاز. أو من الهاتف: «نجوم العائلة»", 7000); return; }
+      starFlow(b.dataset.a, r, draw);
+    }));
   };
   draw(r);
   el.querySelector(".js-back").addEventListener("click", pop);
@@ -306,13 +311,16 @@ function choiceScreen(title, items, onPick, cols = 4) {
 }
 function starFlow(kind, r, redraw) {
   const meP = r.people.find((p) => p.id === r.me);
-  const verb = { transfer: "أهدِ نجوماً", give: "أضف نجوماً", take: "اخصم نجوماً" }[kind];
+  const verb = { transfer: "أهدِ من رصيدك", give: "أعطِ نجوماً", take: "اخصم نجوماً" }[kind];
   const people = r.people.filter((p) => kind !== "transfer" || p.id !== r.me);
   const backToStars = () => { while (stack.length > 1 && !top().isStars) pop(); };
   choiceScreen(`${verb}: لمن؟`, people.map((p) => ({ value: p, html: `<div class="ring">${face(p)}</div><b>${esc(p.name)}</b><small>⭐ ${p.balance}</small>` })), (to) => {
     const max = kind === "transfer" ? meP.balance : kind === "take" ? to.balance : 100;
     const amounts = [1, 2, 3, 5, 10, 20].filter((n) => n <= max);
-    if (!amounts.length) { toast(kind === "transfer" ? "رصيدك لا يكفي" : "الرصيد صفر"); return; }
+    if (!amounts.length) {
+      toast(kind !== "transfer" ? "الرصيد صفر" : r.can_manage ? "رصيدك صفر. لتعطي نجوماً دون أن ينقص رصيدك اختر «⭐ أعطِ نجوماً»" : "رصيدك صفر، لا تستطيع الإهداء الآن", 6000);
+      return;
+    }
     choiceScreen(`${verb} لـ ${esc(to.name)}: كم نجمة؟`, amounts.map((n) => ({ value: n, html: `<span class="big">${n}</span><span class="emo">${"⭐".repeat(Math.min(n, 5))}</span>` })), (amount) => {
       const reasons = STAR_REASONS[kind].map((t) => ({ value: t, html: `<b>${esc(t)}</b>` }));
       reasons.push({ value: null, html: `<b>✏️ سبب آخر…</b>` });

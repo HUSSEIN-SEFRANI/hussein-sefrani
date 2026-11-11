@@ -27,9 +27,10 @@ registerApp({
           ${p.balance === top1 && top1 > 0 ? '<span class="st-crown">👑</span>' : ''}${face(p)}<b translate="no">${esc(p.name)}</b><span class="st-bal" translate="no">⭐ ${p.balance}</span></div>`).join('')
           || '<p class="muted">لا يوجد أفراد بعد. أضف ملفات العائلة من لوحة التحكم ← وضع التلفاز.</p>'}</div>
         <div class="st-acts">
-          ${d.my_balance != null ? `<button class="btn primary" data-a="transfer">🎁 أهدِ نجوماً (رصيدك <span translate="no">${d.my_balance}</span>)</button>` : ''}
-          ${d.can_manage ? '<button class="btn" data-a="give">➕ أضف نجوماً</button><button class="btn" data-a="take">➖ اخصم نجوماً</button>' : ''}
+          ${d.can_manage ? '<button class="btn primary" data-a="give">⭐ أعطِ نجوماً</button><button class="btn" data-a="take">➖ اخصم نجوماً</button>' : ''}
+          ${d.my_balance != null ? `<button class="btn ${d.can_manage ? '' : 'primary'}" data-a="transfer">🎁 أهدِ من رصيدي (<span translate="no">${d.my_balance}</span>)</button>` : ''}
         </div>
+        ${d.can_manage ? '<p class="muted small" style="margin:6px 0 0">«أعطِ نجوماً» لا ينقص من رصيدك. «أهدِ من رصيدي» ينقل من رصيدك أنت.</p>' : ''}
         ${d.can_manage ? `<div class="st-game muted small">🎮 الألعاب على التلفاز تضيف نجوماً لمن يلعب: ${d.game_daily ? `حتى <b translate="no">${d.game_daily}</b> نجمة في اليوم لكل شخص` : '<b>متوقفة</b>'}
           <button class="btn sm" data-x="gd">تغيير</button></div>` : ''}
         <h4 style="margin:18px 0 8px">${icon('list')} آخر الحركات</h4>
@@ -47,10 +48,15 @@ registerApp({
     };
     const act = async (kind) => {
       const people = d.people.filter((p) => kind !== 'transfer' || p.id !== d.me);
-      const title = { transfer: 'أهدِ نجوماً', give: 'أضف نجوماً', take: 'اخصم نجوماً' }[kind];
+      const title = { transfer: 'أهدِ من رصيدك', give: 'أعطِ نجوماً', take: 'اخصم نجوماً' }[kind];
+      const amounts = [1, 2, 3, 5, 10, 20].filter((n) => kind !== 'transfer' || n <= d.my_balance);
+      if (!amounts.length) {
+        toast(d.can_manage ? 'رصيدك صفر. لتعطي نجوماً دون أن ينقص رصيدك اختر «⭐ أعطِ نجوماً»' : 'رصيدك صفر، لا تستطيع الإهداء الآن', 'err');
+        return;
+      }
       const v = await form(title, [
         { name: 'to', label: 'لمن؟', type: 'select', options: people.map((p) => ({ value: p.id, label: `${p.name} (⭐ ${p.balance})` })) },
-        { name: 'amount', label: 'كم نجمة؟', type: 'select', value: 1, options: [1, 2, 3, 5, 10, 20].map((n) => ({ value: n, label: String(n) })) },
+        { name: 'amount', label: kind === 'transfer' ? `كم نجمة؟ (رصيدك ${d.my_balance})` : 'كم نجمة؟', type: 'select', value: 1, options: amounts.map((n) => ({ value: n, label: String(n) })) },
         { name: 'preset', label: 'السبب', type: 'select', value: REASONS[kind][0], options: [...REASONS[kind].map((r) => ({ value: r, label: r })), { value: '', label: 'سبب آخر (اكتبه أدناه)' }] },
         { name: 'reason', label: 'سبب آخر', placeholder: 'اختياري إذا اخترت سبباً من القائمة' },
       ], { ok: title });
