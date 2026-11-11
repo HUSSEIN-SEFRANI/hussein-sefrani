@@ -1,10 +1,13 @@
-// سارة والتفكير — اختاري الترجمة الفرنسية الصحيحة أو الجواب الصحيح. 5 مستويات، 10 أسئلة في كل جولة من بنك أكبر، والأسئلة الجديدة تظهر أولاً.
-// أول خطأ في الجولة مسموح، وبعده كل خطأ يخصم نقطة. كل 5 إجابات صحيحة متتالية = نجمة لرصيد الطفل. ولكل جولة 3 وسائل مساعدة تُستعمل مرة واحدة.
+// سارة والتفكير — اختاري الترجمة الفرنسية الصحيحة أو الجواب الصحيح. 5 مستويات، 20 سؤالاً في كل جولة من بنك أكبر، والأسئلة الجديدة تظهر أولاً.
+// خطأ واحد فقط مسموح في الجولة، والخطأ الثاني ينهيها. 10 أسئلة = نجمة لرصيد الطفل، و20 سؤالاً = 5 نجوم.
+// ولكل جولة 3 وسائل مساعدة تُستعمل مرة واحدة.
 (function () {
   "use strict";
   const $ = (id) => document.getElementById(id);
   const LEVELS = window.LEVELS;
-  const PER_LEVEL = 10;
+  const PER_LEVEL = 20;
+  const MAX_WRONG = 1;              // أخطاء مسموحة؛ الخطأ التالي ينهي الجولة
+  const REWARDS = { 10: 1, 20: 4 }; // بعد السؤال 10: نجمة، وبعد السؤال 20: 4 أخرى (المجموع 5)
   const STORE = "sara-thinking";
 
   // ------------------------------------------------------------ الحفظ
@@ -13,9 +16,8 @@
   const persist = () => { try { localStorage.setItem(STORE, JSON.stringify(save)); } catch (e) { /* */ } };
 
   // ------------------------------------------------------------ نجوم الحساب
-  // كل 5 إجابات صحيحة متتالية = نجمة في رصيد الطفل على السيرفر.
+  // النجوم التي تربحها سارة تُرسل إلى رصيدها على السيرفر.
   // إن لم يكن السيرفر يقبلها بعد (أو لا اتصال) تبقى محفوظة وتُرسل لاحقاً.
-  const STREAK = 5;
   let sending = false;
   async function flushStars() {
     if (sending || !(save.pending > 0)) return;
@@ -24,7 +26,7 @@
       const amount = save.pending;
       const r = await fetch("/api/tv/stars/earn", {
         method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount, game: "سارة والتفكير", reason: `سارة والتفكير: ${amount * STREAK} إجابات صحيحة متتالية` }),
+        body: JSON.stringify({ amount, game: "سارة والتفكير", reason: `سارة والتفكير: ${amount} ${amount === 1 ? "نجمة" : "نجوم"} من الأسئلة` }),
       });
       if (r.ok) { save.pending = Math.max(0, save.pending - amount); persist(); }
     } catch (e) { /* لاحقاً */ }
@@ -87,7 +89,7 @@
   }
 
   // ------------------------------------------------------------ اللعب
-  let level = 0, queue = [], qi = 0, score = 0, right = 0, wrong = 0, streak = 0, earned = 0, answers = [], locked = false;
+  let level = 0, queue = [], qi = 0, score = 0, right = 0, wrong = 0, earned = 0, answers = [], locked = false;
   // وسائل المساعدة: مرة واحدة لكل جولة
   const LIFE = [["fifty", "✂️ حذف إجابتين"], ["skip", "⏭️ تخطّي السؤال"], ["hint", "💡 معلومة مساعدة"]];
   let helps = {}, zone = "ans", hsel = 0, gone = new Set();
@@ -96,7 +98,7 @@
 
   function startLevel(i) {
     if (i + 1 > save.unlocked) { sfx.bad(); return; }
-    level = i; qi = 0; score = 0; right = 0; wrong = 0; streak = 0; earned = 0;
+    level = i; qi = 0; score = 0; right = 0; wrong = 0; earned = 0;
     helps = { fifty: true, skip: true, hint: true };
     // الأسئلة التي لم تظهر بعد أولاً؛ وحين تنتهي كلها تبدأ دورة جديدة
     const key = qkey;
@@ -112,11 +114,15 @@
     ask();
   }
 
+  function scorePill() {
+    $("score").textContent = `✅ ${right}  ${"❤️".repeat(Math.max(0, MAX_WRONG + 1 - wrong))}`;
+  }
+
   function ask() {
     const q = queue[qi];
     locked = false;
     $("lvl").textContent = `المستوى ${level + 1}: ${LEVELS[level].name}`;
-    $("score").textContent = `⭐ ${score}`;
+    scorePill();
     $("bar").style.width = `${(qi / queue.length) * 100}%`;
     $("kind").textContent = q.t === "tr" ? "اختاري الترجمة الفرنسية الصحيحة" : "سؤال ذكاء: اختاري الجواب الصحيح";
     $("qar").textContent = q.ar;
@@ -225,28 +231,30 @@
     const btns = $("answers").querySelectorAll(".ans");
     const a = answers[sel];
     if (a.ok) {
-      score++; right++; streak++;
+      score++; right++;
       btns[sel].classList.add("ok");
       $("fb").textContent = ["أحسنتِ يا سارة! Bravo !", "رائع! Super !", "ممتاز! Excellent !", "شاطرة! Très bien !"][Math.floor(Math.random() * 4)];
       sfx.ok(); confetti(24);
-      if (streak % STREAK === 0) {
-        earned++; save.pending = (save.pending || 0) + 1; persist(); flushStars();
-        $("fb").textContent = `🌟 ${STREAK} إجابات صحيحة متتالية! +1 نجمة في رصيدك`;
-        setTimeout(() => { sfx.win(); confetti(70); }, 250);
-      }
       say(a.fr);
     } else {
       btns[sel].classList.add("bad");
       btns[answers.findIndex((x) => x.ok)].classList.add("ok");
-      wrong++; streak = 0;
-      // أول خطأ في الجولة مسموح بلا خصم
-      if (wrong === 1) $("fb").textContent = "لا بأس، هذا خطؤك المسموح! الصحيح باللون الأخضر";
-      else { if (score > 0) score--; $("fb").textContent = "خُصمت نقطة! الجواب الصحيح باللون الأخضر"; }
+      wrong++;
+      $("fb").textContent = wrong <= MAX_WRONG ? "انتبهي! هذا خطؤك الوحيد المسموح" : "خطأ ثانٍ… انتهت الجولة";
       sfx.bad();
       setTimeout(() => say(answers.find((x) => x.ok).fr), 500);
     }
-    $("score").textContent = `⭐ ${score}`;
-    setTimeout(next, a.ok ? 1700 : 2800);
+    scorePill();
+    // مكافأة عند إتمام 10 أسئلة ثم 20 سؤالاً
+    const done = qi + 1, prize = wrong <= MAX_WRONG ? REWARDS[done] : 0;
+    if (prize) {
+      earned += prize; save.pending = (save.pending || 0) + prize; persist(); flushStars();
+      setTimeout(() => {
+        $("fb").textContent = done === PER_LEVEL ? `🏆 أنهيتِ ${done} سؤالاً! صار مجموعك ${earned} نجوم في رصيدك` : `🌟 ${done} أسئلة! +${prize} نجمة في رصيدك`;
+        sfx.win(); confetti(70);
+      }, a.ok ? 700 : 1200);
+    }
+    setTimeout(wrong > MAX_WRONG ? finish : next, (a.ok ? 1700 : 2800) + (prize ? 1300 : 0));
   }
 
   function next() {
@@ -257,15 +265,17 @@
 
   let doneSel = 0, doneBtns = [];
   function finish() {
-    $("bar").style.width = "100%";
-    const stars = score >= 9 ? 3 : score >= 7 ? 2 : score >= 4 ? 1 : 0;
+    const passed = wrong <= MAX_WRONG;   // أكملت الأسئلة كلها
+    if (passed) $("bar").style.width = "100%";
+    // نجوم المستوى: 3 بلا خطأ، 2 بخطأ واحد، 1 إن خسرت بعد 10 أسئلة
+    const stars = passed ? (wrong === 0 ? 3 : 2) : right + wrong >= 10 ? 1 : 0;
     save.best[level] = Math.max(save.best[level] || 0, stars);
-    const passed = score >= 4;
     if (passed && level + 2 > save.unlocked && level + 1 < LEVELS.length) save.unlocked = level + 2;
     persist();
     $("stars").innerHTML = [0, 1, 2].map((i) => `<span class="${i < stars ? "" : "off"}" style="animation-delay:${i * 0.2}s">⭐</span>`).join("");
     $("dt").textContent = stars === 3 ? "بطلة التفكير!" : passed ? "أحسنتِ يا سارة!" : "محاولة جميلة!";
-    $("ds").textContent = `نقاطك ${score} من ${queue.length} (صحيحة ${right}، خاطئة ${wrong})` + (earned ? ` — ربحتِ ${earned} 🌟 لرصيدك` : "") + (passed && level + 1 < LEVELS.length ? " — فُتح المستوى التالي 🎉" : !passed ? " — تحتاجين 4 نقاط لفتح المستوى التالي" : " — أنهيتِ كل المستويات! 🏆");
+    $("ds").textContent = `أجبتِ ${right} صحيحة من ${right + wrong}` + (earned ? ` — ربحتِ ${earned} 🌟 لرصيدك` : "") +
+      (passed && level + 1 < LEVELS.length ? " — فُتح المستوى التالي 🎉" : !passed ? ` — أكملي ${PER_LEVEL} سؤالاً بخطأ واحد فقط لتربحي 5 نجوم` : " — أنهيتِ كل المستويات! 🏆");
     doneBtns = [];
     if (passed && level + 1 < LEVELS.length) doneBtns.push(["المستوى التالي ←", () => startLevel(level + 1)]);
     doneBtns.push(["إعادة المستوى", () => startLevel(level)], ["القائمة", () => { show("start"); sel = level; drawLevels(); }]);
