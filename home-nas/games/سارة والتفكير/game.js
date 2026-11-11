@@ -11,28 +11,19 @@
   const STORE = "sara-thinking";
 
   // ------------------------------------------------------------ الحفظ
-  let save = { unlocked: 1, best: {}, seen: {}, pending: 0 };
+  let save = { unlocked: 1, best: {}, seen: {} };
   try { save = Object.assign(save, JSON.parse(localStorage.getItem(STORE) || "{}")); } catch (e) { /* */ }
   const persist = () => { try { localStorage.setItem(STORE, JSON.stringify(save)); } catch (e) { /* */ } };
 
   // ------------------------------------------------------------ نجوم الحساب
-  // النجوم التي تربحها سارة تُرسل إلى رصيدها على السيرفر.
-  // إن لم يكن السيرفر يقبلها بعد (أو لا اتصال) تبقى محفوظة وتُرسل لاحقاً.
-  let sending = false;
-  async function flushStars() {
-    if (sending || !(save.pending > 0)) return;
-    sending = true;
-    try {
-      const amount = save.pending;
-      const r = await fetch("/api/tv/stars/earn", {
-        method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount, game: "سارة والتفكير", reason: `سارة والتفكير: ${amount} ${amount === 1 ? "نجمة" : "نجوم"} من الأسئلة` }),
-      });
-      if (r.ok) { save.pending = Math.max(0, save.pending - amount); persist(); }
-    } catch (e) { /* لاحقاً */ }
-    sending = false;
+  // يضيف نجوماً لرصيد الطفل على السيرفر (انظر _kit/API.txt) ويرجع عدد ما أُضيف فعلاً.
+  // أي خطأ (خارج التلفاز، أو بلا اتصال) يُتجاهل بهدوء ويرجع 0.
+  function earnStars(amount, reason) {
+    return fetch("/api/tv/stars/earn", {
+      method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount, game: "سارة والتفكير", reason }),
+    }).then((r) => (r.ok ? r.json() : null)).then((d) => (d && d.added > 0 ? d.added : 0)).catch(() => 0);
   }
-  flushStars();
 
   // ------------------------------------------------------------ الصوت
   let ac = null;
@@ -89,7 +80,7 @@
   }
 
   // ------------------------------------------------------------ اللعب
-  let level = 0, queue = [], qi = 0, score = 0, right = 0, wrong = 0, earned = 0, answers = [], locked = false;
+  let level = 0, queue = [], qi = 0, score = 0, right = 0, wrong = 0, earned = 0, earning = null, answers = [], locked = false;
   // وسائل المساعدة: مرة واحدة لكل جولة
   const LIFE = [["fifty", "✂️ حذف إجابتين"], ["skip", "⏭️ تخطّي السؤال"], ["hint", "💡 معلومة مساعدة"]];
   let helps = {}, zone = "ans", hsel = 0, gone = new Set();
@@ -98,7 +89,7 @@
 
   function startLevel(i) {
     if (i + 1 > save.unlocked) { sfx.bad(); return; }
-    level = i; qi = 0; score = 0; right = 0; wrong = 0; earned = 0;
+    level = i; qi = 0; score = 0; right = 0; wrong = 0; earned = 0; earning = null;
     helps = { fifty: true, skip: true, hint: true };
     // الأسئلة التي لم تظهر بعد أولاً؛ وحين تنتهي كلها تبدأ دورة جديدة
     const key = qkey;
@@ -248,11 +239,20 @@
     // مكافأة عند إتمام 10 أسئلة ثم 20 سؤالاً
     const done = qi + 1, prize = wrong <= MAX_WRONG ? REWARDS[done] : 0;
     if (prize) {
-      earned += prize; save.pending = (save.pending || 0) + prize; persist(); flushStars();
-      setTimeout(() => {
-        $("fb").textContent = done === PER_LEVEL ? `🏆 أنهيتِ ${done} سؤالاً! صار مجموعك ${earned} نجوم في رصيدك` : `🌟 ${done} أسئلة! +${prize} نجمة في رصيدك`;
-        sfx.win(); confetti(70);
-      }, a.ok ? 700 : 1200);
+      const atQ = qi, shownAt = Date.now() + (a.ok ? 700 : 1200);
+      const last = done === PER_LEVEL;
+      earning = earnStars(prize, last ? `أنهت ${done} سؤالاً في المستوى ${level + 1}` : `أجابت ${done} أسئلة في المستوى ${level + 1}`).then((added) => {
+        earned += added;
+        setTimeout(() => {
+          if (screen !== "quiz" || qi !== atQ) return;
+          // نعرض ما أُضيف فعلاً فقط؛ إن كان صفراً لا نذكر النجوم
+          if (added) $("fb").textContent = last ? `🏆 أنهيتِ ${done} سؤالاً! +${added} ⭐ في رصيدك` : `🌟 ${done} أسئلة! +${added} ⭐ في رصيدك`;
+          else if (last) $("fb").textContent = `🏆 أنهيتِ ${done} سؤالاً!`;
+          else return;
+          sfx.win(); confetti(70);
+        }, Math.max(0, shownAt - Date.now()));
+        return added;
+      });
     }
     setTimeout(wrong > MAX_WRONG ? finish : next, (a.ok ? 1700 : 2800) + (prize ? 1300 : 0));
   }
@@ -274,8 +274,12 @@
     persist();
     $("stars").innerHTML = [0, 1, 2].map((i) => `<span class="${i < stars ? "" : "off"}" style="animation-delay:${i * 0.2}s">⭐</span>`).join("");
     $("dt").textContent = stars === 3 ? "بطلة التفكير!" : passed ? "أحسنتِ يا سارة!" : "محاولة جميلة!";
-    $("ds").textContent = `أجبتِ ${right} صحيحة من ${right + wrong}` + (earned ? ` — ربحتِ ${earned} 🌟 لرصيدك` : "") +
-      (passed && level + 1 < LEVELS.length ? " — فُتح المستوى التالي 🎉" : !passed ? ` — أكملي ${PER_LEVEL} سؤالاً بخطأ واحد فقط لتربحي 5 نجوم` : " — أنهيتِ كل المستويات! 🏆");
+    const summary = () => {
+      $("ds").textContent = `أجبتِ ${right} صحيحة من ${right + wrong}` + (earned ? ` — ربحتِ ${earned} ⭐ لرصيدك` : "") +
+        (passed && level + 1 < LEVELS.length ? " — فُتح المستوى التالي 🎉" : !passed ? ` — أكملي ${PER_LEVEL} سؤالاً بخطأ واحد فقط` : " — أنهيتِ كل المستويات! 🏆");
+    };
+    summary();
+    if (earning) earning.then(summary);
     doneBtns = [];
     if (passed && level + 1 < LEVELS.length) doneBtns.push(["المستوى التالي ←", () => startLevel(level + 1)]);
     doneBtns.push(["إعادة المستوى", () => startLevel(level)], ["القائمة", () => { show("start"); sel = level; drawLevels(); }]);
