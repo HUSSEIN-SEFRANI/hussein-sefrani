@@ -21,7 +21,8 @@
 
   // ---------------------------------------------------------------- صنع القصة
   function play() {
-    const S = { hero: null, parts: [], step: 0 };
+    // لكل خطوة بداية جملة عشوائية من ps، فيتغيّر السرد في كل قصة
+    const S = { hero: null, parts: [], step: 0, ps: STEPS.map((st) => (st.ps ? K.shuffle(st.ps)[0] : st.p)) };
     ask();
 
     function options() {
@@ -38,7 +39,7 @@
     function ask() {
       K.begin();
       const opts = options();
-      const prefix = S.step === 0 ? "كان يا ما كان، كان هناك " : (S.step === 1 ? " " : " ") + pick(STEPS[S.step - 1].p, S.hero.g);
+      const prefix = S.step === 0 ? "كان يا ما كان، كان هناك " : " " + pick(S.ps[S.step - 1], S.hero.g);
       const dots = Array.from({ length: TOTAL }, (_, k) => `<i class="${k < S.step ? "ok" : k === S.step ? "now" : ""}"></i>`).join("");
       K.paint(`<div class="top">${K.backBtn()}<div class="dots">${dots}</div><span class="pill" dir="ltr">RAHAF 67</span></div>
         <div class="page"><div class="txt">${storyHtml(`<span class="pend">${K.esc(prefix)}<b class="hole">…</b></span>`)}</div></div>
@@ -57,7 +58,7 @@
         S.parts.push(`كان يا ما كان، ${S.hero.g === "f" ? "كانت" : "كان"} هناك ${o.text}`);
       } else {
         const st = STEPS[S.step - 1];
-        S.parts.push(` ${pick(st.p, S.hero.g)}${o.text}${st.end}`);
+        S.parts.push(` ${pick(S.ps[S.step - 1], S.hero.g)}${o.text}${st.end}`);
       }
       if (o.six7) six7();
       S.step++;
