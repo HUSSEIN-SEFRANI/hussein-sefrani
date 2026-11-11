@@ -397,18 +397,24 @@ function wordCard(w, topPx, kids = false) {
     <div class="ar">${esc(w.ar)}</div><div class="tr">${tr}</div></div></div>`;
 }
 
-// الطقس ونص اليوم (حديث، مثل، حكمة) في الصفحة الرئيسية
+// الطقس ونص اليوم (حديث، آية، حكمة، مثل) في الصفحة الرئيسية
 function weatherLine(w) {
   if (!w) return "";
   const range = w.max != null && w.min != null ? ` · <bdi dir="ltr">${w.min}° / ${w.max}°</bdi>` : "";
   return `<span class="emo">${w.icon}</span> <b><bdi dir="ltr">${w.temp}°</bdi></b> <small>${esc(w.desc || "")}${w.city ? ` · ${esc(w.city)}` : ""}${range}</small>`;
 }
-function textCard(t, kids = false) {
+const TEXT_ICON = { hadith: "🕌", ayah: "📖", proverb: "📜", wisdom: "💡" };
+const letters = (t) => t.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, "").length;
+function textBody(t) {
+  if (t.kind === "ayah") return `<span class="qr">﴿${esc(t.text)}﴾</span>`;
+  return t.kind === "hadith" ? `«${esc(t.text)}»` : esc(t.text);
+}
+function textCard(t, kids = false, cls = "") {
   if (!t) return "";
-  const icon = { hadith: "🕌", proverb: "📜", wisdom: "💡" }[t.kind] || "✨";
-  const long = t.text.replace(/[\u064B-\u0652\u0670\u0640]/g, "").length > (kids ? 42 : 55) ? " long" : "";
-  return `<div class="tcard ${kids ? "kid" : "glass"} ${t.kind}${long}"><div class="lbl"><span class="emo">${icon}</span> ${esc(t.label)}</div>
-    <div class="tx">${t.kind === "hadith" ? `«${esc(t.text)}»` : esc(t.text)}</div>
+  const icon = TEXT_ICON[t.kind] || "✨";
+  const long = letters(t.text) > (kids ? 42 : 55) ? " long" : "";
+  return `<div class="tcard ${kids ? "kid" : "glass"} ${t.kind}${long} ${cls}"><div class="lbl"><span class="emo">${icon}</span> ${esc(t.label)}</div>
+    <div class="tx">${textBody(t)}</div>
     ${t.source ? `<div class="src">${esc(t.source)}</div>` : ""}${t.explain && (kids || t.kind === "proverb") ? `<div class="ex">${esc(t.explain)}</div>` : ""}</div>`;
 }
 
@@ -551,7 +557,7 @@ function adultHome(d) {
       <div class="user-pill glass"><div class="mini">${face(u)}</div><span style="font-weight:700;font-size:16px">${esc(u.name)}</span></div></div>
       <button class="pill glass f js-switch">تبديل المستخدم</button></div>
     <div class="clockbig"><div class="tm js-tm"></div><div class="dt js-dt"></div><div class="hj js-hj"></div><div class="wx js-wx">${weatherLine(d.weather)}</div></div>
-    ${textCard(d.text)}
+    ${textCard(d.text, false, hasPrayer ? "beside" : "solo")}
     <div class="cards">${hasPrayer ? prayerCard(d.prayer, 112) : ""}${wordCard(d.word, hasPrayer ? 336 : 112)}</div>
     <nav class="dock glass">${dock}${setTile}</nav></div>`);
   const tiles = Object.fromEntries(d.tiles.map((t) => [String(t.id), t]));
@@ -1040,8 +1046,11 @@ async function bookScreen(t, path) {
 }
 
 // ============================================================== شاشة التوقف + منع إطفاء الشاشة
+// الأنواع: مواقيت الصلاة، صوري، نار، نص، أمطار، درب التبانة، وتنويع (يتبدّل كل 4 دقائق)
+const SAVERS = [["prayer", "مواقيت الصلاة", "🕌"], ["photos", "صوري", "🖼️"], ["fire", "نار", "🔥"], ["text", "نص", "📜"],
+  ["rain", "أمطار", "🌧️"], ["galaxy", "درب التبانة", "🌌"], ["mix", "تنويع", "🔀"]];
 let lastAct = Date.now();
-let saverEl = null, saverTimer = 0;
+let saverEl = null, saverTimer = 0, saverStop = null;
 function activity() { lastAct = Date.now(); }
 function inNight() {
   const m = /^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/.exec(settings.night_off || "");
@@ -1050,40 +1059,47 @@ function inNight() {
   const a = +m[1] * 60 + +m[2], b = +m[3] * 60 + +m[4];
   return a <= b ? cur >= a && cur < b : cur >= a || cur < b;
 }
-async function showSaver(night) {
-  saverEl = h(`<div class="saver ${night ? "night" : ""}"><div class="blurbg"></div><div class="ph"></div><div class="blurbg"></div><div class="ph"></div>
-    <div class="sclock"><div class="tm js-tm"></div><div class="dt js-dt"></div></div></div>`);
+const prayerOk = () => !!(clockData && clockData.prayer && clockData.prayer.times && clockData.prayer.times.length);
+const SCLOCK = `<div class="sclock"><div class="tm js-tm"></div><div class="dt js-dt"></div></div>`;
+const rnd = (a, b) => a + Math.random() * (b - a);
+
+function showSaver(night, kind) {
+  if (saverEl) hideSaver();
+  saverEl = h(`<div class="saver"></div>`);
   stage.appendChild(saverEl);
-  tick();
   const el = saverEl;
-  let ids = [];
-  if (!night && me) { try { ids = (await api("/api/tv/wallpaper")).ids; } catch { /* */ } }
-  if (el !== saverEl) return;
-  if (!ids.length) {
-    el.classList.add("empty");
-    const clock = el.querySelector(".sclock");
-    const wander = () => { clock.style.right = `${40 + Math.random() * 700}px`; clock.style.bottom = `${40 + Math.random() * 480}px`; };
-    saverTimer = setInterval(wander, 20000);
+  if (night) { el.classList.add("night"); el.innerHTML = SCLOCK; tick(); return; }
+  kind = kind || settings.saver_kind || "prayer";
+  if (kind === "mix") {
+    const order = ["prayer", "galaxy", "fire", "text", "rain"].filter((k) => k !== "prayer" || prayerOk());
+    let i = Math.floor(Math.random() * order.length);
+    const run = () => {
+      if (el !== saverEl) return;
+      try { saverStop?.(); } catch { /* */ }
+      el.innerHTML = ""; el.className = "saver";
+      saverStop = startSaver(el, order[i++ % order.length]);
+    };
+    run();
+    saverTimer = setInterval(run, 4 * 60000);
     return;
   }
-  const phs = el.querySelectorAll(".ph"), bgs = el.querySelectorAll(".blurbg");
-  let i = 0, k = 0;
-  const next = () => {
-    const img = new Image();
-    img.onload = () => {
-      const a = k % 2, b = 1 - a;
-      phs[a].style.backgroundImage = bgs[a].style.backgroundImage = `url("${img.src}")`;
-      phs[a].classList.add("show"); bgs[a].classList.add("show");
-      phs[b].classList.remove("show"); bgs[b].classList.remove("show");
-      k++;
-    };
-    img.src = `/api/tv/photo/${ids[i++ % ids.length]}/view`;
-  };
-  next();
-  saverTimer = setInterval(next, 12000);
+  saverStop = startSaver(el, kind);
+}
+function startSaver(el, kind) {
+  if (kind === "prayer" && !prayerOk()) kind = "galaxy";
+  const fn = { prayer: svPrayer, photos: svPhotos, fire: svFire, text: svText, rain: svRain, galaxy: svGalaxy }[kind] || svPrayer;
+  el.classList.add("sv-" + kind);
+  const stop = fn(el);
+  tick();
+  // الساعة الصغيرة تتحرك قليلاً كل دقيقة حتى لا تحترق الشاشة
+  const sc = el.querySelector(".sclock");
+  const drift = sc ? setInterval(() => { sc.style.transform = `translate(${rnd(-40, 40)}px, ${rnd(-20, 20)}px)`; }, 60000) : 0;
+  return () => { clearInterval(drift); stop?.(); };
 }
 function hideSaver() {
   clearInterval(saverTimer);
+  try { saverStop?.(); } catch { /* */ }
+  saverStop = null;
   saverEl?.remove();
   saverEl = null;
   activity();
@@ -1099,6 +1115,321 @@ setInterval(() => {
   const lim = night ? 1 : +settings.saver_min || 0;
   if (lim && Date.now() - lastAct > lim * 60000) showSaver(night);
 }, 10000);
+
+// حلقة رسم بعدد إطارات محدود (أخف على جهاز السيرفر)
+function frameLoop(fn, fps = 30) {
+  let id = 0, last = 0, stopped = false;
+  const f = (t) => {
+    if (stopped) return;
+    id = requestAnimationFrame(f);
+    if (last && t - last < 1000 / fps - 3) return;
+    const dt = last ? Math.min(0.1, (t - last) / 1000) : 1 / fps;
+    last = t;
+    fn(dt, t / 1000);
+  };
+  id = requestAnimationFrame(f);
+  return () => { stopped = true; cancelAnimationFrame(id); };
+}
+function svCanvas(el, cls) {
+  const k = Math.max(1, Math.min(1.6, scale || 1));
+  const c = document.createElement("canvas");
+  c.className = "svc " + (cls || "");
+  c.width = Math.round(1280 * k); c.height = Math.round(720 * k);
+  el.appendChild(c);
+  const ctx = c.getContext("2d");
+  ctx.scale(k, k);
+  return { c, ctx, k };
+}
+const starsHtml = (n, h0 = 720) => Array.from({ length: n }, () => `<i style="left:${rnd(0, 1280).toFixed(0)}px;top:${rnd(0, h0).toFixed(0)}px;--d:${rnd(2, 6).toFixed(1)}s;--s:${rnd(1, 3).toFixed(1)}px;animation-delay:-${rnd(0, 6).toFixed(1)}s"></i>`).join("");
+
+// ---------------------------------------------------------------- 1) مواقيت الصلاة بكامل الشاشة
+const MOSQUE = `<svg class="sp-mosque" viewBox="0 0 1280 220" preserveAspectRatio="xMidYMax slice" aria-hidden="true"><g fill="#070b1f">
+  <rect x="150" y="96" width="18" height="124"/><path d="M146 96h26l-13-34z"/><rect x="143" y="120" width="32" height="6"/>
+  <rect x="1112" y="96" width="18" height="124"/><path d="M1108 96h26l-13-34z"/><rect x="1105" y="120" width="32" height="6"/>
+  <rect x="300" y="40" width="30" height="180"/><path d="M294 40h42l-21-48z"/><rect x="288" y="78" width="54" height="9"/><rect x="288" y="128" width="54" height="9"/>
+  <rect x="950" y="40" width="30" height="180"/><path d="M944 40h42l-21-48z"/><rect x="938" y="78" width="54" height="9"/><rect x="938" y="128" width="54" height="9"/>
+  <path d="M520 132 C 520 52, 760 52, 760 132 Z"/><rect x="636" y="34" width="8" height="26"/><circle cx="640" cy="30" r="7"/>
+  <path d="M400 160 C 400 110, 500 110, 500 160 Z"/><path d="M780 160 C 780 110, 880 110, 880 160 Z"/>
+  <rect x="380" y="158" width="520" height="62"/><rect x="480" y="130" width="320" height="40"/><rect x="0" y="206" width="1280" height="14"/></g>
+  <g fill="#fbbf24" opacity=".75">${[420, 450, 480, 520, 560, 600, 680, 720, 760, 800, 830, 860].map((x) => `<path d="M${x} 200v-18a7 7 0 0 1 14 0v18z"/>`).join("")}
+  <path d="M628 150v-22a12 12 0 0 1 24 0v22z"/></g></svg>`;
+const MOON = `<svg class="sp-moon" viewBox="0 0 100 120" aria-hidden="true"><path d="M60 8 A52 52 0 1 0 60 112 A40 52 0 1 1 60 8Z" fill="#fef3c7"/></svg>`;
+function svPrayer(el) {
+  const p = clockData.prayer;
+  el.innerHTML = `<div class="sp-sky">${starsHtml(90, 520)}</div>${MOON}${MOSQUE}
+    <div class="sp-wrap"><div class="sp-clock js-tm"></div><div class="sp-date"><span class="js-dt"></span>${fmtHijri ? ` · <span class="js-hj"></span>` : ""}</div>
+      <div class="sp-next"></div>
+      <div class="sp-row">${p.times.map((t) => `<div class="sp-p${t.key === "sunrise" ? " sr" : ""}" data-k="${t.key}" data-t="${t.time}" data-n="${esc(t.name)}"><b>${esc(t.name)}</b><span class="ltr">${t.time}</span></div>`).join("")}</div>
+      ${p.city ? `<div class="sp-city">${esc(p.city)}</div>` : ""}</div>`;
+  const wrap = el.querySelector(".sp-wrap");
+  const mins = (t) => { const [a, b] = t.split(":").map(Number); return a * 60 + b; };
+  const upd = () => {
+    const now = new Date(), nowM = now.getHours() * 60 + now.getMinutes();
+    const cells = [...el.querySelectorAll(".sp-p")], cand = cells.filter((c) => c.dataset.k !== "sunrise");
+    let nx = cand.find((c) => mins(c.dataset.t) > nowM), diff;
+    if (nx) diff = mins(nx.dataset.t) - nowM; else { nx = cand[0]; diff = 1440 - nowM + mins(nx.dataset.t); }
+    cells.forEach((c) => { c.classList.toggle("nx", c === nx); c.classList.toggle("past", mins(c.dataset.t) <= nowM && c !== nx); });
+    const hh = Math.floor(diff / 60), mm = diff % 60;
+    el.querySelector(".sp-next").innerHTML = `<span>${diff <= 1 ? `حان الآن وقت صلاة ${nx.dataset.n}` : `صلاة <b>${nx.dataset.n}</b> بعد ${hh ? `${hh} ساعة و ` : ""}${mm} دقيقة`}</span>`;
+  };
+  upd();
+  const id = setInterval(upd, 15000);
+  const shift = setInterval(() => { wrap.style.transform = `translate(${rnd(-14, 14)}px, ${rnd(-10, 10)}px)`; }, 60000);
+  return () => { clearInterval(id); clearInterval(shift); };
+}
+
+// ---------------------------------------------------------------- 2) صوري (كما كانت)
+function svPhotos(el) {
+  el.innerHTML = `<div class="blurbg"></div><div class="ph"></div><div class="blurbg"></div><div class="ph"></div>${SCLOCK}`;
+  let timer = 0, alive = true;
+  (async () => {
+    let ids = [];
+    if (me) { try { ids = (await api("/api/tv/wallpaper")).ids; } catch { /* */ } }
+    if (!alive) return;
+    if (!ids.length) {
+      el.classList.add("empty");
+      const clock = el.querySelector(".sclock");
+      timer = setInterval(() => { clock.style.right = `${40 + Math.random() * 700}px`; clock.style.bottom = `${40 + Math.random() * 480}px`; }, 20000);
+      return;
+    }
+    const phs = el.querySelectorAll(".ph"), bgs = el.querySelectorAll(".blurbg");
+    let i = 0, k = 0;
+    const next = () => {
+      const img = new Image();
+      img.onload = () => {
+        const a = k % 2, b = 1 - a;
+        phs[a].style.backgroundImage = bgs[a].style.backgroundImage = `url("${img.src}")`;
+        phs[a].classList.add("show"); bgs[a].classList.add("show");
+        phs[b].classList.remove("show"); bgs[b].classList.remove("show");
+        k++;
+      };
+      img.src = `/api/tv/photo/${ids[i++ % ids.length]}/view`;
+    };
+    next();
+    timer = setInterval(next, 12000);
+  })();
+  return () => { alive = false; clearInterval(timer); };
+}
+
+// ---------------------------------------------------------------- 3) نار (مدفأة): جزيئات لهب ناعمة فوق الحطب
+const LOGS = `<svg class="fire-logs" viewBox="0 0 600 120" aria-hidden="true">
+  <g transform="rotate(-8 300 80)"><rect x="90" y="62" width="420" height="40" rx="20" fill="#3b2314"/><ellipse cx="500" cy="82" rx="14" ry="20" fill="#7c4a26"/><ellipse cx="500" cy="82" rx="7" ry="11" fill="#a0673a"/></g>
+  <g transform="rotate(9 300 80)"><rect x="80" y="70" width="430" height="38" rx="19" fill="#2c1a0e"/><ellipse cx="92" cy="89" rx="13" ry="19" fill="#6b3f20"/><ellipse cx="92" cy="89" rx="6" ry="10" fill="#94592f"/></g>
+  <rect x="40" y="104" width="520" height="16" rx="8" fill="#1a0f08"/></svg>`;
+function flameSprite(stops) {
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const g = c.getContext("2d"), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  stops.forEach(([o, col]) => gr.addColorStop(o, col));
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  return c;
+}
+function svFire(el) {
+  el.innerHTML = `<div class="fire-glow"></div>${LOGS}${SCLOCK}`;
+  const { ctx } = svCanvas(el, "flames");
+  el.querySelector(".fire-logs").before(el.querySelector(".flames"));
+  const SPR = [
+    flameSprite([[0, "rgba(255,236,160,.85)"], [0.3, "rgba(255,200,80,.55)"], [0.65, "rgba(255,140,30,.2)"], [1, "rgba(255,120,0,0)"]]),
+    flameSprite([[0, "rgba(255,200,80,.85)"], [0.35, "rgba(255,130,20,.5)"], [1, "rgba(220,60,0,0)"]]),
+    flameSprite([[0, "rgba(230,80,10,.6)"], [0.45, "rgba(170,30,5,.28)"], [1, "rgba(90,10,0,0)"]]),
+  ];
+  const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
+  const parts = [], sparks = [];
+  return frameLoop((dt, t) => {
+    // لهب جديد من فوق الحطب، أكثف في الوسط
+    for (let n = 0; n < 12; n++) {
+      const off = gauss() * 190;
+      parts.push({ x: 640 + off, y: rnd(590, 615), vx: -off * 0.25 + rnd(-15, 15), vy: rnd(-230, -130) * (1 - Math.abs(off) / 420), life: 0, max: rnd(0.7, 1.5), s: rnd(70, 120) });
+    }
+    if (sparks.length < 40 && Math.random() < 0.4) sparks.push({ x: 640 + gauss() * 150, y: rnd(560, 600), vx: rnd(-25, 25), vy: rnd(-110, -50), life: 0, max: rnd(1.6, 3.4), r: rnd(1.2, 2.6) });
+    ctx.clearRect(0, 0, 1280, 720);
+    ctx.globalCompositeOperation = "lighter";
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i];
+      p.life += dt;
+      const k = p.life / p.max;
+      if (k >= 1) { parts.splice(i, 1); continue; }
+      p.x += (p.vx + Math.sin(t * 3 + p.y * 0.02) * 22) * dt; p.y += p.vy * dt; p.vx *= 0.97;
+      const size = p.s * (1 - k * 0.75), spr = SPR[k < 0.3 ? 0 : k < 0.65 ? 1 : 2];
+      ctx.globalAlpha = Math.min(1, (1 - k) * 1.4) * 0.42;
+      ctx.drawImage(spr, p.x - size / 2, p.y - size / 2, size, size * 1.25);
+    }
+    ctx.globalAlpha = 1;
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const p = sparks[i];
+      p.life += dt; p.x += (p.vx + Math.sin(p.life * 6 + p.max) * 18) * dt; p.y += p.vy * dt;
+      if (p.life > p.max) { sparks.splice(i, 1); continue; }
+      const a = 1 - p.life / p.max;
+      ctx.fillStyle = `rgba(255,${(150 + 100 * a) | 0},60,${a})`;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
+    }
+    ctx.globalCompositeOperation = "source-over";
+  }, 30);
+}
+
+// ---------------------------------------------------------------- 4) نص: آيات وأحاديث وحِكم تتبدّل، أو نص يختاره المدير
+function svText(el) {
+  const custom = (settings.saver_text || "").trim();
+  el.innerHTML = `<div class="tx-bg"></div><div class="tx-orbs">${Array.from({ length: 14 }, () => `<i style="left:${rnd(0, 1200) | 0}px;top:${rnd(0, 680) | 0}px;--z:${rnd(40, 160) | 0}px;--d:${rnd(14, 30) | 0}s;animation-delay:-${rnd(0, 20) | 0}s"></i>`).join("")}</div>
+    <div class="tx-box"></div>${SCLOCK}`;
+  const box = el.querySelector(".tx-box");
+  let alive = true, timer = 0, stopLoop = null;
+  if (custom) {
+    box.classList.add("bounce");
+    box.innerHTML = `<div class="tx-custom">${esc(custom)}</div>`;
+    let x = 200, y = 200, vx = 70, vy = 48, hue = 0;
+    stopLoop = frameLoop((dt) => {
+      const w = box.offsetWidth, hh = box.offsetHeight;
+      x += vx * dt; y += vy * dt;
+      if (x < 0 || x + w > 1280) { vx = -vx; x = Math.max(0, Math.min(1280 - w, x)); hue += 60; }
+      if (y < 0 || y + hh > 640) { vy = -vy; y = Math.max(0, Math.min(640 - hh, y)); hue += 60; }
+      box.style.transform = `translate(${x}px, ${y}px)`;
+      box.style.filter = `hue-rotate(${hue % 360}deg)`;
+    }, 30);
+  } else {
+    let list = [], i = 0;
+    const show = () => {
+      if (!alive || !list.length) return;
+      const t = list[i++ % list.length];
+      box.classList.remove("in");
+      setTimeout(() => {
+        if (!alive) return;
+        box.className = `tx-box rot ${t.kind}`;
+        box.innerHTML = `<div class="lbl">${TEXT_ICON[t.kind] || "✨"} ${esc(t.label)}</div><div class="tx">${textBody(t)}</div>${t.source ? `<div class="src">${esc(t.source)}</div>` : ""}`;
+        box.style.transform = `translate(${rnd(-110, 110) | 0}px, ${rnd(-60, 50) | 0}px)`;
+        box.classList.add("in");
+      }, 1200);
+    };
+    api("/api/tv/saver").then((d) => { list = d.texts || []; show(); timer = setInterval(show, 20000); }).catch(() => {
+      box.className = "tx-box rot in"; box.innerHTML = `<div class="tx">HOME ANAB</div>`;
+    });
+  }
+  return () => { alive = false; clearInterval(timer); stopLoop?.(); };
+}
+
+// ---------------------------------------------------------------- 5) أمطار فوق المدينة ليلاً
+function skyline(seed, color, hmin, hmax, lit) {
+  let x = 0, s = "", w = "";
+  let r = seed;
+  const R = () => { r = (r * 9301 + 49297) % 233280; return r / 233280; };
+  while (x < 1280) {
+    const bw = 40 + R() * 70, bh = hmin + R() * (hmax - hmin);
+    s += `<rect x="${x.toFixed(0)}" y="${(720 - bh).toFixed(0)}" width="${(bw + 1).toFixed(0)}" height="${bh.toFixed(0)}"/>`;
+    if (lit) for (let wy = 720 - bh + 12; wy < 700; wy += 18) for (let wx = x + 8; wx < x + bw - 10; wx += 14) if (R() < 0.16) w += `<rect x="${wx.toFixed(0)}" y="${wy.toFixed(0)}" width="6" height="8"/>`;
+    x += bw;
+  }
+  return `<svg class="rn-city" viewBox="0 0 1280 720" preserveAspectRatio="none" aria-hidden="true"><g fill="${color}">${s}</g><g fill="#fcd34d" opacity=".55">${w}</g></svg>`;
+}
+function svRain(el) {
+  el.innerHTML = `<div class="rn-sky"></div>${skyline(7, "#1e293b", 120, 300, false)}${skyline(31, "#0f172a", 60, 220, true)}<div class="rn-flash"></div>${SCLOCK}`;
+  const { ctx } = svCanvas(el, "rain");
+  const drops = [], ripples = [], wind = -0.18;
+  const mk = (top) => {
+    const z = Math.random(), sp = 520 + z * 700;
+    return { x: rnd(-60, 1340), y: top ? rnd(-720, 0) : -40, len: 10 + z * 26, sp, z, ground: 650 + z * 60 };
+  };
+  for (let i = 0; i < 320; i++) drops.push(mk(true));
+  const flash = el.querySelector(".rn-flash");
+  let nextFlash = rnd(20, 50), tt = 0;
+  const stop = frameLoop((dt) => {
+    tt += dt;
+    if (tt > nextFlash) { tt = 0; nextFlash = rnd(25, 70); flash.classList.remove("go"); void flash.offsetWidth; flash.classList.add("go"); }
+    ctx.clearRect(0, 0, 1280, 720);
+    ctx.lineCap = "round";
+    for (const d of drops) {
+      d.y += d.sp * dt; d.x += d.sp * wind * dt;
+      if (d.y > d.ground) {
+        if (d.z > 0.45 && ripples.length < 90) ripples.push({ x: d.x, y: d.y, r: 1, max: 6 + d.z * 12, a: 0.5 });
+        Object.assign(d, mk(false));
+        continue;
+      }
+      ctx.strokeStyle = `rgba(186,206,235,${0.18 + d.z * 0.42})`;
+      ctx.lineWidth = 0.6 + d.z * 1.3;
+      ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.lineTo(d.x - d.len * wind, d.y - d.len); ctx.stroke();
+    }
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      const p = ripples[i];
+      p.r += 26 * dt; p.a -= 0.9 * dt;
+      if (p.a <= 0 || p.r > p.max) { ripples.splice(i, 1); continue; }
+      ctx.strokeStyle = `rgba(186,206,235,${p.a})`; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r, p.r * 0.3, 0, 0, 7); ctx.stroke();
+    }
+  }, 30);
+  return stop;
+}
+
+// ---------------------------------------------------------------- 6) درب التبانة
+function galaxyImage(D) {
+  const c = document.createElement("canvas");
+  c.width = c.height = D;
+  const g = c.getContext("2d"), m = D / 2;
+  g.fillStyle = "#02030b"; g.fillRect(0, 0, D, D);
+  g.translate(m, m); g.rotate(-0.55); g.translate(-m, -m);
+  const gauss = () => (Math.random() + Math.random() + Math.random() + Math.random() - 2) / 2;
+  g.globalCompositeOperation = "lighter";
+  for (let i = 0; i < 1100; i++) {
+    const t = Math.random() * 2 - 1, x = m + t * D * 0.55, y = m + gauss() * D * 0.07 * (1.15 - Math.abs(t) * 0.4);
+    const core = Math.max(0, 1 - Math.abs(t + 0.1) * 2.2), r = rnd(18, 80) * (D / 1500);
+    const col = core > 0.3 ? `255,${(190 + 40 * Math.random()) | 0},${(140 + 50 * Math.random()) | 0}` : Math.random() < 0.5 ? "150,170,255" : "190,150,255";
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, `rgba(${col},${(0.035 + core * 0.05).toFixed(3)})`); gr.addColorStop(1, `rgba(${col},0)`);
+    g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  }
+  g.globalCompositeOperation = "source-over";
+  for (let i = 0; i < 260; i++) {
+    const t = Math.random() * 2 - 1, x = m + t * D * 0.5, y = m + gauss() * D * 0.022 + Math.sin(t * 5) * D * 0.012, r = rnd(8, 26) * (D / 1500);
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, "rgba(2,3,11,.15)"); gr.addColorStop(1, "rgba(2,3,11,0)");
+    g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  }
+  g.globalCompositeOperation = "lighter";
+  const k = D / 1500;
+  for (let i = 0; i < 4200; i++) {
+    const near = Math.random() < 0.55, x = near ? m + (Math.random() * 2 - 1) * D * 0.55 : Math.random() * D, y = near ? m + gauss() * D * 0.11 : Math.random() * D;
+    const r = (Math.random() < 0.96 ? rnd(0.3, 0.9) : rnd(1, 1.7)) * k, tint = Math.random();
+    g.fillStyle = `rgba(${tint < 0.2 ? "255,214,170" : tint < 0.4 ? "180,200,255" : "255,255,255"},${rnd(0.35, 1).toFixed(2)})`;
+    g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  }
+  for (let i = 0; i < 30; i++) {
+    const x = Math.random() * D, y = Math.random() * D, r = rnd(5, 11) * k;
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, "rgba(255,255,255,.95)"); gr.addColorStop(0.2, "rgba(200,220,255,.4)"); gr.addColorStop(1, "rgba(200,220,255,0)");
+    g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  }
+  return c;
+}
+const HILLS = `<svg class="gx-hills" viewBox="0 0 1280 200" preserveAspectRatio="none" aria-hidden="true"><g fill="#010207">
+  <path d="M0 120 C 180 60, 320 70, 470 110 C 620 150, 760 80, 940 70 C 1080 62, 1180 96, 1280 90 V200 H0Z"/>
+  ${[[150, 92], [190, 84], [230, 90], [1010, 74], [1045, 66], [1085, 76]].map(([x, y]) => `<path d="M${x} ${y - 46}l15 46h-30z"/><path d="M${x} ${y - 30}l19 42h-38z"/><rect x="${x - 2}" y="${y + 8}" width="4" height="10"/>`).join("")}</g></svg>`;
+function svGalaxy(el) {
+  const k = Math.max(1, Math.min(1.6, scale || 1)), D = Math.ceil(1470 * k);
+  const bg = galaxyImage(D);
+  bg.className = "gx-bg";
+  bg.style.width = bg.style.height = "1470px";
+  el.appendChild(bg);
+  el.insertAdjacentHTML("beforeend", `${HILLS}${SCLOCK}`);
+  const { ctx } = svCanvas(el, "gx-fx");
+  const tw = Array.from({ length: 140 }, () => ({ x: rnd(0, 1280), y: rnd(0, 600), r: rnd(0.6, 1.6), ph: rnd(0, 6.3), f: rnd(0.6, 2) }));
+  let meteor = null, nextM = rnd(5, 14), tt = 0;
+  return frameLoop((dt, t) => {
+    ctx.clearRect(0, 0, 1280, 720);
+    for (const s of tw) {
+      const a = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(t * s.f + s.ph));
+      ctx.fillStyle = `rgba(255,255,255,${a.toFixed(2)})`; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 7); ctx.fill();
+    }
+    tt += dt;
+    if (!meteor && tt > nextM) { tt = 0; nextM = rnd(8, 20); meteor = { x: rnd(200, 1200), y: rnd(20, 260), vx: rnd(-700, -480), vy: rnd(160, 300), life: 0 }; }
+    if (meteor) {
+      const p = meteor;
+      p.life += dt; p.x += p.vx * dt; p.y += p.vy * dt;
+      const a = Math.max(0, 1 - p.life / 0.9);
+      const gr = ctx.createLinearGradient(p.x, p.y, p.x - p.vx * 0.18, p.y - p.vy * 0.18);
+      gr.addColorStop(0, `rgba(255,255,255,${a})`); gr.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.strokeStyle = gr; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 0.18, p.y - p.vy * 0.18); ctx.stroke();
+      if (p.life > 0.9) meteor = null;
+    }
+  }, 20);
+}
 
 let wakeLock = null;
 async function keepAwake() {
@@ -1285,23 +1616,46 @@ function oskScreen(opt, done) {
 // ============================================================== إعدادات التلفاز (للمدير فقط)
 function settingsScreen() {
   const items = [["wifi", "الوايفاي", "الاتصال بشبكة لاسلكية", "#06b6d4,#2563eb"], ["bt", "البلوتوث", "يد بلايستيشن وأجهزة أخرى", "#8b5cf6,#06b6d4"],
-    ["pad", "يد التحكم", "الأزرار والاهتزاز وتجربتها", "#a855f7,#ec4899"], ["audio", "الصوت", "مخرج الصوت وتجربته", "#f59e0b,#ea580c"]];
+    ["pad", "يد التحكم", "الأزرار والاهتزاز وتجربتها", "#a855f7,#ec4899"], ["audio", "الصوت", "مخرج الصوت وتجربته", "#f59e0b,#ea580c"],
+    ["saver", "شاشة التوقف", "مواقيت، نار، أمطار، نجوم…", "#0ea5e9,#6366f1"]];
   const el = h(`<div class="bg-dark"><div class="bhead"><button class="back f js-back">${A.CHEVRON}<span>الرئيسية</span></button>
     <div class="ti" style="background:linear-gradient(135deg,#64748b,#1e293b)">${GEAR}</div><h1>الإعدادات</h1></div>
     <div class="set-grid">${items.map(([k, t, s, c]) => `<button class="set-card f" data-k="${k}"><div class="ic" style="background:${A.gradient(c)}">${SET_ICON[k]}</div>
       <b>${t}</b><span>${s}</span></button>`).join("")}</div>
     ${hints([["موافق", "فتح"], ["رجوع", "الرئيسية"]])}</div>`);
   el.querySelector(".js-back").addEventListener("click", pop);
-  el.querySelectorAll(".set-card").forEach((b) => b.addEventListener("click", () => ({ wifi: wifiScreen, bt: btScreen, pad: padScreen, audio: soundSetScreen })[b.dataset.k]()));
+  el.querySelectorAll(".set-card").forEach((b) => b.addEventListener("click", () => ({ wifi: wifiScreen, bt: btScreen, pad: padScreen, audio: soundSetScreen, saver: saverSetScreen })[b.dataset.k]()));
   push({ el, initial: () => el.querySelector(".set-card") });
 }
 const GEAR = `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>`;
 const SET_ICON = {
+  saver: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/><path d="M17 3v3M15.5 4.5h3M20.5 8.5v2M19.5 9.5h2"/></svg>`,
   wifi: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1.2" fill="#fff"/></svg>`,
   bt: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7l10 10-5 5V2l5 5L7 17"/></svg>`,
   pad: A.icon("games"),
   audio: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>`,
 };
+
+// اختيار شاشة التوقف من التلفاز: تظهر فوراً للتجربة
+function saverSetScreen() {
+  const el = subScreen("شاشة التوقف", "saver"), body = el.querySelector(".set-body");
+  const draw = () => {
+    const cur = settings.saver_kind || "prayer";
+    body.innerHTML = `<p class="set-msg">اختر شاشة، وستظهر لك فوراً للتجربة. اضغط أي زر للرجوع.</p>
+      <div class="sv-grid">${SAVERS.map(([k, n, ic]) => `<button class="sv-card f${k === cur ? " on" : ""}" data-k="${k}"><span class="emo">${ic}</span><b>${n}</b>${k === cur ? "<i>✓ المختارة</i>" : ""}</button>`).join("")}</div>
+      <p class="set-msg">تظهر بعد ${+settings.saver_min || 0} دقيقة بلا استعمال (تغيّر المدة من لوحة تحكم السيرفر ← وضع التلفاز).</p>`;
+    body.querySelectorAll(".sv-card").forEach((b) => b.addEventListener("click", async () => {
+      const k = b.dataset.k;
+      try { await api("/api/tv/admin/saver", { json: { kind: k } }); } catch (e) { toast(e.message); return; }
+      settings.saver_kind = k;
+      draw();
+      setFocus(body.querySelector(`.sv-card[data-k="${k}"]`));
+      showSaver(false, k);
+    }));
+  };
+  draw();
+  push({ el, initial: () => el.querySelector(".sv-card.on") || el.querySelector(".sv-card") });
+}
 
 function subScreen(title, iconKey) {
   const el = h(`<div class="bg-dark"><div class="bhead"><button class="back f js-back">${A.CHEVRON}<span>الإعدادات</span></button>

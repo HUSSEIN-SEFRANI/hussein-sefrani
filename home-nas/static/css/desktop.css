@@ -1,6 +1,7 @@
 /* ===================================================================
    H.SEF — واجهة سطح المكتب
    =================================================================== */
+@font-face { font-family: "Amiri Quran"; src: url(../fonts/amiri-quran.woff2) format("woff2"); font-display: swap; }
 :root {
   --bg: #eef1f5;
   --surface: #ffffff;

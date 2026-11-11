@@ -115,20 +115,30 @@ WISDOM = [
     "رتّب أغراضك، فالترتيب يوفّر الوقت.", "الشجاعة أن تقول الحق بأدب.", "فكّر قبل أن تتكلم، وتمهّل قبل أن تغضب.",
     "اجعل اليوم أفضل من الأمس.", "الأخلاق الجميلة أجمل من الثياب الجميلة.", "لا تقارن نفسك بغيرك، قارن نفسك بنفسك أمس.",
 ]
-KIND_LABEL = {"hadith": "حديث نبوي ﷺ", "proverb": "مثل شعبي", "wisdom": "حكمة اليوم"}
+KIND_LABEL = {"hadith": "حديث نبوي ﷺ", "ayah": "آية كريمة", "wisdom": "حكمة اليوم", "proverb": "مثل شعبي"}
+DEFAULT_KINDS = ["hadith", "ayah", "wisdom"]
 
-HADITH_FILE = Path(__file__).parent / "data" / "hadith.json"
-_hadith: list | None = None
+DATA = Path(__file__).parent / "data"
+_cache: dict = {}
+
+
+def _load(name: str) -> list:
+    if name not in _cache:
+        try:
+            _cache[name] = json.loads((DATA / name).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            _cache[name] = []
+    return _cache[name]
 
 
 def hadiths() -> list:
-    global _hadith
-    if _hadith is None:
-        try:
-            _hadith = json.loads(HADITH_FILE.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            _hadith = []
-    return _hadith
+    """أحاديث من صحيحي البخاري ومسلم، نصها مطابق للمصدر."""
+    return _load("hadith.json")
+
+
+def ayat() -> list:
+    """آيات كريمة بالرسم العثماني، منقولة حرفياً من مصحف المدينة (حزمة quran-json)."""
+    return _load("ayat.json")
 
 
 def _pick(uid: int, kind: str, pool: list, state: dict):
@@ -143,10 +153,41 @@ def _pick(uid: int, kind: str, pool: list, state: dict):
 
 def daily_kinds() -> list:
     try:
-        k = json.loads(get_setting("tv_daily_kinds") or '["hadith","proverb","wisdom"]')
+        k = json.loads(get_setting("tv_daily_kinds") or json.dumps(DEFAULT_KINDS))
     except ValueError:
-        k = ["hadith", "proverb", "wisdom"]
+        k = DEFAULT_KINDS
     return [x for x in k if x in KIND_LABEL]
+
+
+def text_item(kind: str, item, kid: bool = False) -> dict | None:
+    """بطاقة نص واحدة بشكل موحّد للتلفاز."""
+    if item is None:
+        return None
+    if kind in ("hadith", "ayah"):
+        return {"kind": kind, "label": KIND_LABEL[kind], "text": item["text"], "source": item["source"], "explain": item.get("explain", "")}
+    if kind == "proverb":
+        return {"kind": kind, "label": KIND_LABEL[kind], "text": item[0], "source": "", "explain": item[1]}
+    return {"kind": kind, "label": KIND_LABEL[kind], "text": item, "source": "", "explain": ""}
+
+
+def pool(kind: str, kid: bool = False) -> list:
+    if kind == "hadith":
+        return [h for h in hadiths() if h.get("kids") or not kid]
+    if kind == "ayah":
+        return [a for a in ayat() if a.get("kids") or not kid]
+    return PROVERBS if kind == "proverb" else WISDOM
+
+
+def saver_texts(n: int = 40) -> list:
+    """نصوص عشوائية لشاشة التوقف (من الأنواع المختارة)."""
+    kinds = daily_kinds() or DEFAULT_KINDS
+    out = []
+    for k in kinds:
+        items = list(pool(k))
+        random.shuffle(items)
+        out += [text_item(k, x) for x in items[: max(4, n // len(kinds))]]
+    random.shuffle(out)
+    return out[:n]
 
 
 
@@ -164,16 +205,8 @@ def daily(u) -> dict:
     if kinds:
         kind = kinds[int(state.get("k", 0)) % len(kinds)]
         state["k"] = int(state.get("k", 0)) + 1
-        if kind == "hadith":
-            pool = [h for h in hadiths() if h.get("kids") or not kid]
-            h = _pick(u["id"], "h" + ("k" if kid else "a"), pool, state)
-            if h:
-                out["text"] = {"kind": kind, "label": KIND_LABEL[kind], "text": h["text"], "source": h["source"], "explain": h.get("explain", "")}
-        elif kind == "proverb":
-            t, ex = _pick(u["id"], "p", PROVERBS, state)
-            out["text"] = {"kind": kind, "label": KIND_LABEL[kind], "text": t, "source": "", "explain": ex}
-        else:
-            out["text"] = {"kind": kind, "label": KIND_LABEL[kind], "text": _pick(u["id"], "q", WISDOM, state), "source": "", "explain": ""}
+        slot = {"hadith": "h" + ("k" if kid else "a"), "ayah": "y", "proverb": "p", "wisdom": "q"}[kind]
+        out["text"] = text_item(kind, _pick(u["id"], slot, pool(kind, kid), state), kid)
     set_setting(key, json.dumps(state))
     return out
 
@@ -183,4 +216,5 @@ def daily(u) -> dict:
 def api_admin_hadith_list():
     """قائمة الأحاديث لمراجعتها من لوحة التحكم."""
     return jsonify(hadith=[{k: h[k] for k in ("text", "source", "explain", "kids")} for h in hadiths()], words=len(WORDS),
+                   ayat=[{k: a[k] for k in ("text", "source", "explain")} for a in ayat()],
                    proverbs=[{"text": t, "explain": e} for t, e in PROVERBS], wisdom=WISDOM, kinds=daily_kinds())

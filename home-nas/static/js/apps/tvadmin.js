@@ -271,6 +271,11 @@ function settingsCard(d, reload) {
       <label>خلفية شاشة البالغين<select class="field" name="wallpaper">
         <option value="animated">سماء متحركة</option><option value="photos">صوري المفضلة (تتبدل)</option><option value="dark">ليلي هادئ</option></select></label>
       <label>شاشة التوقف بعد (دقيقة، 0 = أبداً)<input class="field" type="number" min="0" max="240" name="saver_min"></label>
+      <label>نوع شاشة التوقف<select class="field" name="saver_kind">
+        <option value="prayer">🕌 مواقيت الصلاة بكامل الشاشة</option><option value="photos">🖼️ صوري المفضلة</option><option value="fire">🔥 نار (مدفأة)</option>
+        <option value="text">📜 نص: آيات وأحاديث وحِكم</option><option value="rain">🌧️ أمطار</option><option value="galaxy">🌌 درب التبانة</option>
+        <option value="mix">🔀 تنويع (تتبدّل كل 4 دقائق)</option></select></label>
+      <label>نص خاص لشاشة «نص» (اختياري، وإلا تُعرض الآيات والأحاديث)<input class="field" name="saver_text" maxlength="160" placeholder="مثال: سبحان الله وبحمده"></label>
       <label>إطفاء الشاشة ليلاً من<input class="field" type="time" name="night_from"></label>
       <label>إلى<input class="field" type="time" name="night_to"></label>
       <label>حجم الواجهة على الشاشة (%)<input class="field" type="number" min="70" max="130" step="5" name="zoom"></label>
@@ -319,6 +324,7 @@ function settingsCard(d, reload) {
     <h4 style="margin-top:16px">${icon('book')} نص اليوم في صفحة كل شخص</h4>
     <div style="display:flex;gap:16px;flex-wrap:wrap">
       <label class="check" style="margin:0"><input type="checkbox" name="dk_hadith"> حديث نبوي ﷺ (من الصحيحين)</label>
+      <label class="check" style="margin:0"><input type="checkbox" name="dk_ayah"> آية كريمة</label>
       <label class="check" style="margin:0"><input type="checkbox" name="dk_proverb"> مثل شعبي</label>
       <label class="check" style="margin:0"><input type="checkbox" name="dk_wisdom"> حكمة / جملة جميلة</label></div>
     <p class="muted small" style="margin:4px 0 6px">يتناوب النوع المختار مع كل دخول. ألغِ الكل لإخفاء البطاقة.</p>
@@ -381,7 +387,8 @@ function settingsCard(d, reload) {
   };
   adFiles(d.adhan_files || {});
   f('w_fr').checked = s.words.includes('fr'); f('w_en').checked = s.words.includes('en');
-  for (const k of ['hadith', 'proverb', 'wisdom']) f('dk_' + k).checked = (s.daily_kinds || []).includes(k);
+  for (const k of ['hadith', 'ayah', 'proverb', 'wisdom']) f('dk_' + k).checked = (s.daily_kinds || []).includes(k);
+  f('saver_kind').value = s.saver_kind || 'prayer'; f('saver_text').value = s.saver_text || '';
   f('weather').checked = s.weather !== false;
   $('[data-x=hlist]', c).onclick = async () => {
     const r = await guard(() => api.get('/api/admin/welcome/hadith')); if (!r) return;
@@ -389,6 +396,9 @@ function settingsCard(d, reload) {
       <h4>🕌 الأحاديث (${r.hadith.length})</h4>
       <p class="muted small">كل نص هنا موجود بلفظه في صحيح البخاري أو صحيح مسلم (تحقّقنا منه آلياً). ⭐ = يظهر للأطفال، ومعه شرح بسيط من كلامنا.</p>
       <ol style="line-height:1.9">${r.hadith.map((x) => `<li><b>«${esc(x.text)}»</b> <span class="muted">— ${esc(x.source)}</span> ${x.kids ? '⭐' : ''}${x.explain ? `<div class="small muted">💡 ${esc(x.explain)}</div>` : ''}</li>`).join('')}</ol>
+      <h4>📖 الآيات (${(r.ayat || []).length})</h4>
+      <p class="muted small">منقولة حرفياً بالرسم العثماني من مصحف المدينة، ومعها معنى بسيط للأطفال.</p>
+      <ol style="line-height:2.1">${(r.ayat || []).map((x) => `<li><b style="font-family:'Amiri Quran',serif;font-weight:400;font-size:1.25em">﴿${esc(x.text)}﴾</b> <span class="muted">— ${esc(x.source)}</span><div class="small muted">💡 ${esc(x.explain)}</div></li>`).join('')}</ol>
       <h4>📜 الأمثال الشعبية (${(r.proverbs || []).length})</h4>
       <ol style="line-height:1.9">${(r.proverbs || []).map((x) => `<li><b>${esc(x.text)}</b>${x.explain ? `<div class="small muted">💡 ${esc(x.explain)}</div>` : ''}</li>`).join('')}</ol>
       <h4>💡 الحِكم (${(r.wisdom || []).length})</h4>
@@ -407,7 +417,8 @@ function settingsCard(d, reload) {
       night_off: nightFrom && nightTo ? `${nightFrom}-${nightTo}` : '',
       prayer: f('prayer').checked, city: f('city').value, method: f('method').value, hanafi: f('hanafi').checked,
       words: ['ar', ...(f('w_fr').checked ? ['fr'] : []), ...(f('w_en').checked ? ['en'] : [])],
-      daily_kinds: ['hadith', 'proverb', 'wisdom'].filter((k) => f('dk_' + k).checked), weather: f('weather').checked,
+      daily_kinds: ['hadith', 'ayah', 'wisdom', 'proverb'].filter((k) => f('dk_' + k).checked), weather: f('weather').checked,
+      saver_kind: f('saver_kind').value, saver_text: f('saver_text').value,
       source: f('source').value,
       offsets: Object.fromEntries(['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'].map((k) => [k, +f('off_' + k).value || 0])),
       adhan: { on: f('ad_on').checked, volume: +f('ad_volume').value || 80, remind: +f('ad_remind').value || 0, pause: f('ad_pause').checked,

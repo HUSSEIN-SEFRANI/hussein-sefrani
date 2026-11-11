@@ -23,7 +23,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from .core import (BROWSER_IMAGE_EXT, IMAGE_EXT, RECYCLE, VIDEO_EXT, admin_required, body, current_user, get_db, get_setting,
                    log_action, now_iso, paths, set_setting)
-from . import mawaqit, prayer
+from . import mawaqit, prayer, welcome
 
 bp = Blueprint("tv", __name__)
 
@@ -94,6 +94,8 @@ def migrate(db):
             db.execute(f"ALTER TABLE users ADD COLUMN {col} {decl}")
     # v1.5: الاسم الجديد للسيرفر
     db.execute("UPDATE settings SET value='HOME ANAB' WHERE key='server_name' AND value='H.SEF'")
+    # v1.5.5: نص اليوم الافتراضي صار «حديث، آية، حكمة» (من لم يغيّر الاختيار القديم)
+    db.execute("""UPDATE settings SET value='["hadith", "ayah", "wisdom"]' WHERE key='tv_daily_kinds' AND value='["hadith", "proverb", "wisdom"]'""")
     db.commit()
 
 
@@ -133,8 +135,12 @@ def tv_settings() -> dict:
         "source": g("tv_prayer_source", "calc"), "offsets": json.loads(g("tv_prayer_off", "{}")),
         "adhan": {**ADHAN_DEFAULT, **json.loads(g("tv_adhan", "{}"))},
         "weather": g("tv_weather", "1") == "1",
-        "daily_kinds": [k for k in json.loads(g("tv_daily_kinds", '["hadith","proverb","wisdom"]')) if k in ("hadith", "proverb", "wisdom")],
+        "daily_kinds": welcome.daily_kinds(),
+        "saver_kind": g("tv_saver_kind", "prayer"), "saver_text": g("tv_saver_text", ""),
     }
+
+
+SAVER_KINDS = ("prayer", "photos", "fire", "text", "rain", "galaxy", "mix")
 
 
 def city_coords(s: dict):
@@ -340,7 +346,11 @@ def api_admin_tv_settings():
     if "weather" in d:
         set_setting("tv_weather", "1" if d["weather"] else "0")
     if isinstance(d.get("daily_kinds"), list):
-        set_setting("tv_daily_kinds", json.dumps([k for k in d["daily_kinds"] if k in ("hadith", "proverb", "wisdom")]))
+        set_setting("tv_daily_kinds", json.dumps([k for k in d["daily_kinds"] if k in welcome.KIND_LABEL]))
+    if d.get("saver_kind") in SAVER_KINDS:
+        set_setting("tv_saver_kind", d["saver_kind"])
+    if "saver_text" in d:
+        set_setting("tv_saver_text", str(d["saver_text"] or "").strip()[:160])
     if d.get("source") in ("calc", "mawaqit"):
         set_setting("tv_prayer_source", d["source"])
     if isinstance(d.get("offsets"), dict):
@@ -1053,6 +1063,26 @@ def api_tv_admin_wifi(action):
         helper("wifi-install", timeout=3600)
         return jsonify(ok=True)
     abort(404)
+
+
+@bp.get("/api/tv/saver")
+def api_tv_saver():
+    """نصوص شاشة التوقف «نص»."""
+    tv_guard()
+    s = tv_settings()
+    return jsonify(kind=s["saver_kind"], text=s["saver_text"], texts=welcome.saver_texts())
+
+
+@bp.post("/api/tv/admin/saver")
+def api_tv_admin_saver():
+    """اختيار شاشة التوقف من التلفاز نفسه."""
+    u = tv_admin()
+    k = body().get("kind")
+    if k not in SAVER_KINDS:
+        abort(400, "نوع غير معروف")
+    set_setting("tv_saver_kind", k)
+    log_action("شاشة توقف التلفاز", k, u["username"])
+    return jsonify(ok=True, kind=k)
 
 
 @bp.get("/api/tv/admin/audio")
