@@ -1,5 +1,5 @@
 // سارة والتفكير — اختاري الترجمة الفرنسية الصحيحة أو الجواب الصحيح. 5 مستويات، 10 أسئلة في كل جولة من بنك أكبر، والأسئلة الجديدة تظهر أولاً.
-// الخطأ يخصم نقطة، ولكل جولة 3 وسائل مساعدة تُستعمل مرة واحدة.
+// أول خطأ في الجولة مسموح، وبعده كل خطأ يخصم نقطة. كل 5 إجابات صحيحة متتالية = نجمة لرصيد الطفل. ولكل جولة 3 وسائل مساعدة تُستعمل مرة واحدة.
 (function () {
   "use strict";
   const $ = (id) => document.getElementById(id);
@@ -8,9 +8,29 @@
   const STORE = "sara-thinking";
 
   // ------------------------------------------------------------ الحفظ
-  let save = { unlocked: 1, best: {}, seen: {} };
+  let save = { unlocked: 1, best: {}, seen: {}, pending: 0 };
   try { save = Object.assign(save, JSON.parse(localStorage.getItem(STORE) || "{}")); } catch (e) { /* */ }
   const persist = () => { try { localStorage.setItem(STORE, JSON.stringify(save)); } catch (e) { /* */ } };
+
+  // ------------------------------------------------------------ نجوم الحساب
+  // كل 5 إجابات صحيحة متتالية = نجمة في رصيد الطفل على السيرفر.
+  // إن لم يكن السيرفر يقبلها بعد (أو لا اتصال) تبقى محفوظة وتُرسل لاحقاً.
+  const STREAK = 5;
+  let sending = false;
+  async function flushStars() {
+    if (sending || !(save.pending > 0)) return;
+    sending = true;
+    try {
+      const amount = save.pending;
+      const r = await fetch("/api/tv/stars/earn", {
+        method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount, game: "سارة والتفكير", reason: `سارة والتفكير: ${amount * STREAK} إجابات صحيحة متتالية` }),
+      });
+      if (r.ok) { save.pending = Math.max(0, save.pending - amount); persist(); }
+    } catch (e) { /* لاحقاً */ }
+    sending = false;
+  }
+  flushStars();
 
   // ------------------------------------------------------------ الصوت
   let ac = null;
@@ -67,7 +87,7 @@
   }
 
   // ------------------------------------------------------------ اللعب
-  let level = 0, queue = [], qi = 0, score = 0, right = 0, wrong = 0, answers = [], locked = false;
+  let level = 0, queue = [], qi = 0, score = 0, right = 0, wrong = 0, streak = 0, earned = 0, answers = [], locked = false;
   // وسائل المساعدة: مرة واحدة لكل جولة
   const LIFE = [["fifty", "✂️ حذف إجابتين"], ["skip", "⏭️ تخطّي السؤال"], ["hint", "💡 معلومة مساعدة"]];
   let helps = {}, zone = "ans", hsel = 0, gone = new Set();
@@ -76,7 +96,7 @@
 
   function startLevel(i) {
     if (i + 1 > save.unlocked) { sfx.bad(); return; }
-    level = i; qi = 0; score = 0; right = 0; wrong = 0;
+    level = i; qi = 0; score = 0; right = 0; wrong = 0; streak = 0; earned = 0;
     helps = { fifty: true, skip: true, hint: true };
     // الأسئلة التي لم تظهر بعد أولاً؛ وحين تنتهي كلها تبدأ دورة جديدة
     const key = qkey;
@@ -205,17 +225,23 @@
     const btns = $("answers").querySelectorAll(".ans");
     const a = answers[sel];
     if (a.ok) {
-      score++; right++;
+      score++; right++; streak++;
       btns[sel].classList.add("ok");
       $("fb").textContent = ["أحسنتِ يا سارة! Bravo !", "رائع! Super !", "ممتاز! Excellent !", "شاطرة! Très bien !"][Math.floor(Math.random() * 4)];
       sfx.ok(); confetti(24);
+      if (streak % STREAK === 0) {
+        earned++; save.pending = (save.pending || 0) + 1; persist(); flushStars();
+        $("fb").textContent = `🌟 ${STREAK} إجابات صحيحة متتالية! +1 نجمة في رصيدك`;
+        setTimeout(() => { sfx.win(); confetti(70); }, 250);
+      }
       say(a.fr);
     } else {
       btns[sel].classList.add("bad");
       btns[answers.findIndex((x) => x.ok)].classList.add("ok");
-      wrong++;
-      if (score > 0) score--;
-      $("fb").textContent = "خُصمت نقطة! الجواب الصحيح باللون الأخضر";
+      wrong++; streak = 0;
+      // أول خطأ في الجولة مسموح بلا خصم
+      if (wrong === 1) $("fb").textContent = "لا بأس، هذا خطؤك المسموح! الصحيح باللون الأخضر";
+      else { if (score > 0) score--; $("fb").textContent = "خُصمت نقطة! الجواب الصحيح باللون الأخضر"; }
       sfx.bad();
       setTimeout(() => say(answers.find((x) => x.ok).fr), 500);
     }
@@ -239,7 +265,7 @@
     persist();
     $("stars").innerHTML = [0, 1, 2].map((i) => `<span class="${i < stars ? "" : "off"}" style="animation-delay:${i * 0.2}s">⭐</span>`).join("");
     $("dt").textContent = stars === 3 ? "بطلة التفكير!" : passed ? "أحسنتِ يا سارة!" : "محاولة جميلة!";
-    $("ds").textContent = `نقاطك ${score} من ${queue.length} (صحيحة ${right}، خاطئة ${wrong})` + (passed && level + 1 < LEVELS.length ? " — فُتح المستوى التالي 🎉" : !passed ? " — تحتاجين 4 نقاط لفتح المستوى التالي" : " — أنهيتِ كل المستويات! 🏆");
+    $("ds").textContent = `نقاطك ${score} من ${queue.length} (صحيحة ${right}، خاطئة ${wrong})` + (earned ? ` — ربحتِ ${earned} 🌟 لرصيدك` : "") + (passed && level + 1 < LEVELS.length ? " — فُتح المستوى التالي 🎉" : !passed ? " — تحتاجين 4 نقاط لفتح المستوى التالي" : " — أنهيتِ كل المستويات! 🏆");
     doneBtns = [];
     if (passed && level + 1 < LEVELS.length) doneBtns.push(["المستوى التالي ←", () => startLevel(level + 1)]);
     doneBtns.push(["إعادة المستوى", () => startLevel(level)], ["القائمة", () => { show("start"); sel = level; drawLevels(); }]);
