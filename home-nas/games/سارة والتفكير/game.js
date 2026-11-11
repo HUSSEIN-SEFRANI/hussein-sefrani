@@ -1,4 +1,5 @@
 // سارة والتفكير — اختاري الترجمة الفرنسية الصحيحة أو الجواب الصحيح. 5 مستويات، 10 أسئلة في كل جولة من بنك أكبر، والأسئلة الجديدة تظهر أولاً.
+// الخطأ يخصم نقطة، ولكل جولة 3 وسائل مساعدة تُستعمل مرة واحدة.
 (function () {
   "use strict";
   const $ = (id) => document.getElementById(id);
@@ -66,14 +67,19 @@
   }
 
   // ------------------------------------------------------------ اللعب
-  let level = 0, queue = [], qi = 0, score = 0, answers = [], locked = false;
+  let level = 0, queue = [], qi = 0, score = 0, right = 0, wrong = 0, answers = [], locked = false;
+  // وسائل المساعدة: مرة واحدة لكل جولة
+  const LIFE = [["fifty", "✂️ حذف إجابتين"], ["skip", "⏭️ تخطّي السؤال"], ["hint", "💡 معلومة مساعدة"]];
+  let helps = {}, zone = "ans", hsel = 0, gone = new Set();
+  const qkey = (q) => q.ar + "|" + (Array.isArray(q.options[0]) ? q.options[0][0] : q.options[0]);
   const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
   function startLevel(i) {
     if (i + 1 > save.unlocked) { sfx.bad(); return; }
-    level = i; qi = 0; score = 0;
+    level = i; qi = 0; score = 0; right = 0; wrong = 0;
+    helps = { fifty: true, skip: true, hint: true };
     // الأسئلة التي لم تظهر بعد أولاً؛ وحين تنتهي كلها تبدأ دورة جديدة
-    const key = (q) => q.ar + "|" + (Array.isArray(q.options[0]) ? q.options[0][0] : q.options[0]);
+    const key = qkey;
     const seen = new Set((save.seen && save.seen[i]) || []);
     const items = LEVELS[i].items;
     const fresh = shuffle(items.filter((q) => !seen.has(key(q))));
@@ -102,13 +108,93 @@
       b.onclick = () => { sel = +b.dataset.k; choose(); };
       b.onmouseenter = () => focusAns(+b.dataset.k);
     });
+    gone = new Set(); zone = "ans";
+    drawLife();
     sel = 0; focusAns(0, true);
     if (q.fr) setTimeout(() => say(q.fr), 300);
+  }
+
+  // ------------------------------------------------------------ وسائل المساعدة
+  function drawLife() {
+    $("life").innerHTML = LIFE.map(([id, t], i) => `<button class="life ${helps[id] ? "" : "used"} ${zone === "help" && i === hsel ? "sel" : ""}" data-i="${i}">${t}</button>`).join("");
+    $("life").querySelectorAll(".life").forEach((b) => { b.onclick = () => { if (!locked) useLife(+b.dataset.i); }; });
+  }
+  function useLife(i) {
+    const id = LIFE[i][0];
+    if (!helps[id]) { sfx.bad(); return; }
+    helps[id] = false;
+    sfx.move();
+    if (id === "fifty") {
+      const bad = shuffle(answers.map((a, k) => k).filter((k) => !answers[k].ok)).slice(0, 2);
+      bad.forEach((k) => { gone.add(k); $("answers").children[k].classList.add("gone"); });
+      $("fb").innerHTML = `<span class="hint">✂️ حذفنا إجابتين خاطئتين</span>`;
+    } else if (id === "skip") {
+      // سؤال بديل من البنك لم يظهر في هذه الجولة، والأفضل أن يكون جديداً
+      const inQ = new Set(queue.map(qkey));
+      const seen = new Set(save.seen[level] || []);
+      const pool = LEVELS[level].items.filter((q) => !inQ.has(qkey(q)));
+      const fresh = pool.filter((q) => !seen.has(qkey(q)));
+      const pick = shuffle(fresh.length ? fresh : pool)[0];
+      if (pick) {
+        queue[qi] = pick;
+        save.seen[level] = [...(save.seen[level] || []), qkey(pick)];
+        persist();
+      }
+      ask();
+      $("fb").innerHTML = `<span class="hint">⏭️ هذا سؤال جديد</span>`;
+      return;
+    } else if (id === "hint") {
+      $("fb").innerHTML = `<span class="hint">${esc(hintFor(queue[qi]))}</span>`;
+    }
+    zone = "ans";
+    drawLife();
+    focusAns(firstVisible(), true);
+  }
+  // تلميح تلقائي من الجواب الصحيح (أو q.hint إن كُتب للسؤال)
+  function hintFor(q) {
+    if (q.hint) return "💡 " + q.hint;
+    const ok = answers.find((a) => a.ok), others = answers.filter((a) => !a.ok);
+    const words = (t) => t.toLowerCase().replace(/[?!.,]/g, " ").split(/[\s']+/).filter(Boolean);
+    const okWords = ok.fr.replace(/[?!.,]/g, " ").split(/[\s']+/).filter((w) => w.length > 2);
+    if (okWords.length >= 3) {
+      const used = new Set(others.flatMap((a) => words(a.fr)));
+      const uniq = okWords.filter((w) => !used.has(w.toLowerCase())).sort((a, b) => b.length - a.length)[0];
+      if (uniq) return `💡 في الجواب الصحيح كلمة «${uniq}»`;
+    }
+    const strip = (t) => t.replace(/^(le |la |les |l'|un |une |des |du |de l'|de )/i, "");
+    const w = strip(ok.fr), ow = others.map((a) => strip(a.fr).toLowerCase());
+    let n = 1;
+    while (n < 4 && ow.some((o) => o.startsWith(w.slice(0, n).toLowerCase()))) n++;
+    let t = `💡 الجواب يبدأ بـ «${w.slice(0, n)}»`;
+    if (ok.ar) t += ` وبالعربية بحرف «${ok.ar.replace(/^ال/, "").charAt(0)}»`;
+    return t;
+  }
+  const firstVisible = () => [0, 1, 2, 3].find((k) => !gone.has(k));
+  function moveAns(k) {
+    const row = sel >> 1, col = sel & 1;
+    let t = -1;
+    if (k === "ArrowLeft" && col === 0) t = sel + 1;
+    else if (k === "ArrowRight" && col === 1) t = sel - 1;
+    else if (k === "ArrowDown" && row === 0) t = gone.has(sel + 2) ? (gone.has(2 + (1 - col)) ? -2 : 2 + (1 - col)) : sel + 2;
+    else if (k === "ArrowUp" && row === 1) t = gone.has(sel - 2) ? (gone.has(1 - col) ? -1 : 1 - col) : sel - 2;
+    if ((k === "ArrowDown" && (row === 1 || t === -2))) { enterHelp(); return; }
+    if (t >= 0 && !gone.has(t)) focusAns(t);
+  }
+  function enterHelp() {
+    const avail = LIFE.map((l, i) => i).filter((i) => helps[LIFE[i][0]]);
+    if (!avail.length) return;
+    if (!helps[LIFE[hsel][0]]) hsel = avail[0];
+    zone = "help"; sfx.move();
+    $("answers").querySelectorAll(".ans").forEach((b) => b.classList.remove("sel"));
+    drawLife();
+  }
+  function moveHelp(d) {
+    for (let i = hsel + d; i >= 0 && i < LIFE.length; i += d) if (helps[LIFE[i][0]]) { hsel = i; sfx.move(); drawLife(); return; }
   }
   function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 
   function focusAns(k, silent) {
-    sel = k;
+    sel = k; zone = "ans"; drawLife();
     $("answers").querySelectorAll(".ans").forEach((b, i) => b.classList.toggle("sel", i === k));
     if (!silent) { sfx.move(); say(answers[k].fr); }
   }
@@ -119,7 +205,7 @@
     const btns = $("answers").querySelectorAll(".ans");
     const a = answers[sel];
     if (a.ok) {
-      score++;
+      score++; right++;
       btns[sel].classList.add("ok");
       $("fb").textContent = ["أحسنتِ يا سارة! Bravo !", "رائع! Super !", "ممتاز! Excellent !", "شاطرة! Très bien !"][Math.floor(Math.random() * 4)];
       sfx.ok(); confetti(24);
@@ -127,7 +213,9 @@
     } else {
       btns[sel].classList.add("bad");
       btns[answers.findIndex((x) => x.ok)].classList.add("ok");
-      $("fb").textContent = "لا بأس! الجواب الصحيح باللون الأخضر";
+      wrong++;
+      if (score > 0) score--;
+      $("fb").textContent = "خُصمت نقطة! الجواب الصحيح باللون الأخضر";
       sfx.bad();
       setTimeout(() => say(answers.find((x) => x.ok).fr), 500);
     }
@@ -144,14 +232,14 @@
   let doneSel = 0, doneBtns = [];
   function finish() {
     $("bar").style.width = "100%";
-    const stars = score >= 9 ? 3 : score >= 7 ? 2 : score >= 5 ? 1 : 0;
+    const stars = score >= 9 ? 3 : score >= 7 ? 2 : score >= 4 ? 1 : 0;
     save.best[level] = Math.max(save.best[level] || 0, stars);
-    const passed = score >= 5;
+    const passed = score >= 4;
     if (passed && level + 2 > save.unlocked && level + 1 < LEVELS.length) save.unlocked = level + 2;
     persist();
     $("stars").innerHTML = [0, 1, 2].map((i) => `<span class="${i < stars ? "" : "off"}" style="animation-delay:${i * 0.2}s">⭐</span>`).join("");
     $("dt").textContent = stars === 3 ? "بطلة التفكير!" : passed ? "أحسنتِ يا سارة!" : "محاولة جميلة!";
-    $("ds").textContent = `${score} من ${queue.length} إجابات صحيحة` + (passed && level + 1 < LEVELS.length ? " — فُتح المستوى التالي 🎉" : !passed ? " — تحتاجين 5 لفتح المستوى التالي" : " — أنهيتِ كل المستويات! 🏆");
+    $("ds").textContent = `نقاطك ${score} من ${queue.length} (صحيحة ${right}، خاطئة ${wrong})` + (passed && level + 1 < LEVELS.length ? " — فُتح المستوى التالي 🎉" : !passed ? " — تحتاجين 4 نقاط لفتح المستوى التالي" : " — أنهيتِ كل المستويات! 🏆");
     doneBtns = [];
     if (passed && level + 1 < LEVELS.length) doneBtns.push(["المستوى التالي ←", () => startLevel(level + 1)]);
     doneBtns.push(["إعادة المستوى", () => startLevel(level)], ["القائمة", () => { show("start"); sel = level; drawLevels(); }]);
@@ -191,11 +279,16 @@
       else if (k === "Enter" || k === " ") startLevel(sel);
     } else if (screen === "quiz") {
       if (locked) return;
-      // الشبكة من اليمين إلى اليسار: 0 1 / 2 3
-      if (k === "ArrowLeft" && sel % 2 === 0) focusAns(sel + 1);
-      else if (k === "ArrowRight" && sel % 2 === 1) focusAns(sel - 1);
-      else if (k === "ArrowDown" && sel < 2) focusAns(sel + 2);
-      else if (k === "ArrowUp" && sel >= 2) focusAns(sel - 2);
+      if (zone === "help") {
+        // صف المساعدة من اليمين إلى اليسار
+        if (k === "ArrowLeft") moveHelp(1);
+        else if (k === "ArrowRight") moveHelp(-1);
+        else if (k === "ArrowUp") { sfx.move(); focusAns([2, 3, 0, 1].find((x) => !gone.has(x)), true); }
+        else if (k === "Enter" || k === " ") useLife(hsel);
+        return;
+      }
+      // الشبكة من اليمين إلى اليسار: 0 1 / 2 3، وتحتها صف المساعدة
+      if (k.startsWith("Arrow")) moveAns(k);
       else if (k === "Enter" || k === " ") choose();
     } else if (screen === "done") {
       if (k === "ArrowLeft") { doneSel = Math.min(doneBtns.length - 1, doneSel + 1); sfx.move(); drawDone(); }
