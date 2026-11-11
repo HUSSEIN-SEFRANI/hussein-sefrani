@@ -146,6 +146,14 @@ def api_bt():
     return jsonify(available=True, **helper("bt-status", as_json=True))
 
 
+@bp.get("/api/admin/pad/diag")
+@admin_required
+def api_pad_diag():
+    if not available():
+        return jsonify(available=False)
+    return jsonify(available=True, **helper("pad-diag", timeout=60, as_json=True))
+
+
 @bp.post("/api/admin/bt/<action>")
 @admin_required
 def api_bt_action(action):
@@ -157,7 +165,7 @@ def api_bt_action(action):
     elif action in ("pair", "remove"):
         if not MAC.match(mac):
             abort(400)
-        helper(f"bt-{action}", mac, timeout=90)
+        helper(f"bt-{action}", mac, timeout=150)
         log_action("بلوتوث", f"{action} {mac}")
     else:
         abort(404)

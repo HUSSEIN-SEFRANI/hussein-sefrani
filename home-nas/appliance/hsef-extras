@@ -907,23 +907,6 @@ def sys_status():
 
 
 # ----------------------------------------------------------------------------- البلوتوث (ويد بلايستيشن 5)
-def bt_ctl(commands, timeout=40) -> str:
-    """يرسل أوامر إلى bluetoothctl مع انتظار بعد كل أمر."""
-    p = subprocess.Popen(["bluetoothctl"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    try:
-        for cmd, wait in commands:
-            p.stdin.write(cmd + "\n")
-            p.stdin.flush()
-            _time.sleep(wait)
-        p.stdin.write("quit\n")
-        p.stdin.flush()
-        out, _ = p.communicate(timeout=timeout)
-    except Exception:
-        p.kill()
-        out = ""
-    return _re.sub(r"\x1b\[[0-9;]*[A-Za-z]|\x01|\x02", "", out or "")
-
-
 def bt_install():
     apt_install("bluez")
     run(["systemctl", "enable", "--now", "bluetooth"], check=False)
@@ -967,7 +950,113 @@ def bt_status():
 def bt_scan():
     if FAKE:
         return
-    bt_ctl([("power on", 1), ("scan on", 14), ("scan off", 1)], timeout=30)
+    if bt_conf():
+        subprocess.run(["systemctl", "restart", "bluetooth"], capture_output=True, timeout=30)
+        _time.sleep(3)
+    bt_session([("power on", 2, None), ("scan on", 14, None), ("scan off", 1, None)], timeout=30)
+
+
+BT_MAIN = Path("/etc/bluetooth/main.conf")
+BT_WANT = {"General": {"JustWorksRepairing": "always", "FastConnectable": "true"}, "Policy": {"AutoEnable": "true"}}
+
+
+def bt_conf() -> bool:
+    """إعدادات تساعد يد بلايستيشن: إعادة الربط بدون حذف، واتصال أسرع عند ضغط زر PS. يرجع True إن تغيّر شيء."""
+    if not BT_MAIN.exists():
+        return False
+    old = BT_MAIN.read_text()
+    out, sec, done = [], None, set()
+
+    def flush(section):
+        for k, v in BT_WANT.get(section, {}).items():
+            if (section, k) not in done:
+                out.append(f"{k} = {v}")
+                done.add((section, k))
+
+    for line in old.splitlines():
+        m = _re.match(r"^\s*\[(\w+)\]\s*$", line)
+        if m:
+            flush(sec)
+            sec = m.group(1)
+            out.append(line)
+            continue
+        km = _re.match(r"^\s*#?\s*([A-Za-z]+)\s*=", line)
+        if sec in BT_WANT and km and km.group(1) in BT_WANT[sec]:
+            k = km.group(1)
+            if (sec, k) not in done:
+                out.append(f"{k} = {BT_WANT[sec][k]}")
+                done.add((sec, k))
+            continue
+        out.append(line)
+    flush(sec)
+    for section in BT_WANT:
+        if any((section, k) not in done for k in BT_WANT[section]):
+            out.append(f"\n[{section}]")
+            flush(section)
+    new = "\n".join(out).rstrip() + "\n"
+    if new == old:
+        return False
+    BT_MAIN.write_text(new)
+    return True
+
+
+def bt_session(steps, timeout=75) -> str:
+    """bluetoothctl تفاعلي. يجيب «yes» تلقائياً على أي سؤال يطرحه (تأكيد الربط، السماح لخدمة اليد)،
+    لأن الإجابة بأمر آخر كانت تُفهم «لا» فترفض اليد وينطفئ ضوؤها.
+    steps: [(أمر, أقصى انتظار بالثواني, نص يكفي ظهوره لإنهاء الانتظار أو None)]"""
+    import threading
+    p = subprocess.Popen(["bluetoothctl"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+    out = []
+
+    def send(cmd):
+        try:
+            p.stdin.write(cmd + "\n")
+            p.stdin.flush()
+        except (OSError, ValueError):
+            pass
+
+    def reader():
+        line = ""
+        while True:
+            ch = p.stdout.read(1)
+            if not ch:
+                break
+            line += ch
+            if "(yes/no)" in line:
+                out.append(line)
+                line = ""
+                send("yes")
+            elif ch == "\n":
+                out.append(line)
+                line = ""
+
+    threading.Thread(target=reader, daemon=True).start()
+    deadline = _time.time() + timeout
+    for cmd, wait, until in steps:
+        mark = len(out)
+        send(cmd)
+        end = min(_time.time() + wait, deadline)
+        while _time.time() < end:
+            _time.sleep(0.3)
+            if until and any(_re.search(until, l) for l in out[mark:]):
+                _time.sleep(0.5)
+                break
+    send("quit")
+    try:
+        p.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        p.kill()
+    text = "".join(out)
+    return _re.sub(r"\x1b\[[0-9;]*[A-Za-z]|\x01|\x02|\r", "", text)
+
+
+def bt_info(mac: str) -> dict:
+    try:
+        info = subprocess.run(["bluetoothctl", "info", mac], capture_output=True, text=True, timeout=20).stdout
+    except subprocess.TimeoutExpired:
+        info = ""
+    get = lambda k: (_re.search(rf"^\s*{k}:\s*(.+)$", info, _re.M) or [None, ""])[1].strip()
+    return {k.lower(): get(k) for k in ("Name", "Paired", "Bonded", "Trusted", "Connected", "Icon")}
 
 
 def bt_pair(mac: str):
@@ -975,11 +1064,84 @@ def bt_pair(mac: str):
         die("invalid device")
     if FAKE:
         return
-    out = bt_ctl([("power on", 1), ("agent NoInputNoOutput", 1), ("default-agent", 1), (f"pair {mac}", 10),
-                  (f"trust {mac}", 2), (f"connect {mac}", 6)], timeout=40)
-    info = subprocess.run(["bluetoothctl", "info", mac], capture_output=True, text=True, timeout=20).stdout
-    if "Paired: yes" not in info and "Connected: yes" not in info:
-        die("pairing failed: " + " ".join(out.split()[-25:]))
+    if bt_conf():
+        subprocess.run(["systemctl", "restart", "bluetooth"], capture_output=True, timeout=30)
+        _time.sleep(3)
+    known = bt_info(mac)
+    steps = [("power on", 2, "succeeded|Changing power"), ("pairable on", 1, None),
+             ("agent NoInputNoOutput", 1, None), ("default-agent", 1, None)]
+    if known.get("paired") != "yes":
+        # اليد يجب أن تكون ظاهرة الآن (Create + PS حتى يومض الضوء بسرعة)
+        steps += [("scan on", 10, mac), ("scan off", 1, None),
+                  # الثقة قبل الربط: اليد تفتح اتصالها فور الربط، فتُقبل مباشرة بدل أن تُرفض
+                  (f"trust {mac}", 2, "succeeded"),
+                  (f"pair {mac}", 25, r"Pairing successful|Failed to pair|AlreadyExists|not available")]
+    else:
+        steps += [(f"trust {mac}", 2, "succeeded")]
+    steps += [(f"connect {mac}", 15, r"Connection successful|Failed to connect")]
+    out = bt_session(steps)
+    for _ in range(10):  # اليد قد تتصل بنفسها بعد لحظات
+        st = bt_info(mac)
+        if st.get("connected") == "yes":
+            return
+        _time.sleep(1)
+    if st.get("paired") == "yes":
+        die("paired but not connected: press the PS button on the controller")
+    if "not available" in out:
+        die("controller not found: hold Create + PS until the light blinks fast, then try again")
+    die("pairing failed: " + " ".join(out.split()[-25:]))
+
+
+def pad_diag():
+    """تقرير مختصر عن يد التحكم: هل يراها النظام، والبلوتوث، والصلاحيات، وآخر رسائل."""
+    if FAKE:
+        print(json.dumps({"kernel": [{"name": "Sony Interactive Entertainment DualSense Wireless Controller", "bus": "bluetooth", "handlers": "event9 js0"}],
+                          "js": ["crw-rw-r--+ root input /dev/input/js0"], "tv_groups": "hseftv video render input audio",
+                          "modules": {"joydev": True, "hid_playstation": True, "hidp": True, "uhid": True},
+                          "bt": {"adapter": "Powered: yes · Pairable: yes", "devices": [{"mac": "AA:BB:CC:DD:EE:FF", "name": "DualSense Wireless Controller",
+                                 "paired": "yes", "bonded": "yes", "trusted": "yes", "connected": "yes"}]},
+                          "log": ["input: DualSense Wireless Controller as /devices/virtual/misc/uhid/0005:054C:0CE6.0003/input/input21"]}))
+        return
+    kernel = []
+    try:
+        for block in Path("/proc/bus/input/devices").read_text().split("\n\n"):
+            name = (_re.search(r'^N: Name="(.*)"', block, _re.M) or [None, ""])[1]
+            handlers = (_re.search(r"^H: Handlers=(.*)$", block, _re.M) or [None, ""])[1].strip()
+            bus = (_re.search(r"^I: Bus=(\w+)", block, _re.M) or [None, ""])[1]
+            if _re.search(r"DualSense|DualShock|Wireless Controller|Sony|Gamepad|Xbox|Controller", name, _re.I) or "js" in handlers:
+                kernel.append({"name": name, "bus": {"0005": "bluetooth", "0003": "usb"}.get(bus, bus), "handlers": handlers})
+    except OSError:
+        pass
+    js = []
+    for f in sorted(Path("/dev/input").glob("js*")):
+        r = subprocess.run(["stat", "-c", "%A %U %G %n", str(f)], capture_output=True, text=True)
+        js.append(r.stdout.strip())
+    try:
+        groups = subprocess.run(["id", "-nG", TV_USER], capture_output=True, text=True, timeout=5).stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        groups = ""
+    mods = Path("/proc/modules").read_text() if Path("/proc/modules").exists() else ""
+    modules = {m: bool(_re.search(rf"^{m} ", mods, _re.M)) or Path(f"/sys/module/{m}").exists() for m in ("joydev", "hid_playstation", "hidp", "uhid")}
+    bt = {"adapter": "", "devices": []}
+    if shutil.which("bluetoothctl") and any(Path("/sys/class/bluetooth").glob("hci*")):
+        try:
+            show = subprocess.run(["bluetoothctl", "show"], capture_output=True, text=True, timeout=15).stdout
+            bt["adapter"] = " · ".join(l.strip() for l in show.splitlines() if _re.match(r"\s*(Powered|Pairable|Discoverable):", l))
+            for line in subprocess.run(["bluetoothctl", "devices"], capture_output=True, text=True, timeout=15).stdout.splitlines():
+                m = _re.match(r"Device\s+([0-9A-F:]{17})\s+(.*)", line.strip())
+                if m:
+                    bt["devices"].append({"mac": m.group(1), **bt_info(m.group(1))})
+        except subprocess.TimeoutExpired:
+            pass
+    log = []
+    try:
+        j = subprocess.run(["journalctl", "-b", "--no-pager", "-o", "cat", "-n", "400", "-u", "bluetooth"], capture_output=True, text=True, timeout=15).stdout
+        k = subprocess.run(["journalctl", "-k", "-b", "--no-pager", "-o", "cat", "-n", "800"], capture_output=True, text=True, timeout=15).stdout
+        log = [l for l in (j + "\n" + k).splitlines()
+               if _re.search(r"playstation|dualsense|hidp|uhid|input:.*Controller|Rejected|bonded|Authoriz|refused|hci\d|error", l, _re.I)][-18:]
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    print(json.dumps({"kernel": kernel, "js": js, "tv_groups": groups, "modules": modules, "bt": bt, "log": log}))
 
 
 def bt_remove(mac: str):
@@ -1245,6 +1407,8 @@ def main():
         bt_pair(a[1])
     elif len(a) == 2 and a[0] == "bt-remove":
         bt_remove(a[1])
+    elif a == ["pad-diag"]:
+        pad_diag()
     elif a == ["tv-modes"]:
         tv_modes()
     elif len(a) in (1, 2) and a[0] == "tv-mode-set":

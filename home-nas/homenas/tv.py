@@ -1115,6 +1115,15 @@ def api_tv_admin_bt():
     return jsonify(available=True, **helper("bt-status", as_json=True))
 
 
+@bp.get("/api/tv/admin/pad/diag")
+def api_tv_admin_pad_diag():
+    tv_admin()
+    from .sysadmin import available, helper
+    if not available():
+        return jsonify(available=False)
+    return jsonify(available=True, **helper("pad-diag", timeout=60, as_json=True))
+
+
 @bp.post("/api/tv/admin/bt/<action>")
 def api_tv_admin_bt_action(action):
     u = tv_admin()
@@ -1127,7 +1136,7 @@ def api_tv_admin_bt_action(action):
     elif action in ("pair", "remove"):
         if not re.fullmatch(r"[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}", mac):
             abort(400)
-        helper(f"bt-{action}", mac, timeout=90)
+        helper(f"bt-{action}", mac, timeout=150)
         log_action("بلوتوث من التلفاز", f"{action} {mac}", u["username"])
     else:
         abort(404)

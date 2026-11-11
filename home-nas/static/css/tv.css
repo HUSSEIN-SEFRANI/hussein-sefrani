@@ -531,3 +531,9 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 .sv-card i { font-style: normal; font-size: 15px; color: #86efac; }
 .sv-card.on { border-color: #86efac; background: rgba(34,197,94,.14); }
 .sv-card.focus { transform: scale(1.06); box-shadow: 0 0 0 5px #fff, 0 16px 34px rgba(0,0,0,.5); }
+
+/* تشخيص يد التحكم */
+.diag { display: flex; flex-direction: column; gap: 8px; font-size: 19px; line-height: 1.5; background: rgba(0,0,0,.25); border-radius: 18px; padding: 16px 20px; }
+.diag .ok { color: #86efac; } .diag .bad { color: #fca5a5; }
+.diag .sm { font-size: 15px; color: #cbd5e1; }
+.diag pre { margin: 4px 0 0; font-size: 13px; color: #cbd5e1; white-space: pre-wrap; max-height: 150px; overflow: hidden; }

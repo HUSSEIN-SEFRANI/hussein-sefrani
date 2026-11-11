@@ -992,12 +992,30 @@ async function photosScreen(t) {
 }
 
 // ============================================================== الألعاب
+// اليد داخل اللعبة: إذا لم يرَ إطار اللعبة يد التحكم بنفسه (يحدث في بعض الأجهزة)، نعطيه ما تراه شاشة التلفاز
+function shareGamepads(fr) {
+  try {
+    const nav = fr.contentWindow.navigator;
+    const own = nav.getGamepads ? nav.getGamepads.bind(nav) : () => [];
+    Object.defineProperty(nav, "getGamepads", {
+      configurable: true,
+      value: () => {
+        let a = [];
+        try { a = [...own()]; } catch { /* */ }
+        if (a.some((g) => g && g.connected)) return a;
+        try { return navigator.getGamepads ? [...navigator.getGamepads()] : a; } catch { return a; }
+      },
+    });
+  } catch { /* لعبة من مصدر آخر */ }
+}
+
 function gameScreen(t, path) {
   const el = h(`<div class="game"><iframe src="/tv/game/${t.id}/${path ? `${encPath(path)}/` : ""}" allow="autoplay; fullscreen; gamepad" title="${esc(path)}"></iframe>
     <div class="exit">للخروج من اللعبة اضغط «رجوع» (Esc)</div></div>`);
   const fr = el.querySelector("iframe");
   const onKey = (e) => { activity(); if (e.key === "Escape" || e.key === "BrowserBack" || e.key === "GoBack") { e.preventDefault(); pop(); } };
   fr.addEventListener("load", () => {
+    shareGamepads(fr);
     try {
       fr.contentWindow.addEventListener("keydown", onKey);
       fr.contentWindow.addEventListener("mousemove", activity);
@@ -1717,6 +1735,13 @@ async function wifiScreen() {
   draw();
 }
 
+function btError(m) {
+  if (/press the PS/i.test(m)) return "تم الربط، لكن اليد لم تتصل بعد: اضغط زر PS في اليد مرة واحدة";
+  if (/not found|not available/i.test(m)) return "لم نجد اليد: اضغط Create و PS معاً حتى يومض الضوء بسرعة، ثم «البحث» ثم «ربط» مباشرة";
+  if (/pairing failed/i.test(m)) return "لم ينجح الربط. اضغط «إزالة» إن وُجدت اليد، ثم ضعها في وضع الربط (Create + PS) وأعد المحاولة";
+  return m;
+}
+
 async function btScreen() {
   const el = subScreen("البلوتوث", "bt"), body = el.querySelector(".set-body");
   push({ el });
@@ -1726,7 +1751,7 @@ async function btScreen() {
     if (!r.installed) html = `<button class="btn gold f" data-a="install">تثبيت البلوتوث (يحتاج الإنترنت)</button>`;
     else if (!r.adapter) html = `<p class="set-msg">لا يوجد بلوتوث في هذا الجهاز. يمكنك وصل قطعة بلوتوث USB صغيرة.</p>`;
     else {
-      html = `<p class="set-msg">يد بلايستيشن 5: اضغط معاً <b>Create</b> و <b>PS</b> حتى يومض الضوء بسرعة، ثم «البحث».</p>
+      html = `<p class="set-msg">يد بلايستيشن 5: اضغط معاً <b>Create</b> و <b>PS</b> حتى يومض الضوء بسرعة، ثم «البحث»، ثم «ربط» مباشرة. بعدها تكفي ضغطة على <b>PS</b> لتتصل.</p>
         <div class="set-row"><button class="btn gold f" data-a="scan">البحث عن أجهزة</button></div>
         <div class="set-list">${r.devices.map((d) => `<div class="set-item"><span>${d.icon === "input-gaming" ? "🎮" : "🔵"}</span><b>${esc(d.name)}</b>
           ${d.connected ? `<span class="ok">متصل</span>` : d.paired ? `<span>مقترن</span>` : ""}
@@ -1740,8 +1765,8 @@ async function btScreen() {
   };
   const act = async (a, mac) => {
     toast({ install: "جارٍ التثبيت…", scan: "جارٍ البحث 15 ثانية…", pair: "جارٍ الربط…", remove: "جارٍ الإزالة…" }[a], 5000);
-    try { draw(await api(`/api/tv/admin/bt/${a}`, { json: { mac } })); if (a === "pair") toast("تم الربط ✓"); }
-    catch (e) { toast(e.message, 5000); }
+    try { draw(await api(`/api/tv/admin/bt/${a}`, { json: { mac } })); if (a === "pair") toast("تم الربط ✓ اضغط أي زر في اليد", 5000); }
+    catch (e) { toast(btError(e.message), 9000); }
   };
   try { draw(await api("/api/tv/admin/bt")); } catch (e) { body.innerHTML = `<p class="set-msg">${esc(e.message)}</p>`; }
 }
@@ -1779,8 +1804,9 @@ function padScreen() {
     ["l1", "L1"], ["r1", "R1"], ["l2", "L2"], ["r2", "R2"], ["options", "Options"], ["create", "Create"], ["ps", "PS"]];
   body.innerHTML = `<div class="set-status"><div>اليد: <b class="ltr js-pn">اضغط أي زر في اليد…</b></div></div>
     <div class="pad-test ltr">${BTN.map(([k, t]) => `<span data-b="${k}">${t}</span>`).join("")}</div>
-    <div class="set-row"><button class="btn f js-swap"></button><button class="btn f js-rum"></button></div>
+    <div class="set-row"><button class="btn f js-swap"></button><button class="btn f js-rum"></button><button class="btn gold f js-diag">🩺 تشخيص اليد</button></div>
     <p class="set-msg">✕ موافق · ○ رجوع · الأسهم أو العصا للتنقل · L1/R1 السابق/التالي · L2/R2 الصوت · Options تشغيل/إيقاف · PS الرئيسية (وفي الألعاب: الخروج)</p>`;
+  el.querySelector(".js-diag").addEventListener("click", () => padDiagScreen());
   const lab = () => {
     el.querySelector(".js-swap").textContent = padPrefs.swap ? "الموافقة بزر ○ (اضغط للتبديل)" : "الموافقة بزر ✕ (اضغط للتبديل)";
     el.querySelector(".js-rum").textContent = padPrefs.rumble ? "الاهتزاز: يعمل" : "الاهتزاز: متوقف";
@@ -1796,6 +1822,35 @@ function padScreen() {
   };
   live();
   push({ el, initial: () => el.querySelector(".js-swap"), destroy() { cancelAnimationFrame(raf); } });
+}
+
+// تقرير يد التحكم: صوّره وأرسله إن لم تعمل اليد
+const browserPads = () => { try { return [...navigator.getGamepads()].filter(Boolean).map((g) => `${g.id} · ${g.mapping || "-"}`); } catch { return []; } };
+function padDiagHtml(d, pads) {
+  const ok = (b) => (b ? `<b class="ok">✓</b>` : `<b class="bad">✗</b>`);
+  const busAr = (b) => ({ bluetooth: "بلوتوث", usb: "كابل USB" }[b] || b);
+  const k = d.kernel || [], js = d.js || [], m = d.modules || {}, bt = d.bt || {};
+  const hasJs = k.some((x) => /js\d/.test(x.handlers));
+  return `<div class="diag">
+    <div>${ok(k.length)} النظام يرى اليد: ${k.length ? k.map((x) => `<span class="ltr">${esc(x.name)}</span> (${esc(busAr(x.bus))} · <span class="ltr">${esc(x.handlers)}</span>)`).join("، ") : "لا — اليد غير متصلة"}</div>
+    <div>${ok(hasJs)} ملف اليد للألعاب: <span class="ltr">${esc(js.join(" | ") || "—")}</span></div>
+    <div>${ok(/\binput\b/.test(d.tv_groups || ""))} صلاحية التلفاز: <span class="ltr">${esc(d.tv_groups || "—")}</span></div>
+    <div>${ok(m.joydev && m.hid_playstation)} التعريفات: <span class="ltr">${Object.entries(m).map(([n, v]) => `${n}${v ? "✓" : "✗"}`).join(" ")}</span></div>
+    <div>${ok(pads.length)} المتصفح يرى: <span class="ltr">${esc(pads.join(" | ") || "لا شيء (اضغط زراً في اليد ثم أعد التشخيص)")}</span></div>
+    <div>🔵 البلوتوث: <span class="ltr">${esc(bt.adapter || "لا يوجد")}</span></div>
+    ${(bt.devices || []).map((x) => `<div class="ltr sm">${esc(x.name || x.mac)} — paired:${esc(x.paired)} bonded:${esc(x.bonded || "?")} trusted:${esc(x.trusted)} connected:${esc(x.connected)}</div>`).join("")}
+    ${(d.log || []).length ? `<pre class="ltr">${esc(d.log.slice(-8).join("\n"))}</pre>` : ""}
+  </div>`;
+}
+async function padDiagScreen() {
+  const el = subScreen("تشخيص يد التحكم", "pad"), body = el.querySelector(".set-body");
+  push({ el });
+  body.innerHTML = `<p class="set-msg">جارٍ الفحص…</p>`;
+  try {
+    const d = await api("/api/tv/admin/pad/diag");
+    body.innerHTML = d.available === false ? `<p class="set-msg">متاح على جهاز HOME ANAB المخصص فقط.</p>`
+      : `${padDiagHtml(d, browserPads())}<p class="set-msg">صوّر هذه الشاشة وأرسلها إن لم تعمل اليد.</p>`;
+  } catch (e) { body.innerHTML = `<p class="set-msg">${esc(e.message)}</p>`; }
 }
 
 // ============================================================== البدء
