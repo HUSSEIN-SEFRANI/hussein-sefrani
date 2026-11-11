@@ -1,0 +1,63 @@
+#sky { --sky: linear-gradient(180deg, #fbcfe8 0%, #fdf2f8 62%, #bbf7d0 62%, #4ade80 100%); }
+#app { padding: 3vh 4vw 2.5vh; }
+.title h1 { -webkit-text-stroke-color: #be185d; }
+.modes .mode { width: 19vw; }
+.ct { color: #fff; -webkit-text-stroke: .3vh #be185d; paint-order: stroke fill; font-size: 5.5vh; }
+
+.pic { display: inline-flex; align-items: center; justify-content: center; }
+.pic .art { width: 100%; height: 100%; }
+.pic.xs { width: 6vh; height: 6.6vh; }
+.pic.sm { width: 13vh; height: 14vh; }
+.pic.lg { width: 30vh; height: 33vh; filter: drop-shadow(0 1.2vh 1.2vh rgba(0,0,0,.18)); }
+.pic.q { width: 24vh; height: 26vh; }
+.photo { object-fit: cover; border-radius: 2.5vh; }
+.photo.xs { width: 6.6vh; height: 6.6vh; border-radius: 1.2vh; }
+.photo.sm { width: 14vh; height: 13vh; }
+.photo.lg { width: 34vh; height: 30vh; }
+.photo.q { width: 28vh; height: 24vh; }
+
+.fgrid { display: grid; grid-template-columns: repeat(8, 10.4vw); grid-auto-rows: 24vh; gap: 2vh 1vw; margin-top: 2vh; justify-content: center; }
+.ftile { border: 0; border-radius: 3vh; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .4vh; padding: .6vh; position: relative;
+  box-shadow: 0 .8vh 1.6vh rgba(157,23,77,.18); color: #831843; }
+.ftile b { font-size: 2.3vh; line-height: 1.15; text-align: center; }
+.ftile.mine::after { content: "💚"; position: absolute; top: .6vh; left: .8vh; font-size: 2.6vh; font-family: "Noto Color Emoji", sans-serif; }
+
+.page { display: flex; gap: 2vw; width: 100%; flex: 1; min-height: 0; margin-top: 1.2vh; }
+.hero { width: 29vw; border-radius: 4vh; background: linear-gradient(180deg, #fff 0%, #fdf2f8 60%, #dcfce7 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .8vh; padding: 1.5vh 1.2vw;
+  box-shadow: 0 1.5vh 3vh rgba(157,23,77,.2); text-align: center; }
+.hero h2 { font-size: 4.4vh; color: #9d174d; line-height: 1.15; }
+.hero .fr { font-size: 2.8vh; font-weight: 700; color: #be185d; background: #fce7f3; border-radius: 2vh; padding: .2vh 2vh; }
+.hero .type { font-size: 2.3vh; color: #166534; background: #dcfce7; border-radius: 2vh; padding: .5vh 1.4vh; line-height: 1.4; }
+.info { flex: 1; background: #fff; border-radius: 4vh; padding: 1.6vh 1.8vw; display: flex; flex-direction: column; gap: .9vh; box-shadow: 0 1.5vh 3vh rgba(157,23,77,.15); overflow: hidden; }
+.info .row { display: flex; gap: 1vw; align-items: flex-start; }
+.info .ri { font-size: 3.4vh; width: 4.4vh; text-align: center; flex: none; }
+.info b { font-size: 2.3vh; color: #be185d; }
+.info p { margin: 0; font-size: 2.6vh; line-height: 1.4; color: #1e293b; font-weight: 600; }
+.info .pair { display: flex; gap: 1.4vw; }
+.info .pair .row { flex: 1; }
+.info .fact { background: #fef9c3; border-radius: 2.4vh; padding: .8vh 1vw; margin-top: auto; }
+.info .fact b { color: #a16207; }
+.strip { display: grid; grid-template-columns: repeat(12, 1fr); gap: .4vw; direction: rtl; }
+.mo { background: #f1f5f9; border-radius: 1.4vh; text-align: center; padding: .3vh 0; }
+.mo i { display: block; height: 3.4vh; font-style: normal; font-size: 2.2vh; font-family: "Noto Color Emoji", sans-serif; line-height: 3.4vh; letter-spacing: -.6vh; }
+.mo small { font-size: 1.45vh; white-space: nowrap; font-weight: 700; color: #475569; }
+.mo.p { background: #dcfce7; } .mo.b { background: #fce7f3; } .mo.p.b { background: linear-gradient(135deg, #dcfce7 50%, #fce7f3 50%); }
+.mo.now { box-shadow: inset 0 0 0 .4vh #f59e0b; }
+.nav { margin-top: 1.4vh; gap: 2vw; }
+.btn.on { background: #dcfce7; color: #166534; }
+
+.months { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1.2vh 1vw; width: 92vw; margin-top: 1.5vh; }
+.mbtn { border: 0; border-radius: 2.2vh; background: #fff; color: #831843; padding: .8vh 0; display: flex; flex-direction: column; align-items: center; box-shadow: 0 .6vh 1.2vh rgba(157,23,77,.15); }
+.mbtn b { font-size: 2.8vh; } .mbtn small { font-size: 1.9vh; color: #64748b; font-weight: 700; }
+.mbtn.cur { background: #db2777; color: #fff; } .mbtn.cur small { color: #fce7f3; }
+.mbtn.today:not(.cur) { box-shadow: inset 0 0 0 .4vh #f59e0b; }
+.cal { display: flex; gap: 2vw; width: 92vw; flex: 1; min-height: 0; margin-top: 2vh; }
+.cal .col { flex: 1; background: #fff; border-radius: 3.5vh; padding: 1.4vh 1.4vw; box-shadow: 0 1.2vh 2.4vh rgba(157,23,77,.15); }
+.cal h3 { margin: 0 0 1vh; font-size: 3.2vh; color: #9d174d; }
+.chips { display: flex; flex-wrap: wrap; gap: 1vh .8vw; }
+.chip { border: 0; border-radius: 2vh; background: #fdf2f8; display: flex; align-items: center; gap: .6vw; padding: .4vh 1vw .4vh .6vw; font-size: 2.4vh; font-weight: 800; color: #831843; }
+.none { font-size: 2.6vh; color: #64748b; }
+
+.prompt { gap: 2vw; min-height: 32vh; }
+.prompt .q { max-width: 46vw; }
+.opts.txt .opt { font-size: 4.2vh; min-width: 22vw; height: 12vh; }

@@ -1,0 +1,46 @@
+#sky { --sky: linear-gradient(180deg, #fde68a 0%, #fffbeb 64%, #bbf7d0 64%, #22c55e 100%); }
+#app { padding: 3vh 4vw 2.5vh; }
+.title h1 { -webkit-text-stroke-color: #b45309; }
+.modes .mode { width: 24vw; }
+.ct { color: #fff; -webkit-text-stroke: .3vh #92400e; paint-order: stroke fill; font-size: 5.2vh; }
+.modes.sm.wide .mode { width: 19vw; height: 30vh; }
+.modes.sm.fr { display: grid; grid-template-columns: repeat(4, 19vw); gap: 3vh 2vw; }
+.modes.sm.fr .mode { width: 19vw; height: 27vh; }
+.btn.gold { background: #facc15; color: #713f12; font-size: 4vh; }
+
+/* قائمة الجمل */
+.slist { display: grid; grid-template-columns: 1fr 1fr; gap: 1.6vh 1.6vw; width: 92vw; margin-top: 2vh; }
+.sitem { border: 0; border-radius: 2.6vh; background: #fff; padding: 1.4vh 1.6vw; font-size: 3vh; font-weight: 800; color: #78350f; text-align: start; box-shadow: 0 .8vh 1.6vh rgba(146,64,14,.15); position: relative; line-height: 1.4; }
+.sitem.read::after { content: "✔"; position: absolute; left: 1.2vw; top: 50%; transform: translateY(-50%); color: #16a34a; font-size: 3vh; }
+
+/* صفحة الجملة العربية */
+.scard { width: 92vw; background: #fff; border-radius: 4vh; padding: 2.2vh 3vw; margin-top: 1.4vh; text-align: center; box-shadow: 0 1.2vh 2.4vh rgba(146,64,14,.18); border: .6vh solid #fde68a; }
+.sent { font-size: 6vh; font-weight: 800; color: #92400e; line-height: 1.4; }
+.bait { display: flex; justify-content: center; gap: 5vw; font-size: 4.4vh; font-weight: 800; color: #92400e; line-height: 1.5; }
+.who { font-size: 2.8vh; color: #64748b; font-weight: 700; margin-top: .6vh; }
+.expl { display: flex; gap: 1.6vw; width: 92vw; flex: 1; min-height: 0; margin-top: 1.6vh; }
+.box { background: #fff; border-radius: 3.5vh; padding: 1.4vh 1.6vw; box-shadow: 0 1vh 2vh rgba(146,64,14,.12); overflow: hidden; }
+.box h3 { margin: 0 0 .8vh; font-size: 3.2vh; color: #b45309; }
+.words { width: 34vw; }
+.mean { flex: 1; }
+.wd { display: flex; gap: 1vw; align-items: baseline; padding: .5vh 0; border-bottom: .2vh dashed #fde68a; font-size: 3.3vh; }
+.wd b { color: #1d4ed8; white-space: nowrap; } .wd span { color: #334155; font-weight: 600; }
+.wd b::after { content: ":"; }
+.mean .m { font-size: 3.9vh; font-weight: 800; color: #166534; margin: 0 0 1vh; line-height: 1.45; }
+.mean .st { font-size: 3.1vh; color: #334155; font-weight: 600; margin: 0 0 .6vh; line-height: 1.55; }
+.nav { margin-top: 1.4vh; gap: 2vw; }
+
+/* البطاقة الفرنسية */
+.fcard { width: 80vw; min-height: 50vh; background: #fff; border-radius: 5vh; margin-top: 2vh; padding: 3vh 4vw; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2vh;
+  box-shadow: 0 1.5vh 3vh rgba(29,78,216,.2); border: .6vh solid #bfdbfe; text-align: center; }
+.frs { font-size: 7vh; font-weight: 800; color: #1d4ed8; line-height: 1.25; font-family: "Baloo", sans-serif; }
+.ars { font-size: 6.4vh; font-weight: 800; color: #92400e; line-height: 1.35; }
+.ans .frs, .ans .ars { font-size: 5.6vh; }
+.line { width: 30vw; height: .5vh; border-radius: 1vh; background: #e2e8f0; }
+.note2 { margin-top: 1.2vh; font-size: 2.8vh; color: #475569; font-weight: 700; background: #f1f5f9; border-radius: 2vh; padding: .6vh 2vw; display: inline-block; }
+
+/* الأسئلة */
+.prompt .q.qs { max-width: 80vw; font-size: 5vh; display: flex; flex-direction: column; gap: 1vh; line-height: 1.4; }
+.prompt .q.qs small { font-size: 3vh; color: #64748b; }
+.prompt { min-height: 24vh; }
+.opts.wide .opt { font-size: 3.8vh; }

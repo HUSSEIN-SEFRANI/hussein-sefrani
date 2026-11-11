@@ -1,0 +1,43 @@
+#sky { --sky: linear-gradient(180deg, #7dd3fc 0%, #e0f2fe 64%, #86efac 64%, #16a34a 100%); }
+#app { padding: 3vh 4vw 2.5vh; }
+.ct { display: flex; align-items: center; gap: 1vw; color: #fff; -webkit-text-stroke: .3vh #1e3a8a; paint-order: stroke fill; font-size: 5.2vh; }
+.ct .emo { -webkit-text-stroke: 0; }
+
+.groups { display: grid; grid-template-columns: repeat(3, 26vw); gap: 2.4vh 2vw; margin-top: 2.5vh; }
+.grpb { height: 16vh; border: 0; border-radius: 3.5vh; color: #fff; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; align-items: center; column-gap: 1.4vw; padding: 1vh 1.8vw;
+  box-shadow: 0 1vh 2vh rgba(30,58,138,.25); text-align: start; }
+.grpb .emo { grid-row: 1 / 3; font-size: 9vh; }
+.grpb b { font-size: 3.6vh; line-height: 1.15; align-self: end; }
+.grpb small { font-size: 2.5vh; opacity: .95; align-self: start; }
+
+/* شبكة الأعلام: تتمرر مع التركيز */
+.scroll { width: 100%; flex: 1; min-height: 0; overflow-y: auto; margin-top: 1.5vh; padding: 1.5vh 1vw 3vh; scrollbar-width: none; }
+.scroll::-webkit-scrollbar { display: none; }
+.flags { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2vh 1.2vw; }
+.fl { height: 20vh; border: 0; border-radius: 2.6vh; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .4vh; padding: .6vh; position: relative;
+  box-shadow: 0 .8vh 1.6vh rgba(30,58,138,.2); color: #1e3a8a; }
+.fl .emo { font-size: 10vh; }
+.fl b { font-size: 2.2vh; line-height: 1.15; text-align: center; }
+.fl.seen::after { content: "✔"; position: absolute; top: .8vh; left: 1vh; width: 3vh; height: 3vh; border-radius: 50%; background: #22c55e; color: #fff; font-size: 1.9vh; display: flex; align-items: center; justify-content: center; }
+
+/* صفحة الدولة */
+.page { display: flex; gap: 2.4vw; width: 100%; flex: 1; min-height: 0; margin-top: 1.5vh; }
+.hero { width: 36vw; border-radius: 4vh; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1vh; padding: 2vh 1.5vw;
+  box-shadow: 0 1.5vh 3vh rgba(30,58,138,.2); text-align: center; }
+.bigflag { font-size: 30vh; line-height: 1; filter: drop-shadow(0 1.2vh 1.2vh rgba(0,0,0,.2)); }
+.hero h2 { font-size: 5.6vh; color: #1e3a8a; line-height: 1.2; }
+.info { flex: 1; background: #fff; border-radius: 4vh; padding: 2vh 2.4vw; display: flex; flex-direction: column; justify-content: space-around; box-shadow: 0 1.5vh 3vh rgba(30,58,138,.2); }
+.info .row { display: flex; gap: 1.4vw; align-items: center; }
+.info .ri { font-size: 5vh; width: 6.5vh; text-align: center; flex: none; }
+.info b { font-size: 2.6vh; color: #0369a1; }
+.info p { margin: .2vh 0 0; font-size: 3.6vh; line-height: 1.35; color: #0f172a; font-weight: 800; }
+.nav { margin-top: 1.4vh; }
+
+/* الأسئلة */
+.qflag { font-size: 24vh; line-height: 1; }
+.qflag.sm { font-size: 14vh; }
+.prompt .q.big { font-size: 6vh; max-width: 70vw; }
+.prompt { gap: 3vw; min-height: 30vh; }
+.opts.txt .opt { font-size: 4.4vh; min-width: 22vw; height: 12vh; }
+.opts.flagopts .opt { height: 24vh; min-width: 30vh; }
+.opts.flagopts .opt .emo { font-size: 17vh; }
