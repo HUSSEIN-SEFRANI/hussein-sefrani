@@ -62,6 +62,9 @@ function place(obj, s, x, y = 0) {
   obj.rotation.y = Math.atan2(t.x, t.z);
 }
 
+let seed = 7;
+const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+
 // ------------------------------------------------------------------ الجسور والمنحدرات والقفزات
 // ارتفاع الطريق عند كل مسافة s: نقاط [المسافة، الارتفاع] بينها انتقال ناعم
 const KN = [
@@ -128,10 +131,12 @@ function strip(offA, offB, y, material, uScale, yB = y, only = null) {
 }
 // الطريق: إسفلت وخط أبيض متقطع في المنتصف
 strip(ROAD_W / 2, -ROAD_W / 2, 0.03, new THREE.MeshLambertMaterial({
-  map: canvasTex(128, 128, (g, w, h) => {
-    g.fillStyle = "#5b6475"; g.fillRect(0, 0, w, h);
-    for (let i = 0; i < 400; i++) { g.fillStyle = Math.random() < .5 ? "#545c6c" : "#636c7e"; g.fillRect(Math.random() * w, Math.random() * h, 2, 2); }
-    g.fillStyle = "#fff"; g.fillRect(0, h / 2 - 3, w / 2, 6);
+  map: canvasTex(128, 256, (g, w, h) => {
+    g.fillStyle = "#4b515c"; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 1400; i++) { g.fillStyle = ["#444a54", "#555b66", "#3f444d"][i % 3]; g.fillRect(Math.random() * w, Math.random() * h, 2, 2); }
+    g.fillStyle = "#f5f5f0"; g.fillRect(0, 6, w, 4); g.fillRect(0, h - 10, w, 4);       // خط الحافة
+    g.fillRect(0, h / 4 - 2, w / 2, 4); g.fillRect(0, (h * 3) / 4 - 2, w / 2, 4);      // خطوط المسارات المتقطعة
+    g.fillStyle = "#f4c21b"; g.fillRect(0, h / 2 - 6, w, 4); g.fillRect(0, h / 2 + 2, w, 4); // خط أصفر مزدوج
   }),
 }), 10);
 // الأرصفة الملونة
@@ -164,6 +169,70 @@ strip(ROAD_W / 2 + 1.6, -ROAD_W / 2 - 1.6, -1.3, new THREE.MeshLambertMaterial({
   const o = new THREE.Object3D();
   spots.forEach(([s, x, h], i) => { place(o, s, x, (h - 1.2) / 2); o.scale.set(1, h - 1.2, 1); o.updateMatrix(); col.setMatrixAt(i, o.matrix); });
   scene.add(col);
+}
+// حواجز معدنية على جانبي الطريق الأرضي
+const rail = new THREE.MeshPhongMaterial({
+  map: canvasTex(32, 32, (g, w, h) => { g.fillStyle = "#c9ced6"; g.fillRect(0, 0, w, h); g.fillStyle = "#9097a2"; g.fillRect(0, h / 2 - 3, w, 6); g.fillStyle = "#eef1f5"; g.fillRect(0, 3, w, 4); }),
+  specular: "#ffffff", shininess: 70, side: THREE.DoubleSide,
+});
+const TUN = [236, 286]; // النفق
+const railHere = (s) => H(s) <= 0.3 && !(wrapS(s) > TUN[0] && wrapS(s) < TUN[1]) && (wrapS(s) > 12 || wrapS(s) < L - 12);
+const RX = ROAD_W / 2 + 2.3;
+[RX, -RX].forEach((x) => strip(x, x, 0.95, rail, 3, 0.55, railHere));
+{
+  const spots = [];
+  for (let s = 0; s < L; s += 4) if (railHere(s)) spots.push([s, RX], [s, -RX]);
+  const posts = new THREE.InstancedMesh(new THREE.BoxGeometry(0.16, 1, 0.16), new THREE.MeshLambertMaterial({ color: "#7b828d" }), spots.length);
+  const o = new THREE.Object3D();
+  spots.forEach(([s, x], i) => { place(o, s, x + Math.sign(x) * 0.12, 0.5); o.updateMatrix(); posts.setMatrixAt(i, o.matrix); });
+  scene.add(posts);
+}
+// صخور رمادية كبيرة على جوانب بعض المقاطع
+{
+  const spots = [];
+  for (const [a, b] of [[32, 62], [225, 296], [420, 530], [740, 785], [945, 1030]])
+    for (let s = a; s < b; s += 4.5) [-1, 1].forEach((side) => { if (rnd() < 0.8) spots.push([s + rnd() * 3, side * (ROAD_W / 2 + 7 + rnd() * 9), 3 + rnd() * 5]); });
+  const rocks = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1, 0), new THREE.MeshLambertMaterial({ color: "#ffffff", flatShading: true }), spots.length);
+  const o = new THREE.Object3D(), c = new THREE.Color();
+  spots.forEach(([s, x, r], i) => {
+    place(o, s, x, r * 0.35);
+    o.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3);
+    o.scale.set(r, r * (0.9 + rnd() * 0.8), r);
+    o.updateMatrix(); rocks.setMatrixAt(i, o.matrix);
+    rocks.setColorAt(i, c.set(["#a8a59c", "#b9b6ad", "#8f8c84", "#c4c0b6"][i % 4]));
+  });
+  scene.add(rocks);
+}
+// نفق حجري بقوس فوق الطريق
+{
+  const inner = new THREE.MeshLambertMaterial({
+    map: canvasTex(64, 64, (g, w, h) => { g.fillStyle = "#b8b2a6"; g.fillRect(0, 0, w, h); g.strokeStyle = "#9c968a"; g.lineWidth = 2; for (let y = 0; y < h; y += 16) { g.strokeRect(-2, y, w + 4, 16); g.beginPath(); g.moveTo((y / 16) % 2 ? 16 : 48, y); g.lineTo((y / 16) % 2 ? 16 : 48, y + 16); g.stroke(); } g.fillStyle = "#fff7d6"; g.fillRect(28, 0, 8, 6); }),
+  });
+  const R0 = ROAD_W / 2 + 3, SEG = 9, inTun = (s) => wrapS(s) > TUN[0] && wrapS(s) < TUN[1];
+  for (let k = 0; k < SEG; k++) {
+    const a0 = (k / SEG) * Math.PI, a1 = ((k + 1) / SEG) * Math.PI;
+    strip(Math.cos(a0) * R0, Math.cos(a1) * R0, Math.sin(a0) * R0 * 0.8, inner, 6, Math.sin(a1) * R0 * 0.8, inTun);
+  }
+  const stone = new THREE.MeshLambertMaterial({ color: "#8d877b", flatShading: true });
+  const grassTop = mat("#5fae46");
+  [TUN[0], TUN[1]].forEach((s) => {
+    // واجهة حجرية بفتحة مقوّسة
+    const W = R0 + 6, HT = R0 * 0.8 + 4.5;
+    const sh = new THREE.Shape();
+    sh.moveTo(-W, 0); sh.lineTo(-R0, 0);
+    for (let k = 0; k <= 16; k++) { const a = Math.PI - (k / 16) * Math.PI; sh.lineTo(Math.cos(a) * R0, Math.sin(a) * R0 * 0.8); }
+    sh.lineTo(W, 0); sh.lineTo(W, HT - 2); sh.quadraticCurveTo(W, HT, W - 2, HT); sh.lineTo(-W + 2, HT); sh.quadraticCurveTo(-W, HT, -W, HT - 2); sh.lineTo(-W, 0);
+    const fg = new THREE.ExtrudeGeometry(sh, { depth: 1.6, bevelEnabled: false }); fg.translate(0, 0, -0.8);
+    const portal = new THREE.Group(); portal.add(new THREE.Mesh(fg, stone));
+    const top = new THREE.Mesh(new THREE.BoxGeometry(W * 2 + 0.4, 0.5, 2.2), grassTop); top.position.y = HT + 0.1; portal.add(top);
+    place(portal, s, 0, 0); scene.add(portal);
+  });
+  // غطاء عشبي فوق النفق من الخارج
+  const grassShell = new THREE.MeshLambertMaterial({ color: "#5fae46" });
+  for (let k = 0; k < SEG; k++) {
+    const a0 = (k / SEG) * Math.PI, a1 = ((k + 1) / SEG) * Math.PI, R1 = R0 + 2.2;
+    strip(Math.cos(a0) * R1, Math.cos(a1) * R1, Math.sin(a0) * (R0 * 0.8 + 3.5), grassShell, 6, Math.sin(a1) * (R0 * 0.8 + 3.5), (s) => wrapS(s) > TUN[0] + 0.8 && wrapS(s) < TUN[1] - 0.8);
+  }
 }
 // ماء تحت كل فجوة، ولوحة تحذير صفراء عند حافة الانطلاق
 const water = new THREE.MeshLambertMaterial({
@@ -229,8 +298,6 @@ function nearRoad(x, z, margin) {
   for (let i = 0; i < N; i += 4) if (Math.hypot(P[i].x - x, P[i].z - z) < ROAD_W / 2 + margin) return true;
   return false;
 }
-let seed = 7;
-const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 const treeCols = ["#16a34a", "#22c55e", "#15803d", "#65a30d"], flowerCols = ["#f43f5e", "#facc15", "#ffffff", "#a855f7", "#fb923c"];
 for (let k = 0; k < 260; k++) {
   const x = -320 + rnd() * 640, z = -260 + rnd() * 560;
@@ -347,7 +414,7 @@ function wheel(r, w, kind = "truck") {
   return g;
 }
 // جسم ناعم: رسم جانبي (z للأمام، y للأعلى) يُبثق بعرض w مع حواف مدوّرة
-function profile(pts, w, material, bev = 0.07) {
+function profile(pts, w, material, bev = 0.07, squeeze = null) {
   const s = new THREE.Shape();
   pts.forEach((p, i) => {
     if (p.arch) { const [cz, cy, r] = p.arch; s.lineTo(cz - r, cy); s.absarc(cz, cy, r, Math.PI, 0, true); }
@@ -356,6 +423,10 @@ function profile(pts, w, material, bev = 0.07) {
   const geo = new THREE.ExtrudeGeometry(s, { depth: w - bev * 2, bevelEnabled: bev > 0, bevelThickness: bev, bevelSize: bev, bevelSegments: 2, curveSegments: 7 });
   geo.translate(0, 0, -(w - bev * 2) / 2);
   geo.rotateY(-Math.PI / 2);
+  if (squeeze) {
+    const p = geo.attributes.position;
+    for (let i = 0; i < p.count; i++) p.setX(i, p.getX(i) * squeeze(p.getZ(i), p.getY(i)));
+  }
   geo.computeVertexNormals();
   return new THREE.Mesh(geo, material);
 }
@@ -384,28 +455,49 @@ function truckCab(g, body, front, back, floor, top, wr, wz, W) {
     part(g, box(0.08, 0.5, 0.28, M.black()), sx * (W / 2 + 0.33), top - 0.45, front - 0.35);
   });
 }
+const flameMat = () => cached("flame", () => new THREE.MeshBasicMaterial({ color: "#3d9bff", transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }));
+const flameCore = () => cached("flameCore", () => new THREE.MeshBasicMaterial({ color: "#d9f1ff", transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+const flameGeo = (() => { const g = new THREE.ConeGeometry(0.16, 1, 10, 1, true); g.translate(0, 0.5, 0); g.rotateX(-Math.PI / 2); return g; })();
+function addFlames(g, list) {
+  g.userData.flames = list.map(([x, y, z]) => {
+    const f = new THREE.Group();
+    f.add(new THREE.Mesh(flameGeo, flameMat()));
+    const core = new THREE.Mesh(flameGeo, flameCore()); core.scale.set(0.35, 0.35, 0.5); f.add(core);
+    f.position.set(x, y, z); g.add(f); return f;
+  });
+}
 function makeVehicle(type, color) {
   const g = new THREE.Group(), wheels = [];
   const body = paint(color);
   const addWheels = (list, r, w, kind) => list.forEach(([x, z]) => { const wh = wheel(r, w, kind); wh.position.set(x, r, z); g.add(wh); wheels.push(wh); });
   let shadowL = 5.2, shadowW = 3;
   if (type === "car") {
-    // سيارة رياضية منخفضة بخطوط انسيابية
-    const wr = 0.42;
-    part(g, profile([[-2.2, 0.3], { arch: [-1.35, 0.32, 0.5] }, { arch: [1.35, 0.32, 0.5] }, [2.15, 0.3], [2.32, 0.45], [2.28, 0.62], [1.8, 0.86], [0.85, 0.96], [-1.3, 1.0], [-2.1, 1.02], [-2.3, 0.9], [-2.32, 0.5]], 2.06, body, 0.09));
-    part(g, profile([[0.9, 0.94], [-0.05, 1.42], [-0.95, 1.46], [-1.95, 1.0]], 1.62, M.glass(), 0.07));
-    part(g, profile([[0.0, 1.39], [-0.98, 1.43], [-0.95, 1.49], [-0.02, 1.46]], 1.66, body, 0.04));
-    part(g, box(1.3, 0.13, 0.1, grille()), 0, 0.42, 2.3);
-    lamps(g, 2.2, 0.68, 0.66, 0.46, 0.12, true);
-    g.children[g.children.length - 1].rotation.x = g.children[g.children.length - 2].rotation.x = -0.6;
-    lamps(g, -2.44, 0.84, 0.68, 0.52, 0.12, false);
-    part(g, box(1.7, 0.18, 0.12, M.black()), 0, 0.4, -2.4);
-    [-0.45, 0.45].forEach((x) => { const e = part(g, new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.2, 10), M.chrome()), x, 0.36, -2.47); e.rotation.x = Math.PI / 2; });
-    part(g, box(2.0, 0.06, 0.42, body), 0, 1.36, -1.95);
-    [-0.7, 0.7].forEach((x) => part(g, box(0.07, 0.3, 0.2, M.black()), x, 1.19, -1.95));
-    [-1, 1].forEach((sx) => part(g, box(0.18, 0.12, 0.22, body), sx * 0.98, 1.08, 0.5));
-    addWheels([[-0.92, 1.35], [0.92, 1.35], [-0.92, -1.35], [0.92, -1.35]], wr, 0.4, "sport");
-    shadowL = 5.4; shadowW = 2.8;
+    // سيارة خارقة: مقدمة منخفضة، أكتاف عريضة مدوّرة، وكابينة زجاجية منحنية
+    const wr = 0.44;
+    const clamp01 = (v) => Math.min(1, Math.max(0, v));
+    const bodySq = (z, y) => (1 - 0.14 * clamp01((z - 0.6) / 1.8)) * (1 - 0.2 * clamp01((y - 0.62) / 0.45)) * (1 - 0.06 * clamp01((-z - 1.9) / 0.5));
+    part(g, profile([[-2.3, 0.32], { arch: [-1.42, 0.3, 0.54] }, { arch: [1.42, 0.3, 0.52] }, [2.2, 0.3], [2.42, 0.4], [2.4, 0.52], [2.0, 0.64], [1.25, 0.76], [0.7, 0.86], [-0.6, 0.94], [-1.7, 1.0], [-2.25, 1.02], [-2.42, 0.96], [-2.45, 0.55]], 2.25, body, 0.1, bodySq));
+    const cabSq = (z, y) => 1 - 0.32 * clamp01((y - 0.86) / 0.5);
+    part(g, profile([[0.85, 0.84], [0.05, 1.3], [-0.75, 1.36], [-1.95, 1.0], [-1.9, 0.86]], 1.8, M.glass(), 0.08, cabSq));
+    part(g, profile([[-0.02, 1.28], [-0.82, 1.34], [-0.8, 1.39], [-0.05, 1.33]], 1.8, body, 0.03, (z, y) => cabSq(z, y) * 0.92));
+    // فتحات هواء جانبية خلف الباب
+    [-1, 1].forEach((sx) => { const v = part(g, box(0.05, 0.22, 0.75, M.black()), sx * 1.04, 0.62, -0.95); v.rotation.y = sx * 0.06; });
+    // المقدمة: شبك منخفض ومصابيح مائلة
+    part(g, box(1.5, 0.12, 0.1, grille()), 0, 0.38, 2.38);
+    [-1, 1].forEach((sx) => { const l = part(g, box(0.5, 0.08, 0.32, M.head()), sx * 0.7, 0.64, 2.12); l.rotation.set(-0.35, sx * -0.25, 0); });
+    // الخلف: لوحة سوداء وأضواء دائرية مزدوجة وأربعة عوادم
+    part(g, box(1.95, 0.42, 0.06, M.black()), 0, 0.78, -2.47);
+    const ring = cached("ringGeo", () => new THREE.CylinderGeometry(0.13, 0.13, 0.06, 16));
+    [-0.82, -0.5, 0.5, 0.82].forEach((x) => { const t = part(g, new THREE.Mesh(ring, M.tail()), x, 0.8, -2.51); t.rotation.x = Math.PI / 2; });
+    part(g, box(2.0, 0.22, 0.25, M.black()), 0, 0.36, -2.38);
+    [-0.32, -0.14, 0.14, 0.32].forEach((x) => { const e = part(g, new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.18, 10), M.chrome()), x, 0.38, -2.5); e.rotation.x = Math.PI / 2; });
+    addFlames(g, [[-0.23, 0.38, -2.58], [0.23, 0.38, -2.58]]);
+    // جناح منخفض ومرايا على ذراع
+    part(g, box(1.9, 0.05, 0.36, body), 0, 1.14, -2.18);
+    [-0.6, 0.6].forEach((x) => part(g, box(0.06, 0.16, 0.16, M.black()), x, 1.05, -2.18));
+    [-1, 1].forEach((sx) => { part(g, box(0.25, 0.04, 0.05, M.black()), sx * 0.88, 0.98, 0.55); part(g, box(0.1, 0.14, 0.24, body), sx * 1.02, 1.02, 0.52); });
+    addWheels([[-0.98, 1.42], [0.98, 1.42], [-1.0, -1.42], [1.0, -1.42]], wr, 0.46, "sport");
+    shadowL = 5.6; shadowW = 3;
   } else if (type === "truck") {
     // شاحنة نقل بصندوق
     const W = 2.4;
@@ -420,6 +512,7 @@ function makeVehicle(type, color) {
     lamps(g, -3.2, 0.82, 1.0, 0.3, 0.2, false);
     part(g, box(2.3, 0.18, 0.15, M.grey()), 0, 0.62, -3.15);
     addWheels([[-1.07, 2.0], [1.07, 2.0], [-1.07, -1.35], [1.07, -1.35], [-1.07, -2.45], [1.07, -2.45]], 0.58, 0.45, "truck");
+    addFlames(g, [[-0.6, 0.6, -3.3], [0.6, 0.6, -3.3]]);
     shadowL = 7; shadowW = 3.2;
   } else if (type === "dump") {
     // قلاب: كابينة عالية وصندوق يُرفع من الخلف
@@ -445,6 +538,7 @@ function makeVehicle(type, color) {
     g.add(bed);
     g.userData.bed = bed;
     addWheels([[-1.05, 1.95], [1.05, 1.95], [-1.05, -1.35], [1.05, -1.35], [-1.05, -2.6], [1.05, -2.6]], 0.72, 0.55, "truck");
+    addFlames(g, [[-0.5, 0.85, -3.2], [0.5, 0.85, -3.2]]);
     shadowL = 7; shadowW = 3.3;
   } else { // حفارة بجنازير
     const trackSide = cached("trackCap", () => {
@@ -497,6 +591,7 @@ function makeVehicle(type, color) {
     a2.rotation.x = 0.9; arm.add(a2);
     arm.position.set(0.45, 2.15, 0.75); arm.rotation.x = -0.45; g.add(arm);
     g.userData.arm = arm;
+    addFlames(g, [[-0.45, 0.5, -2.15], [0.45, 0.5, -2.15]]);
     shadowL = 5.2; shadowW = 3.4;
   }
   const sh = new THREE.Mesh(new THREE.PlaneGeometry(shadowW, shadowL), shadowMat());
@@ -727,7 +822,7 @@ function pollPad() {
 // ------------------------------------------------------------------ الحلقة الرئيسية
 const clock = new THREE.Clock();
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
-let menuAngle = 0, turboShown = false;
+let menuAngle = 0, turboShown = false, shownKmh = -1;
 
 function updateRacer(r, dt, ctl) {
   let target;
@@ -774,6 +869,12 @@ function updateRacer(r, dt, ctl) {
   const tilt = r.me ? ctl.steer * 0.12 : 0;
   r.obj.rotation.z = tilt * 0.4; r.obj.rotation.y += tilt;
   r.obj.userData.wheels.forEach((w) => { w.rotation.x += r.speed * dt / 0.6; });
+  const fast = r.boost > 0 || r.speed > CRUISE + 3;
+  (r.obj.userData.flames || []).forEach((f) => {
+    f.visible = fast || r.type === "car";
+    const len = (fast ? 1.5 : 0.55) * (0.8 + Math.random() * 0.4);
+    f.scale.set(fast ? 1.25 : 1, fast ? 1.25 : 1, len);
+  });
   if (r.obj.userData.arm) r.obj.userData.arm.rotation.x = -0.45 + Math.sin(performance.now() / 300) * 0.15;
   if (r.obj.userData.bed) r.obj.userData.bed.rotation.x = -Math.max(0, Math.sin(performance.now() / 700)) * 0.2;
   // نهاية السباق
@@ -837,15 +938,17 @@ function tick() {
       if (player.s > L && !player.lapReset) { player.lapReset = true; stars.forEach((st) => { st.taken = false; st.m.visible = true; }); }
     }
     // الكاميرا خلف اللاعب
-    const back = frameAt(player.s - 10), ahead = frameAt(player.s + 8);
-    camPos.copy(back.p).addScaledVector(back.n, player.x * 0.7); camPos.y = Math.max(player.y, H(player.s - 10)) + 5.2;
-    camLook.copy(ahead.p).addScaledVector(ahead.n, player.x * 0.5); camLook.y = (player.y + H(player.s + 8)) / 2 + 1.4;
+    const back = frameAt(player.s - 7.5), ahead = frameAt(player.s + 10);
+    camPos.copy(back.p).addScaledVector(back.n, player.x * 0.7); camPos.y = Math.max(player.y, H(player.s - 7.5)) + 3.7;
+    camLook.copy(ahead.p).addScaledVector(ahead.n, player.x * 0.5); camLook.y = (player.y + H(player.s + 10)) / 2 + 1.5;
     camera.position.lerp(camPos, Math.min(1, dt * 6));
     camera.lookAt(camLook);
     const fov = 62 + (player.speed > CRUISE + 2 ? 8 : 0);
     camera.fov += (fov - camera.fov) * dt * 3; camera.updateProjectionMatrix();
     // الواجهة
     const lap = Math.min(LAPS, Math.max(1, Math.floor(player.s / L) + 1));
+    const kmh = Math.round(player.speed * 4.2);
+    if (kmh !== shownKmh) { shownKmh = kmh; $("kmh").textContent = String(kmh).padStart(3, "0"); $("needle").style.transform = `rotate(${-120 + Math.min(1, kmh / 200) * 240}deg)`; }
     $("lap").textContent = `اللفة ${lap} / ${LAPS}`;
     $("stars").textContent = `⭐ ${starCount}`;
     $("pos").textContent = `المركز ${ORDINAL[rankOf(player) - 1]}`;
@@ -860,5 +963,16 @@ function tick() {
   requestAnimationFrame(tick);
 }
 
+// تدريجات عدّاد السرعة (0 إلى 200)
+{
+  let svg = '<path d="M ' + (Math.cos(Math.PI * (-18) / 180) * 82) + ' ' + (Math.sin(Math.PI * (-18) / 180) * 82) + ' A 82 82 0 0 1 ' + (Math.cos(Math.PI * 30 / 180) * 82) + ' ' + (Math.sin(Math.PI * 30 / 180) * 82) + '" stroke="#ef4444" stroke-width="7" fill="none"/>';
+  for (let v = 0; v <= 200; v += 10) {
+    const a = (Math.PI / 180) * (-210 + (v / 200) * 240), big = v % 40 === 0;
+    const r1 = big ? 70 : 76, c = Math.cos(a), sn = Math.sin(a);
+    svg += `<line x1="${c * r1}" y1="${sn * r1}" x2="${c * 86}" y2="${sn * 86}" stroke="#e2e8f0" stroke-width="${big ? 4 : 2}"/>`;
+    if (big) svg += `<text x="${c * 55}" y="${sn * 55 + 6}" fill="#f8fafc" font-size="17" font-weight="800" text-anchor="middle" font-family="Baloo, sans-serif">${v}</text>`;
+  }
+  $("dial").innerHTML = svg;
+}
 buildMenu();
 tick();
