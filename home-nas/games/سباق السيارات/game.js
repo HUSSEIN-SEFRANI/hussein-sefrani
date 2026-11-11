@@ -9,6 +9,8 @@ const N = 700;              // عدد نقاط المسار
 const CRUISE = 20, TURBO = 31, SLOW = 9;
 const VEHICLES = [
   { id: "car", name: "سيارة سباق", ic: "🏎️" },
+  { id: "coupe", name: "سيارة", ic: "🚗" },
+  { id: "bus", name: "حافلة", ic: "🚌" },
   { id: "truck", name: "شاحنة", ic: "🚚" },
   { id: "digger", name: "حفارة", ic: "🏗️" },
   { id: "dump", name: "قلاب", ic: "🚛" },
@@ -455,6 +457,58 @@ function truckCab(g, body, front, back, floor, top, wr, wz, W) {
     part(g, box(0.08, 0.5, 0.28, M.black()), sx * (W / 2 + 0.33), top - 0.45, front - 0.35);
   });
 }
+// جسم منحوت: مقاطع عرضية ناعمة على طول السيارة (z)، كل مقطع شكل بيضاوي مربّع
+// st: قائمة [z, نصف العرض, أسفل, أعلى]؛ n: حدّة الزوايا؛ tuck: تضييق الجزء العلوي؛ th: مدى الزاوية (للأسطح الجزئية)
+function loft(st, material, { n = 3, tuck = 0.2, M = 22, th = [0, Math.PI * 2], cap = true, grow = 0 } = {}) {
+  const pos = [], idx = [];
+  const ring = th[1] - th[0] >= Math.PI * 2 - 1e-6;
+  const cols = ring ? M : M + 1;
+  st.forEach(([z, w, b, t]) => {
+    const my = (b + t) / 2, hy = (t - b) / 2 + grow;
+    for (let j = 0; j < cols; j++) {
+      const a = th[0] + ((th[1] - th[0]) * j) / M, c = Math.cos(a), sn = Math.sin(a);
+      const px = Math.sign(c) * Math.pow(Math.abs(c), 2 / n), py = Math.sign(sn) * Math.pow(Math.abs(sn), 2 / n);
+      const tk = py > 0 ? 1 - tuck * py * py : 1;
+      pos.push(px * (w + grow) * tk, my + py * hy, z);
+    }
+  });
+  for (let i = 0; i < st.length - 1; i++)
+    for (let j = 0; j < (ring ? M : M); j++) {
+      const a = i * cols + j, b2 = i * cols + ((j + 1) % cols), c = a + cols, d = b2 + cols;
+      idx.push(a, c, b2, b2, c, d);
+    }
+  if (cap && ring) [0, st.length - 1].forEach((i, k) => {
+    const ci = pos.length / 3, [z, , b, t] = st[i];
+    pos.push(0, (b + t) / 2, z);
+    for (let j = 0; j < M; j++) { const a = i * cols + j, b2 = i * cols + ((j + 1) % M); k ? idx.push(ci, b2, a) : idx.push(ci, a, b2); }
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  const m = new THREE.Mesh(g, material);
+  if (!ring) m.material.side = THREE.DoubleSide;
+  return m;
+}
+// يبني محطات المقاطع من دوال، مع قوس فوق كل عجلة
+function stations(z0, z1, count, wF, tF, arches, base = 0.3) {
+  const out = [];
+  for (let i = 0; i <= count; i++) {
+    const u = i / count, z = z0 + (z1 - z0) * (0.5 - 0.5 * Math.cos(u * Math.PI)); // كثافة أعلى عند الأطراف
+    let b = base;
+    for (const [zc, cy, r] of arches) { const dz = z - zc; if (Math.abs(dz) < r) b = Math.max(b, cy + Math.sqrt(r * r - dz * dz)); }
+    const e = Math.min(1, Math.min(z - z0, z1 - z) / 0.22), round = Math.sqrt(Math.max(0.02, e * (2 - e)));
+    const t = tF(z), w = wF(z) * (0.82 + 0.18 * round);
+    const mid = (b + t) / 2, hh = ((t - b) / 2) * (0.75 + 0.25 * round);
+    out.push([z, w, mid - hh, mid + hh]);
+  }
+  return out;
+}
+const lerpTab = (tab) => (z) => {
+  if (z <= tab[0][0]) return tab[0][1];
+  for (let i = 1; i < tab.length; i++) if (z <= tab[i][0]) { const [z0, v0] = tab[i - 1], [z1, v1] = tab[i], u = (z - z0) / (z1 - z0); return v0 + (v1 - v0) * (u * u * (3 - 2 * u)); }
+  return tab[tab.length - 1][1];
+};
 const flameMat = () => cached("flame", () => new THREE.MeshBasicMaterial({ color: "#3d9bff", transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }));
 const flameCore = () => cached("flameCore", () => new THREE.MeshBasicMaterial({ color: "#d9f1ff", transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
 const flameGeo = (() => { const g = new THREE.ConeGeometry(0.16, 1, 10, 1, true); g.translate(0, 0.5, 0); g.rotateX(-Math.PI / 2); return g; })();
@@ -463,7 +517,7 @@ function addFlames(g, list) {
     const f = new THREE.Group();
     f.add(new THREE.Mesh(flameGeo, flameMat()));
     const core = new THREE.Mesh(flameGeo, flameCore()); core.scale.set(0.35, 0.35, 0.5); f.add(core);
-    f.position.set(x, y, z); g.add(f); return f;
+    f.position.set(x, y, z); f.visible = false; g.add(f); return f;
   });
 }
 function makeVehicle(type, color) {
@@ -472,32 +526,70 @@ function makeVehicle(type, color) {
   const addWheels = (list, r, w, kind) => list.forEach(([x, z]) => { const wh = wheel(r, w, kind); wh.position.set(x, r, z); g.add(wh); wheels.push(wh); });
   let shadowL = 5.2, shadowW = 3;
   if (type === "car") {
-    // سيارة خارقة: مقدمة منخفضة، أكتاف عريضة مدوّرة، وكابينة زجاجية منحنية
-    const wr = 0.44;
-    const clamp01 = (v) => Math.min(1, Math.max(0, v));
-    const bodySq = (z, y) => (1 - 0.14 * clamp01((z - 0.6) / 1.8)) * (1 - 0.2 * clamp01((y - 0.62) / 0.45)) * (1 - 0.06 * clamp01((-z - 1.9) / 0.5));
-    part(g, profile([[-2.3, 0.32], { arch: [-1.42, 0.3, 0.54] }, { arch: [1.42, 0.3, 0.52] }, [2.2, 0.3], [2.42, 0.4], [2.4, 0.52], [2.0, 0.64], [1.25, 0.76], [0.7, 0.86], [-0.6, 0.94], [-1.7, 1.0], [-2.25, 1.02], [-2.42, 0.96], [-2.45, 0.55]], 2.25, body, 0.1, bodySq));
-    const cabSq = (z, y) => 1 - 0.32 * clamp01((y - 0.86) / 0.5);
-    part(g, profile([[0.85, 0.84], [0.05, 1.3], [-0.75, 1.36], [-1.95, 1.0], [-1.9, 0.86]], 1.8, M.glass(), 0.08, cabSq));
-    part(g, profile([[-0.02, 1.28], [-0.82, 1.34], [-0.8, 1.39], [-0.05, 1.33]], 1.8, body, 0.03, (z, y) => cabSq(z, y) * 0.92));
-    // فتحات هواء جانبية خلف الباب
-    [-1, 1].forEach((sx) => { const v = part(g, box(0.05, 0.22, 0.75, M.black()), sx * 1.04, 0.62, -0.95); v.rotation.y = sx * 0.06; });
+    // سيارة خارقة منحوتة: مقدمة منخفضة جداً، أكتاف خلفية عريضة، وكابينة زجاجية على شكل قطرة
+    const wr = 0.44, arches = [[-1.45, 0.3, 0.56], [1.45, 0.3, 0.54]];
+    const W = lerpTab([[-2.45, 1.02], [-1.45, 1.13], [-0.4, 1.02], [0.6, 1.0], [1.45, 1.06], [2.45, 0.86]]);
+    const T = lerpTab([[-2.45, 0.98], [-1.6, 1.0], [-0.6, 0.93], [0.6, 0.84], [1.45, 0.78], [2.1, 0.62], [2.45, 0.5]]);
+    part(g, loft(stations(-2.45, 2.45, 30, W, T, arches), body, { n: 3.2, tuck: 0.22, M: 26 }));
+    // الكابينة الزجاجية والسقف بلون السيارة
+    const cab = stations(-1.95, 0.95, 14, lerpTab([[-1.95, 0.7], [-0.6, 0.86], [0.95, 0.8]]), lerpTab([[-1.95, 1.0], [-0.9, 1.33], [-0.2, 1.37], [0.95, 0.86]]), [], 0.8);
+    part(g, loft(cab, M.glass(), { n: 2.6, tuck: 0.38, M: 22 }));
+    const roof = cab.filter(([z]) => z > -1.05 && z < -0.05);
+    part(g, loft(roof, body, { n: 2.6, tuck: 0.38, M: 12, th: [0.85, Math.PI - 0.85], cap: false, grow: 0.012 }));
+    // فتحات هواء جانبية
+    [-1, 1].forEach((sx) => { const v = part(g, box(0.04, 0.2, 0.7, M.black()), sx * 1.06, 0.66, -0.75); v.rotation.y = sx * 0.1; });
     // المقدمة: شبك منخفض ومصابيح مائلة
-    part(g, box(1.5, 0.12, 0.1, grille()), 0, 0.38, 2.38);
-    [-1, 1].forEach((sx) => { const l = part(g, box(0.5, 0.08, 0.32, M.head()), sx * 0.7, 0.64, 2.12); l.rotation.set(-0.35, sx * -0.25, 0); });
-    // الخلف: لوحة سوداء وأضواء دائرية مزدوجة وأربعة عوادم
-    part(g, box(1.95, 0.42, 0.06, M.black()), 0, 0.78, -2.47);
-    const ring = cached("ringGeo", () => new THREE.CylinderGeometry(0.13, 0.13, 0.06, 16));
-    [-0.82, -0.5, 0.5, 0.82].forEach((x) => { const t = part(g, new THREE.Mesh(ring, M.tail()), x, 0.8, -2.51); t.rotation.x = Math.PI / 2; });
-    part(g, box(2.0, 0.22, 0.25, M.black()), 0, 0.36, -2.38);
-    [-0.32, -0.14, 0.14, 0.32].forEach((x) => { const e = part(g, new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.18, 10), M.chrome()), x, 0.38, -2.5); e.rotation.x = Math.PI / 2; });
-    addFlames(g, [[-0.23, 0.38, -2.58], [0.23, 0.38, -2.58]]);
-    // جناح منخفض ومرايا على ذراع
-    part(g, box(1.9, 0.05, 0.36, body), 0, 1.14, -2.18);
-    [-0.6, 0.6].forEach((x) => part(g, box(0.06, 0.16, 0.16, M.black()), x, 1.05, -2.18));
-    [-1, 1].forEach((sx) => { part(g, box(0.25, 0.04, 0.05, M.black()), sx * 0.88, 0.98, 0.55); part(g, box(0.1, 0.14, 0.24, body), sx * 1.02, 1.02, 0.52); });
-    addWheels([[-0.98, 1.42], [0.98, 1.42], [-1.0, -1.42], [1.0, -1.42]], wr, 0.46, "sport");
+    part(g, box(1.2, 0.1, 0.12, grille()), 0, 0.36, 2.4);
+    [-1, 1].forEach((sx) => { const l = part(g, box(0.36, 0.05, 0.3, M.head()), sx * 0.46, 0.5, 2.12); l.rotation.set(-0.42, sx * -0.3, 0); });
+    // الخلف: لوحة سوداء وأضواء دائرية مزدوجة وعوادم
+    part(g, box(1.55, 0.36, 0.06, M.black()), 0, 0.72, -2.44);
+    const ring = cached("ringGeo", () => new THREE.CylinderGeometry(0.12, 0.12, 0.06, 16));
+    [-0.72, -0.44, 0.44, 0.72].forEach((x) => { const t = part(g, new THREE.Mesh(ring, M.tail()), x, 0.76, -2.47); t.rotation.x = Math.PI / 2; });
+    part(g, box(1.6, 0.18, 0.2, M.black()), 0, 0.34, -2.32);
+    [-0.3, -0.12, 0.12, 0.3].forEach((x) => { const e = part(g, new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.18, 10), M.chrome()), x, 0.36, -2.45); e.rotation.x = Math.PI / 2; });
+    addFlames(g, [[-0.21, 0.36, -2.52], [0.21, 0.36, -2.52]]);
+    // جناح خلفي صغير ومرايا
+    part(g, box(1.6, 0.05, 0.3, body), 0, 1.1, -2.2);
+    [-1, 1].forEach((sx) => { part(g, box(0.22, 0.04, 0.05, M.black()), sx * 0.86, 0.95, 0.55); part(g, box(0.1, 0.13, 0.22, body), sx * 0.99, 0.99, 0.52); });
+    addWheels([[-1.0, 1.45], [1.0, 1.45], [-1.03, -1.45], [1.03, -1.45]], wr, 0.46, "sport");
     shadowL = 5.6; shadowW = 3;
+  } else if (type === "coupe") {
+    // سيارة عادية أنيقة: غطاء محرك أطول وكابينة أعلى
+    const arches = [[-1.35, 0.3, 0.52], [1.35, 0.3, 0.52]];
+    const W = lerpTab([[-2.25, 0.96], [-1.35, 1.02], [0, 0.98], [1.35, 1.0], [2.3, 0.9]]);
+    const T = lerpTab([[-2.25, 0.95], [-1.4, 1.0], [0.5, 0.95], [1.6, 0.86], [2.3, 0.66]]);
+    part(g, loft(stations(-2.25, 2.3, 26, W, T, arches), body, { n: 3.4, tuck: 0.2, M: 24 }));
+    const cab = stations(-1.65, 0.75, 12, lerpTab([[-1.65, 0.78], [-0.5, 0.86], [0.75, 0.82]]), lerpTab([[-1.65, 1.0], [-1.15, 1.5], [-0.1, 1.55], [0.75, 0.95]]), [], 0.85);
+    part(g, loft(cab, M.glass(), { n: 3, tuck: 0.3, M: 22 }));
+    part(g, loft(cab.filter(([z]) => z > -1.2 && z < -0.05), body, { n: 3, tuck: 0.3, M: 12, th: [0.85, Math.PI - 0.85], cap: false, grow: 0.012 }));
+    part(g, box(1.3, 0.22, 0.08, grille()), 0, 0.5, 2.28);
+    [-1, 1].forEach((sx) => { const l = part(g, box(0.4, 0.1, 0.2, M.head()), sx * 0.5, 0.56, 2.2); l.rotation.x = -0.5; });
+    [-1, 1].forEach((sx) => part(g, box(0.5, 0.16, 0.06, M.tail()), sx * 0.6, 0.86, -2.27));
+    part(g, box(1.7, 0.2, 0.14, M.black()), 0, 0.42, -2.22);
+    part(g, box(0.5, 0.16, 0.03, M.white()), 0, 0.62, -2.28);
+    addFlames(g, [[-0.5, 0.36, -2.3]]);
+    [-1, 1].forEach((sx) => part(g, box(0.1, 0.13, 0.22, body), sx * 0.98, 1.05, 0.6));
+    addWheels([[-0.95, 1.35], [0.95, 1.35], [-0.95, -1.35], [0.95, -1.35]], 0.44, 0.42, "sport");
+    shadowL = 5.4; shadowW = 2.9;
+  } else if (type === "bus") {
+    // حافلة مدينة: جسم طويل بحواف مدوّرة وشريط نوافذ وسقف أبيض
+    const L2 = 4.3;
+    part(g, loft(stations(-L2, L2, 18, () => 1.28, lerpTab([[-L2, 3.2], [L2 - 0.6, 3.2], [L2, 2.9]]), [[-2.6, 0.35, 0.72], [2.6, 0.35, 0.72]], 0.4), body, { n: 6, tuck: 0.08, M: 24 }));
+    part(g, box(2.5, 0.12, 8.2, M.white()), 0, 3.22, 0);
+    [-1, 1].forEach((sx) => {
+      part(g, box(0.05, 0.95, 7.6, M.glass()), sx * 1.29, 2.35, 0.1);
+      for (let z = -3.2; z <= 3.3; z += 1.3) part(g, box(0.07, 0.95, 0.09, M.black()), sx * 1.3, 2.35, z);
+    });
+    part(g, box(2.3, 1.3, 0.05, M.glass()), 0, 2.25, L2 + 0.02);
+    part(g, box(2.1, 0.8, 0.05, M.glass()), 0, 2.4, -L2 - 0.02);
+    part(g, box(1.6, 0.3, 0.05, M.black()), 0, 2.95, L2 + 0.03);
+    lamps(g, L2 + 0.02, 0.9, 0.85, 0.36, 0.22, true);
+    lamps(g, -L2 - 0.03, 0.95, 0.95, 0.24, 0.42, false);
+    part(g, box(2.5, 0.25, 0.2, M.grey()), 0, 0.5, L2 + 0.05);
+    part(g, box(2.5, 0.25, 0.2, M.grey()), 0, 0.5, -L2 - 0.05);
+    addFlames(g, [[0.7, 0.45, -L2 - 0.1]]);
+    addWheels([[-1.08, 2.6], [1.08, 2.6], [-1.08, -2.6], [1.08, -2.6]], 0.6, 0.45, "truck");
+    shadowL = 9.5; shadowW = 3.3;
   } else if (type === "truck") {
     // شاحنة نقل بصندوق
     const W = 2.4;
@@ -732,7 +824,10 @@ function buildMenu() {
 function startRace() {
   dropVehicle(preview); preview = null;
   racers.forEach((r) => dropVehicle(r.obj));
-  const others = VEHICLES.map((v) => v.id).filter((id) => id !== VEHICLES[selV].id);
+  // ثلاثة منافسين: سيارتان ومركبة ثقيلة
+  const me = VEHICLES[selV].id;
+  const cars = ["car", "coupe", "bus"].filter((id) => id !== me), heavy = ["truck", "dump", "digger"].filter((id) => id !== me);
+  const others = [cars[0], cars[1], heavy[Math.floor(Math.random() * heavy.length)]];
   const oc = COLORS.filter((_, i) => i !== selC);
   const grid = [[0, -12], [-4.5, 6], [4.5, 6], [0, -2]];
   racers = [{ type: VEHICLES[selV].id, color: COLORS[selC], me: true }, ...others.map((t, i) => ({ type: t, color: oc[(i * 2 + 1) % oc.length] }))]
@@ -822,6 +917,8 @@ function pollPad() {
 // ------------------------------------------------------------------ الحلقة الرئيسية
 const clock = new THREE.Clock();
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
+// مسافة الكاميرا خلف المركبة وارتفاعها حسب حجمها
+const CAM = { car: [6.2, 2.75], coupe: [6.4, 2.9], truck: [9, 4.6], dump: [9, 4.6], digger: [8, 4.4], bus: [11.5, 5.6] };
 let menuAngle = 0, turboShown = false, shownKmh = -1;
 
 function updateRacer(r, dt, ctl) {
@@ -938,12 +1035,13 @@ function tick() {
       if (player.s > L && !player.lapReset) { player.lapReset = true; stars.forEach((st) => { st.taken = false; st.m.visible = true; }); }
     }
     // الكاميرا خلف اللاعب
-    const back = frameAt(player.s - 7.5), ahead = frameAt(player.s + 10);
-    camPos.copy(back.p).addScaledVector(back.n, player.x * 0.7); camPos.y = Math.max(player.y, H(player.s - 7.5)) + 3.7;
-    camLook.copy(ahead.p).addScaledVector(ahead.n, player.x * 0.5); camLook.y = (player.y + H(player.s + 10)) / 2 + 1.5;
+    const cam = CAM[player.type] || CAM.car;
+    const back = frameAt(player.s - cam[0]), ahead = frameAt(player.s + 24);
+    camPos.copy(back.p).addScaledVector(back.n, player.x * 0.92); camPos.y = Math.max(player.y, H(player.s - cam[0])) + cam[1];
+    camLook.copy(ahead.p).addScaledVector(ahead.n, player.x * 0.6); camLook.y = (player.y + H(player.s + 24)) / 2 + 0.6;
     camera.position.lerp(camPos, Math.min(1, dt * 6));
     camera.lookAt(camLook);
-    const fov = 62 + (player.speed > CRUISE + 2 ? 8 : 0);
+    const fov = 58 + (player.speed > CRUISE + 2 ? 9 : 0);
     camera.fov += (fov - camera.fov) * dt * 3; camera.updateProjectionMatrix();
     // الواجهة
     const lap = Math.min(LAPS, Math.max(1, Math.floor(player.s / L) + 1));
