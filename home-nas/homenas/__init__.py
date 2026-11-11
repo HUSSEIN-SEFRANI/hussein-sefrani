@@ -14,7 +14,7 @@ from .faces import migrate as faces_migrate
 from .network import Network
 from .photos import Indexer
 
-__version__ = "1.5.3"
+__version__ = "1.5.4"
 
 
 def create_app(cfg: dict, start_indexer: bool = True) -> Flask:

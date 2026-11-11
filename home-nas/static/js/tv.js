@@ -388,12 +388,28 @@ function wordCard(w, topPx, kids = false) {
   const langs = settings.words || ["ar", "fr", "en"];
   const tr = [["fr", "FR"], ["en", "EN"]].filter(([k]) => langs.includes(k))
     .map(([k, l]) => (kids ? `<b>${esc(w[k])}</b>` : `<span><b>${esc(w[k])}</b><small>${l}</small></span>`)).join("");
+  const art = (size) => (w.emoji ? `<span class="emo" style="font-size:${Math.round(size * 0.82)}px;line-height:1">${w.emoji}</span>` : A.wordArt(w.icon, size));
   if (kids) {
-    return `<div class="kcard" style="top:${topPx}px;left:40px">${A.wordArt(w.icon, 66)}<div><div class="lbl">كلمة اليوم</div>
+    return `<div class="kcard" style="top:${topPx}px;left:40px">${art(66)}<div><div class="lbl">كلمة اليوم</div>
       <div class="big">${esc(w.ar)}</div><div class="tr">${tr}</div></div></div>`;
   }
-  return `<div class="card glass word" style="top:${topPx}px">${A.wordArt(w.icon, 76)}<div style="flex:1"><div class="lbl">كلمة اليوم</div>
+  return `<div class="card glass word" style="top:${topPx}px">${art(76)}<div style="flex:1"><div class="lbl">كلمة اليوم</div>
     <div class="ar">${esc(w.ar)}</div><div class="tr">${tr}</div></div></div>`;
+}
+
+// الطقس ونص اليوم (حديث، مثل، حكمة) في الصفحة الرئيسية
+function weatherLine(w) {
+  if (!w) return "";
+  const range = w.max != null && w.min != null ? ` · <bdi dir="ltr">${w.min}° / ${w.max}°</bdi>` : "";
+  return `<span class="emo">${w.icon}</span> <b><bdi dir="ltr">${w.temp}°</bdi></b> <small>${esc(w.desc || "")}${w.city ? ` · ${esc(w.city)}` : ""}${range}</small>`;
+}
+function textCard(t, kids = false) {
+  if (!t) return "";
+  const icon = { hadith: "🕌", proverb: "📜", wisdom: "💡" }[t.kind] || "✨";
+  const long = t.text.replace(/[\u064B-\u0652\u0670\u0640]/g, "").length > (kids ? 42 : 55) ? " long" : "";
+  return `<div class="tcard ${kids ? "kid" : "glass"} ${t.kind}${long}"><div class="lbl"><span class="emo">${icon}</span> ${esc(t.label)}</div>
+    <div class="tx">${t.kind === "hadith" ? `«${esc(t.text)}»` : esc(t.text)}</div>
+    ${t.source ? `<div class="src">${esc(t.source)}</div>` : ""}${t.explain && (kids || t.kind === "proverb") ? `<div class="ex">${esc(t.explain)}</div>` : ""}</div>`;
 }
 
 // صورة الشخص الحقيقية إن رُفعت، وإلا الرسم المختار
@@ -451,39 +467,13 @@ async function chooseProfile(p) {
     pinScreen({ title: `أهلاً ${p.name}`, sub: "أدخل رمزك", avatar: p.avatar, face: face(p) }, async (pin) => {
       await api("/api/tv/login", { json: { id: p.id, pin } });
       await homeScreen();
-      welcomeScreen();
     });
     return;
   }
   try {
     await api("/api/tv/login", { json: { id: p.id } });
     await homeScreen();
-    welcomeScreen();
   } catch (e) { toast(e.message); }
-}
-
-// ============================================================== الترحيب: كلمة بثلاث لغات وحديث نبوي
-async function welcomeScreen() {
-  let w;
-  try { w = await api("/api/tv/welcome"); } catch { return; }
-  if (!w.show) return;
-  const wd = w.word, hd = w.hadith;
-  const el = h(`<div class="bg-dark welcome${w.kid ? " kid" : ""}">
-    <h1 class="wl-hi">أهلاً يا ${esc(w.name)}! <span class="emo">👋</span></h1>
-    <div class="wl-cards${hd ? "" : " one"}">
-      <div class="wl-card word"><div class="wl-lbl">كلمة جديدة</div><div class="emo wl-pic">${wd.emoji}</div>
-        <div class="wl-ar">${esc(wd.ar)}</div>
-        ${wd.fr ? `<div class="wl-tr"><span class="fl">FR</span><bdi dir="ltr">${esc(wd.fr)}</bdi></div>` : ""}
-        ${wd.en ? `<div class="wl-tr"><span class="fl">EN</span><bdi dir="ltr">${esc(wd.en)}</bdi></div>` : ""}</div>
-      ${hd ? `<div class="wl-card hadith"><div class="wl-lbl">قال رسول الله ﷺ</div><div class="wl-h">«${esc(hd.text)}»</div>
-        <div class="wl-src">${esc(hd.source)}</div>${hd.explain ? `<div class="wl-ex"><span class="emo">💡</span> ${esc(hd.explain)}</div>` : ""}</div>` : ""}
-    </div>
-    <button class="btn gold f wl-ok">متابعة ✓</button><div class="wl-bar"><i></i></div></div>`);
-  let t = 0;
-  const close = () => { clearTimeout(t); if (top() && top().el === el) pop(); };
-  el.querySelector(".wl-ok").addEventListener("click", close);
-  push({ el, initial: () => el.querySelector(".wl-ok"), destroy() { clearTimeout(t); } });
-  t = setTimeout(close, 20000);
 }
 
 // ============================================================== الرمز
@@ -560,7 +550,8 @@ function adultHome(d) {
     <div class="topbar"><div style="display:flex;align-items:center;gap:12px">${F.GRAPE(54)}
       <div class="user-pill glass"><div class="mini">${face(u)}</div><span style="font-weight:700;font-size:16px">${esc(u.name)}</span></div></div>
       <button class="pill glass f js-switch">تبديل المستخدم</button></div>
-    <div class="clockbig"><div class="tm js-tm"></div><div class="dt js-dt"></div><div class="hj js-hj"></div></div>
+    <div class="clockbig"><div class="tm js-tm"></div><div class="dt js-dt"></div><div class="hj js-hj"></div><div class="wx js-wx">${weatherLine(d.weather)}</div></div>
+    ${textCard(d.text)}
     <div class="cards">${hasPrayer ? prayerCard(d.prayer, 112) : ""}${wordCard(d.word, hasPrayer ? 336 : 112)}</div>
     <nav class="dock glass">${dock}${setTile}</nav></div>`);
   const tiles = Object.fromEntries(d.tiles.map((t) => [String(t.id), t]));
@@ -574,7 +565,11 @@ function adultHome(d) {
     el,
     initial: () => el.querySelector(".dk"),
     back: () => setFocus(el.querySelector(".js-switch")),
-    refresh(c) { d.prayer = c.prayer; d.word = c.word; el.querySelector(".cards").innerHTML = (hasPrayer ? prayerCard(c.prayer, 112) : "") + wordCard(c.word, hasPrayer ? 336 : 112); },
+    refresh(c) {
+      d.prayer = c.prayer;
+      el.querySelector(".cards").innerHTML = (hasPrayer ? prayerCard(c.prayer, 112) : "") + wordCard(d.word, hasPrayer ? 336 : 112);
+      el.querySelector(".js-wx").innerHTML = weatherLine(c.weather);
+    },
   };
   if (wp === "photos") photoWallpaper(el.querySelector(".photolayer"), scr);
   return scr;
@@ -632,8 +627,8 @@ function kidsHome(d) {
   const el = h(`<div class="kids bg-kids">${kidsBg()}${vineLayer(u.theme, [480, 610])}${confetti}
     <div class="mascot">${F.mascot(u.theme, 150)}</div>
     <div class="kgreet"><div class="h">${greet}</div><div class="s">ماذا نشاهد اليوم؟</div></div>
-    <div class="kclock"><div class="tm js-tm"></div><div class="dt js-dt"></div></div>
-    ${bday}<div class="kwords">${wordCard(d.word, 180, true)}</div>
+    <div class="kclock"><div class="tm js-tm"></div><div class="dt js-dt"></div><div class="wx js-wx">${weatherLine(d.weather)}</div></div>
+    ${bday}<div class="kwords">${wordCard(d.word, 180, true)}</div>${textCard(d.text, true)}
     <div class="ktiles">${tiles}</div>
     <button class="kexit f">${exitTxt}</button>
     <div class="kbar"><button class="kstars f"><span class="emo">⭐</span> نجومي <b class="js-sb"></b></button><button class="ktheme f"><span class="emo">${F.themeOf(u.theme).emoji}</span> ثيمي</button></div>
@@ -648,7 +643,7 @@ function kidsHome(d) {
     el,
     initial: () => el.querySelector(".kt"),
     back() {},
-    refresh(c) { d.word = c.word; el.querySelector(".kwords").innerHTML = wordCard(c.word, 180, true); },
+    refresh(c) { el.querySelector(".js-wx").innerHTML = weatherLine(c.weather); },
   };
 }
 

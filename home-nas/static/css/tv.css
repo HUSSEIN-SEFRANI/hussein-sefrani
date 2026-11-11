@@ -20,6 +20,7 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 #stage { position: absolute; top: 0; left: 0; width: 1280px; height: 720px; transform-origin: 0 0; overflow: hidden; background: var(--night); }
 .scr { position: absolute; inset: 0; overflow: hidden; }
 .scr[hidden] { display: none; }
+[hidden] { display: none !important; }
 .layer { position: absolute; inset: 0; pointer-events: none; }
 
 /* ------------------------------------------------------------- الخلفيات */
@@ -411,3 +412,34 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 .wl-bar { position: absolute; bottom: 0; left: 0; right: 0; height: 6px; background: rgba(255,255,255,.08); }
 .wl-bar i { display: block; height: 100%; background: #a855f7; animation: wlbar 20s linear forwards; }
 @keyframes wlbar { from { width: 100%; } to { width: 0; } }
+
+/* الصفحة الرئيسية: الطقس ونص اليوم */
+.clockbig .wx { margin-top: 6px; font-size: 22px; font-weight: 700; }
+.clockbig .wx .emo { font-size: 26px; }
+.clockbig .wx small { font-size: 16px; font-weight: 600; opacity: .9; }
+.kclock .wx { margin-top: 4px; font-size: 18px; font-weight: 800; color: #1e3a8a; }
+.kclock .wx small { font-size: 13px; font-weight: 700; color: #334155; }
+.tcard { position: absolute; z-index: 2; border-radius: 24px; padding: 14px 22px; }
+.tcard.glass { top: 372px; right: 64px; width: 560px; }
+.tcard .lbl { font-size: 14px; font-weight: 700; color: #fde68a; }
+.tcard .tx { font-size: 24px; font-weight: 800; line-height: 1.6; margin-top: 4px; }
+.tcard .src { font-size: 15px; color: #bbf7d0; font-weight: 700; margin-top: 2px; }
+.tcard .ex { font-size: 16px; color: #e2e8f0; margin-top: 4px; }
+.tcard.hadith .tx { font-size: 26px; }
+.tcard.kid { top: 180px; left: 330px; width: 580px; height: 108px; overflow: hidden; background: #fff; box-shadow: 0 10px 24px rgba(30,58,138,.18); color: #1e293b; padding: 8px 20px; text-align: center; display: flex; flex-direction: column; justify-content: center; }
+.tcard.kid .lbl { color: #7c3aed; font-size: 13px; }
+.tcard.kid .tx { font-size: 20px; line-height: 1.4; color: #0f172a; margin-top: 2px; }
+.tcard.kid.long .tx { font-size: 16px; }
+.tcard.kid .ex { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tcard.glass.long .tx { font-size: 20px; line-height: 1.55; }
+.tcard .tx { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+.tcard.kid .src { color: #15803d; font-size: 13px; }
+.tcard.kid .ex { color: #b45309; font-size: 14px; font-weight: 700; }
+.tcard.kid.long .ex { display: none; }
+.tcard.kid .tx { -webkit-line-clamp: 2; flex: none; }
+.word .tr { flex-wrap: wrap; row-gap: 2px; }
+.word .tr span { white-space: nowrap; }
+.kwords .kcard { max-width: 274px; box-sizing: border-box; padding: 8px 14px; }
+.kwords .kcard .big { font-size: 24px; }
+.kwords .kcard .tr { font-size: 14px; flex-wrap: wrap; row-gap: 0; }
+.kwords .kcard .tr b { white-space: nowrap; }

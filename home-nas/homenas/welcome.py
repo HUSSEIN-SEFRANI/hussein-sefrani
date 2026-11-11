@@ -76,6 +76,47 @@ WORDS = [
     ("😊", "سعيد", "content", "happy"), ("😢", "حزين", "triste", "sad"), ("😴", "نعسان", "fatigué", "sleepy"),
 ]
 
+# أمثال شعبية عربية مشهورة مع معناها
+PROVERBS = [
+    ("الصبر مفتاح الفرج", "بالصبر تنفرج الأمور الصعبة."),
+    ("من جدّ وجد، ومن زرع حصد", "من يعمل بجد ينال ثمرة عمله."),
+    ("العلم في الصغر كالنقش على الحجر", "ما نتعلمه ونحن صغار يبقى معنا طويلاً."),
+    ("الجار قبل الدار", "اختر الجار الطيب قبل أن تختار البيت."),
+    ("في التأني السلامة وفي العجلة الندامة", "التمهّل يحمينا من الخطأ."),
+    ("القناعة كنز لا يفنى", "الرضا بما عندك غنى دائم."),
+    ("الوقت كالسيف إن لم تقطعه قطعك", "استغل وقتك قبل أن يضيع."),
+    ("درهم وقاية خير من قنطار علاج", "الوقاية أسهل من العلاج."),
+    ("يد واحدة لا تصفّق", "العمل معاً يحقق ما لا يحققه شخص وحده."),
+    ("الصديق وقت الضيق", "الصديق الحقيقي يظهر عند الحاجة."),
+    ("لكل مجتهد نصيب", "كل من يجتهد ينال نصيباً من النجاح."),
+    ("رُبّ أخٍ لك لم تلده أمك", "قد يكون الصديق قريباً منك مثل الأخ."),
+    ("من حفر حفرة لأخيه وقع فيها", "من يؤذِ غيره يرجع الأذى عليه."),
+    ("كل إناء بما فيه ينضح", "كلام الإنسان وأفعاله تدل على ما في داخله."),
+    ("خير الكلام ما قلّ ودلّ", "الكلام القصير المفيد أفضل من الطويل."),
+    ("لا تؤجّل عمل اليوم إلى الغد", "أنجز عملك في وقته."),
+    ("إذا كان الكلام من فضة فالسكوت من ذهب", "السكوت أحياناً أفضل من الكلام."),
+    ("الطيور على أشكالها تقع", "الناس يصاحبون من يشبههم."),
+    ("من سار على الدرب وصل", "من يستمر في طريقه يصل إلى هدفه."),
+    ("العقل السليم في الجسم السليم", "اهتم بصحتك لينشط عقلك."),
+    ("لسانك حصانك، إن صنته صانك", "احفظ لسانك يحفظك."),
+    ("أول الغيث قطرة", "الأشياء الكبيرة تبدأ صغيرة."),
+    ("عصفور في اليد خير من عشرة على الشجرة", "ما تملكه الآن خير مما تتمناه."),
+    ("الحاجة أم الاختراع", "الحاجة تدفعنا إلى الإبداع."),
+    ("ليس كل ما يلمع ذهباً", "المظاهر قد تخدع."),
+]
+# جمل جميلة (حِكَم) بلا نسبة لأحد
+WISDOM = [
+    "ابتسم، فالابتسامة تجعل يومك ويوم غيرك أجمل.", "كل يوم فرصة جديدة لتتعلم شيئاً جميلاً.", "القراءة نافذة ترى منها العالم.",
+    "احترم الكبير، وارحم الصغير.", "«شكراً» و«من فضلك» كلمتان سحريتان.", "النجاح خطوات صغيرة نكررها كل يوم.",
+    "لا بأس أن تخطئ، المهم أن تتعلم من خطئك.", "ساعد غيرك، فالسعادة تكبر حين نتقاسمها.", "النظافة تجعل الجسم صحيحاً والمكان جميلاً.",
+    "الصدق يجعل الناس يثقون بك.", "من يقرأ كثيراً يعرف كثيراً.", "الصديق الحقيقي يفرح لفرحك ويساعدك وقت حاجتك.",
+    "اشرب الماء وكُل الفاكهة، فجسمك أمانة.", "النوم المبكر يمنحك نشاطاً في الصباح.", "اعمل بإتقان، حتى لو لم يرك أحد.",
+    "الكلمة الجميلة تبني، والكلمة القاسية تجرح.", "كل لغة جديدة تتعلمها تفتح لك باباً جديداً.", "الأسرة كنز، فحافظ عليها.",
+    "رتّب أغراضك، فالترتيب يوفّر الوقت.", "الشجاعة أن تقول الحق بأدب.", "فكّر قبل أن تتكلم، وتمهّل قبل أن تغضب.",
+    "اجعل اليوم أفضل من الأمس.", "الأخلاق الجميلة أجمل من الثياب الجميلة.", "لا تقارن نفسك بغيرك، قارن نفسك بنفسك أمس.",
+]
+KIND_LABEL = {"hadith": "حديث نبوي ﷺ", "proverb": "مثل شعبي", "wisdom": "حكمة اليوم"}
+
 HADITH_FILE = Path(__file__).parent / "data" / "hadith.json"
 _hadith: list | None = None
 
@@ -100,16 +141,17 @@ def _pick(uid: int, kind: str, pool: list, state: dict):
     return pool[order[n % len(order)]]
 
 
-def enabled() -> dict:
-    return {"on": (get_setting("tv_welcome") or "1") == "1", "hadith": (get_setting("tv_welcome_hadith") or "1") == "1"}
+def daily_kinds() -> list:
+    try:
+        k = json.loads(get_setting("tv_daily_kinds") or '["hadith","proverb","wisdom"]')
+    except ValueError:
+        k = ["hadith", "proverb", "wisdom"]
+    return [x for x in k if x in KIND_LABEL]
 
 
-@bp.get("/api/tv/welcome")
-def api_tv_welcome():
-    from .tv import display_name, tv_settings, tv_user
-    u = tv_user()
-    if not enabled()["on"]:
-        return jsonify(show=False)
+
+def daily(u) -> dict:
+    """كلمة اليوم ونص اليوم لهذا الشخص: يتغيّران مع كل دخول، ولكل شخص ترتيب مختلف ولا يتكرر شيء."""
     key = f"welcome:{u['id']}"
     try:
         state = json.loads(get_setting(key) or "{}")
@@ -117,21 +159,28 @@ def api_tv_welcome():
         state = {}
     kid = (u["tv_role"] or "") in ("kid", "little")
     w = _pick(u["id"], "w", WORDS, state)
-    pool = [h for h in hadiths() if h.get("kids") or not kid]
-    h = _pick(u["id"], "h" + ("k" if kid else "a"), pool, state) if enabled()["hadith"] else None
+    out = {"word": {"emoji": w[0], "ar": w[1], "fr": w[2], "en": w[3]}, "text": None}
+    kinds = daily_kinds()
+    if kinds:
+        kind = kinds[int(state.get("k", 0)) % len(kinds)]
+        state["k"] = int(state.get("k", 0)) + 1
+        if kind == "hadith":
+            pool = [h for h in hadiths() if h.get("kids") or not kid]
+            h = _pick(u["id"], "h" + ("k" if kid else "a"), pool, state)
+            if h:
+                out["text"] = {"kind": kind, "label": KIND_LABEL[kind], "text": h["text"], "source": h["source"], "explain": h.get("explain", "")}
+        elif kind == "proverb":
+            t, ex = _pick(u["id"], "p", PROVERBS, state)
+            out["text"] = {"kind": kind, "label": KIND_LABEL[kind], "text": t, "source": "", "explain": ex}
+        else:
+            out["text"] = {"kind": kind, "label": KIND_LABEL[kind], "text": _pick(u["id"], "q", WISDOM, state), "source": "", "explain": ""}
     set_setting(key, json.dumps(state))
-    langs = tv_settings()["words"]
-    word = {"emoji": w[0], "ar": w[1]}
-    if "fr" in langs:
-        word["fr"] = w[2]
-    if "en" in langs:
-        word["en"] = w[3]
-    return jsonify(show=True, name=display_name(u), kid=kid, word=word,
-                   hadith={"text": h["text"], "source": h["source"], "explain": h.get("explain") if kid else ""} if h else None)
+    return out
 
 
 @bp.get("/api/admin/welcome/hadith")
 @admin_required
 def api_admin_hadith_list():
     """قائمة الأحاديث لمراجعتها من لوحة التحكم."""
-    return jsonify(hadith=[{k: h[k] for k in ("text", "source", "explain", "kids")} for h in hadiths()], words=len(WORDS), **enabled())
+    return jsonify(hadith=[{k: h[k] for k in ("text", "source", "explain", "kids")} for h in hadiths()], words=len(WORDS),
+                   proverbs=[{"text": t, "explain": e} for t, e in PROVERBS], wisdom=WISDOM, kinds=daily_kinds())

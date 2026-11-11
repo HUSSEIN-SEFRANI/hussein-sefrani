@@ -132,8 +132,32 @@ def tv_settings() -> dict:
         "zoom": int(g("tv_zoom", "100")), "margin": int(g("tv_margin", "0")), "text": int(g("tv_text", "100")),
         "source": g("tv_prayer_source", "calc"), "offsets": json.loads(g("tv_prayer_off", "{}")),
         "adhan": {**ADHAN_DEFAULT, **json.loads(g("tv_adhan", "{}"))},
-        "welcome": g("tv_welcome", "1") == "1", "welcome_hadith": g("tv_welcome_hadith", "1") == "1",
+        "weather": g("tv_weather", "1") == "1",
+        "daily_kinds": [k for k in json.loads(g("tv_daily_kinds", '["hadith","proverb","wisdom"]')) if k in ("hadith", "proverb", "wisdom")],
     }
+
+
+def city_coords(s: dict):
+    if s["city"] in prayer.CITIES:
+        name, lat, lon = prayer.CITIES[s["city"]]
+        return name, lat, lon
+    try:
+        return None, float(s["lat"]), float(s["lon"])
+    except (TypeError, ValueError):
+        return None, None, None
+
+
+def weather_now(s: dict) -> dict | None:
+    """درجة الحرارة لمدينة المواقيت (تُجلب في الخلفية وتُحفظ نصف ساعة)."""
+    if not s.get("weather"):
+        return None
+    name, lat, lon = city_coords(s)
+    if lat is None:
+        return None
+    from . import weather
+    from .sysadmin import is_offline
+    w = weather.current(lat, lon, is_offline())
+    return (w | {"city": name}) if w else None
 
 
 ADHAN_DEFAULT = {"on": False, "prayers": ["fajr", "dhuhr", "asr", "maghrib", "isha"], "volume": 80, "remind": 0, "pause": True}
@@ -313,9 +337,10 @@ def api_admin_tv_settings():
         set_setting("tv_saver_min", str(max(0, min(240, int(d["saver_min"] or 0)))))
     if "words" in d:
         set_setting("tv_words", json.dumps([x for x in d["words"] if x in ("ar", "fr", "en")]))
-    for key, sk in (("welcome", "tv_welcome"), ("welcome_hadith", "tv_welcome_hadith")):
-        if key in d:
-            set_setting(sk, "1" if d[key] else "0")
+    if "weather" in d:
+        set_setting("tv_weather", "1" if d["weather"] else "0")
+    if isinstance(d.get("daily_kinds"), list):
+        set_setting("tv_daily_kinds", json.dumps([k for k in d["daily_kinds"] if k in ("hadith", "proverb", "wisdom")]))
     if d.get("source") in ("calc", "mawaqit"):
         set_setting("tv_prayer_source", d["source"])
     if isinstance(d.get("offsets"), dict):
@@ -641,6 +666,7 @@ def api_tv_profiles():
         setup = {"urls": server_urls(current_app.config["NAS_CFG"].get("port", 80))}
     from .stars import balance
     profiles = [profile_dict(u) | {"stars": balance(db, u["id"])} for u in rows]
+    weather_now(tv_settings())  # يبدأ جلب الطقس في الخلفية
     db.commit()
     return jsonify(profiles=profiles, settings=tv_settings(), current=session.get("tv_uid"), setup=setup)
 
@@ -672,6 +698,8 @@ def api_tv_login():
     if u["tv_pin"] and not check_password_hash(u["tv_pin"], str(d.get("pin") or "")):
         abort(403, "الرمز غير صحيح")
     session["tv_uid"] = u["id"]
+    from . import welcome
+    session["tv_daily"] = welcome.daily(u)  # كلمة ونص جديدان مع كل دخول
     return jsonify(ok=True)
 
 
@@ -695,7 +723,12 @@ def api_tv_home():
     tiles = [tile_dict(t) for t in db.execute("SELECT * FROM tv_tiles WHERE user_id=? AND enabled=1 ORDER BY position, id",
                                               (u["id"],))]
     s = tv_settings()
-    return jsonify(user=profile_dict(u), tiles=tiles, settings=s, prayer=prayer_now(s), word=word_of_day(),
+    from . import welcome
+    daily = session.get("tv_daily")
+    if not daily:
+        daily = session["tv_daily"] = welcome.daily(u)
+    return jsonify(user=profile_dict(u), tiles=tiles, settings=s, prayer=prayer_now(s), word=daily["word"],
+                   text=daily.get("text") if s["daily_kinds"] else None, weather=weather_now(s),
                    parent_lock=u["tv_role"] in ("kid", "little") and adults_have_pins())
 
 
@@ -720,7 +753,7 @@ def api_tv_clock():
     tv_guard()
     s = tv_settings()
     return jsonify(prayer=prayer_now(s), word=word_of_day(), now=datetime.now().isoformat(timespec="seconds"),
-                   adhan=s["adhan"] | {"files": adhan_files()})
+                   adhan=s["adhan"] | {"files": adhan_files()}, weather=weather_now(s))
 
 
 def my_tile(tid: int):
