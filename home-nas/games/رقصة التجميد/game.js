@@ -4,6 +4,8 @@
   "use strict";
   const save = K.store("freeze", { rounds: 8 });
   const POSES = [["كالتمثال", "🗿"], ["على رِجلٍ واحدة", "🦩"], ["كالشجرة", "🌳"], ["ارفعوا أيديكم", "🙌"], ["كالقطة", "🐈"], ["كالطائرة", "✈️"], ["كالنجمة", "⭐"], ["كالروبوت", "🤖"], ["كالأرنب", "🐰"], ["كالبطريق", "🐧"]];
+  // حركات تظهر أثناء الرقص وتتبدّل كل بضع ثوانٍ
+  const MOVES = [["اقفز اقفز", "🦘"], ["مُدّ لسانك", "😛"], ["انظر يمين يسار", "👀"], ["انظر يسار يسار", "👈"], ["ارفع يدك", "🙋"]];
   const DANCERS = ["💃", "🕺", "🐻", "🐵", "🐧", "🦄", "🐸", "🐼"];
   let songs = null;
 
@@ -94,24 +96,31 @@
       const d = K.shuffle(DANCERS).slice(0, 3).map((x, i) => `<span style="animation-delay:${-i * 0.25}s">${x}</span>`).join("");
       show("dance", d, "ارقصوا! 🎶");
       music.play();
+      moves();
       wait(round === 1 ? 9000 : 6000 + Math.random() * 9000, freeze);
     };
     const freeze = () => {
       state = "freeze";
-      music.pause(); K.sfx.bad();
+      clearTimeout(moveTid); music.pause(); K.sfx.bad();
       const [p, e] = K.pick(POSES);
       show("freeze", "🧊", "تجمّدوا!", `<span class="emo">${e}</span> ${p}`);
       wait(4000 + Math.random() * 2500, dance);
     };
-    let tid = 0;
+    let tid = 0, moveTid = 0, lastMove = -1;
+    function moves() {
+      let i; do { i = Math.floor(Math.random() * MOVES.length); } while (i === lastMove && MOVES.length > 1);
+      lastMove = i; const [m, e] = MOVES[i];
+      $(".pose").innerHTML = `<span class="emo">${e}</span> ${m}`; K.sfx.tick();
+      moveTid = K.later(moves, 3500);
+    }
     function wait(ms, fn) { left = ms; tEnd = performance.now() + ms; tid = K.later(fn, ms); }
     function togglePause() {
       if (state === "ready" || state === "done") return;
-      if (!paused) { paused = true; clearTimeout(tid); left = tEnd - performance.now(); music.pause(); $(".word").textContent = "⏸️ استراحة — Enter للمتابعة"; }
-      else { paused = false; $(".word").textContent = state === "dance" ? "ارقصوا! 🎶" : "تجمّدوا!"; if (state === "dance") music.play(); wait(left, state === "dance" ? freeze : dance); }
+      if (!paused) { paused = true; clearTimeout(tid); clearTimeout(moveTid); left = tEnd - performance.now(); music.pause(); $(".word").textContent = "⏸️ استراحة — Enter للمتابعة"; }
+      else { paused = false; $(".word").textContent = state === "dance" ? "ارقصوا! 🎶" : "تجمّدوا!"; if (state === "dance") { music.play(); moves(); } wait(left, state === "dance" ? freeze : dance); }
     }
     function finish() {
-      state = "done"; music.pause(); delete document.body.dataset.state;
+      state = "done"; clearTimeout(moveTid); music.pause(); delete document.body.dataset.state;
       K.replace(K.resultScreen, { s: 3, msg: "أحسنتم! أبطال الرقص 🏆", again: () => K.replace(danceScreen) });
     }
     // عدّ تنازلي
