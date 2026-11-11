@@ -4,7 +4,7 @@
   const T = {
     ar: {
       setup: "تنصيب النظام", overall: "التقدم الكلي", eta: "الوقت المتبقي: حوالي {n} دقائق", eta1: "أقل من دقيقة",
-      steps: ["الترحيب واللغة", "اختيار القرص", "تجهيز القرص", "نسخ النظام", "تثبيت إعدادات HOME ANAB", "محمّل الإقلاع"],
+      steps: ["الترحيب واللغة", "الشبكة والوايفاي", "اختيار القرص", "تجهيز القرص", "نسخ النظام", "تثبيت إعدادات HOME ANAB", "محمّل الإقلاع"],
       now: "جارٍ الآن…", stopped: "توقف هنا",
       w_h: "أهلاً بك في HOME ANAB", w_p: "سنحوّل هذا الكمبيوتر إلى خزنة منزلية لصورك وملفاتك، مع شاشة تلفاز للعائلة. التنصيب تلقائي ويأخذ من 5 إلى 15 دقيقة.",
       lang: "اختر لغة النظام", offline: "كل البرامج داخل الفلاشة: لا حاجة للإنترنت", next: "التالي", keys: "الأسهم و Enter، أو الفأرة",
@@ -19,10 +19,19 @@
       e_space: "لا توجد مساحة كافية على القرص.", e_other: "حدثت مشكلة أثناء التثبيت.",
       fix: ["تأكد من تركيب القرص وكابله جيداً.", "أزل كلمة مرور القرص من إعدادات BIOS إن وُجدت.", "جرّب قرصاً آخر."],
       retry: "إعادة المحاولة", off: "إيقاف الجهاز", photo: "صوّر هذه الشاشة وأرسلها إن احتجت مساعدة",
+      n_h: "الاتصال بشبكة البيت", n_p: "وصّل كابل الشبكة بالراوتر، أو اختر شبكة الوايفاي. يبقى الجهاز متصلاً بها بعد التثبيت.",
+      cable: "الكابل", cable_off: "غير موصول", getting: "جارٍ أخذ عنوان…", wifi: "الوايفاي", wifi_off: "غير متصل", wifi_none: "لا توجد بطاقة وايفاي في هذا الجهاز",
+      nets: "شبكات الوايفاي القريبة: اختر شبكتك", scanning: "جارٍ البحث عن الشبكات…", nonets: "لم نجد شبكات. اقترب من الراوتر واضغط «بحث من جديد».",
+      rescan: "بحث من جديد", skip: "تخطَّ (لاحقاً من الإعدادات)", nowifi: "يمكنك المتابعة بالكابل، أو تركيب بطاقة وايفاي لاحقاً.",
+      pw: "كلمة مرور {n}", pw2: "اكتبها بلوحة المفاتيح. إن ظهرت أحرف غير التي تكتبها غيّر نوع لوحة المفاتيح.", show: "إظهار", hide: "إخفاء", kb: "لوحة المفاتيح:",
+      connect: "اتصل", connecting: "جارٍ الاتصال… قد يأخذ نصف دقيقة", open_net: "شبكة مفتوحة بلا كلمة مرور",
+      ok_w: "تم الاتصال بشبكة {n}. سيتصل الجهاز بها وحده بعد التثبيت.", e_auth: "لم ينجح الاتصال. تأكد من كلمة المرور (الأحرف الكبيرة والصغيرة)، أو اقترب من الراوتر.",
+      e_dhcp: "اتصل بالشبكة لكن الراوتر لم يعطِ عنواناً. أعد المحاولة بعد قليل.", e_driver: "بطاقة الوايفاي لا تعمل مع هذا النظام. استعمل الكابل.",
+      e_noadapter: "لا توجد بطاقة وايفاي.", e_psk: "كلمة المرور من 8 أحرف على الأقل.", ip_or: "أو بالعنوان", same_net: "هاتفك يجب أن يكون على شبكة البيت نفسها",
     },
     en: {
       setup: "System setup", overall: "Overall progress", eta: "Time left: about {n} minutes", eta1: "Less than a minute",
-      steps: ["Welcome & language", "Choose disk", "Prepare disk", "Copy system", "Configure HOME ANAB", "Boot loader"],
+      steps: ["Welcome & language", "Network & Wi-Fi", "Choose disk", "Prepare disk", "Copy system", "Configure HOME ANAB", "Boot loader"],
       now: "In progress…", stopped: "Stopped here",
       w_h: "Welcome to HOME ANAB", w_p: "We will turn this computer into a home vault for your photos and files, with a TV screen for the family. Setup is automatic and takes 5 to 15 minutes.",
       lang: "Choose the system language", offline: "Everything is on the USB stick: no internet needed", next: "Next", keys: "Arrows and Enter, or the mouse",
@@ -37,10 +46,19 @@
       e_space: "Not enough space on the disk.", e_other: "Something went wrong during installation.",
       fix: ["Check the disk and its cable.", "Remove a disk password in the BIOS settings if there is one.", "Try another disk."],
       retry: "Try again", off: "Power off", photo: "Take a photo of this screen if you need help",
+      n_h: "Connect to your home network", n_p: "Plug a network cable into the router, or choose your Wi-Fi. The server stays connected to it after setup.",
+      cable: "Cable", cable_off: "Not plugged in", getting: "Getting an address…", wifi: "Wi-Fi", wifi_off: "Not connected", wifi_none: "This computer has no Wi-Fi card",
+      nets: "Nearby Wi-Fi networks: choose yours", scanning: "Looking for networks…", nonets: "No networks found. Move closer to the router and press “Search again”.",
+      rescan: "Search again", skip: "Skip (later in settings)", nowifi: "You can continue with the cable, or add a Wi-Fi card later.",
+      pw: "Password for {n}", pw2: "Type it on the keyboard. If other letters appear than the ones you type, change the keyboard type.", show: "Show", hide: "Hide", kb: "Keyboard:",
+      connect: "Connect", connecting: "Connecting… this can take half a minute", open_net: "Open network without a password",
+      ok_w: "Connected to {n}. The server will join it by itself after setup.", e_auth: "Could not connect. Check the password (capital and small letters) or move closer to the router.",
+      e_dhcp: "Joined the network but the router gave no address. Try again in a moment.", e_driver: "This Wi-Fi card does not work with the system. Use the cable.",
+      e_noadapter: "No Wi-Fi card.", e_psk: "The password has at least 8 characters.", ip_or: "or by address", same_net: "Your phone must be on the same home network",
     },
     fr: {
       setup: "Installation du système", overall: "Progression", eta: "Temps restant : environ {n} minutes", eta1: "Moins d'une minute",
-      steps: ["Bienvenue et langue", "Choix du disque", "Préparation du disque", "Copie du système", "Configuration de HOME ANAB", "Démarrage"],
+      steps: ["Bienvenue et langue", "Réseau et Wi-Fi", "Choix du disque", "Préparation du disque", "Copie du système", "Configuration de HOME ANAB", "Démarrage"],
       now: "En cours…", stopped: "Arrêté ici",
       w_h: "Bienvenue dans HOME ANAB", w_p: "Cet ordinateur va devenir le coffre-fort de vos photos et fichiers, avec un écran TV pour la famille. L'installation est automatique et dure 5 à 15 minutes.",
       lang: "Choisissez la langue", offline: "Tout est sur la clé USB : pas besoin d'internet", next: "Suivant", keys: "Flèches et Entrée, ou la souris",
@@ -55,6 +73,15 @@
       e_space: "Pas assez d'espace sur le disque.", e_other: "Un problème est survenu pendant l'installation.",
       fix: ["Vérifiez le disque et son câble.", "Supprimez le mot de passe du disque dans le BIOS s'il y en a un.", "Essayez un autre disque."],
       retry: "Réessayer", off: "Éteindre", photo: "Prenez une photo de cet écran si besoin d'aide",
+      n_h: "Connexion au réseau de la maison", n_p: "Branchez un câble réseau sur la box, ou choisissez votre Wi-Fi. Le serveur y reste connecté après l'installation.",
+      cable: "Câble", cable_off: "Non branché", getting: "Obtention d'une adresse…", wifi: "Wi-Fi", wifi_off: "Non connecté", wifi_none: "Cet ordinateur n'a pas de carte Wi-Fi",
+      nets: "Réseaux Wi-Fi proches : choisissez le vôtre", scanning: "Recherche des réseaux…", nonets: "Aucun réseau trouvé. Rapprochez-vous de la box et appuyez sur « Rechercher ».",
+      rescan: "Rechercher", skip: "Passer (plus tard dans les réglages)", nowifi: "Vous pouvez continuer avec le câble, ou ajouter une carte Wi-Fi plus tard.",
+      pw: "Mot de passe de {n}", pw2: "Tapez-le au clavier. Si d'autres lettres apparaissent, changez le type de clavier.", show: "Afficher", hide: "Masquer", kb: "Clavier :",
+      connect: "Connecter", connecting: "Connexion… cela peut prendre une demi-minute", open_net: "Réseau ouvert sans mot de passe",
+      ok_w: "Connecté à {n}. Le serveur s'y connectera tout seul après l'installation.", e_auth: "Connexion impossible. Vérifiez le mot de passe (majuscules et minuscules) ou rapprochez-vous de la box.",
+      e_dhcp: "Réseau rejoint mais la box n'a donné aucune adresse. Réessayez dans un moment.", e_driver: "Cette carte Wi-Fi ne fonctionne pas avec le système. Utilisez le câble.",
+      e_noadapter: "Pas de carte Wi-Fi.", e_psk: "Le mot de passe a au moins 8 caractères.", ip_or: "ou par l'adresse", same_net: "Le téléphone doit être sur le même réseau de la maison",
     },
   };
   const TIPS = {
@@ -85,6 +112,9 @@
   const $ = (s) => document.querySelector(s);
   const main = $("#main"), stageEl = $("#stage");
   let lang = "ar", view = "welcome", diskList = [], chosen = null, chosen2 = null, raid = false, confirmArm = false;
+  // الشبكة: الحالة، الشبكات القريبة، الشبكة المختارة لكتابة كلمة المرور
+  let net = { wired: {}, wifi: {} }, nets = null, scanning = false, pick = null, pwVal = "", showPw = true, wBusy = false, wErr = "", wOk = "", kb = "us";
+  try { kb = localStorage.getItem("kb") || "us"; } catch (e) { /* */ }
   let st = { stage: "welcome", step: 0, percent: 0 };
   const tr = (k) => (T[lang] || T.ar)[k];
   const t = (k, n) => String((T[lang] || T.ar)[k] ?? k).replace("{n}", n);
@@ -99,7 +129,7 @@
 
   // ------------------------------------------------------------ الخطوات على الجانب
   function drawSteps() {
-    const cur = view === "welcome" ? 0 : view === "disk" ? 1 : view === "done" ? 99 : Math.max(2, st.step);
+    const cur = view === "welcome" ? 0 : view === "net" ? 1 : view === "disk" ? 2 : view === "done" ? 99 : Math.max(3, st.step);
     $("#steps").innerHTML = tr("steps").map((name, i) => {
       let cls = i < cur ? "done" : i === cur ? "now" : "todo";
       if (view === "error" && i === cur) cls = "err";
@@ -131,7 +161,9 @@
         <div class="row">${[["ar", "العربية"], ["en", "English"], ["fr", "Français"]].map(([k, n]) =>
           `<button class="btn f ${k === lang ? "gold" : ""}" data-lang="${k}">${n}</button>`).join("")}</div>
         <div class="ok-line">${CHECK.replace('stroke="#fff"', 'stroke="#86efac"')} ${t("offline")}</div>
-        <div class="bottom"><button class="btn go f" data-go="disk">${t("next")}</button><span class="muted">${t("keys")}</span></div>`;
+        <div class="bottom"><button class="btn go f" data-go="net">${t("next")}</button><span class="muted">${t("keys")}</span></div>`;
+    } else if (view === "net") {
+      main.innerHTML = netView();
     } else if (view === "disk") {
       const items = diskList.map((d, i) => {
         const kind = d.tran === "nvme" ? t("nvme") : d.tran === "usb" ? t("usb") : d.rota ? t("hdd") : t("ssd");
@@ -147,12 +179,12 @@
           ${raid && !chosen2 ? `<div class="muted">${t("raid2")}</div>` : ""}` : ""}
         ${diskList.length ? `<div class="warn">⚠ ${t("warn")}</div>` : ""}
         <div class="bottom"><button class="btn danger f" data-install="1" ${chosen && (!raid || chosen2) ? "" : "disabled"}>${confirmArm ? t("sure") : t("go")}</button>
-          <button class="btn f" data-go="welcome">${t("back")}</button></div>`;
+          <button class="btn f" data-go="net">${t("back")}</button></div>`;
     } else if (view === "installing") {
       const tips = TIPS[lang] || TIPS.ar;
       const k = Math.floor(Date.now() / 9000) % tips.length, tip = tips[k];
       const [c1, c2] = tip[2].split(",");
-      main.innerHTML = `<div class="muted">${t("i_top")}</div><h1>${esc(tr("steps")[Math.min(5, st.step)])}</h1>
+      main.innerHTML = `<div class="muted">${t("i_top")}</div><h1>${esc(tr("steps")[Math.min(6, st.step)])}</h1>
         <section class="tip"><div class="ic" style="background:linear-gradient(135deg,${c1},${c2})">${ICON[tip[3]]}</div>
           <div><div class="k">${t("did")}</div><div class="h">${esc(tip[0])}</div><div class="x">${esc(tip[1])}</div></div></section>
         <div class="dots">${tips.map((_, i) => `<span class="${i === k ? "on" : ""}"></span>`).join("")}</div>
@@ -160,7 +192,8 @@
     } else if (view === "done") {
       main.innerHTML = `<div class="badge-ok">${CHECK.replace(/18/g, "54")}</div><h1>${t("done_h")}</h1><p>${t("done_p", countdown)}</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-          <div class="card"><div class="muted">${t("open")}</div><div class="big" dir="ltr">hsef.local</div></div>
+          <div class="card"><div class="muted">${t("open")}</div><div class="big" dir="ltr">hsef.local</div>
+            ${myIp() ? `<div class="ipline">${t("ip_or")} <bdi dir="ltr">${esc(myIp())}</bdi></div>` : ""}<div class="muted" style="font-size:13px;margin-top:4px">${t("same_net")}</div></div>
           <div class="card gold" style="display:flex;gap:14px;align-items:center"><img class="qr" src="whatsapp-qr.png" alt="">
             <div><div style="color:#fde68a;font-size:15px">${t("code")}</div><div style="font-weight:700;font-size:18px">${t("code2")}</div><div dir="ltr" style="color:#bfd3f2">+32 494 49 94 30</div></div></div>
         </div>
@@ -174,6 +207,108 @@
     }
     bind();
     focusFirst();
+  }
+
+
+  // ------------------------------------------------------------ شاشة الشبكة
+  const ICO_CABLE = '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="8" rx="1.5"/><path d="M10 6h.01M14 6h.01M12 10v5M7 15h10v4a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/></svg>';
+  const ICO_WIFI = '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1.2" fill="currentColor"/></svg>';
+  const LOCK = '<svg class="lk" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#bfd3f2" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+  const bars = (dbm) => {
+    const n = dbm > -55 ? 4 : dbm > -67 ? 3 : dbm > -77 ? 2 : 1;
+    return `<svg class="sig" width="26" height="22" viewBox="0 0 26 22">${[0, 1, 2, 3].map((i) =>
+      `<rect x="${i * 7}" y="${16 - i * 5}" width="5" height="${6 + i * 5}" rx="1.5" fill="${i < n ? "#86efac" : "rgba(255,255,255,.22)"}"/>`).join("")}</svg>`;
+  };
+  const ssidHtml = (n) => `<bdi class="ss" dir="auto">${esc(n)}</bdi>`;
+  const myIp = () => (net.wifi && net.wifi.ip) || (net.wired && net.wired.ip) || "";
+  const KBN = { us: "QWERTY", be: "AZERTY (BE)", fr: "AZERTY (FR)" };
+
+  function netView() {
+    const c = net.wired || {}, w = net.wifi || {};
+    const ipb = (ip) => `<bdi dir="ltr">${esc(ip)}</bdi>`;
+    const status = `<div class="nst">
+        <div class="st ${c.ip ? "on" : ""}">${ICO_CABLE}<span><b>${t("cable")}</b><small>${c.ip ? ipb(c.ip) : c.cable ? t("getting") : t("cable_off")}</small></span></div>
+        <div class="st ${w.ip ? "on" : ""}">${ICO_WIFI}<span><b>${t("wifi")}</b><small>${!w.iface ? t("wifi_none") : w.ip ? `${esc(w.ssid || "")} · ${ipb(w.ip)}` : t("wifi_off")}</small></span></div></div>`;
+    if (pick) {
+      return `<h1 class="sm">${t("pw", ssidHtml(pick.ssid))}</h1>${status}
+        ${pick.secure ? `<p class="sm">${t("pw2")}</p>
+        <div class="pwrow"><input id="pw" class="f inp" type="${showPw ? "text" : "password"}" dir="ltr" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="64" ${wBusy ? "disabled" : ""}>
+          <button class="btn f" data-eye="1">${showPw ? t("hide") : t("show")}</button></div>
+        <div class="row kbrow"><span class="muted">${t("kb")}</span>${Object.keys(KBN).map((k) =>
+          `<button class="chip f ${kb === k ? "on" : ""}" data-kb="${k}" dir="ltr">${KBN[k]}</button>`).join("")}</div>` : `<p class="sm">${t("open_net")}</p>`}
+        ${wErr ? `<div class="warn">⚠ ${esc(t("e_" + wErr))}</div>` : ""}
+        <div class="bottom"><button class="btn go f" data-conn="1" ${wBusy ? "disabled" : ""}>${wBusy ? t("connecting") : t("connect")}</button>
+          <button class="btn f" data-unpick="1" ${wBusy ? "disabled" : ""}>${t("back")}</button></div>`;
+    }
+    let list;
+    if (!w.iface) list = `<div class="muted">${t("nowifi")}</div>`;
+    else if (scanning && !nets) list = `<div class="muted scanning"><i></i>${t("scanning")}</div>`;
+    else if (!nets || !nets.length) list = `<div class="muted">${t("nonets")}</div>`;
+    else list = `<div class="muted">${t("nets")}</div><div class="nets">${nets.map((n, i) => {
+      const on = w.ip && w.ssid === n.ssid;
+      return `<button class="net f ${on ? "on" : ""}" data-net="${i}">${bars(n.signal)}<span class="nm" dir="auto">${esc(n.ssid)}</span>${on ? CHECK.replace('stroke="#fff"', 'stroke="#86efac"') : n.secure ? LOCK : ""}</button>`;
+    }).join("")}</div>`;
+    const done = myIp();
+    return `<h1 class="sm">${t("n_h")}</h1><p class="sm">${t("n_p")}</p>${status}
+      ${wOk ? `<div class="ok-line">${CHECK.replace('stroke="#fff"', 'stroke="#86efac"')} <span>${t("ok_w", ssidHtml(wOk))}</span></div>` : ""}
+      ${wErr ? `<div class="warn">⚠ ${esc(t("e_" + wErr))}</div>` : ""}
+      ${list}
+      <div class="bottom"><button class="btn ${done ? "go" : ""} f" data-go="disk">${done ? t("next") : t("skip")}</button>
+        ${w.iface ? `<button class="btn f" data-scan="1" ${scanning ? "disabled" : ""}>${scanning ? t("scanning") : t("rescan")}</button>` : ""}
+        <button class="btn f" data-go="welcome">${t("back")}</button></div>`;
+  }
+
+  async function refreshNet() {
+    try { net = await api("/api/net"); } catch (e) { /* */ }
+  }
+  async function scan() {
+    if (scanning) return;
+    scanning = true; if (view === "net") { keepFocus = "[data-scan]"; render(); }
+    try { const r = await api("/api/wifi/scan", {}); nets = r.networks || []; if (r.net) net = r.net; } catch (e) { nets = nets || []; }
+    scanning = false;
+    if (view === "net" && !pick) render();
+  }
+  async function connect() {
+    if (wBusy || !pick) return;
+    const psk = pick.secure ? pwVal : "";
+    if (pick.secure && psk.length < 8) { wErr = "psk"; keepFocus = "#pw"; render(); return; }
+    wBusy = true; wErr = ""; keepFocus = "[data-conn]"; render();
+    let r = {};
+    try { r = await api("/api/wifi/connect", { ssid: pick.ssid, psk }); } catch (e) { r = { error: "auth" }; }
+    wBusy = false;
+    if (r.net) net = r.net;
+    if (r.ok) { wOk = pick.ssid; pick = null; pwVal = ""; keepFocus = "[data-go=disk]"; }
+    else { wErr = r.error || "auth"; keepFocus = "#pw"; }
+    render();
+  }
+
+  // لوحة المفاتيح: الشاشة تعمل بتخطيط QWERTY، فنحوّل الأزرار حسب لوحة المستخدم (AZERTY) من مكانها
+  const D = (s) => Object.fromEntries(["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].map((d, i) => [`Digit${d}`, s[i]]));
+  const AZ = { KeyQ: "a", KeyW: "z", KeyA: "q", KeyZ: "w", Semicolon: "m" };
+  const KBMAP = {
+    be: { n: { ...D("&é\"'(§è!çà"), Backquote: "²", Minus: ")", Equal: "-", BracketLeft: "^", BracketRight: "$", Quote: "ù", Backslash: "µ", IntlBackslash: "<", KeyM: ",", Comma: ";", Period: ":", Slash: "=" },
+      s: { ...D("1234567890"), Backquote: "³", Minus: "°", Equal: "_", BracketLeft: "¨", BracketRight: "*", Quote: "%", Backslash: "£", IntlBackslash: ">", KeyM: "?", Comma: ".", Period: "/", Slash: "+" },
+      g: { Digit1: "|", Digit2: "@", Digit3: "#", Digit6: "^", Digit9: "{", Digit0: "}", BracketLeft: "[", BracketRight: "]", Equal: "~", Quote: "´", Backslash: "`", IntlBackslash: "\\", KeyE: "€" } },
+    fr: { n: { ...D("&é\"'(-è_çà"), Backquote: "²", Minus: ")", Equal: "=", BracketLeft: "^", BracketRight: "$", Quote: "ù", Backslash: "*", IntlBackslash: "<", KeyM: ",", Comma: ";", Period: ":", Slash: "!" },
+      s: { ...D("1234567890"), Minus: "°", Equal: "+", BracketLeft: "¨", BracketRight: "£", Quote: "%", Backslash: "µ", IntlBackslash: ">", KeyM: "?", Comma: ".", Period: "/", Slash: "§" },
+      g: { Digit2: "~", Digit3: "#", Digit4: "{", Digit5: "[", Digit6: "|", Digit7: "`", Digit8: "\\", Digit9: "^", Digit0: "@", Minus: "]", Equal: "}", KeyE: "€" } },
+  };
+  let altGr = false;
+  addEventListener("keyup", (e) => { if (e.code === "AltRight") altGr = false; });
+  function kbType(e, inp) {
+    if (e.code === "AltRight") { altGr = true; return true; }
+    const m = KBMAP[kb];
+    if (!m || e.ctrlKey || e.metaKey) return false;
+    let ch;
+    if (altGr || e.getModifierState("AltGraph")) ch = m.g[e.code] || "";
+    else if (AZ[e.code]) {
+      const up = e.shiftKey !== e.getModifierState("CapsLock");
+      ch = up ? AZ[e.code].toUpperCase() : AZ[e.code];
+    } else ch = (e.shiftKey ? m.s : m.n)[e.code];
+    if (ch === undefined) return false;
+    if (ch) inp.setRangeText(ch, inp.selectionStart, inp.selectionEnd, "end");
+    pwVal = inp.value;
+    return true;
   }
 
   function bind() {
@@ -194,6 +329,23 @@
       const res = await api("/api/install", { disk: chosen, disk2: raid ? chosen2 : null, raid });
       if (res.ok) { view = "installing"; render(); }
     };
+    main.querySelectorAll("[data-net]").forEach((b) => b.onclick = () => {
+      const n = nets[+b.dataset.net];
+      wErr = ""; wOk = "";
+      pick = n; pwVal = "";
+      if (!n.secure) { connect(); return; }
+      keepFocus = "#pw"; render();
+    });
+    const sc = main.querySelector("[data-scan]"); if (sc) sc.onclick = () => { wErr = ""; scan(); };
+    const pw = main.querySelector("#pw");
+    if (pw) { pw.value = pwVal; pw.oninput = () => { pwVal = pw.value; }; }
+    const eye = main.querySelector("[data-eye]"); if (eye) eye.onclick = () => { showPw = !showPw; keepFocus = "#pw"; render(); };
+    main.querySelectorAll("[data-kb]").forEach((b) => b.onclick = () => {
+      kb = b.dataset.kb; try { localStorage.setItem("kb", kb); } catch (e) { /* */ }
+      keepFocus = "#pw"; render();
+    });
+    const cn = main.querySelector("[data-conn]"); if (cn) cn.onclick = connect;
+    const up = main.querySelector("[data-unpick]"); if (up) up.onclick = () => { pick = null; wErr = ""; pwVal = ""; render(); };
     const rb = main.querySelector("[data-reboot]"); if (rb) rb.onclick = () => api("/api/reboot", {});
     const of = main.querySelector("[data-off]"); if (of) of.onclick = () => api("/api/poweroff", {});
     const rt = main.querySelector("[data-retry]"); if (rt) rt.onclick = async () => { await api("/api/retry", {}); go("disk"); };
@@ -201,6 +353,13 @@
 
   async function go(v) {
     confirmArm = false;
+    if (v === "net") {
+      wErr = ""; pick = null;
+      await refreshNet();
+      view = v; render();
+      if (net.wifi && net.wifi.iface && !nets) scan();
+      return;
+    }
     if (v === "disk") {
       const r = await api("/api/disks");
       diskList = r.disks || [];
@@ -212,10 +371,14 @@
   // ------------------------------------------------------------ التنقل بالأسهم
   let cur = 0, keepFocus = null;
   const focusables = () => [...main.querySelectorAll(".f")].filter((e) => !e.disabled);
-  function setSel(i) {
+  function setSel(i, soft) {
     const f = focusables(); if (!f.length) return;
     cur = (i + f.length) % f.length;
     f.forEach((e, j) => e.classList.toggle("sel", j === cur));
+    if (soft) return; // مرور الفأرة لا يُخرج الكتابة من حقل كلمة المرور
+    // حقل الكتابة يأخذ التركيز الحقيقي حتى تصل إليه لوحة المفاتيح
+    if (f[cur].tagName === "INPUT") { f[cur].focus(); const n = f[cur].value.length; try { f[cur].setSelectionRange(n, n); } catch (e) { /* */ } }
+    else if (document.activeElement && document.activeElement.tagName === "INPUT") document.activeElement.blur();
   }
   function focusFirst() {
     const f = focusables();
@@ -226,12 +389,21 @@
     setSel(i < 0 ? 0 : i);
   }
   addEventListener("keydown", (e) => {
+    const inp = e.target && e.target.tagName === "INPUT" ? e.target : null;
+    if (inp) {
+      if (e.key === "Enter") { const c = main.querySelector("[data-conn]"); if (c) c.click(); e.preventDefault(); }
+      else if (e.key === "Escape") { const u = main.querySelector("[data-unpick]"); if (u) u.click(); }
+      else if (e.key === "ArrowDown" || e.key === "ArrowUp") { setSel(cur + (e.key === "ArrowDown" ? 1 : -1)); e.preventDefault(); }
+      else if (kbType(e, inp)) e.preventDefault();
+      return;
+    }
     const f = focusables();
     if (["ArrowDown", "ArrowLeft"].includes(e.key)) { setSel(cur + 1); e.preventDefault(); }
     else if (["ArrowUp", "ArrowRight"].includes(e.key)) { setSel(cur - 1); e.preventDefault(); }
     else if (e.key === "Enter" || e.key === " ") { if (f[cur]) f[cur].click(); e.preventDefault(); }
   });
-  main.addEventListener("mouseover", (e) => { const b = e.target.closest(".f"); if (b) setSel(focusables().indexOf(b)); });
+  main.addEventListener("mouseover", (e) => { const b = e.target.closest(".f"); if (b) setSel(focusables().indexOf(b), true); });
+  main.addEventListener("focusin", (e) => { if (e.target.tagName === "INPUT") setSel(focusables().indexOf(e.target), true); });
 
   // ------------------------------------------------------------ متابعة التثبيت
   let countdown = 15, cdTimer = 0;
@@ -240,6 +412,7 @@
       st = await api("/api/state");
       if (st.stage === "installing") { if (view !== "installing") view = "installing"; render(); }
       else if (st.stage === "done" && view !== "done") {
+        await refreshNet();
         view = "done"; countdown = 15; render();
         cdTimer = setInterval(() => { countdown--; if (countdown <= 0) { clearInterval(cdTimer); api("/api/reboot", {}); } else render(); }, 1000);
       } else if (st.stage === "error" && view !== "error") { view = "error"; render(); }

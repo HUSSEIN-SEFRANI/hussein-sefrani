@@ -4,10 +4,12 @@
 It serves the installer screens on http://127.0.0.1:9999 (shown full screen by the
 TV kiosk) and copies the live system itself onto the chosen disk:
 
-    1 welcome & language   2 choose disk   3 prepare disk   4 copy system
-    5 configure HOME ANAB      6 boot loader
+    1 welcome & language   2 network (cable or Wi-Fi)   3 choose disk   4 prepare disk
+    5 copy system          6 configure HOME ANAB        7 boot loader
 
-Everything needed is on the stick: no internet connection is used.
+Everything needed is on the stick: no internet connection is used. The network step only
+joins the home network (cable or Wi-Fi) so the server gets an address, and the Wi-Fi
+chosen here is kept on the installed system.
 """
 import json
 import os
@@ -34,7 +36,7 @@ except Exception:
     except Exception:
         pass
 
-STEPS = ["welcome", "disk", "prepare", "copy", "configure", "boot"]
+STEPS = ["welcome", "network", "disk", "prepare", "copy", "configure", "boot"]
 # حصة كل خطوة من شريط التقدم الكلي
 WEIGHTS = {"prepare": (0, 5), "copy": (5, 75), "configure": (75, 93), "boot": (93, 100)}
 
@@ -118,6 +120,253 @@ def disks() -> list:
 
 def part(disk: str, n: int) -> str:
     return f"{disk}p{n}" if re.search(r"\d$", disk) else f"{disk}{n}"
+
+
+# ----------------------------------------------------------------------------- الشبكة: كابل أو وايفاي
+# نفس الملفات التي تستعملها إعدادات النظام (hsef-extras)، فتظهر الشبكة هناك بعد التثبيت ويمكن تغييرها
+WIFI_CONF = Path("etc/wpa_supplicant/hsef-wifi.conf")
+WIFI_FILE = Path("etc/network/interfaces.d/hsef-wifi")
+SYSCTL_NET = Path("etc/sysctl.d/90-hsef-net.conf")
+WPA_PID = Path("/run/hsef-installer-wpa.pid")
+wifi_lock = threading.Lock()
+wifi = {}            # الشبكة المختارة {iface, ssid, psk} — لا تُرسل كلمة المرور إلى الواجهة أبداً
+fake_net = {"wired_ip": os.environ.get("HSEF_INSTALLER_FAKE_CABLE") or None, "wifi_ip": None,   # للاختبار فقط
+            "wifi": os.environ.get("HSEF_INSTALLER_FAKE_NOWIFI") != "1"}
+_wired_tried = set()
+
+
+def sh(cmd, timeout=30) -> subprocess.CompletedProcess:
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return subprocess.CompletedProcess(cmd, 1, "", str(e))
+
+
+def links() -> list:
+    try:
+        return json.loads(sh(["ip", "-j", "addr"]).stdout or "[]")
+    except ValueError:
+        return []
+
+
+def ipv4(l) -> str | None:
+    return next((a.get("local") for a in l.get("addr_info", []) if a.get("family") == "inet"), None)
+
+
+def is_wired(n: str) -> bool:
+    return n != "lo" and not n.startswith(("wl", "docker", "veth", "br-", "tailscale", "virbr", "tun", "tap"))
+
+
+def net_info() -> dict:
+    if FAKE:
+        return {"wired": {"iface": "enp1s0", "cable": bool(fake_net["wired_ip"]), "ip": fake_net["wired_ip"]},
+                "wifi": {"iface": "wlan0" if fake_net["wifi"] else None, "ssid": wifi.get("ssid"), "ip": fake_net["wifi_ip"]}}
+    wired, wl = None, None
+    for l in links():
+        n = l.get("ifname", "")
+        if n.startswith("wl"):
+            wl = wl or l
+        elif is_wired(n) and l.get("link_type") == "ether":
+            # الأولوية لمنفذ فيه كابل
+            up = "LOWER_UP" in l.get("flags", [])
+            if not wired or (up and "LOWER_UP" not in wired.get("flags", [])):
+                wired = l
+    if wired and "LOWER_UP" in wired.get("flags", []) and not ipv4(wired):
+        wired_dhcp(wired["ifname"])
+    return {"wired": {"iface": wired and wired["ifname"], "cable": bool(wired and "LOWER_UP" in wired.get("flags", [])),
+                      "ip": wired and ipv4(wired)},
+            "wifi": {"iface": wl and wl["ifname"], "ssid": wifi.get("ssid") if wl and ipv4(wl) else None, "ip": wl and ipv4(wl)}}
+
+
+def wired_dhcp(n: str):
+    """الكابل موصول بلا عنوان: نطلب عنواناً من الراوتر (مرة واحدة لكل منفذ)."""
+    if n in _wired_tried:
+        return
+    _wired_tried.add(n)
+    log(f"dhcp on {n}")
+    sh(["dhcpcd", "-4", "-b", n])
+
+
+def wired_up():
+    """عند البدء: نشغّل منافذ الكابل حتى يُعرف إن كان فيها كابل."""
+    if FAKE:
+        return
+    for l in links():
+        if is_wired(l.get("ifname", "")) and l.get("link_type") == "ether":
+            sh(["ip", "link", "set", l["ifname"], "up"])
+
+
+def rfkill_unblock():
+    """بعض الأجهزة تبدأ والوايفاي مقفول برمجياً."""
+    if sh(["rfkill", "unblock", "wifi"]).returncode != 0:
+        for f in Path("/sys/class/rfkill").glob("rfkill*/soft"):
+            try:
+                f.write_text("0")
+            except OSError:
+                pass
+
+
+def wifi_iface() -> str | None:
+    return next((l["ifname"] for l in links() if l.get("ifname", "").startswith("wl")), None)
+
+
+def iw_ssid(raw: str) -> str:
+    """iw يكتب الأحرف غير الإنكليزية بشكل \\xNN: نعيدها نصاً (العربية مثلاً)."""
+    b = re.sub(rb"\\x([0-9a-fA-F]{2})", lambda m: bytes([int(m.group(1), 16)]), raw.encode("utf-8", "surrogateescape"))
+    return b.decode("utf-8", "replace")
+
+
+def wifi_scan() -> list:
+    if FAKE:
+        time.sleep(1)
+        return [{"ssid": "Home-WiFi", "signal": -42, "secure": True}, {"ssid": "بيت أبو أنس", "signal": -58, "secure": True},
+                {"ssid": "Proximus-Home-5G", "signal": -66, "secure": True}, {"ssid": "telenet-7F3A21", "signal": -74, "secure": True},
+                {"ssid": "Free WiFi", "signal": -80, "secure": False}, {"ssid": "Neighbour", "signal": -86, "secure": True}]
+    wi = wifi_iface()
+    if not wi:
+        return []
+    rfkill_unblock()
+    sh(["ip", "link", "set", wi, "up"])
+    out = ""
+    for _ in range(3):  # البطاقة قد تكون مشغولة لحظة البحث
+        r = sh(["iw", "dev", wi, "scan"], timeout=40)
+        if r.returncode == 0:
+            out = r.stdout
+            break
+        time.sleep(2)
+    nets, cur = {}, None
+
+    def keep(c):
+        if c and c.get("ssid") and not c["ssid"].startswith("\x00"):
+            old = nets.get(c["ssid"])
+            if not old or old["signal"] < c["signal"]:
+                nets[c["ssid"]] = c
+
+    for line in out.splitlines():
+        s = line.strip()
+        if line.startswith("BSS "):
+            keep(cur)
+            cur = {"ssid": "", "signal": -100.0, "secure": False}
+        elif cur is None:
+            continue
+        elif s.startswith("signal:"):
+            try:
+                cur["signal"] = float(s.split()[1])
+            except (IndexError, ValueError):
+                pass
+        elif s.startswith("SSID:"):
+            cur["ssid"] = iw_ssid(s[5:].strip())
+        elif s.startswith(("RSN:", "WPA:")) or (s.startswith("capability:") and "Privacy" in s):
+            cur["secure"] = True
+    keep(cur)
+    return sorted(nets.values(), key=lambda x: -x["signal"])[:12]
+
+
+def wpa_conf(ssid: str, psk: str) -> str:
+    """إعداد wpa_supplicant: يعمل مع WPA2 و WPA3 والشبكات المفتوحة."""
+    q = lambda v: f'"{v}"'
+    name = q(ssid) if '"' not in ssid and "\\" not in ssid else ssid.encode().hex()
+    net = f"network={{\n    ssid={name}\n    scan_ssid=1\n"
+    if re.fullmatch(r"[0-9a-fA-F]{64}", psk or ""):  # مفتاح جاهز بدل كلمة المرور
+        net += f"    psk={psk}\n"
+    elif psk:
+        net += f"    psk={q(psk)}\n    key_mgmt=WPA-PSK WPA-PSK-SHA256 SAE\n    ieee80211w=1\n"
+    else:
+        net += "    key_mgmt=NONE\n"
+    return "ctrl_interface=/run/wpa_supplicant\nupdate_config=0\n\n" + net + "}\n"
+
+
+def wifi_stop(wi: str):
+    if WPA_PID.exists():
+        try:
+            os.kill(int(WPA_PID.read_text().strip()), 15)
+        except (ValueError, OSError):
+            pass
+        WPA_PID.unlink(missing_ok=True)
+        time.sleep(0.5)
+    sh(["dhcpcd", "-x", wi])
+    sh(["ip", "addr", "flush", "dev", wi])
+
+
+def wifi_connect(ssid: str, psk: str) -> dict:
+    """يتصل بالوايفاي الآن (في نظام الفلاشة) ويحفظ الشبكة ليُنقل إعدادها إلى النظام المثبّت."""
+    if FAKE:
+        time.sleep(2)
+        if psk == "wrong-pass":
+            return {"error": "auth"}
+        wifi.update(iface="wlan0", ssid=ssid, psk=psk)
+        fake_net["wifi_ip"] = "192.168.1.77"
+        return {"ok": True, "ip": fake_net["wifi_ip"]}
+    wi = wifi_iface()
+    if not wi:
+        return {"error": "noadapter"}
+    log(f"wifi connect {wi} {ssid!r}")
+    wifi_stop(wi)
+    conf = Path("/") / WIFI_CONF
+    conf.parent.mkdir(parents=True, exist_ok=True)
+    conf.write_text(wpa_conf(ssid, psk))
+    os.chmod(conf, 0o600)
+    rfkill_unblock()
+    sh(["ip", "link", "set", wi, "up"])
+    r = sh(["wpa_supplicant", "-B", "-i", wi, "-c", str(conf), "-P", str(WPA_PID)])
+    if r.returncode != 0:
+        log("wpa_supplicant: " + (r.stderr or r.stdout)[-300:])
+        return {"error": "driver"}
+    # 1) الانضمام للشبكة (كلمة المرور)
+    for _ in range(25):
+        st = sh(["wpa_cli", "-i", wi, "status"]).stdout
+        if "wpa_state=COMPLETED" in st:
+            break
+        time.sleep(1)
+    else:
+        log("wifi: not associated\n" + sh(["wpa_cli", "-i", wi, "status"]).stdout)
+        wifi_stop(wi)
+        return {"error": "auth"}
+    # 2) أخذ عنوان من الراوتر
+    sh(["dhcpcd", "-4", "-b", wi])
+    for _ in range(30):
+        ip = next((ipv4(l) for l in links() if l.get("ifname") == wi), None)
+        if ip:
+            wifi.update(iface=wi, ssid=ssid, psk=psk)
+            log(f"wifi ok {ip}")
+            return {"ok": True, "ip": ip}
+        time.sleep(1)
+    wifi_stop(wi)
+    return {"error": "dhcp"}
+
+
+def wifi_forget():
+    if FAKE:
+        fake_net["wifi_ip"] = None
+    elif wifi.get("iface"):
+        wifi_stop(wifi["iface"])
+    wifi.clear()
+
+
+def write_target_net():
+    """شبكة النظام المثبّت: كل منافذ الكابل تأخذ عنوانها من الراوتر، والوايفاي المختار يتصل وحده عند الإقلاع."""
+    wired = [l["ifname"] for l in links() if is_wired(l.get("ifname", "")) and l.get("link_type") == "ether"]
+    net = "source /etc/network/interfaces.d/*\n\nauto lo\niface lo inet loopback\n"
+    for n in wired:
+        net += f"\nallow-hotplug {n}\niface {n} inet dhcp\n"
+    (TARGET / "etc/network/interfaces.d").mkdir(parents=True, exist_ok=True)
+    (TARGET / "etc/network/interfaces").write_text(net)
+    # عند فصل الكابل لا يحاول النظام الإرسال عبره (فيعمل الوايفاي وحده)
+    (TARGET / SYSCTL_NET).parent.mkdir(parents=True, exist_ok=True)
+    (TARGET / SYSCTL_NET).write_text("net.ipv4.conf.all.ignore_routes_with_linkdown = 1\n"
+                                     "net.ipv4.conf.default.ignore_routes_with_linkdown = 1\n"
+                                     "net.ipv6.conf.all.ignore_routes_with_linkdown = 1\n")
+    if wifi.get("ssid"):
+        wi = wifi["iface"]
+        conf = TARGET / WIFI_CONF
+        conf.parent.mkdir(parents=True, exist_ok=True)
+        conf.write_text(wpa_conf(wifi["ssid"], wifi.get("psk", "")))
+        os.chmod(conf, 0o600)
+        (TARGET / WIFI_FILE).write_text(f"allow-hotplug {wi}\niface {wi} inet dhcp\n    wpa-conf /{WIFI_CONF}\n")
+    # هوية الجهاز عند الراوتر: نفسها بعد إعادة التشغيل، فيبقى العنوان نفسه غالباً
+    lease = Path("/var/lib/dhcpcd")
+    if lease.is_dir():
+        run(["cp", "-a", f"{lease}/.", str(TARGET / "var/lib/dhcpcd")], check=False)
 
 
 # ----------------------------------------------------------------------------- التثبيت
@@ -212,15 +461,7 @@ def do_install(cfg):
             f"UUID={uuid(root_dev)}  /          ext4  errors=remount-ro  0 1\n"
             f"UUID={uuid(part(disk, 2))}  /boot/efi  vfat  umask=0077        0 1\n")
         (TARGET / "etc/hostname").write_text("hsef\n")
-        # الشبكة: كل منافذ الكابل تأخذ عنوانها من الراوتر
-        links = json.loads(run(["ip", "-j", "link"]).stdout or "[]")
-        wired = [l["ifname"] for l in links if l.get("link_type") == "ether"
-                 and not l["ifname"].startswith(("wl", "docker", "veth", "br-", "tailscale"))]
-        net = "source /etc/network/interfaces.d/*\n\nauto lo\niface lo inet loopback\n"
-        for n in wired:
-            net += f"\nallow-hotplug {n}\niface {n} inet dhcp\n"
-        (TARGET / "etc/network").mkdir(parents=True, exist_ok=True)
-        (TARGET / "etc/network/interfaces").write_text(net)
+        write_target_net()
         (TARGET / "etc/machine-id").write_text("")
         Path(TARGET / "var/lib/dbus/machine-id").unlink(missing_ok=True)
         # مفتاح سرّي جديد لكل جهاز
@@ -290,6 +531,8 @@ class H(BaseHTTPRequestHandler):
                 return self.send(200, dict(state))
         if path == "/api/disks":
             return self.send(200, {"disks": disks(), "efi": Path("/sys/firmware/efi").exists()})
+        if path == "/api/net":
+            return self.send(200, net_info())
         rel = "index.html" if path in ("/", "") else path.lstrip("/")
         f = (UI / rel).resolve()
         if not str(f).startswith(str(UI.resolve())) or not f.is_file():
@@ -317,13 +560,29 @@ class H(BaseHTTPRequestHandler):
             log("install " + json.dumps(cfg))
             threading.Thread(target=install, args=(cfg,), daemon=True).start()
             return self.send(200, {"ok": True})
+        if self.path == "/api/wifi/scan":
+            return self.send(200, {"networks": wifi_scan(), "net": net_info()})
+        if self.path == "/api/wifi/connect":
+            ssid, psk = str(d.get("ssid") or ""), str(d.get("psk") or "")
+            if not ssid or len(ssid.encode()) > 32 or re.search(r"[\r\n\x00]", ssid):
+                return self.send(400, {"error": "ssid"})
+            if psk and (len(psk) < 8 or len(psk) > 64 or re.search(r"[\r\n\x00]", psk)):
+                return self.send(400, {"error": "psk"})
+            if state["stage"] == "installing":
+                return self.send(409, {"error": "busy"})
+            with wifi_lock:
+                r = wifi_connect(ssid, psk)
+            return self.send(200, {**r, "net": net_info()})
+        if self.path == "/api/wifi/forget":
+            wifi_forget()
+            return self.send(200, {"ok": True, "net": net_info()})
         if self.path in ("/api/reboot", "/api/poweroff"):
             self.send(200, {"ok": True})
             if not FAKE:
                 subprocess.Popen(["sh", "-c", f"sleep 1; systemctl {'reboot' if self.path.endswith('reboot') else 'poweroff'}"])
             return None
         if self.path == "/api/retry":
-            set_state(stage="welcome", step=1, percent=0, error=None, hint=None, detail="")
+            set_state(stage="welcome", step=STEPS.index("disk"), percent=0, error=None, hint=None, detail="")
             return self.send(200, {"ok": True})
         return self.send(404, {"error": "not found"})
 
@@ -331,4 +590,5 @@ class H(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     port = int(os.environ.get("HSEF_INSTALLER_PORT", "9999"))
     log(f"HOME ANAB installer {VERSION} on 127.0.0.1:{port}")
+    threading.Thread(target=wired_up, daemon=True).start()
     ThreadingHTTPServer(("127.0.0.1", port), H).serve_forever()
