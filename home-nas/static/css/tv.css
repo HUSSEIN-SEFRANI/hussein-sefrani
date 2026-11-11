@@ -76,7 +76,19 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 
 /* ------------------------------------------------------------- من يشاهد؟ */
 .who h1 { position: absolute; top: 140px; width: 100%; margin: 0; text-align: center; font-family: "Baloo Bhaijaan 2", sans-serif; font-weight: 800; font-size: 56px; }
-.profiles { position: absolute; top: 250px; right: 30px; left: 30px; display: flex; justify-content: center; flex-wrap: wrap; gap: 30px 44px; }
+.pf-wrap { position: absolute; top: 220px; right: 0; left: 0; height: 420px; }
+.profiles { position: absolute; inset: 0; display: flex; justify-content: safe center; flex-wrap: nowrap; gap: 44px; overflow-x: auto; overflow-y: hidden;
+  padding: 34px 70px 0; scrollbar-width: none; scroll-behavior: smooth; }
+.profiles::-webkit-scrollbar { display: none; }
+.pf { flex: none; }
+.pf-stars { font-family: "Baloo Bhaijaan 2", sans-serif; font-weight: 800; font-size: 22px; color: #fde68a; line-height: 1; margin-top: -4px; }
+.pf-stars .emo { font-size: 18px; }
+.pf-arrow { position: absolute; top: 90px; direction: ltr; unicode-bidi: isolate; width: 54px; height: 54px; border-radius: 50%; background: rgba(255,255,255,.18); color: #fff; font-size: 40px; line-height: 50px;
+  text-align: center; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 3; }
+.pf-arrow.on { opacity: 1; animation: nudge 1.6s ease-in-out infinite; }
+.pf-arrow.l { left: 10px; } .pf-arrow.r { right: 10px; }
+@keyframes nudge { 50% { transform: translateX(var(--nx, -6px)); } }
+.pf-arrow.r { --nx: 6px; }
 .pf { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 180px; opacity: .82; transition: transform .25s, opacity .25s; }
 .pf .ring { width: 150px; height: 150px; border-radius: 50%; overflow: hidden; box-shadow: 0 14px 30px rgba(0,0,0,.4); transition: box-shadow .25s; position: relative; }
 .pf .ring svg { display: block; width: 100%; height: 100%; }
@@ -362,3 +374,40 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 .starburst { position: absolute; inset: 0; pointer-events: none; z-index: 90; overflow: hidden; }
 .starburst i { position: absolute; top: -40px; font-size: 34px; animation: sfall 2.6s ease-in forwards; }
 @keyframes sfall { to { transform: translateY(800px) rotate(360deg); opacity: .2; } }
+
+/* تجهيز فيديو الآيفون للتلفاز */
+.prep { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: rgba(2,6,23,.82); z-index: 5; text-align: center; }
+.prep b { font-size: 30px; }
+.prep .pp { font-family: "Baloo Bhaijaan 2", sans-serif; font-size: 44px; font-weight: 800; color: #fde68a; direction: ltr; }
+.prep small { font-size: 17px; color: #cbd5e1; }
+.prep .spin { width: 64px; height: 64px; border-radius: 50%; border: 7px solid rgba(255,255,255,.18); border-top-color: #a855f7; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* الأذان */
+.adhan-ov { position: absolute; inset: 0; z-index: 95; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 40%, rgba(20,83,45,.92), rgba(2,6,23,.96)); animation: pop .4s ease; transition: opacity .6s; }
+.adhan-ov.out { opacity: 0; }
+.adhan-card { text-align: center; }
+.adhan-card .mosque { font-size: 140px; animation: bob 3s ease-in-out infinite; }
+.adhan-card h2 { font-family: "Baloo Bhaijaan 2", sans-serif; font-size: 64px; margin: 10px 0 6px; color: #fff; }
+.adhan-card p { font-size: 26px; color: #bbf7d0; margin: 0 0 18px; }
+.adhan-card small { font-size: 18px; color: #94a3b8; }
+
+/* الترحيب عند الدخول */
+.welcome { display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 20px; }
+.wl-hi { position: relative; margin: 0; font-family: "Baloo Bhaijaan 2", sans-serif; font-size: 52px; z-index: 1; }
+.wl-cards { position: relative; z-index: 1; display: grid; grid-template-columns: 1fr 1.5fr; gap: 28px; width: 1140px; margin-top: 20px; }
+.wl-cards.one { grid-template-columns: 1fr; width: 560px; }
+.wl-card { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); border-radius: 30px; padding: 18px 28px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 370px; }
+.wl-lbl { font-size: 20px; font-weight: 700; color: #fde68a; margin-bottom: 8px; }
+.wl-pic { font-size: 100px; line-height: 1.1; }
+.wl-ar { font-family: "Baloo Bhaijaan 2", sans-serif; font-size: 58px; font-weight: 800; line-height: 1.2; }
+.wl-tr { display: flex; align-items: center; gap: 12px; font-size: 32px; font-weight: 700; color: #e2e8f0; margin-top: 6px; }
+.wl-tr .fl { font-size: 14px; font-weight: 800; background: rgba(255,255,255,.18); border-radius: 8px; padding: 2px 8px; }
+.wl-card.hadith { background: linear-gradient(160deg, rgba(20,83,45,.55), rgba(15,23,42,.6)); border-color: rgba(134,239,172,.35); }
+.wl-h { font-size: 40px; font-weight: 800; line-height: 1.7; text-align: center; color: #fff; }
+.wl-src { margin-top: 12px; font-size: 20px; color: #bbf7d0; font-weight: 700; }
+.wl-ex { margin-top: 18px; font-size: 22px; color: #fef3c7; background: rgba(250,204,21,.12); border-radius: 16px; padding: 10px 18px; text-align: center; line-height: 1.6; }
+.wl-ok { position: relative; z-index: 1; margin-top: 20px; font-size: 22px; padding: 12px 40px; }
+.wl-bar { position: absolute; bottom: 0; left: 0; right: 0; height: 6px; background: rgba(255,255,255,.08); }
+.wl-bar i { display: block; height: 100%; background: #a855f7; animation: wlbar 20s linear forwards; }
+@keyframes wlbar { from { width: 100%; } to { width: 0; } }

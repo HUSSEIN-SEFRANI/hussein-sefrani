@@ -12,6 +12,7 @@ set -euo pipefail
 
 SRC="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 APP=/opt/homenas/app
+PREV=/opt/homenas/app.prev   # الإصدار السابق: للرجوع إليه إن لم يعمل التحديث
 VENV=/opt/homenas/venv
 CONF_DIR=/etc/homenas
 CONF=$CONF_DIR/config.json
@@ -62,9 +63,16 @@ if [ "$SRC" != "$APP" ]; then
     mkdir -p "$APP.new"
     tar -C "$SRC" --exclude=./data --exclude=./config.json --exclude=./.venv --exclude='__pycache__' \
         --exclude=./iso/build -cf - . | tar -C "$APP.new" -xf -
+    rm -rf --one-file-system "$APP.old"
     if [ -d "$APP" ]; then mv "$APP" "$APP.old"; fi
     mv "$APP.new" "$APP"
-    if [ -d "$APP.old" ]; then rm -rf --one-file-system "$APP.old"; fi
+    if [ -d "$APP.old" ]; then
+        if [ -z "${HSEF_ROLLBACK:-}" ]; then
+            rm -rf --one-file-system "$PREV"; mv "$APP.old" "$PREV"; UPGRADED=1
+        else
+            rm -rf --one-file-system "$APP.old"
+        fi
+    fi
 fi
 chown -R root:root "$APP"
 
@@ -96,6 +104,9 @@ if [ ! -f "$CONF" ]; then
 EOF
 fi
 chown homenas:homenas "$CONF"; chmod 600 "$CONF"
+
+# المنفذ الحقيقي من الإعدادات (للتأكد أن البرنامج يعمل بعد التحديث)
+PORT=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('port',80))" "$CONF" 2>/dev/null || echo "$PORT")
 
 log "Installing system service"
 cat > /etc/systemd/system/homenas.service <<EOF
@@ -220,11 +231,60 @@ fi
 systemctl daemon-reload 2>/dev/null || true
 systemctl enable avahi-daemon.service >/dev/null 2>&1 || true
 systemctl enable homenas.service
+# بعد كل تحديث وعند الإقلاع التالي: تأكد أن البرنامج يعمل، وإلا ارجع للإصدار السابق
+cat > /etc/systemd/system/hsef-update-verify.service <<'EOF'
+[Unit]
+Description=HOME ANAB: make sure the last update works (otherwise go back to the previous version)
+After=homenas.service
+ConditionPathExists=/var/lib/homenas/update-verify
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/hsef-extras update-verify
+TimeoutStartSec=1200
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload 2>/dev/null || true
+systemctl enable hsef-update-verify.service >/dev/null 2>&1 || true
+
+health() {  # هل يجيب البرنامج خلال $1 ثانية؟
+    python3 - "$PORT" "$1" <<'PY'
+import sys, time, urllib.error, urllib.request
+port, end = sys.argv[1], time.time() + float(sys.argv[2])
+while time.time() < end:
+    try:
+        urllib.request.urlopen(f"http://127.0.0.1:{port}/login", timeout=3)
+        sys.exit(0)
+    except urllib.error.HTTPError:
+        sys.exit(0)
+    except Exception:
+        time.sleep(2)
+sys.exit(1)
+PY
+}
+
 # داخل بيئة المثبّت لا يعمل systemd؛ الخدمة ستبدأ عند أول إقلاع
 if [ -d /run/systemd/system ]; then
     systemctl restart avahi-daemon.service || true
     systemctl restart homenas.service
-    sleep 3
+    if [ -n "${UPGRADED:-}" ]; then
+        log "Checking that the new version works"
+        if health 150; then
+            mkdir -p /var/lib/homenas
+            python3 -c "import json,time;json.dump({'ts':time.time(),'boots':0},open('/var/lib/homenas/update-verify','w'))"
+            rm -f /var/lib/homenas/update-rolledback
+            echo "OK"
+        else
+            log "The new version did not start - going back to the previous version"
+            journalctl -u homenas.service -n 25 --no-pager 2>/dev/null || true
+            /usr/local/sbin/hsef-extras update-rollback || true
+            exit 1
+        fi
+    else
+        sleep 3
+    fi
     systemctl --no-pager --lines=0 status homenas.service || true
 fi
 

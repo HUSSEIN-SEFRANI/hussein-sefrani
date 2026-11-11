@@ -286,10 +286,38 @@ function settingsCard(d, reload) {
       <label>طريقة الحساب<select class="field" name="method">${d.methods.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select></label>
     </div>
     <label class="check"><input type="checkbox" name="hanafi"> العصر حسب المذهب الحنفي</label>
+    <label style="display:block;margin-top:10px">مصدر المواقيت<select class="field" name="source" style="max-width:420px">
+      <option value="calc">الحساب حسب المدينة (بدون إنترنت)</option><option value="mawaqit">جدول مسجدي من Mawaqit</option></select></label>
+    <div class="tv-mq" style="margin-top:8px;padding:10px 12px;border:1px solid var(--border);border-radius:10px">
+      <div class="mq-st small"></div>
+      <label class="lbl">رابط صفحة المسجد على Mawaqit</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><input class="field" name="mq_url" dir="ltr" placeholder="https://mawaqit.net/fr/..." style="flex:1;min-width:240px">
+        <button class="btn sm" data-x="mq_fetch">${icon('download')} تحميل جدول السنة</button></div>
+      <p class="muted small" style="margin:8px 0 4px">بدون إنترنت على السيرفر: افتح صفحة المسجد على الكمبيوتر، احفظها بـ <b translate="no">Ctrl+S</b> (صفحة ويب، HTML)، ثم ارفع الملف هنا:</p>
+      <input type="file" name="mq_file" accept=".html,.htm,text/html"> <button class="btn sm ghost" data-x="mq_del">حذف الجدول</button>
+    </div>
+    <label class="lbl" style="margin-top:10px">تعديل بالدقائق لتطابق مسجدك (+ تأخير، − تقديم)</label>
+    <div class="tv-off" style="display:flex;gap:8px;flex-wrap:wrap">${[['fajr', 'الفجر'], ['dhuhr', 'الظهر'], ['asr', 'العصر'], ['maghrib', 'المغرب'], ['isha', 'العشاء']].map(([k, n]) =>
+      `<label style="width:90px">${n}<input class="field" type="number" min="-60" max="60" name="off_${k}" dir="ltr"></label>`).join('')}</div>
     <div class="muted small tv-today"></div>
+    <h4 style="margin-top:16px">${icon('audio')} الأذان على التلفاز</h4>
+    <label class="check"><input type="checkbox" name="ad_on"> تشغيل الأذان على التلفاز عند دخول وقت الصلاة</label>
+    <div class="tv-ad">
+      <div style="display:flex;gap:14px;flex-wrap:wrap">${[['fajr', 'الفجر'], ['dhuhr', 'الظهر'], ['asr', 'العصر'], ['maghrib', 'المغرب'], ['isha', 'العشاء']].map(([k, n]) =>
+        `<label class="check" style="margin:0"><input type="checkbox" name="ad_${k}"> ${n}</label>`).join('')}</div>
+      <div class="tv-grid" style="margin-top:8px">
+        <label>مستوى صوت الأذان (%)<input class="field" type="number" min="10" max="100" step="10" name="ad_volume"></label>
+        <label>تنبيه قبل الصلاة بـ (دقيقة، 0 = بدون)<input class="field" type="number" min="0" max="60" name="ad_remind"></label>
+      </div>
+      <label class="check"><input type="checkbox" name="ad_pause"> إيقاف الفيديو والأناشيد مؤقتاً أثناء الأذان</label>
+      <div class="ad-files small" style="margin-top:6px"></div>
+    </div>
     <h4 style="margin-top:16px">${icon('book')} كلمة اليوم</h4>
     <label class="check" style="display:inline-flex;margin-inline-end:16px"><input type="checkbox" name="w_fr"> الفرنسية</label>
     <label class="check" style="display:inline-flex"><input type="checkbox" name="w_en"> الإنجليزية</label>
+    <label class="check" style="margin-top:8px"><input type="checkbox" name="welcome"> شاشة ترحيب عند دخول كل شخص: كلمة جديدة بهذه اللغات</label>
+    <label class="check"><input type="checkbox" name="welcome_hadith"> ومعها حديث نبوي من الصحيحين (البخاري ومسلم)</label>
+    <button class="btn sm" data-x="hlist">${icon('book')} مراجعة قائمة الأحاديث</button>
     <div style="margin-top:14px"><button class="btn primary" data-x="save">حفظ</button></div></div>`);
   const f = (n) => $(`[name=${n}]`, c);
   f('wallpaper').value = s.wallpaper; f('saver_min').value = s.saver_min; f('nosleep').checked = s.nosleep;
@@ -297,11 +325,66 @@ function settingsCard(d, reload) {
   f('night_from').value = nf || ''; f('night_to').value = nt || '';
   f('prayer').checked = s.prayer; f('city').value = s.city || ''; f('lat').value = s.lat || ''; f('lon').value = s.lon || '';
   f('method').value = s.method; f('hanafi').checked = s.hanafi;
+  f('source').value = s.source || 'calc';
+  for (const k of ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha']) { f('off_' + k).value = (s.offsets || {})[k] || 0; f('ad_' + k).checked = (s.adhan.prayers || []).includes(k); }
+  f('ad_on').checked = !!s.adhan.on; f('ad_volume').value = s.adhan.volume || 80; f('ad_remind').value = s.adhan.remind || 0; f('ad_pause').checked = s.adhan.pause !== false;
+  const mqStatus = (m) => {
+    $('.mq-st', c).innerHTML = m ? `<span class="badge ok">✓</span> <b>${esc(m.name || '')}</b> · <span translate="no">${m.days}</span> يوماً من سنة <span translate="no">${m.year}</span>`
+      + (m.jumua ? ` · الجمعة <span translate="no">${esc(m.jumua)}</span>` : '') + ` <span class="muted">(حُمّل <span translate="no">${esc((m.fetched || '').replace('T', ' '))}</span>)</span>` : '<span class="muted">لم يُحمّل جدول بعد.</span>';
+    if (m && m.url) f('mq_url').value = m.url;
+  };
+  mqStatus(d.mawaqit);
+  const syncSrc = () => { $('.tv-mq', c).style.display = f('source').value === 'mawaqit' ? '' : 'none'; };
+  f('source').onchange = syncSrc; syncSrc();
+  const syncAd = () => { $('.tv-ad', c).style.display = f('ad_on').checked ? '' : 'none'; };
+  f('ad_on').onchange = syncAd; syncAd();
+  $('[data-x=mq_fetch]', c).onclick = async () => {
+    const url = f('mq_url').value.trim(); if (!url) { toast('ضع رابط صفحة المسجد', 'err'); return; }
+    toast('جارٍ التحميل…');
+    const r = await guard(() => api.post('/api/admin/tv/mawaqit', { url }));
+    if (r) { mqStatus(r.mawaqit); toast('تم: مواقيت المسجد للسنة كاملة', 'ok'); reload(); }
+  };
+  f('mq_file').onchange = async () => {
+    const file = f('mq_file').files[0]; if (!file) return;
+    const fd = new FormData(); fd.append('page', file); fd.append('url', f('mq_url').value.trim());
+    try {
+      const res = await fetch('/api/admin/tv/mawaqit', { method: 'POST', body: fd }); const r = await res.json();
+      if (!res.ok) throw new Error(r.error || res.status);
+      mqStatus(r.mawaqit); toast('تم: مواقيت المسجد للسنة كاملة', 'ok'); reload();
+    } catch (e) { toast(e.message, 'err'); }
+  };
+  $('[data-x=mq_del]', c).onclick = async () => { if (await guard(() => api.del('/api/admin/tv/mawaqit'))) { toast('تم الحذف', 'ok'); reload(); } };
+  const adFiles = (files) => {
+    const row = (w, label) => `<div style="margin:4px 0">${label}: ${files[w] ? `<span class="badge ok">موجود</span> <button class="btn sm ghost" data-ad-play="${w}">▶ استماع</button> <button class="btn sm ghost" data-ad-del="${w}">حذف</button>`
+      : '<span class="muted">لا يوجد — تُستعمل نغمة تنبيه هادئة</span>'} <label class="btn sm" style="cursor:pointer">${icon('upload')} رفع ملف MP3<input type="file" accept=".mp3,.m4a,.ogg,.wav,audio/*" data-ad-up="${w}" hidden></label></div>`;
+    const box = $('.ad-files', c);
+    box.innerHTML = row('main', 'صوت الأذان') + row('fajr', 'أذان الفجر (اختياري)');
+    let au = null;
+    box.querySelectorAll('[data-ad-play]').forEach((b) => (b.onclick = () => { au?.pause(); au = new Audio(`/api/tv/adhan/${b.dataset.adPlay}?t=${Date.now()}`); au.play(); }));
+    box.querySelectorAll('[data-ad-del]').forEach((b) => (b.onclick = async () => { const r = await guard(() => api.del(`/api/admin/tv/adhan/${b.dataset.adDel}`)); if (r) adFiles(r.files); }));
+    box.querySelectorAll('[data-ad-up]').forEach((inp) => (inp.onchange = async () => {
+      const file = inp.files[0]; if (!file) return;
+      const fd = new FormData(); fd.append('file', file);
+      try {
+        const res = await fetch(`/api/admin/tv/adhan/${inp.dataset.adUp}`, { method: 'POST', body: fd }); const r = await res.json();
+        if (!res.ok) throw new Error(r.error || res.status);
+        toast('تم رفع ملف الأذان', 'ok'); adFiles(r.files);
+      } catch (e) { toast(e.message, 'err'); }
+    }));
+  };
+  adFiles(d.adhan_files || {});
   f('w_fr').checked = s.words.includes('fr'); f('w_en').checked = s.words.includes('en');
+  f('welcome').checked = s.welcome !== false; f('welcome_hadith').checked = s.welcome_hadith !== false;
+  $('[data-x=hlist]', c).onclick = async () => {
+    const r = await guard(() => api.get('/api/admin/welcome/hadith')); if (!r) return;
+    modal({ title: `الأحاديث (${r.hadith.length}) — كلمات الترحيب: ${r.words}`, wide: true, body: h(`<div style="max-height:60vh;overflow:auto">
+      <p class="muted small">كل نص هنا موجود بلفظه في صحيح البخاري أو صحيح مسلم (تحقّقنا منه آلياً). ⭐ = يظهر للأطفال، ومعه شرح بسيط من كلامنا.</p>
+      <ol style="line-height:1.9">${r.hadith.map((x) => `<li><b>«${esc(x.text)}»</b> <span class="muted">— ${esc(x.source)}</span> ${x.kids ? '⭐' : ''}${x.explain ? `<div class="small muted">💡 ${esc(x.explain)}</div>` : ''}</li>`).join('')}</ol></div>`) });
+  };
   const syncCity = () => $$('.ll', c).forEach(l => { l.style.display = f('city').value ? 'none' : ''; });
   f('city').onchange = syncCity; syncCity();
   if (d.prayer && d.prayer.times) {
-    $('.tv-today', c).textContent = 'اليوم: ' + d.prayer.times.map(t => `${t.name} ${t.time}`).join(' · ');
+    $('.tv-today', c).textContent = (d.prayer.source === 'mawaqit' ? `اليوم (${d.prayer.city || 'المسجد'}): ` : 'اليوم: ') + d.prayer.times.map(t => `${t.name} ${t.time}`).join(' · ');
   }
   $('[data-x=save]', c).onclick = async () => {
     const nightFrom = f('night_from').value, nightTo = f('night_to').value;
@@ -311,6 +394,11 @@ function settingsCard(d, reload) {
       night_off: nightFrom && nightTo ? `${nightFrom}-${nightTo}` : '',
       prayer: f('prayer').checked, city: f('city').value, method: f('method').value, hanafi: f('hanafi').checked,
       words: ['ar', ...(f('w_fr').checked ? ['fr'] : []), ...(f('w_en').checked ? ['en'] : [])],
+      welcome: f('welcome').checked, welcome_hadith: f('welcome_hadith').checked,
+      source: f('source').value,
+      offsets: Object.fromEntries(['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'].map((k) => [k, +f('off_' + k).value || 0])),
+      adhan: { on: f('ad_on').checked, volume: +f('ad_volume').value || 80, remind: +f('ad_remind').value || 0, pause: f('ad_pause').checked,
+        prayers: ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'].filter((k) => f('ad_' + k).checked) },
     };
     if (!data.city) { data.lat = f('lat').value; data.lon = f('lon').value; }
     if (await guard(() => api.post('/api/admin/tv/settings', data))) { toast('تم الحفظ — يتحدث التلفاز خلال دقائق', 'ok'); reload(); }

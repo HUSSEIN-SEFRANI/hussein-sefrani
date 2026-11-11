@@ -95,10 +95,25 @@ def times_for(d: date, lat: float, lon: float, utc_offset_h: float, method: str 
     return {k: hm(v) for k, v in raw.items()}
 
 
-def today(lat: float, lon: float, method: str = "mwl", hanafi: bool = False, now: datetime | None = None) -> dict:
-    now = now or datetime.now().astimezone()
-    off = now.utcoffset().total_seconds() / 3600 if now.utcoffset() else 0
-    t = times_for(now.date(), lat, lon, off, method, hanafi)
+def shift(hm: str, minutes: int) -> str:
+    if not minutes:
+        return hm
+    h, m = map(int, hm.split(":"))
+    t = (h * 60 + m + int(minutes)) % 1440
+    return f"{t // 60:02d}:{t % 60:02d}"
+
+
+def finish(t: dict, now: datetime, offsets: dict | None = None) -> dict:
+    """يضيف تعديل الدقائق لكل صلاة، ويحدد الصلاة القادمة."""
+    t = {k: shift(v, (offsets or {}).get(k, 0)) for k, v in t.items()}
     cur = now.strftime("%H:%M")
     nxt = next((k for k, _ in NAMES if k != "sunrise" and t[k] > cur), "fajr")
-    return {"times": [{"key": k, "name": n, "time": t[k], "next": k == nxt} for k, n in NAMES], "next": nxt}
+    return {"times": [{"key": k, "name": n, "time": t[k], "next": k == nxt} for k, n in NAMES], "next": nxt,
+            "date": now.date().isoformat()}
+
+
+def today(lat: float, lon: float, method: str = "mwl", hanafi: bool = False, now: datetime | None = None,
+          offsets: dict | None = None) -> dict:
+    now = now or datetime.now().astimezone()
+    off = now.utcoffset().total_seconds() / 3600 if now.utcoffset() else 0
+    return finish(times_for(now.date(), lat, lon, off, method, hanafi), now, offsets)

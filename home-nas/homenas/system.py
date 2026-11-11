@@ -660,6 +660,17 @@ def api_update_run():
     return jsonify(ok=True)
 
 
+@bp.post("/api/admin/update/rollback")
+@admin_required
+def api_update_rollback():
+    """الرجوع إلى الإصدار السابق (يُحفظ تلقائياً عند كل تحديث)."""
+    ok, out = _extras("update-rollback-bg")
+    if not ok:
+        abort(400, out or "error")
+    log_action("الرجوع إلى الإصدار السابق")
+    return jsonify(ok=True)
+
+
 @bp.post("/api/admin/update/upload")
 @admin_required
 def api_update_upload():

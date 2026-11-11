@@ -792,6 +792,21 @@ function updateCard() {
     const r = await api.get('/api/admin/update').catch(() => null);
     if (!r) { box.textContent = 'تعذر الاتصال بالسيرفر'; timer = setTimeout(draw, 5000); return; }
     const st = r.status || {};
+    const rb = st.rolled_back;
+    const prevBox = () => {
+      const parts = [];
+      if (rb && rb.from && !st.running) parts.push(`<p class="alert warn small">${rb.reason === 'manual' ? 'رجعت إلى الإصدار السابق' : 'التحديث الأخير لم يعمل، فأعاد النظام الإصدار السابق تلقائياً'}: <b translate="no">v${esc(rb.to)}</b> (بدل <span translate="no">v${esc(rb.from)}</span>).</p>`);
+      if (st.previous && st.previous !== r.current && !st.running)
+        parts.push(`<p class="small" style="margin-top:10px"><button class="btn sm" data-a="rollback">${icon('refresh')} الرجوع إلى الإصدار السابق <span translate="no">v${esc(st.previous)}</span></button> <span class="muted">إن ظهرت مشكلة بعد التحديث</span></p>`);
+      return parts.join('');
+    };
+    const wireRollback = () => {
+      const b = $('[data-a=rollback]', box); if (!b) return;
+      b.onclick = async () => {
+        if (!await confirmBox(`الرجوع إلى الإصدار v${st.previous}؟ تبقى كل الملفات والصور والإعدادات.`, { ok: 'رجوع' })) return;
+        if (await guard(() => api.post('/api/admin/update/rollback', {}))) { toast('جارٍ الرجوع…', 'ok'); setTimeout(draw, 2000); }
+      };
+    };
     if (st.running) {
       box.innerHTML = `<p><span class="badge accent">جارٍ التحديث…</span> لا تطفئ الجهاز. قد يستغرق بضع دقائق، وستُعاد الصفحة تلقائياً.</p><pre class="code" style="white-space:pre-wrap" translate="no"></pre>`;
       $('pre', box).textContent = st.log || '';
@@ -805,16 +820,18 @@ function updateCard() {
         : /timed out|timeout/i.test(e) ? 'انتهت مهلة الاتصال: الإنترنت بطيء أو غير متاح.'
         : /refused|unreachable|Network is/.test(e) ? 'لا يوجد اتصال بالشبكة الخارجية.'
         : /403|rate limit/i.test(e) ? 'GitHub رفض الطلب مؤقتاً. أعد المحاولة بعد ساعة.' : '';
-      box.innerHTML = `<p class="muted">الإصدار الحالي <b translate="no">v${esc(r.current)}</b>. تعذر التحقق من التحديثات عبر الإنترنت.</p>
+      box.innerHTML = prevBox() + `<p class="muted">الإصدار الحالي <b translate="no">v${esc(r.current)}</b>. تعذر التحقق من التحديثات عبر الإنترنت.</p>
         ${why ? `<p class="alert warn small">${why}</p>` : ''}
         <details class="small"><summary>التفاصيل التقنية</summary><code translate="no" style="white-space:pre-wrap">${esc(e)}</code></details>
         <p class="muted small">يمكنك دائماً التحديث من فلاشة (أدناه).</p> <button class="btn sm" data-a="retry">${icon('refresh')} إعادة المحاولة</button>`;
       $('[data-a=retry]', box).onclick = () => { box.textContent = 'جارٍ التحقق…'; draw(); };
+      wireRollback();
       return;
     }
     if (!r.available) {
       box.innerHTML = `<p><span class="badge ok">النظام محدّث</span> الإصدار الحالي <b translate="no">v${esc(r.current)}</b></p>`
-        + (st.failed ? `<p class="alert err small" translate="no">${esc(st.log || '')}</p>` : '');
+        + (st.failed && !rb ? `<p class="alert err small" translate="no">${esc(st.log || '')}</p>` : '') + prevBox();
+      wireRollback();
       return;
     }
     box.innerHTML = `<p>يتوفر إصدار جديد: <b translate="no">v${esc(r.latest)}</b> (الحالي <span translate="no">v${esc(r.current)}</span>)</p>

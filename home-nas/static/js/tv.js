@@ -128,6 +128,13 @@ function setFocus(el, scroll = true) {
   t?.onFocus?.(el);
 }
 function ensureVisible(el) {
+  const hs = el.closest(".profiles");
+  if (hs) {  // شريط أفقي
+    const r = el.getBoundingClientRect(), c = hs.getBoundingClientRect(), p = 60 * scale;
+    if (r.left < c.left + p) hs.scrollBy({ left: (r.left - c.left - p) / scale, behavior: "smooth" });
+    else if (r.right > c.right - p) hs.scrollBy({ left: (r.right - c.right + p) / scale, behavior: "smooth" });
+    return;
+  }
   const sc = el.closest(".grid-wrap, .list");
   if (!sc) return;
   const r = el.getBoundingClientRect(), c = sc.getBoundingClientRect(), p = 34 * scale;
@@ -411,7 +418,7 @@ async function whoScreen(boot = false) {
     } else if (p.has_pin) sub = `<span style="display:flex">${A.LOCK}</span>`;
     const age = (p.role === "kid" || p.role === "little") && p.age != null ? `<div class="sub">عمري ${ageText(p.age)}</div>` : "";
     return `<button class="pf f" data-id="${p.id}"><div class="ring">${face(p)}</div>
-      <div class="nm baloo">${esc(p.name)}</div><div class="sub">${sub}</div>${age}</button>`;
+      <div class="nm baloo">${esc(p.name)}</div><div class="pf-stars"><span class="emo">⭐</span> ${p.stars ?? 0}</div><div class="sub">${sub}</div>${age}</button>`;
   }).join("");
   setTheme("grape");
   const el = h(`<div class="who bg-night">${nightBg()}${vineLayer("grape")}
@@ -421,11 +428,22 @@ async function whoScreen(boot = false) {
       ${d.setup.urls.map((u) => `<bdi dir="ltr"><b style="font-size:30px;color:#fde68a">${esc(u)}</b></bdi>`).join("<br>")}
       <div style="display:flex;gap:18px;align-items:center;justify-content:center;margin-top:18px"><img src="/static/img/whatsapp-qr.png" alt="" style="width:120px;height:120px;border-radius:12px;background:#fff;padding:4px">
       <span style="text-align:right">رمز الإعداد: اطلبه من المطوّر عبر واتساب<br><bdi dir="ltr"><b>+32 494 49 94 30</b></bdi></span></div></div>`
-    : d.profiles.length ? `<div class="profiles">${cards}</div>` : `<div class="empty-who">لا توجد ملفات على التلفاز بعد.<br>من الكمبيوتر افتح لوحة التحكم ← <b>وضع التلفاز</b> واختر نوع كل مستخدم (بالغ أو طفل).</div>`}
+    : d.profiles.length ? `<div class="pf-wrap"><div class="profiles">${cards}</div><div class="pf-arrow r">›</div><div class="pf-arrow l">‹</div></div>` : `<div class="empty-who">لا توجد ملفات على التلفاز بعد.<br>من الكمبيوتر افتح لوحة التحكم ← <b>وضع التلفاز</b> واختر نوع كل مستخدم (بالغ أو طفل).</div>`}
     ${hints([["← →", "للتنقل"], ["موافق", "للدخول"]])}</div>`);
   const byId = Object.fromEntries(d.profiles.map((p) => [String(p.id), p]));
   el.querySelectorAll(".pf").forEach((b) => b.addEventListener("click", () => chooseProfile(byId[b.dataset.id])));
-  reset({ el, back() {}, refresh: null });
+  // شريط واحد يمرَّر يميناً ويساراً، مع سهمين عند وجود أشخاص خارج الشاشة
+  const row = el.querySelector(".profiles");
+  const arrows = () => {
+    if (!row) return;
+    const c = row.getBoundingClientRect(), cards = row.querySelectorAll(".pf");
+    const xs = [...cards].map((x) => x.getBoundingClientRect());
+    el.querySelector(".pf-arrow.l").classList.toggle("on", xs.some((r) => r.left < c.left - 2));
+    el.querySelector(".pf-arrow.r").classList.toggle("on", xs.some((r) => r.right > c.right + 2));
+  };
+  row?.addEventListener("scroll", arrows);
+  reset({ el, back() {}, refresh: null, onFocus: () => setTimeout(arrows, 350) });
+  setTimeout(arrows, 50);
 }
 
 async function chooseProfile(p) {
@@ -433,13 +451,39 @@ async function chooseProfile(p) {
     pinScreen({ title: `أهلاً ${p.name}`, sub: "أدخل رمزك", avatar: p.avatar, face: face(p) }, async (pin) => {
       await api("/api/tv/login", { json: { id: p.id, pin } });
       await homeScreen();
+      welcomeScreen();
     });
     return;
   }
   try {
     await api("/api/tv/login", { json: { id: p.id } });
     await homeScreen();
+    welcomeScreen();
   } catch (e) { toast(e.message); }
+}
+
+// ============================================================== الترحيب: كلمة بثلاث لغات وحديث نبوي
+async function welcomeScreen() {
+  let w;
+  try { w = await api("/api/tv/welcome"); } catch { return; }
+  if (!w.show) return;
+  const wd = w.word, hd = w.hadith;
+  const el = h(`<div class="bg-dark welcome${w.kid ? " kid" : ""}">
+    <h1 class="wl-hi">أهلاً يا ${esc(w.name)}! <span class="emo">👋</span></h1>
+    <div class="wl-cards${hd ? "" : " one"}">
+      <div class="wl-card word"><div class="wl-lbl">كلمة جديدة</div><div class="emo wl-pic">${wd.emoji}</div>
+        <div class="wl-ar">${esc(wd.ar)}</div>
+        ${wd.fr ? `<div class="wl-tr"><span class="fl">FR</span><bdi dir="ltr">${esc(wd.fr)}</bdi></div>` : ""}
+        ${wd.en ? `<div class="wl-tr"><span class="fl">EN</span><bdi dir="ltr">${esc(wd.en)}</bdi></div>` : ""}</div>
+      ${hd ? `<div class="wl-card hadith"><div class="wl-lbl">قال رسول الله ﷺ</div><div class="wl-h">«${esc(hd.text)}»</div>
+        <div class="wl-src">${esc(hd.source)}</div>${hd.explain ? `<div class="wl-ex"><span class="emo">💡</span> ${esc(hd.explain)}</div>` : ""}</div>` : ""}
+    </div>
+    <button class="btn gold f wl-ok">متابعة ✓</button><div class="wl-bar"><i></i></div></div>`);
+  let t = 0;
+  const close = () => { clearTimeout(t); if (top() && top().el === el) pop(); };
+  el.querySelector(".wl-ok").addEventListener("click", close);
+  push({ el, initial: () => el.querySelector(".wl-ok"), destroy() { clearTimeout(t); } });
+  t = setTimeout(close, 20000);
 }
 
 // ============================================================== الرمز
@@ -628,6 +672,24 @@ function openTile(t) {
 const isKid = () => me && me.user.role !== "adult";
 const fileUrl = (t, p) => `/api/tv/tile/${t.id}/file?p=${encodeURIComponent(p)}`;
 const thumbUrl = (t, p) => `/api/tv/tile/${t.id}/thumb?p=${encodeURIComponent(p)}`;
+const vinfoUrl = (t, p) => `/api/tv/tile/${t.id}/vinfo?p=${encodeURIComponent(p)}`;
+// فيديو الآيفون (HEVC) وغيره: يسأل السيرفر هل يُشغَّل كما هو أم يحتاج تحويلاً، وينتظر التحويل مع عرض التقدم
+const PREP = `<div class="prep" hidden><div class="spin"></div><b>جارٍ تجهيز الفيديو للتلفاز…</b><span class="pp"></span>
+  <small>فيديو الآيفون يُحوَّل مرة واحدة فقط، ثم يعمل فوراً في كل مرة</small></div>`;
+async function videoSource(infoUrl, directUrl, alive, prep) {
+  for (;;) {
+    let r;
+    try { r = await api(infoUrl); } catch { return directUrl; }
+    if (!alive()) return undefined;
+    if (r.mode === "direct") { prep.hidden = true; return directUrl; }
+    if (r.mode === "ready") { prep.hidden = true; return r.url; }
+    if (r.mode === "error") { prep.hidden = true; return null; }
+    prep.hidden = false;
+    prep.querySelector(".pp").textContent = r.position > 1 ? `في الانتظار: قبله ${r.position - 1}` : `${r.progress || 0}%`;
+    await new Promise((res) => setTimeout(res, 2000));
+    if (!alive()) return undefined;
+  }
+}
 
 function header(t, title, crumb, extra = "") {
   return `<div class="bhead"><button class="back f js-back">${A.CHEVRON}<span>${crumb ? "رجوع" : "الرئيسية"}</span></button>
@@ -693,7 +755,7 @@ async function browseScreen(t, sub) {
 
 // ============================================================== الفيديو
 function videoScreen(t, paths, idx) {
-  const el = h(`<div class="player"><video autoplay playsinline></video>
+  const el = h(`<div class="player"><video autoplay playsinline></video>${PREP}
     <div class="bigplay" hidden>${A.PAUSE}</div><div class="counter"></div>
     <div class="osd"><div class="tt"></div><div class="bar"><i></i></div><div class="row"><span class="ct">0:00</span><span class="du">0:00</span></div>
     <div class="keys"><span><b>موافق</b>إيقاف/تشغيل</span><span><b>← →</b>ترجيع/تقديم</span><span><b>↑ ↓</b>الصوت</span><span><b>M</b>كتم</span><span><b>⏮ ⏭</b>السابق/التالي</span><span><b>رجوع</b>خروج</span></div></div></div>`);
@@ -706,13 +768,19 @@ function videoScreen(t, paths, idx) {
     clearTimeout(hideT);
     hideT = setTimeout(() => { if (!v.paused) { osd.classList.add("hide"); counter.style.opacity = 0; } }, 3500);
   };
-  const load = (i) => {
+  let loadTok = 0;
+  const load = async (i) => {
     idx = i;
-    v.src = fileUrl(t, paths[i]);
-    v.play().catch(() => {});
+    const tok = ++loadTok;
+    v.removeAttribute("src"); v.load();
     el.querySelector(".tt").textContent = paths[i].split("/").pop().replace(/\.[^.]+$/, "");
     counter.textContent = paths.length > 1 ? `${i + 1} / ${paths.length}` : "";
     showOsd();
+    const src = await videoSource(vinfoUrl(t, paths[i]), fileUrl(t, paths[i]), () => tok === loadTok && el.isConnected, el.querySelector(".prep"));
+    if (src === undefined) return;
+    if (!src) { toast("تعذر تجهيز هذا الفيديو للتلفاز"); setTimeout(next, 2500); return; }
+    v.src = src;
+    v.play().catch(() => {});
   };
   const next = () => (idx + 1 < paths.length ? load(idx + 1) : pop());
   v.addEventListener("timeupdate", () => {
@@ -793,12 +861,12 @@ function audioScreen(t, paths, idx) {
 
 // ============================================================== عارض الصور وعرض الشرائح
 function viewerScreen(items, idx, slideshow = false) {
-  const el = h(`<div class="player"><div class="pimg"></div><div class="pimg"></div><video playsinline style="display:none"></video>
+  const el = h(`<div class="player"><div class="pimg"></div><div class="pimg"></div><video playsinline style="display:none"></video>${PREP}
     <div class="counter"></div>
     <div class="osd hide"><div class="tt"></div><div class="keys"><span><b>← →</b>التالي/السابق</span><span><b>موافق</b>عرض شرائح</span><span><b>رجوع</b>خروج</span></div></div></div>`);
   const [l1, l2] = el.querySelectorAll(".pimg");
   const v = el.querySelector("video"), counter = el.querySelector(".counter"), osd = el.querySelector(".osd");
-  let front = l1, timer = 0, hideT = 0, playing = slideshow;
+  let front = l1, timer = 0, hideT = 0, playing = slideshow, showTok = 0;
   const showOsd = (ms = 3000) => { osd.classList.remove("hide"); counter.style.opacity = 1; clearTimeout(hideT); hideT = setTimeout(() => { osd.classList.add("hide"); if (playing) counter.style.opacity = 0; }, ms); };
   const schedule = () => { clearTimeout(timer); if (playing && !items[idx].video) timer = setTimeout(() => go(1), 6500); };
   const show = (i) => {
@@ -806,12 +874,19 @@ function viewerScreen(items, idx, slideshow = false) {
     const it = items[idx];
     counter.textContent = `${idx + 1} / ${items.length}`;
     el.querySelector(".tt").textContent = it.name || "";
+    const tok = ++showTok;
     if (it.video) {
       l1.classList.remove("show"); l2.classList.remove("show");
-      v.style.display = ""; v.src = it.src; v.play().catch(() => {});
+      v.style.display = ""; v.removeAttribute("src"); v.load();
       clearTimeout(timer);
+      (it.info ? videoSource(it.info, it.src, () => tok === showTok && el.isConnected, el.querySelector(".prep")) : Promise.resolve(it.src)).then((src) => {
+        if (src === undefined) return;
+        if (!src) { toast("تعذر تجهيز هذا الفيديو للتلفاز"); return; }
+        v.src = src; v.play().catch(() => {});
+      });
       return;
     }
+    el.querySelector(".prep").hidden = true;
     v.pause(); v.style.display = "none";
     const next = front === l1 ? l2 : l1;
     const img = new Image();
@@ -879,7 +954,7 @@ async function photosScreen(t) {
       : `<div class="empty">${A.icon("photos")}<div>لا توجد صور بعد.<br>ارفع الصور من الهاتف إلى تطبيق «الصور» في السيرفر.</div></div>`}
     ${hints([["موافق", "عرض الصورة"], ["رجوع", "الرئيسية"]])}</div>`);
   const grid = el.querySelector(".grid");
-  const toView = () => items.map((x) => ({ src: `/api/tv/photo/${x.id}/view`, video: !!x.is_video, name: "" }));
+  const toView = () => items.map((x) => ({ src: `/api/tv/photo/${x.id}/view`, video: !!x.is_video, name: "", info: x.is_video ? `/api/tv/photo/${x.id}/vinfo` : null }));
   const bind = (root) => root.querySelectorAll(".it:not([data-b])").forEach((b) => {
     b.dataset.b = 1;
     b.addEventListener("click", () => viewerScreen(toView(), +b.dataset.i));
@@ -1043,12 +1118,82 @@ function applyPrefs() {
 document.addEventListener("visibilitychange", keepAwake);
 
 // تحديث المواقيت وكلمة اليوم كل نصف ساعة (وعند منتصف الليل)
-setInterval(async () => {
+let clockData = null;
+async function loadClock(refresh = true) {
   try {
-    const c = await api("/api/tv/clock");
-    stack.forEach((s) => s.refresh?.(c));
+    clockData = await api("/api/tv/clock");
+    if (refresh) stack.forEach((s) => s.refresh?.(clockData));
   } catch { /* */ }
-}, 30 * 60000);
+}
+setInterval(loadClock, 30 * 60000);
+setTimeout(() => loadClock(false), 3000);
+
+// ============================================================== الأذان
+const adhanDone = {};
+const hmShift = (hm, m) => { const [a, b] = hm.split(":").map(Number); const t = (a * 60 + b + m + 1440) % 1440; return `${pad(Math.floor(t / 60))}:${pad(t % 60)}`; };
+function localDay(d = new Date()) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+function chime(seconds = 7) {
+  try {
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    const notes = [523.25, 659.25, 783.99, 659.25, 523.25, 392];
+    for (let i = 0; i < seconds; i++) {
+      const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + i * 1.1;
+      o.type = "sine"; o.frequency.value = notes[i % notes.length];
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+      o.connect(g).connect(ac.destination); o.start(t); o.stop(t + 1.7);
+    }
+    setTimeout(() => ac.close(), seconds * 1100 + 2000);
+  } catch { /* */ }
+}
+function playingMedia() {
+  const out = [];
+  const scan = (doc) => { try { doc.querySelectorAll("video, audio").forEach((m) => { if (!m.paused && !m.ended) out.push(m); }); doc.querySelectorAll("iframe").forEach((f) => { try { scan(f.contentDocument); } catch { /* */ } }); } catch { /* */ } };
+  scan(document);
+  return out;
+}
+function playAdhan(t, c) {
+  const a = c.adhan;
+  const paused = a.pause ? playingMedia() : [];
+  paused.forEach((m) => m.pause());
+  const ov = h(`<div class="adhan-ov"><div class="adhan-card"><div class="emo mosque">🕌</div><h2>حان الآن وقت صلاة ${esc(t.name)}</h2>
+    <p>${esc(c.prayer.city || "")} · <span class="ltr">${esc(t.time)}</span></p><small>اضغط أي زر لإيقاف الأذان</small></div></div>`);
+  stage.appendChild(ov);
+  let au = null, done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    document.removeEventListener("keydown", stopKey, true);
+    au?.pause();
+    ov.classList.add("out"); setTimeout(() => ov.remove(), 600);
+    setTimeout(() => paused.forEach((m) => m.play().catch(() => {})), 1200);
+  };
+  const stopKey = (e) => { e.stopPropagation(); e.preventDefault(); finish(); };
+  document.addEventListener("keydown", stopKey, true);
+  const src = t.key === "fajr" && a.files.fajr ? "/api/tv/adhan/fajr" : a.files.main ? "/api/tv/adhan/main" : null;
+  if (src) {
+    au = new Audio(src); au.volume = Math.max(0.1, Math.min(1, (a.volume || 80) / 100));
+    au.onended = () => setTimeout(finish, 4000);
+    au.onerror = () => { chime(); setTimeout(finish, 12000); };
+    au.play().catch(() => { chime(); setTimeout(finish, 12000); });
+  } else { chime(); setTimeout(finish, 15000); }
+  setTimeout(finish, 6 * 60000);
+}
+function adhanTick() {
+  const c = clockData;
+  if (!c || !c.adhan || !c.adhan.on || !c.prayer || !c.prayer.times) return;
+  const now = new Date(), day = localDay(now);
+  if (c.prayer.date && c.prayer.date !== day) { loadClock(); return; }
+  const hm = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  for (const t of c.prayer.times) {
+    if (t.key === "sunrise" || !(c.adhan.prayers || []).includes(t.key)) continue;
+    const k = day + t.key;
+    if (t.time === hm && !adhanDone[k]) { adhanDone[k] = 1; playAdhan(t, c); }
+    if (c.adhan.remind && hmShift(t.time, -c.adhan.remind) === hm && !adhanDone[k + "r"]) {
+      adhanDone[k + "r"] = 1; chime(2); toast(`🕌 بعد ${c.adhan.remind} دقيقة: صلاة ${t.name}`, 10000);
+    }
+  }
+}
+setInterval(adhanTick, 15000);
 
 // ============================================================== يد التحكم (بلايستيشن وغيرها)
 // ✕ موافق، ○ رجوع، الأسهم أو العصا للتنقل، L1/R1 السابق/التالي، L2/R2 الصوت، Options تشغيل/إيقاف، PS الرئيسية.

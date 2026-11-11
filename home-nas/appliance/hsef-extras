@@ -14,6 +14,8 @@
     hsef-extras update-check             latest HOME ANAB release as JSON
     hsef-extras update-run               download and install the latest release in the background
     hsef-extras update-status            progress of update-run as JSON
+    hsef-extras update-rollback          go back to the previous version (kept in /opt/homenas/app.prev)
+    hsef-extras update-verify            after an update: go back automatically if the app does not start
 """
 import json
 import os
@@ -539,10 +541,83 @@ def update_file(src: str):
     background("hsef-update", "update-apply-file", log=UPD_LOG)
 
 
+APP_PREV = Path("/opt/homenas/app.prev")
+UPD_VERIFY = Path("/var/lib/homenas/update-verify")
+UPD_ROLLED = Path("/var/lib/homenas/update-rolledback")
+
+
+def version_of(app: Path) -> str | None:
+    import re
+    try:
+        return re.search(r'__version__ = "(.+?)"', (app / "homenas" / "__init__.py").read_text()).group(1)
+    except Exception:
+        return None
+
+
+def app_healthy(seconds: int) -> bool:
+    import urllib.error
+    import urllib.request
+    end = _time.time() + seconds
+    url = f"http://127.0.0.1:{hsef_port()}/login"
+    while _time.time() < end:
+        try:
+            urllib.request.urlopen(url, timeout=3)
+            return True
+        except urllib.error.HTTPError:
+            return True
+        except Exception:
+            _time.sleep(3)
+    return False
+
+
+def update_rollback(reason: str = "manual"):
+    """يرجع للإصدار السابق المحفوظ في /opt/homenas/app.prev (يعيد تثبيته كاملاً)."""
+    import tempfile
+    prev = version_of(APP_PREV)
+    if not prev or not (APP_PREV / "appliance" / "install.sh").exists():
+        die("no previous version to go back to")
+    broken = current_version()
+    print(f"going back from {broken} to {prev} ...", flush=True)
+    tmp = Path(tempfile.mkdtemp(prefix="hsef-rollback-"))
+    try:
+        shutil.copytree(APP_PREV, tmp / "app", symlinks=True)
+        rc = subprocess.run(["bash", str(tmp / "app" / "appliance" / "install.sh"), "--appliance"],
+                            env=dict(os.environ, HSEF_ROLLBACK="1")).returncode
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    UPD_VERIFY.unlink(missing_ok=True)
+    UPD_ROLLED.parent.mkdir(parents=True, exist_ok=True)
+    UPD_ROLLED.write_text(json.dumps({"from": broken, "to": prev, "reason": reason, "ts": _time.time(), "ok": rc == 0}))
+    if rc != 0:
+        die("rollback install failed")
+    print("done", flush=True)
+
+
+def update_verify():
+    """عند الإقلاع بعد تحديث: إن لم يعمل البرنامج خلال 6 دقائق نرجع للإصدار السابق تلقائياً."""
+    if not UPD_VERIFY.exists():
+        return
+    if app_healthy(360):
+        UPD_VERIFY.unlink(missing_ok=True)
+        return
+    if version_of(APP_PREV):
+        update_rollback("boot")
+        subprocess.run(["systemctl", "restart", "homenas.service"], capture_output=True)
+        subprocess.run(["systemctl", "try-restart", "hsef-tv.service"], capture_output=True)
+    else:
+        UPD_VERIFY.unlink(missing_ok=True)
+
+
 def update_status():
     running = unit_active("hsef-update")
     failed = subprocess.run(["systemctl", "is-failed", "--quiet", "hsef-update"]).returncode == 0
-    print(json.dumps({"running": running, "failed": failed, "log": tail(UPD_LOG, 6), "current": current_version()}))
+    rolled = None
+    try:
+        rolled = json.loads(UPD_ROLLED.read_text())
+    except (OSError, ValueError):
+        pass
+    print(json.dumps({"running": running, "failed": failed, "log": tail(UPD_LOG, 8), "current": current_version(),
+                      "previous": version_of(APP_PREV), "rolled_back": rolled}))
 
 
 # ============================================================================= v1.3: الشبكة، الوقت، بدون إنترنت، البلوتوث، الشاشة
@@ -1220,9 +1295,17 @@ def main():
             UPD_PKG.unlink(missing_ok=True)
     elif a == ["update-status"]:
         if FAKE:
-            print(json.dumps({"running": False, "failed": False, "log": "", "current": current_version()}))
+            print(json.dumps({"running": False, "failed": False, "log": "", "current": current_version(), "previous": "1.5", "rolled_back": None}))
             return
         update_status()
+    elif a == ["update-rollback"]:
+        update_rollback()
+    elif a == ["update-rollback-bg"]:  # من صفحة التحديث: في الخلفية حتى لا يتوقف مع إعادة تشغيل الخدمة
+        if FAKE:
+            return
+        background("hsef-update", "update-rollback", log=UPD_LOG)
+    elif a == ["update-verify"]:
+        update_verify()
     else:
         die("usage: hsef-extras faces-deps | ts-* | tv-setup|tv-status|tv-enable|tv-disable|tv-restart | update-check|update-run|update-status")
 

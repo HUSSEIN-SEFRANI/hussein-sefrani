@@ -14,15 +14,16 @@ import mimetypes
 import os
 import re
 import subprocess
+from urllib.parse import quote
 from datetime import date, datetime
 from pathlib import Path
 
 from flask import Blueprint, abort, jsonify, render_template, request, send_file, session
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from .core import (IMAGE_EXT, RECYCLE, VIDEO_EXT, admin_required, body, current_user, get_db, get_setting,
+from .core import (BROWSER_IMAGE_EXT, IMAGE_EXT, RECYCLE, VIDEO_EXT, admin_required, body, current_user, get_db, get_setting,
                    log_action, now_iso, paths, set_setting)
-from . import prayer
+from . import mawaqit, prayer
 
 bp = Blueprint("tv", __name__)
 
@@ -129,12 +130,40 @@ def tv_settings() -> dict:
         "words": json.loads(g("tv_words", '["ar","fr","en"]')), "nosleep": g("tv_nosleep", "1") == "1",
         "saver_min": int(g("tv_saver_min", "10")), "night_off": g("tv_night_off", ""),
         "zoom": int(g("tv_zoom", "100")), "margin": int(g("tv_margin", "0")), "text": int(g("tv_text", "100")),
+        "source": g("tv_prayer_source", "calc"), "offsets": json.loads(g("tv_prayer_off", "{}")),
+        "adhan": {**ADHAN_DEFAULT, **json.loads(g("tv_adhan", "{}"))},
+        "welcome": g("tv_welcome", "1") == "1", "welcome_hadith": g("tv_welcome_hadith", "1") == "1",
     }
 
 
+ADHAN_DEFAULT = {"on": False, "prayers": ["fajr", "dhuhr", "asr", "maghrib", "isha"], "volume": 80, "remind": 0, "pause": True}
+PRAYER_KEYS = ("fajr", "sunrise", "dhuhr", "asr", "maghrib", "isha")
+
+
+def adhan_dir() -> Path:
+    d = paths().system / "adhan"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def adhan_files() -> dict:
+    return {w: (adhan_dir() / f"{w}.mp3").exists() for w in ("main", "fajr")}
+
+
 def prayer_now(s: dict) -> dict | None:
-    if not s["prayer"]:
+    if not s["prayer"] and not s["adhan"].get("on"):
         return None
+    if s.get("source") == "mawaqit":
+        from . import mawaqit
+        data = mawaqit.load(paths().system)
+        now = datetime.now().astimezone()
+        t = mawaqit.times_for(data, now.date())
+        if t:
+            out = prayer.finish(t, now, s.get("offsets"))
+            out["city"] = data.get("name")
+            out["source"] = "mawaqit"
+            out["jumua"] = data.get("jumua")
+            return out
     lat, lon = s["lat"], s["lon"]
     if s["city"] in prayer.CITIES:
         _, lat, lon = prayer.CITIES[s["city"]]
@@ -142,8 +171,9 @@ def prayer_now(s: dict) -> dict | None:
         lat, lon = float(lat), float(lon)
     except (TypeError, ValueError):
         return {"city": None, "times": None}
-    out = prayer.today(lat, lon, s["method"], s["hanafi"])
+    out = prayer.today(lat, lon, s["method"], s["hanafi"], offsets=s.get("offsets"))
     out["city"] = prayer.CITIES[s["city"]][0] if s["city"] in prayer.CITIES else None
+    out["source"] = "calc"
     return out
 
 
@@ -254,7 +284,9 @@ def api_admin_tv():
     return jsonify(settings=tv_settings(), users=users, kiosk=kiosk, available=APPLIANCE and os.path.exists(HELPER),
                    cities=[{"id": k, "name": v[0]} for k, v in prayer.CITIES.items()],
                    methods=[{"id": k, "name": v[0]} for k, v in prayer.METHODS.items()],
-                   icons=ICONS, colors=COLORS, prayer=prayer_now(tv_settings()))
+                   icons=ICONS, colors=COLORS, prayer=prayer_now(tv_settings()),
+                   mawaqit=mawaqit.summary(mawaqit.load(paths().system)),
+                   adhan_files=adhan_files())
 
 
 @bp.post("/api/admin/tv/settings")
@@ -281,8 +313,89 @@ def api_admin_tv_settings():
         set_setting("tv_saver_min", str(max(0, min(240, int(d["saver_min"] or 0)))))
     if "words" in d:
         set_setting("tv_words", json.dumps([x for x in d["words"] if x in ("ar", "fr", "en")]))
+    for key, sk in (("welcome", "tv_welcome"), ("welcome_hadith", "tv_welcome_hadith")):
+        if key in d:
+            set_setting(sk, "1" if d[key] else "0")
+    if d.get("source") in ("calc", "mawaqit"):
+        set_setting("tv_prayer_source", d["source"])
+    if isinstance(d.get("offsets"), dict):
+        set_setting("tv_prayer_off", json.dumps({k: max(-60, min(60, int(d["offsets"].get(k) or 0))) for k in PRAYER_KEYS}))
+    if isinstance(d.get("adhan"), dict):
+        a = d["adhan"]
+        set_setting("tv_adhan", json.dumps({
+            "on": bool(a.get("on")), "pause": bool(a.get("pause", True)),
+            "prayers": [k for k in a.get("prayers") or [] if k in PRAYER_KEYS and k != "sunrise"],
+            "volume": max(10, min(100, int(a.get("volume") or 80))), "remind": max(0, min(60, int(a.get("remind") or 0)))}))
     log_action("تعديل إعدادات وضع التلفاز")
     return jsonify(ok=True)
+
+
+@bp.post("/api/admin/tv/mawaqit")
+@admin_required
+def api_admin_mawaqit():
+    """جدول السنة من صفحة المسجد على Mawaqit: من الرابط (إنترنت) أو من ملف الصفحة المحفوظ (بدون إنترنت)."""
+    from . import mawaqit
+    from .sysadmin import is_offline
+    try:
+        if request.files.get("page"):
+            data = mawaqit.parse(request.files["page"].read(8 * 1024 * 1024).decode("utf-8", "replace"))
+            data["url"] = (request.form.get("url") or "").strip()[:300] or None
+        else:
+            if is_offline():
+                abort(400, "وضع «بدون إنترنت» مفعّل. احفظ صفحة المسجد من الكمبيوتر وارفع الملف بدل الرابط.")
+            data = mawaqit.fetch(str(body().get("url") or ""))
+    except ValueError as e:
+        abort(400, str(e))
+    except OSError as e:
+        abort(400, f"تعذر الوصول إلى Mawaqit (لا إنترنت؟). يمكنك حفظ صفحة المسجد من الكمبيوتر ورفع الملف. ({e})")
+    mawaqit.save(paths().system, data)
+    set_setting("tv_prayer_source", "mawaqit")
+    log_action("مواقيت المسجد من Mawaqit", data.get("name") or "")
+    return jsonify(ok=True, mawaqit=mawaqit.summary(data), prayer=prayer_now(tv_settings()))
+
+
+@bp.delete("/api/admin/tv/mawaqit")
+@admin_required
+def api_admin_mawaqit_delete():
+    from . import mawaqit
+    mawaqit.file(paths().system).unlink(missing_ok=True)
+    set_setting("tv_prayer_source", "calc")
+    return jsonify(ok=True)
+
+
+@bp.post("/api/admin/tv/adhan/<which>")
+@admin_required
+def api_admin_adhan_upload(which):
+    if which not in ("main", "fajr"):
+        abort(404)
+    f = request.files.get("file")
+    if not f or not (f.filename or "").lower().endswith((".mp3", ".m4a", ".ogg", ".wav")):
+        abort(400, "اختر ملف صوت (MP3)")
+    data = f.read(30 * 1024 * 1024 + 1)
+    if len(data) > 30 * 1024 * 1024:
+        abort(400, "الملف كبير جداً (الحد 30 ميغابايت)")
+    (adhan_dir() / f"{which}.mp3").write_bytes(data)
+    log_action("ملف الأذان", which)
+    return jsonify(ok=True, files=adhan_files())
+
+
+@bp.delete("/api/admin/tv/adhan/<which>")
+@admin_required
+def api_admin_adhan_delete(which):
+    if which not in ("main", "fajr"):
+        abort(404)
+    (adhan_dir() / f"{which}.mp3").unlink(missing_ok=True)
+    return jsonify(ok=True, files=adhan_files())
+
+
+@bp.get("/api/tv/adhan/<which>")
+def api_tv_adhan(which):
+    if not (tv_allowed() or current_user()):
+        abort(403)
+    f = adhan_dir() / f"{which}.mp3"
+    if which not in ("main", "fajr") or not f.exists():
+        abort(404)
+    return send_file(f, conditional=True, mimetype="audio/mpeg")
 
 
 @bp.patch("/api/admin/tv/users/<int:uid>")
@@ -526,7 +639,10 @@ def api_tv_profiles():
         from flask import current_app
         from .system import server_urls
         setup = {"urls": server_urls(current_app.config["NAS_CFG"].get("port", 80))}
-    return jsonify(profiles=[profile_dict(u) for u in rows], settings=tv_settings(), current=session.get("tv_uid"), setup=setup)
+    from .stars import balance
+    profiles = [profile_dict(u) | {"stars": balance(db, u["id"])} for u in rows]
+    db.commit()
+    return jsonify(profiles=profiles, settings=tv_settings(), current=session.get("tv_uid"), setup=setup)
 
 
 def any_adult_pin_ok(pin: str) -> bool:
@@ -603,7 +719,8 @@ def api_tv_theme():
 def api_tv_clock():
     tv_guard()
     s = tv_settings()
-    return jsonify(prayer=prayer_now(s), word=word_of_day(), now=datetime.now().isoformat(timespec="seconds"))
+    return jsonify(prayer=prayer_now(s), word=word_of_day(), now=datetime.now().isoformat(timespec="seconds"),
+                   adhan=s["adhan"] | {"files": adhan_files()})
 
 
 def my_tile(tid: int):
@@ -662,11 +779,14 @@ def api_tv_tile_list(tid):
                 if k:
                     items.append({"name": e.name, "type": k, "size": e.stat().st_size})
     items.sort(key=lambda x: (not x.get("self"), x["type"] not in ("folder", "game"), x["name"].casefold()))
+    vids = [folder / x["name"] for x in items if x["type"] == "video"]
+    if vids:
+        import threading
+        threading.Thread(target=_tvv().prefetch, args=(vids,), daemon=True).start()
     return jsonify(tile=tile_dict(t), items=items, sub=request.args.get("sub", ""))
 
 
-@bp.get("/api/tv/tile/<int:tid>/file")
-def api_tv_tile_file(tid):
+def tile_file(tid) -> Path:
     u, t = my_tile(tid)
     base = tile_folder(u, t)
     if base is None:
@@ -674,7 +794,71 @@ def api_tv_tile_file(tid):
     p = safe_sub(base, request.args.get("p", ""))
     if not p.is_file() or not file_kind(p.name) and p.suffix.lower() not in (".jpg", ".png", ".jpeg"):
         abort(404)
+    return p
+
+
+@bp.get("/api/tv/tile/<int:tid>/file")
+def api_tv_tile_file(tid):
+    p = tile_file(tid)
+    if file_kind(p.name) == "image" and p.suffix.lower() not in BROWSER_IMAGE_EXT:
+        from .files import thumb_response  # صور الآيفون HEIC وغيرها: JPEG يعرضه التلفاز
+        return thumb_response(p, True)
     return send_file(p, conditional=True, mimetype=mimetypes.guess_type(p.name)[0])
+
+
+# ----------------------------------------------------------------------------- فيديو الآيفون وغيره: تحويل لصيغة يشغّلها التلفاز
+def _tvv():
+    from . import tvvideo
+    return tvvideo.get(paths().cache)
+
+
+def _vinfo(src: Path, ready_url: str):
+    st = _tvv().status(src)
+    if st["mode"] == "ready":
+        st["url"] = ready_url
+    return jsonify(st)
+
+
+def _send_ready(src: Path):
+    from . import tvvideo
+    st = _tvv().status(src)
+    f = _tvv().ready_file(st.get("key", "")) if st["mode"] == "ready" else None
+    if not f:
+        abort(404)
+    tvvideo.touch(f)
+    return send_file(f, conditional=True, mimetype="video/mp4")
+
+
+@bp.get("/api/tv/tile/<int:tid>/vinfo")
+def api_tv_tile_vinfo(tid):
+    p = tile_file(tid)
+    return _vinfo(p, f"/api/tv/tile/{tid}/tvvideo?p={quote(request.args.get('p', ''))}")
+
+
+@bp.get("/api/tv/tile/<int:tid>/tvvideo")
+def api_tv_tile_tvvideo(tid):
+    return _send_ready(tile_file(tid))
+
+
+def library_file(mid) -> Path:
+    u = tv_user()
+    row = get_db().execute("SELECT * FROM media WHERE id=? AND library=?", (mid, f"u:{u['id']}")).fetchone()
+    if not row:
+        abort(404)
+    p = (paths().homes / u["username"] / "Photos" / row["rel_path"]).resolve()
+    if not p.is_file():
+        abort(404)
+    return p
+
+
+@bp.get("/api/tv/photo/<int:mid>/vinfo")
+def api_tv_photo_vinfo(mid):
+    return _vinfo(library_file(mid), f"/api/tv/photo/{mid}/tvvideo")
+
+
+@bp.get("/api/tv/photo/<int:mid>/tvvideo")
+def api_tv_photo_tvvideo(mid):
+    return _send_ready(library_file(mid))
 
 
 @bp.get("/api/tv/tile/<int:tid>/thumb")

@@ -80,6 +80,8 @@ QR = [
 if code:
     lines += ["   First-time setup code: ask the developer on WhatsApp", ""] + QR + [
         "     WhatsApp: +32 494 49 94 30", ""]
+lines += ["   If the web page stops working after an update, log in here and type:",
+          "       sudo hsef-extras update-rollback", ""]
 lines += ["   HOME ANAB by Hussein Sefrani  -  +32 494 49 94 30  -  Hussein@sefrani.com",
           "  ==========================================================", "", ""]
 Path("/etc/issue").write_text("\n".join(lines), encoding="utf-8")
