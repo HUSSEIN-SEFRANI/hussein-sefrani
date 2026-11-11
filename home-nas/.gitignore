@@ -1,6 +1,6 @@
 config.json
 config.tmp
-data/
+/data/
 storage/
 .venv/
 __pycache__/
