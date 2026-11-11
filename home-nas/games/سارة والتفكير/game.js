@@ -1,4 +1,4 @@
-// سارة والتفكير — اختاري الترجمة الفرنسية الصحيحة أو الجواب الصحيح. 5 مستويات، 10 أسئلة في كل مستوى.
+// سارة والتفكير — اختاري الترجمة الفرنسية الصحيحة أو الجواب الصحيح. 5 مستويات، 10 أسئلة في كل جولة من بنك أكبر، والأسئلة الجديدة تظهر أولاً.
 (function () {
   "use strict";
   const $ = (id) => document.getElementById(id);
@@ -7,7 +7,7 @@
   const STORE = "sara-thinking";
 
   // ------------------------------------------------------------ الحفظ
-  let save = { unlocked: 1, best: {} };
+  let save = { unlocked: 1, best: {}, seen: {} };
   try { save = Object.assign(save, JSON.parse(localStorage.getItem(STORE) || "{}")); } catch (e) { /* */ }
   const persist = () => { try { localStorage.setItem(STORE, JSON.stringify(save)); } catch (e) { /* */ } };
 
@@ -72,7 +72,16 @@
   function startLevel(i) {
     if (i + 1 > save.unlocked) { sfx.bad(); return; }
     level = i; qi = 0; score = 0;
-    queue = shuffle(LEVELS[i].items).slice(0, PER_LEVEL);
+    // الأسئلة التي لم تظهر بعد أولاً؛ وحين تنتهي كلها تبدأ دورة جديدة
+    const key = (q) => q.ar + "|" + (Array.isArray(q.options[0]) ? q.options[0][0] : q.options[0]);
+    const seen = new Set((save.seen && save.seen[i]) || []);
+    const items = LEVELS[i].items;
+    const fresh = shuffle(items.filter((q) => !seen.has(key(q))));
+    const old = shuffle(items.filter((q) => seen.has(key(q))));
+    queue = fresh.concat(old).slice(0, PER_LEVEL);
+    save.seen = save.seen || {};
+    save.seen[i] = fresh.length >= PER_LEVEL ? [...seen, ...queue.map(key)] : queue.map(key);
+    persist();
     show("quiz");
     ask();
   }
