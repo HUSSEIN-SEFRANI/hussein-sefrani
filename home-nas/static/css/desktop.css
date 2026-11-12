@@ -544,3 +544,15 @@ pre.applog.big { max-height: 60vh; font-size: 12px; }
 @keyframes cam-spin { to { transform: rotate(360deg); } }
 .seg { display: flex; gap: 4px; }
 @media (max-width: 760px) { .cam-add .row2 { grid-template-columns: 1fr; } .cams-grid { grid-template-columns: 1fr; } }
+
+/* بطاقة الذاكرة */
+.media-app { padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.media-head { display: flex; align-items: center; gap: 14px; }
+.media-head .app-tile { width: 54px; height: 54px; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #fff; flex: none; }
+.media-head b { font-size: 18px; }
+.media-bar { height: 10px; border-radius: 99px; background: var(--surface-3); overflow: hidden; margin: 6px 0; }
+.media-bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width .4s; }
+.media-acts { display: flex; flex-direction: column; gap: 8px; }
+.media-acts .btn { justify-content: flex-start; }
+.media-gone { text-align: center; padding: 40px 10px; font-size: 40px; }
+.media-gone p { font-size: 16px; color: var(--muted); }

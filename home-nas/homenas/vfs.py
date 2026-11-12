@@ -4,6 +4,7 @@
   /home          ← المجلد الشخصي (قراءة وكتابة)
   /homes         ← مجلدات كل المستخدمين (للمدير فقط)
   /<اسم المجلد>  ← المجلدات المشتركة حسب الصلاحية (ro / rw)
+  /card-<جهاز>   ← بطاقة الذاكرة أو الفلاشة المفتوحة (للمدير)
 """
 from __future__ import annotations
 
@@ -48,6 +49,9 @@ def roots_for(user) -> list[Root]:
         broot = backup_root(get_setting("backup_target"))
         if broot and broot.is_dir():
             roots.append(Root("backup", "النسخ الاحتياطية", broot, "ro", "backup"))
+    if user["is_admin"]:
+        from .media_cards import mounted_roots
+        roots.extend(mounted_roots())   # بطاقة الذاكرة أو الفلاشة المفتوحة الآن
     for f in get_db().execute("SELECT * FROM folders ORDER BY name COLLATE NOCASE"):
         perm = folder_perm(user, f["id"])
         if perm:

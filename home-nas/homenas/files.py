@@ -45,6 +45,16 @@ def protect_top(root: Root, vpath: str):
         abort(400, "لا يمكن تعديل هذا المجلد الرئيسي")
 
 
+def safe_copy(src, dst, *, follow_symlinks=True):
+    """مثل copy2، لكن لا يفشل إن لم يقبل القرص الصلاحيات (بطاقات FAT/exFAT)."""
+    shutil.copyfile(src, dst, follow_symlinks=follow_symlinks)
+    try:
+        shutil.copystat(src, dst, follow_symlinks=follow_symlinks)
+    except OSError:
+        pass
+    return dst
+
+
 def recycle_base(root: Root, target: Path) -> Path:
     if root.kind == "homes":
         rel = target.resolve().relative_to(root.path.resolve()).parts
@@ -150,8 +160,8 @@ def api_delete():
             continue
         rbase = recycle_base(root, target)
         recycle = rbase / RECYCLE
-        if is_within(target.resolve(), recycle.resolve()):
-            # حذف نهائي من داخل سلة المحذوفات
+        if root.kind == "removable" or is_within(target.resolve(), recycle.resolve()):
+            # حذف نهائي من البطاقة أو من داخل سلة المحذوفات
             shutil.rmtree(target) if target.is_dir() else target.unlink()
         else:
             rel = target.resolve().relative_to(rbase.resolve())
@@ -200,11 +210,11 @@ def api_transfer():
             continue
         dest = unique_path(dest_dir / src.name)
         if move:
-            shutil.move(str(src), dest)
+            shutil.move(str(src), dest, copy_function=safe_copy)
         elif src.is_dir():
-            shutil.copytree(src, dest, ignore=shutil.ignore_patterns(RECYCLE))
+            shutil.copytree(src, dest, ignore=shutil.ignore_patterns(RECYCLE), copy_function=safe_copy)
         else:
-            shutil.copy2(src, dest)
+            safe_copy(src, dest)
         touched(src.parent, dest)
         done += 1
     log_action("نقل" if move else "نسخ", f"{done} عنصر إلى {to_vpath(droot, dest_dir)}")

@@ -1151,6 +1151,147 @@ def bt_remove(mac: str):
         subprocess.run(["bluetoothctl", "remove", mac], capture_output=True, timeout=20)
 
 
+# ----------------------------------------------------------------------------- بطاقة الذاكرة والفلاشات
+MEDIA_ROOT = Path("/media/hsef")
+MEDIA_FS = {"vfat", "exfat", "ntfs"}
+MEDIA_DEV = _re.compile(r"^(sd[a-z]+\d*|mmcblk\d+(p\d+)?)$")
+MEDIA_FAKE = Path("/tmp/hsef-fake-card")       # للاختبار فقط: وجود الملف = بطاقة مُدخلة
+
+
+def media_scan() -> list:
+    """بطاقات SD والفلاشات الموصولة (لا الأقراص المستعملة في النظام أو المضافة كمساحة دائمة)."""
+    if FAKE:
+        if not MEDIA_FAKE.exists():
+            return []
+        mp = MEDIA_ROOT / "mmcblk0p1"
+        mounted = mp.is_dir() and any(mp.iterdir())
+        return [{"dev": "mmcblk0p1", "label": "CANON", "size": 31914983424, "fstype": "exfat", "kind": "sd", "model": "",
+                 "mount": str(mp) if mounted else None, "ro": False}]
+    try:
+        out = subprocess.run(["lsblk", "-J", "-b", "-o", "NAME,TYPE,RM,HOTPLUG,SIZE,FSTYPE,LABEL,MOUNTPOINT,TRAN,MODEL,VENDOR"],
+                             capture_output=True, text=True, timeout=15).stdout
+        devs = json.loads(out or "{}").get("blockdevices", [])
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return []
+    ro_mounts = {l.split()[1] for l in Path("/proc/mounts").read_text().splitlines()
+                 if l.split()[1].startswith(str(MEDIA_ROOT)) and "ro" in l.split()[3].split(",")}
+
+    def mounts(x):
+        yield x.get("mountpoint")
+        for c in x.get("children") or []:
+            yield from mounts(c)
+    res = []
+    for d in devs:
+        name = d.get("name", "")
+        if d.get("type") != "disk" or not _re.match(r"^(sd[a-z]+|mmcblk\d+)$", name):
+            continue
+        if not (d.get("rm") in (True, "1", 1) or d.get("hotplug") in (True, "1", 1) or name.startswith("mmcblk")):
+            continue
+        if any(m and not m.startswith(str(MEDIA_ROOT)) for m in mounts(d)):
+            continue  # قرص النظام أو قرص بيانات دائم
+        desc = f"{d.get('vendor') or ''} {d.get('model') or ''}"
+        sd = name.startswith("mmcblk") or bool(_re.search(r"card|reader|sd/mmc|sdxc|sdhc|\bsd\b", desc, _re.I))
+        for part in d.get("children") or [d]:
+            if part.get("fstype") not in MEDIA_FS or int(part.get("size") or 0) <= 0 or not MEDIA_DEV.match(part.get("name", "")):
+                continue
+            mp = part.get("mountpoint") or ""
+            mine = mp.startswith(str(MEDIA_ROOT) + "/")
+            res.append({"dev": part["name"], "label": (part.get("label") or "").strip(), "size": int(part["size"]),
+                        "fstype": part["fstype"], "kind": "sd" if sd else "usb", "model": desc.strip(),
+                        "mount": mp if mine else None, "ro": mp in ro_mounts})
+    return res
+
+
+def media_cleanup():
+    """بطاقة سُحبت بدون «إخراج»: نزيل مكانها القديم."""
+    if not MEDIA_ROOT.is_dir():
+        return
+    srcs = {}
+    for l in Path("/proc/mounts").read_text().splitlines():
+        f = l.split()
+        if f[1].startswith(str(MEDIA_ROOT) + "/"):
+            srcs[f[1]] = f[0]
+    for d in MEDIA_ROOT.iterdir():
+        if FAKE:
+            continue
+        src = srcs.get(str(d))
+        if src and not Path(src).exists():
+            subprocess.run(["umount", "-l", str(d)], capture_output=True)
+            src = None
+        if not src:
+            try:
+                d.rmdir()
+            except OSError:
+                pass
+
+
+def media_list():
+    media_cleanup()
+    print(json.dumps(media_scan()))
+
+
+def media_mount(dev: str):
+    if not MEDIA_DEV.match(dev):
+        die("invalid device")
+    info = next((x for x in media_scan() if x["dev"] == dev), None)
+    if not info:
+        die("not a memory card or USB stick")
+    if info["mount"]:
+        print(json.dumps({"mount": info["mount"], "ro": info["ro"]}))
+        return
+    mp = MEDIA_ROOT / dev
+    mp.mkdir(parents=True, exist_ok=True)
+    if FAKE:
+        (mp / "DCIM" / "100CANON").mkdir(parents=True, exist_ok=True)
+        for f in (MEDIA_FAKE.glob("*") if MEDIA_FAKE.is_dir() else []):
+            shutil.copy(f, mp / "DCIM" / "100CANON" / f.name)
+        (mp / "Documents").mkdir(exist_ok=True)
+        (mp / "Documents" / "notes.txt").write_text("hello\n")
+        print(json.dumps({"mount": str(mp), "ro": False}))
+        return
+    import pwd
+    try:
+        pw = pwd.getpwnam("homenas")
+        uid, gid = pw.pw_uid, pw.pw_gid
+    except KeyError:
+        uid = gid = 0
+    common = f"uid={uid},gid={gid},nosuid,nodev,noexec"
+    fs = info["fstype"]
+    tries = {"vfat": [("vfat", common + ",umask=002,quiet,utf8=1,shortname=mixed,flush")],
+             "exfat": [("exfat", common + ",umask=002,iocharset=utf8")],
+             "ntfs": [("ntfs3", common + ",umask=002,iocharset=utf8"), ("ntfs-3g", common + ",umask=002")]}[fs]
+    err = ""
+    for t, opts in tries:
+        for extra, ro in (("", False), (",ro", True)):   # بطاقة مقفولة (زر القفل) أو NTFS غير مغلق جيداً: قراءة فقط
+            r = subprocess.run(["mount", "-t", t, "-o", opts + extra, f"/dev/{dev}", str(mp)], capture_output=True, text=True)
+            if r.returncode == 0:
+                print(json.dumps({"mount": str(mp), "ro": ro}))
+                return
+            err = (r.stderr or r.stdout).strip()
+    try:
+        mp.rmdir()
+    except OSError:
+        pass
+    die("could not open the card: " + err[-200:])
+
+
+def media_eject(dev: str):
+    if not MEDIA_DEV.match(dev):
+        die("invalid device")
+    mp = MEDIA_ROOT / dev
+    if FAKE:
+        shutil.rmtree(mp, ignore_errors=True)
+        return
+    subprocess.run(["sync"], capture_output=True, timeout=300)
+    if subprocess.run(["mountpoint", "-q", str(mp)]).returncode == 0:
+        if subprocess.run(["umount", str(mp)], capture_output=True).returncode != 0:
+            subprocess.run(["umount", "-l", str(mp)], capture_output=True)
+    try:
+        mp.rmdir()
+    except OSError:
+        pass
+
+
 # ----------------------------------------------------------------------------- دقة شاشة التلفاز
 def tv_env():
     import pwd
@@ -1409,6 +1550,12 @@ def main():
         bt_remove(a[1])
     elif a == ["pad-diag"]:
         pad_diag()
+    elif a == ["media-list"]:
+        media_list()
+    elif len(a) == 2 and a[0] == "media-mount":
+        media_mount(a[1])
+    elif len(a) == 2 and a[0] == "media-eject":
+        media_eject(a[1])
     elif a == ["tv-modes"]:
         tv_modes()
     elif len(a) in (1, 2) and a[0] == "tv-mode-set":

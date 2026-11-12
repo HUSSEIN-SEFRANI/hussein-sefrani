@@ -1,12 +1,13 @@
 // ====================================================================
 // HOME ANAB — سطح المكتب: الأيقونات، شريط المهام، قائمة البدء، الساعة
 // ====================================================================
-import { ME, I18N, $, h, esc, icon, api, apps, openApp, closePopovers, isMobile } from './core.js';
+import { ME, I18N, $, h, esc, icon, api, apps, openApp, closePopovers, isMobile, toast } from './core.js';
 import './apps/files.js';
 import './apps/photos.js';
 import './apps/system.js';
 import './apps/stars.js';
 import './apps/cameras.js';
+import './apps/media.js';
 import { appUrl } from './apps/appstore.js';
 import { vine } from './tv-fruit.js';
 
@@ -52,6 +53,31 @@ async function loadInstalledApps() {
 }
 loadInstalledApps();
 addEventListener('nas-apps', loadInstalledApps);
+
+// بطاقة الذاكرة والفلاشات (للمدير): أيقونة تظهر عند إدخالها وتختفي عند سحبها
+if (ME.is_admin) {
+  let known = null, timer = 0;
+  const pollMedia = async () => {
+    clearTimeout(timer);
+    const r = await api.get('/api/media').catch(() => null);
+    if (r) {
+      const sig = r.cards.map((c) => c.dev + (c.mount ? '+' : '')).join(',');
+      if (sig !== known) {
+        const before = (known || '').split(',').map((x) => x.replace('+', ''));
+        const added = known === null ? [] : r.cards.filter((c) => !before.includes(c.dev));
+        known = sig;
+        for (let i = shortcuts.length - 1; i >= 0; i--) if (shortcuts[i].media) shortcuts.splice(i, 1);
+        for (const c of [...r.cards].reverse()) shortcuts.unshift({ id: 'm-' + c.dev, title: c.title, icon: 'save', media: true,
+          color: 'linear-gradient(135deg,#0ea5e9,#6366f1)', launch: () => openApp('media', { dev: c.dev }) });
+        drawIcons();
+        if (added.length) toast(`💾 ${added[0].title}: اضغط أيقونتها على سطح المكتب لفتحها`, 'ok');
+      }
+    }
+    timer = setTimeout(pollMedia, document.hidden ? 20000 : 4000);
+  };
+  pollMedia();
+  addEventListener('nas-media', pollMedia);
+}
 
 // قائمة البدء
 $('#tb-start').onclick = (e) => {

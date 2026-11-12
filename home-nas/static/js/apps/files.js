@@ -67,7 +67,7 @@ class FilesApp {
     this.roots = await guard(() => api.get('/api/files/roots')) || [];
     this.side.innerHTML = '<div class="sect">المجلدات</div>';
     for (const r of this.roots) {
-      const ic = r.kind === 'home' ? 'home' : r.kind === 'homes' ? 'users' : 'hdd';
+      const ic = r.kind === 'home' ? 'home' : r.kind === 'homes' ? 'users' : r.kind === 'removable' ? 'save' : 'hdd';
       const b = h(`<button class="side-item" data-root="${esc(r.name)}">${icon(ic)}<span></span>${r.perm === 'ro' ? `<span class="cnt">${icon('lock')}</span>` : ''}</button>`);
       $('span', b).textContent = r.label;
       b.onclick = () => { this.go('/' + r.name); this.side.classList.remove('open'); };
@@ -238,7 +238,7 @@ class FilesApp {
       one && !one.dir && TEXT_EDITABLE.has(one.ext) && { label: 'تحرير كنص', icon: 'edit', fn: () => openTextEditor(this.itemPath(one), this) },
       { label: 'خصائص', icon: 'info', fn: () => this.properties(one) },
       '-',
-      { label: this.path.includes('#recycle') ? 'حذف نهائي' : 'حذف', icon: 'trash', danger: true, fn: () => this.remove(), disabled: !rw },
+      { label: this.path.includes('#recycle') || this.path.startsWith('/card-') ? 'حذف نهائي' : 'حذف', icon: 'trash', danger: true, fn: () => this.remove(), disabled: !rw },
     ].filter(Boolean);
     if (this.path.endsWith('#recycle') || this.path.includes('#recycle/')) items.push({ label: 'تفريغ سلة المحذوفات', icon: 'trash', danger: true, fn: () => this.emptyRecycle() });
     anchor ? menuAt(anchor, items) : menu(x, y, items);
@@ -282,7 +282,7 @@ class FilesApp {
   }
   async remove() {
     const sel = this.selected(); if (!sel.length) return;
-    const perm = this.path.includes('#recycle');
+    const perm = this.path.includes('#recycle') || this.path.startsWith('/card-');   // البطاقة بلا سلة محذوفات
     const msg = perm ? `سيتم حذف ${sel.length} عنصر نهائياً ولا يمكن استرجاعه.` : `نقل ${sel.length} عنصر إلى سلة المحذوفات؟`;
     if (!await confirmBox(msg, { ok: 'حذف', danger: true })) return;
     const r = await guard(() => api.post('/api/files/delete', { paths: sel.map(i => this.itemPath(i)) }));

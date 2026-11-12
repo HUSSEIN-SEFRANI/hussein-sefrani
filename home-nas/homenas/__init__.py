@@ -14,7 +14,7 @@ from .faces import migrate as faces_migrate
 from .network import Network
 from .photos import Indexer
 
-__version__ = "1.6.0"
+__version__ = "1.6.1"
 
 
 def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
@@ -61,10 +61,10 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
         iph.start()
         cams.start()
 
-    from . import (appstore, backup, cameras, faces, files, health, iphone, links, network, photos, profile, remote, stars, sysadmin,
-                   system, tv, welcome)
+    from . import (appstore, backup, cameras, faces, files, health, iphone, links, media_cards, network, photos, profile, remote, stars,
+                   sysadmin, system, tv, welcome)
     for mod in (system, files, photos, links, backup, health, network, appstore, faces, remote, tv, profile, sysadmin, iphone, stars, welcome,
-                cameras):
+                cameras, media_cards):
         app.register_blueprint(mod.bp)
 
     @app.teardown_appcontext
