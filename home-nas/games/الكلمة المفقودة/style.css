@@ -1,0 +1,55 @@
+#sky { --sky: linear-gradient(180deg, #a5f3fc 0%, #ddd6fe 68%, #bbf7d0 68%, #4ade80 100%); }
+#app { padding: 2.5vh 4vw 2vh; }
+.ttl { color: #fff; -webkit-text-stroke: .3vh #1e40af; paint-order: stroke fill; font-size: 5.4vh; }
+.abc { font-size: 9vh !important; font-weight: 800; letter-spacing: .5vh; }
+.modes .mode { width: 26vw; height: 40vh; }
+.modes.lv { margin-top: 6vh; }
+.modes.lv .mode { width: 24vw; height: 52vh; }
+.mini-boxes { display: flex; gap: .6vh; margin: .5vh 0; }
+.mini-boxes i { width: 3.4vh; height: 4vh; border-radius: .8vh; background: rgba(255,255,255,.85); }
+
+/* المربعات */
+.demo { display: flex; gap: 1.2vh; align-items: center; margin-top: 2vh; direction: rtl; }
+.demo .emo { font-size: 8vh; margin-inline-start: 2vh; }
+.box { width: 9vh; height: 10.5vh; border-radius: 2vh; background: #fff; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 7vh; font-weight: 800; color: #1e3a8a; box-shadow: inset 0 -1vh 0 #c7d2fe, 0 .8vh 1.6vh rgba(30,58,138,.2); line-height: 1; }
+.box.on { background: #dcfce7; box-shadow: inset 0 -1vh 0 #86efac, 0 .8vh 1.6vh rgba(30,58,138,.2); animation: drop .4s ease; }
+.box.miss { background: #ffedd5; color: #c2410c; box-shadow: inset 0 -1vh 0 #fdba74; animation: drop .4s ease; }
+@keyframes drop { from { transform: translateY(-3vh) scale(1.3); opacity: 0; } }
+.boxes { display: flex; gap: 1.2vh; margin-top: 1.5vh; justify-content: center; }
+.boxes.long .box { width: 7.6vh; font-size: 5.8vh; }
+
+/* التلميح والزهرة */
+.stage { display: flex; gap: 3vw; align-items: center; margin-top: .5vh; height: 27vh; }
+.fbox { position: relative; height: 27vh; width: 22vh; display: flex; flex-direction: column; align-items: center; }
+.flw { height: 23.5vh; overflow: visible; }
+.pw { transition: transform 1.5s ease-in, opacity 1.5s ease-in; transform-origin: 100px 90px; }
+.pw.gone { transform: translate(40px, 190px) rotate(120deg); opacity: 0; }
+.fbox.happy .flw { animation: bob 1s ease-in-out infinite; }
+.left { font-size: 2.4vh; background: rgba(255,255,255,.8); border-radius: 2vh; padding: .4vh 1.2vh; min-height: 3.2vh; }
+.clue { background: #fff; border-radius: 4vh; padding: 1.6vh 3vw; display: flex; align-items: center; gap: 2.5vw; box-shadow: 0 1.5vh 3vh rgba(30,58,138,.2); min-width: 50vw; max-width: 66vw; height: 22vh; }
+.clue .pic { font-size: 15vh; }
+.ct { display: flex; flex-direction: column; gap: 1vh; }
+.ct b { font-size: 4.8vh; line-height: 1.25; color: #1e40af; }
+.ct small { font-size: 2.8vh; color: #64748b; font-weight: 700; }
+
+/* لوحة الحروف */
+.zone { margin-top: 2vh; min-height: 33vh; display: flex; align-items: center; justify-content: center; }
+.keys { display: grid; gap: 1.2vh; }
+.keys.ar { grid-template-columns: repeat(10, 9.6vh); }
+.keys.fr { grid-template-columns: repeat(9, 9.6vh); }
+.key { height: 9.4vh; border: 0; border-radius: 2vh; background: #fff; color: #1e3a8a; font-size: 5.4vh; font-weight: 800; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 .7vh 0 #a5b4fc, 0 1vh 1.6vh rgba(30,58,138,.2); line-height: 1; padding: 0; }
+.key.ok { background: #22c55e; color: #fff; box-shadow: 0 .7vh 0 #15803d; }
+.key.bad { background: #f87171; color: #fff; box-shadow: 0 .7vh 0 #b91c1c; opacity: .75; animation: shake .45s; }
+.key.f.sel { box-shadow: 0 0 0 .8vh #fde047, 0 1.5vh 3vh rgba(30,58,138,.35) !important; transform: scale(1.12); }
+.cheer { min-height: 6vh; margin-top: 1vh; font-size: 4.2vh; }
+
+/* نهاية الكلمة */
+.end { background: #fff; border-radius: 4vh; padding: 2vh 4vw; display: flex; align-items: center; gap: 3vw; box-shadow: 0 1.5vh 3vh rgba(30,58,138,.2); flex-wrap: wrap; justify-content: center; max-width: 88vw; animation: pop .4s ease; }
+.end.ok { box-shadow: 0 0 0 1vh #86efac, 0 1.5vh 3vh rgba(30,58,138,.2); }
+.end .big { font-size: 13vh; }
+.pair { display: flex; align-items: center; gap: 2vw; font-size: 7vh; color: #1e3a8a; }
+.pair .eq { color: #be185d; }
+.won-st { direction: ltr; unicode-bidi: isolate; font-size: 5vh; font-weight: 800; color: #ca8a04; }
+.end .nav { width: 100%; justify-content: center; margin-top: 1vh; }
