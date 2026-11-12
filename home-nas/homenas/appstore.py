@@ -125,7 +125,7 @@ def api_store():
     apps = []
     for app_id, a in cat.items():
         item = {k: a.get(k) for k in ("id", "name", "category", "icon", "color", "ram_mb", "port", "path",
-                                      "summary", "notes", "folders", "fixed_port", "uses_dns")}
+                                      "summary", "notes", "folders", "fixed_port", "uses_dns", "scheme")}
         inst = rows.get(app_id)
         if inst:
             opts = json.loads(inst["options"] or "{}")
@@ -151,7 +151,7 @@ def api_installed():
         a = cat.get(r["id"])
         if a and (user["is_admin"] or r["show_all"]):
             out.append({"id": a["id"], "name": a["name"], "icon": a["icon"], "color": a["color"],
-                        "port": r["port"], "path": a.get("path", "/")})
+                        "port": r["port"], "path": a.get("path", "/"), "scheme": a.get("scheme")})
     return jsonify(out)
 
 

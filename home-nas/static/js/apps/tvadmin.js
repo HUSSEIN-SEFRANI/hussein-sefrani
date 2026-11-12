@@ -5,7 +5,7 @@ import { $, $$, h, esc, icon, api, guard, toast, modal, confirmBox, openApp, pic
 import * as A from '../tv-art.js';
 
 const ROLE_LABEL = { none: 'لا يظهر على التلفاز', adult: 'بالغ', kid: 'طفل', little: 'طفل صغير (أقل من 6 سنوات)' };
-const KIND_LABEL = { media: 'وسائط (فيديو، صوت، صور، كتب)', games: 'ألعاب', photos: 'مكتبة صوري' };
+const KIND_LABEL = { media: 'وسائط (فيديو، صوت، صور، كتب)', games: 'ألعاب', photos: 'مكتبة صوري', cameras: 'الكاميرات (مشاهدة مباشرة وتسجيلات)' };
 
 const tileIcon = (t, size = 40) => `<span class="tv-ic" style="width:${size}px;height:${size}px;background:${A.gradient(t.color)}">${A.icon(t.icon)}</span>`;
 const adminPath = (u, p) => (p && (p === '/home' || p.startsWith('/home/')) ? `/homes/${u.username}${p.slice(5)}` : p);
@@ -167,7 +167,7 @@ function userCard(u, d, reload) {
   }
   for (const [i, t] of u.tiles.entries()) {
     const row = h(`<div class="tv-tile ${t.enabled ? '' : 'off'}">${tileIcon(t)}
-      <div class="tv-tt"><b></b><div class="muted small">${KIND_LABEL[t.kind] || t.kind}${t.kind !== 'photos' && t.path ? ` · <a href="#" class="tv-path" translate="no"></a>` : ''}</div></div>
+      <div class="tv-tt"><b></b><div class="muted small">${KIND_LABEL[t.kind] || t.kind}${!['photos', 'cameras'].includes(t.kind) && t.path ? ` · <a href="#" class="tv-path" translate="no"></a>` : ''}</div></div>
       <button class="btn ghost icon sm" data-t="up" title="تقديم" ${i === 0 ? 'disabled' : ''}>${icon('up')}</button>
       <button class="btn ghost icon sm" data-t="down" title="تأخير" ${i === u.tiles.length - 1 ? 'disabled' : ''}><span style="display:inline-flex;transform:rotate(180deg)">${icon('up')}</span></button>
       <label class="check sm" title="إظهار على التلفاز"><input type="checkbox" ${t.enabled ? 'checked' : ''}> ظاهر</label>
@@ -225,14 +225,15 @@ async function editTile(u, t, d, reload) {
     $b('.tv-prev').innerHTML = `${tileIcon(cur, 64)}<b>${esc(cur.title || 'مربع جديد')}</b>`;
     $$('.tv-icons button', body).forEach(b => b.classList.toggle('on', b.dataset.i === cur.icon));
     $$('.tv-colors button', body).forEach(b => b.classList.toggle('on', b.dataset.c === cur.color));
-    $b('.fold').style.display = cur.kind === 'photos' ? 'none' : '';
+    $b('.fold').style.display = ['photos', 'cameras'].includes(cur.kind) ? 'none' : '';
     $b('.fp').textContent = folder || (t ? '' : `${u.username}/التلفاز/${cur.title || '…'} (جديد)`);
     $b('.kindhelp').textContent = cur.kind === 'games' ? 'ضع كل لعبة في مجلد خاص بها داخل مجلد المربع (فيه index.html)، ويمكن إضافة صورة cover.jpg لتظهر كغلاف.'
       : cur.kind === 'photos' ? 'يعرض صور الشخص وفيديوهاته من تطبيق «الصور» (المرفوعة من الهاتف) مع عرض الشرائح.'
+      : cur.kind === 'cameras' ? 'يعرض كاميرات المراقبة (البث المباشر والتسجيلات) لمن تضيف له هذا المربع فقط. أضف الكاميرات من تطبيق «الكاميرات».'
       : 'يعرض الفيديو (mp4) والصوت (mp3) والصور وملفات PDF (مثل المصحف أو القصص) والمجلدات الفرعية.';
   };
   $b('[name=title]').oninput = draw;
-  $b('[name=kind]').onchange = () => { if (cur.kind !== $b('[name=kind]').value && ['star', 'photos', 'games'].includes(cur.icon)) cur.icon = { photos: 'photos', games: 'games' }[$b('[name=kind]').value] || 'star'; draw(); };
+  $b('[name=kind]').onchange = () => { if (cur.kind !== $b('[name=kind]').value && ['star', 'photos', 'games', 'camera'].includes(cur.icon)) cur.icon = { photos: 'photos', games: 'games', cameras: 'camera' }[$b('[name=kind]').value] || 'star'; draw(); };
   $$('.tv-icons button', body).forEach(b => b.onclick = () => { cur.icon = b.dataset.i; draw(); });
   $$('.tv-colors button', body).forEach(b => b.onclick = () => { cur.color = b.dataset.c; draw(); });
   $b('[data-f=pick]').onclick = async () => {

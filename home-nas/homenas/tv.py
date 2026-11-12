@@ -30,13 +30,14 @@ bp = Blueprint("tv", __name__)
 AUDIO_EXT = {".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".opus"}
 BOOK_EXT = {".pdf"}
 ROLES = ("none", "adult", "kid", "little")
-KINDS = ("media", "games", "photos")
+KINDS = ("media", "games", "photos", "cameras")
+NOFOLDER = ("photos", "cameras")   # مربعات بلا مجلد
 TV_DIR = "التلفاز"
 HELPER = "/usr/local/sbin/hsef-extras"
 APPLIANCE = os.environ.get("HOMENAS_APPLIANCE") == "1"
 
 ICONS = ["cartoon", "music", "animals", "math", "games", "photos", "video", "quran", "book", "film", "star", "heart",
-         "science", "letters", "nature", "sport"]
+         "science", "letters", "nature", "sport", "camera"]
 COLORS = ["#a855f7,#ec4899", "#f97316,#ef4444", "#22c55e,#15803d", "#06b6d4,#2563eb", "#8b5cf6,#06b6d4",
           "#f59e0b,#f97316", "#10b981,#0ea5e9", "#0f766e,#14532d", "#64748b,#1e293b", "#e11d48,#7f1d1d"]
 
@@ -477,13 +478,13 @@ def api_admin_tile_create(uid):
     kind = d.get("kind") or "media"
     if not title or kind not in KINDS:
         abort(400, "اكتب اسماً للمربع")
-    path = norm_tile_path(u, d.get("path")) if kind != "photos" else None
-    if kind != "photos" and not path:
+    path = norm_tile_path(u, d.get("path")) if kind not in NOFOLDER else None
+    if kind not in NOFOLDER and not path:
         path = make_tile_folder(u, title)
     db = get_db()
     pos = db.execute("SELECT COALESCE(MAX(position),-1)+1 FROM tv_tiles WHERE user_id=?", (uid,)).fetchone()[0]
     cur = db.execute("INSERT INTO tv_tiles(user_id, title, kind, path, icon, color, position, created_at) VALUES (?,?,?,?,?,?,?,?)",
-                     (uid, title, kind, path, d.get("icon") or ("photos" if kind == "photos" else "star"),
+                     (uid, title, kind, path, d.get("icon") or {"photos": "photos", "cameras": "camera"}.get(kind, "star"),
                       d.get("color") or COLORS[pos % len(COLORS)], pos, now_iso()))
     db.commit()
     log_action("إضافة مربع للتلفاز", f"{display_name(u)}: {title}")
@@ -506,7 +507,7 @@ def api_admin_tile_defaults(uid):
     for title, kind, icon, color in DEFAULT_TILES[role]:
         if title in have:
             continue
-        path = None if kind == "photos" else make_tile_folder(u, title)
+        path = None if kind in NOFOLDER else make_tile_folder(u, title)
         db.execute("INSERT INTO tv_tiles(user_id, title, kind, path, icon, color, position, created_at) VALUES (?,?,?,?,?,?,?,?)",
                    (uid, title, kind, path, icon, COLORS[color % len(COLORS)], pos, now_iso()))
         pos += 1
@@ -528,7 +529,7 @@ def api_admin_tile_update(tid):
     for k in ("icon", "color"):
         if k in d:
             db.execute(f"UPDATE tv_tiles SET {k}=? WHERE id=?", ((d[k] or "").strip() or None, tid))
-    if "path" in d and t["kind"] != "photos":
+    if "path" in d and t["kind"] not in NOFOLDER:
         owner = user_row(t["user_id"])
         path = norm_tile_path(owner, d["path"]) or make_tile_folder(owner, d.get("title") or t["title"])
         db.execute("UPDATE tv_tiles SET path=? WHERE id=?", (path, tid))
@@ -777,7 +778,7 @@ def my_tile(tid: int):
 @bp.get("/api/tv/tile/<int:tid>/list")
 def api_tv_tile_list(tid):
     u, t = my_tile(tid)
-    if t["kind"] == "photos":
+    if t["kind"] in NOFOLDER:
         abort(400)
     base = tile_folder(u, t)
     if base is None or not base.is_dir():
@@ -919,7 +920,7 @@ def api_tv_tile_thumb(tid):
 @bp.get("/tv/game/<int:tid>/<path:sub>")
 def tv_game_file(tid, sub):
     u, t = my_tile(tid)
-    if t["kind"] == "photos":
+    if t["kind"] in NOFOLDER:
         abort(404)
     base = tile_folder(u, t)
     if base is None:

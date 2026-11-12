@@ -679,6 +679,7 @@ async function leave() {
 // ============================================================== تصفح المربعات
 function openTile(t) {
   if (t.kind === "photos") photosScreen(t);
+  else if (t.kind === "cameras") camerasScreen(t);
   else browseScreen(t, "");
 }
 const isKid = () => me && me.user.role !== "adult";
@@ -989,6 +990,114 @@ async function photosScreen(t) {
       } catch { /* تجاهل */ } finally { loading = false; }
     },
   });
+}
+
+// ============================================================== الكاميرات
+// مربع «الكاميرات»: الصور الحية لكل الكاميرات، ثم البث المباشر بملء الشاشة، والتسجيلات بالأيام
+let hlsLoad = null;
+async function playHls(video, src) {
+  if (video.canPlayType("application/vnd.apple.mpegurl")) { video.src = src; video.play().catch(() => {}); return () => { video.removeAttribute("src"); video.load(); }; }
+  if (!window.Hls) {
+    hlsLoad = hlsLoad || new Promise((res, rej) => { const s = document.createElement("script"); s.src = "/static/vendor/hls.light.min.js"; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+    await hlsLoad;
+  }
+  if (!window.Hls || !window.Hls.isSupported()) throw new Error("hls");
+  const hls = new window.Hls({ liveSyncDurationCount: 2, maxBufferLength: 8 });
+  hls.loadSource(src); hls.attachMedia(video);
+  hls.on(window.Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+  hls.on(window.Hls.Events.ERROR, (_, d) => { if (d.fatal) { if (d.type === window.Hls.ErrorTypes.NETWORK_ERROR) setTimeout(() => hls.startLoad(), 2000); else hls.recoverMediaError(); } });
+  return () => hls.destroy();
+}
+const CAM_STATE = { rec: ["● يسجّل", "ok"], live: ["مباشر", "ok"], connecting: ["يتصل…", "warn"], error: ["لا يعمل", "bad"], off: ["متوقفة", ""] };
+
+// كل الكاميرات تظهر معاً في الشاشة: عدد الأعمدة وعرضها حسب عددها
+function camGridStyle(n) {
+  const cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4, rows = Math.ceil(n / cols);
+  const W = 1220 - 28 - (cols - 1) * 22, H = 560 - 28 - (rows - 1) * 22;
+  const cw = Math.floor(Math.min(W / cols, (H / rows - 40) * 16 / 9));
+  return `--cols:${cols};--cw:${cw}px`;
+}
+async function camerasScreen(t) {
+  let d;
+  try { d = await api("/api/cameras"); } catch (e) { toast(e.message); return; }
+  const cams = d.cameras.filter((c) => c.enabled);
+  const snap = (c) => `/api/cameras/${c.id}/snap?t=${Date.now()}`;
+  const el = h(`<div class="bg-dark cams">
+    ${header(t, t.title, "")}
+    ${cams.length ? `<div class="cam-grid" style="${camGridStyle(cams.length)}">${cams.map((c, i) => `<button class="cam-it f" data-i="${i}">
+        <div class="shot"><img src="${snap(c)}" alt="" onerror="this.style.opacity=0" onload="this.style.opacity=1">${A.icon("camera")}</div>
+        <div class="nm"><b>${esc(c.name)}</b><span class="st ${(CAM_STATE[c.state] || [])[1] || ""}">${(CAM_STATE[c.state] || [c.state])[0]}</span></div></button>`).join("")}</div>`
+      : `<div class="empty">${A.icon("camera")}<div>لا توجد كاميرات بعد.<br>أضفها من الهاتف أو الكمبيوتر: تطبيق «الكاميرات».</div></div>`}
+    ${hints([["موافق", "مشاهدة مباشرة"], ["رجوع", "الرئيسية"]])}</div>`);
+  el.querySelector(".js-back").addEventListener("click", pop);
+  el.querySelectorAll(".cam-it").forEach((b) => b.addEventListener("click", () => camLiveScreen(cams, +b.dataset.i)));
+  const timer = setInterval(() => el.querySelectorAll(".cam-it img").forEach((im, i) => { im.src = snap(cams[i]); }), 2000);
+  push({ el, busy: () => true, initial: () => el.querySelector(".cam-it") || el.querySelector(".js-back"), destroy() { clearInterval(timer); } });
+}
+
+function camLiveScreen(cams, idx) {
+  const el = h(`<div class="player cam-live"><video muted autoplay playsinline></video><img class="cam-img" alt="" hidden>
+    <div class="osd"><div class="tt"></div><div class="keys"><span><b>← →</b>كاميرا أخرى</span><span><b>موافق</b>التسجيلات</span><span><b>رجوع</b>كل الكاميرات</span></div></div></div>`);
+  const v = el.querySelector("video"), img = el.querySelector(".cam-img"), osd = el.querySelector(".osd");
+  let stop = null, timer = 0, hideT = 0;
+  const showOsd = () => { osd.classList.remove("hide"); clearTimeout(hideT); hideT = setTimeout(() => osd.classList.add("hide"), 4000); };
+  const show = async (i) => {
+    idx = (i + cams.length) % cams.length;
+    const c = cams[idx];
+    if (stop) { stop(); stop = null; }
+    clearInterval(timer);
+    el.querySelector(".tt").textContent = `${c.name}  ·  ${idx + 1} / ${cams.length}`;
+    showOsd();
+    const mj = (c.codec || "").startsWith("mjpeg");
+    if (c.live && !mj) {
+      try { img.hidden = true; v.style.display = ""; stop = await playHls(v, `/api/cameras/${c.id}/live/live.m3u8`); return; } catch { /* صور */ }
+    }
+    v.style.display = "none"; img.hidden = false;
+    const tick = () => { img.src = `/api/cameras/${c.id}/snap?t=${Date.now()}`; };
+    tick(); timer = setInterval(tick, mj ? 400 : 1500);
+  };
+  push({
+    el, busy: () => true,
+    key(e) {
+      if (e.key === "ArrowLeft") { show(idx + 1); return true; }
+      if (e.key === "ArrowRight") { show(idx - 1); return true; }
+      if (e.key === "Enter" || e.key === " ") { camRecScreen(cams[idx]); return true; }
+      if (e.key === "ArrowUp" || e.key === "ArrowDown") { showOsd(); return true; }
+      return false;
+    },
+    onHide() { if (stop) { stop(); stop = null; } clearInterval(timer); },
+    onShow() { if (!stop && !timer) show(idx); },
+    destroy() { if (stop) stop(); clearInterval(timer); clearTimeout(hideT); },
+  });
+  show(idx);
+  el.addEventListener("click", () => camRecScreen(cams[idx]));
+}
+
+async function camRecScreen(c) {
+  let dd;
+  try { dd = await api(`/api/cameras/${c.id}/days`); } catch (e) { toast(e.message); return; }
+  if (!dd.days.length) { toast("لا توجد تسجيلات لهذه الكاميرا بعد"); return; }
+  const fmtDay = (s) => { try { return new Date(s + "T12:00").toLocaleDateString("ar-SY-u-nu-latn", { weekday: "long", day: "numeric", month: "long" }); } catch { return s; } };
+  const el = h(`<div class="bg-dark cams">
+    <div class="bhead"><button class="back f js-back">${A.CHEVRON}<span>رجوع</span></button>
+      <div class="ti" style="background:linear-gradient(135deg,#0f172a,#2563eb)">${A.icon("camera")}</div><h1>تسجيلات ${esc(c.name)}</h1></div>
+    <div class="cam-days">${dd.days.map((x) => `<button class="btn f day" data-d="${x.day}">${esc(fmtDay(x.day))}</button>`).join("")}</div>
+    <div class="cam-segs"></div>
+    ${hints([["موافق", "تشغيل"], ["رجوع", "البث المباشر"]])}</div>`);
+  el.querySelector(".js-back").addEventListener("click", pop);
+  const segs = el.querySelector(".cam-segs");
+  const load = async (day, b) => {
+    el.querySelectorAll(".day").forEach((x) => x.classList.toggle("gold", x === b));
+    let r;
+    try { r = await api(`/api/cameras/${c.id}/rec?day=${day}`); } catch (e) { toast(e.message); return; }
+    const items = r.items.filter((x) => !x.busy).reverse();   // الأحدث أولاً
+    segs.innerHTML = items.length ? items.map((x, i) => `<button class="btn f seg" data-i="${i}">${x.time}</button>`).join("") : `<p class="set-msg">لا توجد مقاطع.</p>`;
+    const list = items.map((x) => ({ src: `/api/cameras/${c.id}/rec/${encodeURIComponent(x.name)}`, video: true, name: `${c.name} · ${fmtDay(day)} ${x.time}` }));
+    segs.querySelectorAll(".seg").forEach((s) => s.addEventListener("click", () => viewerScreen(list, +s.dataset.i)));
+  };
+  el.querySelectorAll(".day").forEach((b) => b.addEventListener("click", () => { load(b.dataset.d, b); setFocus(segs.querySelector(".seg") || b); }));
+  push({ el, busy: () => true, initial: () => el.querySelector(".day") });
+  await load(dd.days[0].day, el.querySelector(".day"));
 }
 
 // ============================================================== الألعاب

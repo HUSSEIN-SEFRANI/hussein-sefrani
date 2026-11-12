@@ -5,7 +5,8 @@ import { ME, I18N, $, $$, h, esc, icon, api, guard, toast, modal, confirmBox, me
 
 const CATS = [['all', 'الكل'], ['media', 'الوسائط'], ['home', 'المنزل الذكي'], ['network', 'الشبكة'], ['files', 'الملفات'], ['tools', 'أدوات']];
 const tr = (o) => (o && (o[I18N.lang] || o.ar)) || '';
-export const appUrl = (port, path) => `${location.protocol}//${location.hostname}:${port}${path || '/'}`;
+// بعض التطبيقات (مثل Frigate) تعمل عبر https فقط
+export const appUrl = (port, path, scheme) => `${scheme ? scheme + ':' : location.protocol}//${location.hostname}:${port}${path || '/'}`;
 
 registerApp({
   id: 'appstore', title: 'مركز التطبيقات', icon: 'store', color: 'linear-gradient(135deg,#f43f5e,#8b5cf6)', width: 1040, height: 680, admin: true,
@@ -88,7 +89,7 @@ class AppStore {
     const btn = (label, ic, cls, fn) => { const b = h(`<button class="btn ${cls}">${ic ? icon(ic) : ''} ${esc(label)}</button>`); b.onclick = fn; b.disabled = running || !ready; acts.appendChild(b); return b; };
     if (!inst) btn('تثبيت', 'download', 'primary', () => this.install(a));
     else {
-      const open = btn('فتح', 'external', 'primary', () => window.open(appUrl(inst.port, a.path), '_blank'));
+      const open = btn('فتح', 'external', 'primary', () => window.open(appUrl(inst.port, a.path, a.scheme), '_blank'));
       open.disabled = running || a.state !== 'running';
       if (a.state === 'running') btn('إيقاف', 'square', '', () => this.action(a, 'stop'));
       else btn('تشغيل', 'play', '', () => this.action(a, 'start'));

@@ -172,10 +172,12 @@ def service_worker():
 @bp.get("/")
 @login_required
 def desktop():
+    from .cameras import viewers
     from .profile import look
     user = current_user()
     return render_template("desktop.html", server_name=server_name(),
-                           me={"id": user["id"], "username": user["username"], "is_admin": bool(user["is_admin"]), **look(user)})
+                           me={"id": user["id"], "username": user["username"], "is_admin": bool(user["is_admin"]),
+                               "cameras": user["id"] in viewers(), **look(user)})
 
 
 # ==========================================================================

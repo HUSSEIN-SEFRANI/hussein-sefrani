@@ -6,6 +6,7 @@ import './apps/files.js';
 import './apps/photos.js';
 import './apps/system.js';
 import './apps/stars.js';
+import './apps/cameras.js';
 import { appUrl } from './apps/appstore.js';
 import { vine } from './tv-fruit.js';
 
@@ -46,7 +47,7 @@ async function loadInstalledApps() {
   const list = await api.get('/api/appstore/installed').catch(() => []);
   for (let i = shortcuts.length - 1; i >= 0; i--) if (shortcuts[i].external) shortcuts.splice(i, 1);
   for (const a of list) shortcuts.push({ id: 'x-' + a.id, title: a.name, icon: a.icon, color: a.color, external: true,
-    launch: () => window.open(appUrl(a.port, a.path), '_blank') });
+    launch: () => window.open(appUrl(a.port, a.path, a.scheme), '_blank') });
   drawIcons();
 }
 loadInstalledApps();

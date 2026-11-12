@@ -99,6 +99,7 @@ const ICONS = {
   audio: `<circle cx="27" cy="27" r="22" fill="rgba(255,255,255,.18)"/><path d="M22 36 V16 L38 12 V31" stroke="#fff" stroke-width="3.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18" cy="36" r="5" fill="#fff"/><circle cx="34" cy="31" r="5" fill="#fff"/>`,
   pdf: `<path d="M12 5 H34 L44 15 V49 H12 Z" fill="#fff"/><path d="M34 5 V15 H44" fill="#cbd5e1"/><path d="M18 24 h20 M18 31 h20 M18 38 h13" stroke="#64748b" stroke-width="2.6" stroke-linecap="round"/>`,
   play: `<path d="M18 12 L42 27 L18 42 Z" fill="#fff"/>`,
+  camera: `<path d="M7 16 L37 8 L41.5 23 L11.5 31 Z" fill="#fff"/><circle cx="33" cy="17" r="3.6" fill="#2563eb"/><path d="M41 14 L48 12" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/><path d="M21 29 L24 38 H13" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><rect x="7" y="34" width="6.5" height="14" rx="2.2" fill="#fff"/><circle cx="15.5" cy="22" r="2" fill="#ef4444"/>`,
 };
 export const iconNames = Object.keys(ICONS);
 export function icon(name) {

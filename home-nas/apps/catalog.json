@@ -21,7 +21,15 @@
         "fr": "À la première ouverture, créez un compte puis ajoutez une bibliothèque depuis /media"
       },
       "folders": [
-        {"key": "media", "write": false, "label": {"ar": "مجلد الأفلام والفيديو", "en": "Movies & videos folder", "fr": "Dossier films et vidéos"}}
+        {
+          "key": "media",
+          "write": false,
+          "label": {
+            "ar": "مجلد الأفلام والفيديو",
+            "en": "Movies & videos folder",
+            "fr": "Dossier films et vidéos"
+          }
+        }
       ],
       "compose": "services:\n  app:\n    image: jellyfin/jellyfin:latest\n    user: \"{{uid}}:{{gid}}\"\n    ports:\n      - \"{{port}}:8096\"\n    volumes:\n      - \"{{data}}/config:/config\"\n      - \"{{data}}/cache:/cache\"\n      - \"{{folder:media}}:/media:ro\"\n    environment:\n      TZ: \"{{tz}}\"\n    restart: unless-stopped\n"
     },
@@ -45,7 +53,15 @@
         "fr": "À la première ouverture, créez le compte admin. Compatible avec les apps Subsonic"
       },
       "folders": [
-        {"key": "music", "write": false, "label": {"ar": "مجلد الموسيقى", "en": "Music folder", "fr": "Dossier musique"}}
+        {
+          "key": "music",
+          "write": false,
+          "label": {
+            "ar": "مجلد الموسيقى",
+            "en": "Music folder",
+            "fr": "Dossier musique"
+          }
+        }
       ],
       "compose": "services:\n  app:\n    image: deluan/navidrome:latest\n    user: \"{{uid}}:{{gid}}\"\n    ports:\n      - \"{{port}}:4533\"\n    volumes:\n      - \"{{data}}:/data\"\n      - \"{{folder:music}}:/music:ro\"\n    environment:\n      ND_SCANSCHEDULE: \"1h\"\n      TZ: \"{{tz}}\"\n    restart: unless-stopped\n"
     },
@@ -69,7 +85,15 @@
         "fr": "À la première ouverture, créez le compte admin puis ajoutez /audiobooks"
       },
       "folders": [
-        {"key": "books", "write": false, "label": {"ar": "مجلد الكتب الصوتية", "en": "Audiobooks folder", "fr": "Dossier livres audio"}}
+        {
+          "key": "books",
+          "write": false,
+          "label": {
+            "ar": "مجلد الكتب الصوتية",
+            "en": "Audiobooks folder",
+            "fr": "Dossier livres audio"
+          }
+        }
       ],
       "compose": "services:\n  app:\n    image: ghcr.io/advplyr/audiobookshelf:latest\n    ports:\n      - \"{{port}}:80\"\n    volumes:\n      - \"{{data}}/config:/config\"\n      - \"{{data}}/metadata:/metadata\"\n      - \"{{folder:books}}:/audiobooks:ro\"\n    environment:\n      TZ: \"{{tz}}\"\n    restart: unless-stopped\n"
     },
@@ -95,6 +119,29 @@
       },
       "folders": [],
       "compose": "services:\n  app:\n    image: ghcr.io/home-assistant/home-assistant:stable\n    network_mode: host\n    volumes:\n      - \"{{data}}/config:/config\"\n      - \"/etc/localtime:/etc/localtime:ro\"\n    environment:\n      TZ: \"{{tz}}\"\n    restart: unless-stopped\n"
+    },
+    {
+      "id": "frigate",
+      "name": "Frigate",
+      "category": "home",
+      "icon": "video",
+      "color": "linear-gradient(135deg,#0f172a,#2563eb)",
+      "ram_mb": 2048,
+      "port": 8971,
+      "scheme": "https",
+      "path": "/",
+      "summary": {
+        "ar": "مسجّل كاميرات ذكي: يتعرف على الأشخاص والسيارات والحيوانات ويحفظ اللقطات المهمة",
+        "en": "Smart camera recorder: detects people, cars and animals and keeps the important clips",
+        "fr": "Enregistreur de caméras intelligent : détecte personnes, voitures et animaux et garde les moments importants"
+      },
+      "notes": {
+        "ar": "يفتح عبر https: إذا ظهر تحذير في المتصفح اختر «متابعة». اسم المستخدم admin، وكلمة المرور الأولى تظهر في «سجل التطبيق». أضف كاميراتك من Settings ← Configuration editor. أخف للأجهزة القديمة: تطبيق «الكاميرات» المدمج في HOME ANAB",
+        "en": "Opens over https: if the browser warns, choose “continue”. User admin; the first password is shown in the app log. Add your cameras in Settings → Configuration editor. Lighter for old computers: the built-in Cameras app",
+        "fr": "S'ouvre en https : si le navigateur avertit, choisissez « continuer ». Utilisateur admin ; le premier mot de passe est dans le journal de l'application. Ajoutez vos caméras dans Settings → Configuration editor"
+      },
+      "folders": [],
+      "compose": "services:\n  app:\n    image: ghcr.io/blakeblackshear/frigate:stable\n    shm_size: \"512mb\"\n    ports:\n      - \"{{port}}:8971\"\n    volumes:\n      - \"{{data}}/config:/config\"\n      - \"{{data}}/media:/media/frigate\"\n      - \"/etc/localtime:/etc/localtime:ro\"\n      - type: tmpfs\n        target: /tmp/cache\n        tmpfs:\n          size: 1000000000\n    environment:\n      TZ: \"{{tz}}\"\n    restart: unless-stopped\n"
     },
     {
       "id": "pihole",
@@ -140,7 +187,15 @@
         "fr": "Installez Syncthing sur l'autre ordinateur et associez les appareils. Le dossier choisi apparaît comme H.SEF"
       },
       "folders": [
-        {"key": "sync", "write": true, "label": {"ar": "المجلد الذي تتم مزامنته", "en": "Folder to sync", "fr": "Dossier à synchroniser"}}
+        {
+          "key": "sync",
+          "write": true,
+          "label": {
+            "ar": "المجلد الذي تتم مزامنته",
+            "en": "Folder to sync",
+            "fr": "Dossier à synchroniser"
+          }
+        }
       ],
       "compose": "services:\n  app:\n    image: syncthing/syncthing:latest\n    hostname: hsef\n    ports:\n      - \"{{port}}:8384\"\n      - \"22000:22000/tcp\"\n      - \"22000:22000/udp\"\n      - \"21027:21027/udp\"\n    environment:\n      PUID: \"{{uid}}\"\n      PGID: \"{{gid}}\"\n      TZ: \"{{tz}}\"\n    volumes:\n      - \"{{data}}:/var/syncthing\"\n      - \"{{folder:sync}}:/var/syncthing/H.SEF\"\n    restart: unless-stopped\n"
     },
@@ -165,7 +220,15 @@
         "fr": "Utilisateur admin ; le mot de passe temporaire apparaît dans le journal après le premier démarrage"
       },
       "folders": [
-        {"key": "downloads", "write": true, "label": {"ar": "مجلد التنزيلات", "en": "Downloads folder", "fr": "Dossier des téléchargements"}}
+        {
+          "key": "downloads",
+          "write": true,
+          "label": {
+            "ar": "مجلد التنزيلات",
+            "en": "Downloads folder",
+            "fr": "Dossier des téléchargements"
+          }
+        }
       ],
       "compose": "services:\n  app:\n    image: lscr.io/linuxserver/qbittorrent:latest\n    ports:\n      - \"{{port}}:{{port}}\"\n      - \"6881:6881\"\n      - \"6881:6881/udp\"\n    environment:\n      PUID: \"{{uid}}\"\n      PGID: \"{{gid}}\"\n      TZ: \"{{tz}}\"\n      WEBUI_PORT: \"{{port}}\"\n    volumes:\n      - \"{{data}}:/config\"\n      - \"{{folder:downloads}}:/downloads\"\n    restart: unless-stopped\n"
     },

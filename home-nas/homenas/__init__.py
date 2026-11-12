@@ -14,7 +14,7 @@ from .faces import migrate as faces_migrate
 from .network import Network
 from .photos import Indexer
 
-__version__ = "1.5.9"
+__version__ = "1.6.0"
 
 
 def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
@@ -37,6 +37,8 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
     _tv.migrate(_db)
     from . import stars as _stars
     _stars.migrate(_db)
+    from . import cameras as _cams
+    _cams.migrate(_db)
     _db.close()
     app.extensions["nas_paths"] = data_paths
     app.extensions["nas_indexer"] = idx = Indexer(data_paths)
@@ -44,6 +46,7 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
     app.extensions["nas_net"] = nw = Network(data_paths)
     app.extensions["nas_apps"] = AppStore(data_paths)
     app.extensions["nas_faces"] = fc = FaceEngine(data_paths)
+    app.extensions["nas_cams"] = cams = _cams.CameraManager(data_paths)
     from .iphone import IphoneSync
     app.extensions["nas_iphone"] = iph = IphoneSync(data_paths, idx)
     def _on_indexed(lib):
@@ -56,10 +59,12 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
         nw.start()
         fc.start()
         iph.start()
+        cams.start()
 
-    from . import (appstore, backup, faces, files, health, iphone, links, network, photos, profile, remote, stars, sysadmin, system,
-                   tv, welcome)
-    for mod in (system, files, photos, links, backup, health, network, appstore, faces, remote, tv, profile, sysadmin, iphone, stars, welcome):
+    from . import (appstore, backup, cameras, faces, files, health, iphone, links, network, photos, profile, remote, stars, sysadmin,
+                   system, tv, welcome)
+    for mod in (system, files, photos, links, backup, health, network, appstore, faces, remote, tv, profile, sysadmin, iphone, stars, welcome,
+                cameras):
         app.register_blueprint(mod.bp)
 
     @app.teardown_appcontext
