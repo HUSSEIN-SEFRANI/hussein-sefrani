@@ -181,7 +181,7 @@
         if (n > 15) idx = K.shuffle(idx).slice(0, 15).sort((a, b) => a - b);
         return idx.map((i) => {
           const pool = s.ayat.map((x, j) => j).filter((j) => j !== i);
-          const opts = K.options(i, pool, Math.min(3, n), (x, y) => s.ayat[x] === s.ayat[y]);
+          const opts = K.options(i, pool, Math.min(4, n), (x, y) => s.ayat[x] === s.ayat[y]);
           const ctx = i === 0
             ? `<div class="q">ما أول آية في سورة <span class="qr">${s.name}</span>؟</div>`
             : `<div class="q">ما الآية ${ar(i + 1)} بعد:</div>
@@ -190,7 +190,7 @@
             prompt: `<div class="col">${i === 0 && s.n !== 1 ? `<div class="basmala qr sm">${BASMALA}</div>` : ""}${ctx}</div>`,
             opts: heads(opts.map((j) => s.ayat[j])),
             answer: opts.indexOf(i),
-            optsCls: "wide qr" + (Math.max(...heads(opts.map((j) => s.ayat[j])).map((t) => bare(t).length)) > 70 ? " long" : ""),
+            optsCls: (() => { const m = Math.max(...heads(opts.map((j) => s.ayat[j])).map((t) => bare(t).length)); return "wide qr" + (m <= 34 ? " two" : m > 70 ? " long" : ""); })(),
             sayOk: () => K.play([audioFile(s, i)]),
           };
         });
@@ -217,7 +217,7 @@
           // الكلمة الأخيرة غالباً، وأحياناً كلمة من الوسط
           const cand = w.map((x, j) => j).filter((j) => bare(w[j]).length >= 2);
           const h = (k % 2 === 1 || w.length < 3) ? w.length - 1 : K.pick(cand);
-          const opts = K.options(w[h], allWords, 3, (a, b) => bare(a) === bare(b));
+          const opts = K.options(w[h], allWords, 4, (a, b) => bare(a) === bare(b));
           // في الآية الطويلة نعرض الكلمات القريبة من الكلمة الناقصة فقط
           let a0 = 0, a1 = w.length;
           if (bare(s.ayat[i]).length > 110) { a0 = Math.max(0, h - 9); a1 = Math.min(w.length, h + 4); }

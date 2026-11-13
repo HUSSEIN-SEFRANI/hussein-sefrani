@@ -46,3 +46,12 @@ h2 { color: #fff; text-shadow: 0 .3vh 0 #0f766e; }
 .mode.juz { width: 19vw; }
 .mode.juz .prog { margin-top: 1vh; font-size: 2.6vh; font-weight: 800; background: rgba(255,255,255,.25); border-radius: 3vh; padding: .3vh 1.6vh; }
 h2 .jn { font-size: .6em; opacity: .85; }
+/* أربعة خيارات: الآيات القصيرة في شبكة ٢×٢، والطويلة في صفوف أصغر */
+.opts.wide { margin-top: 2vh; gap: 1.6vh; }
+.opts.wide .opt { min-height: 0; height: auto; padding: .9vh 3vw; font-size: 4vh; line-height: 2.1; overflow: visible; }
+.opts.wide.long { gap: 1.1vh; }
+.opts.wide.long .opt { min-height: 0; font-size: 3.3vh; padding: .3vh 3vw; line-height: 1.95; }
+.opts.wide.two { flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 2.4vh 2vw; }
+.opts.wide.two .opt { width: 40vw; min-height: 13vh; font-size: 4.6vh; }
+.opts.txt { gap: 2vw; }
+.opts.txt .opt { font-size: 6.4vh; min-width: 18vw; height: 14vh; }
