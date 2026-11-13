@@ -2,12 +2,12 @@
 #app { padding: 3vh 4vw 2.5vh; }
 .title h1 { font-size: 8.5vh; }
 .mode .cnt { font-size: 2.4vh; background: rgba(255,255,255,.25); border-radius: 2vh; padding: .2vh 1.6vh; }
-.modes.cats { gap: 2vw 2.2vw; margin-top: 2.5vh; max-width: 92vw; }
-.modes.cats .mode { width: 25vw; height: 25vh; border-radius: 4vh; }
+.modes.cats { gap: 2.4vh 1.6vw; margin-top: 2.5vh; max-width: 96vw; }
+.modes.cats .mode { width: 21.5vw; height: 27vh; border-radius: 4vh; }
 .modes.cats .mode { gap: .4vh; justify-content: center; padding-top: 1vh; }
 .modes.cats .mode .big { font-size: 7vh; }
-.modes.cats .mode small { font-size: 2.3vh; }
-.modes.cats .mode b { font-size: 3.8vh; }
+.modes.cats .mode small { font-size: 2.2vh; text-align: center; line-height: 1.25; }
+.modes.cats .mode b { font-size: 3.6vh; }
 .ct { display: flex; align-items: center; gap: 1vw; color: #fff; -webkit-text-stroke: .3vh #0f766e; paint-order: stroke fill; font-size: 5.5vh; }
 .ct .emo { -webkit-text-stroke: 0; }
 

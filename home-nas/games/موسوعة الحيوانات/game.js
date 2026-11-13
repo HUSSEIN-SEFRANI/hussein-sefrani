@@ -101,7 +101,7 @@
           let q = null;
           if (t === "name") {
             const opts = K.options(a, ALL.filter((x) => x.c === a.c || Math.random() < 0.3), 3, (x, y) => x.n === y.n);
-            q = { prompt: `${pic(a, "q")}<div class="q">ما اسم هذا الحيوان؟</div>`, opts: opts.map((x) => x.n), answer: opts.indexOf(a), optsCls: "txt" };
+            q = { prompt: `${pic(a, "q")}<div class="q">ما اسم ${a.c === "micro" ? "هذا الكائن" : "هذا الحيوان"}؟</div>`, opts: opts.map((x) => x.n), answer: opts.indexOf(a), optsCls: "txt" };
           } else if (t === "cat") {
             const opts = K.options(catOf(a), CATS, 3, (x, y) => x.id === y.id);
             q = { prompt: `${pic(a, "q")}<div class="q">${a.n}: من أي مجموعة؟</div>`, opts: opts.map((x) => `<span class="emo">${x.icon}</span> ${x.name}`), answer: opts.indexOf(catOf(a)), optsCls: "txt" };
