@@ -77,8 +77,11 @@
       </button>`; }).join("");
     K.paint(`
       <div class="top">${K.backBtn()}<h2>${j.name} <small class="jn">(الجزء ${ar(j.n)})</small></h2><span class="pill">🌟 ${ar(done)} / ${ar(ix.length)}</span></div>
-      <div class="grid" style="--cols:${Math.min(10, ix.length > 12 ? 10 : 6)}">${tiles}</div>
-      ${K.HELP}`, "s" + ix[0]);
+      <div class="grid" style="--cols:${Math.min(10, ix.length > 12 ? 10 : 6)}">${TEST_JUZ.includes(jn) ? `
+        <button class="tile surah test f" ${K.act("test", () => { T = null; K.show(testScreen, jn); })}>
+          <span class="emo">📝</span><b>اختبار</b><span class="st">⭐ ${ar(testStars(jn))}</span>
+        </button>` : ""}${tiles}</div>
+      ${K.HELP}`, TEST_JUZ.includes(jn) ? "test" : "s" + ix[0]);
   }
 
   // ---------------------------------------------------------------- السورة
@@ -170,6 +173,43 @@
   }
 
   // ---------------------------------------------------------------- رتّب الآيات
+  // سؤال «ما الآية التالية؟» (يُستعمل في رتّب الآيات وفي اختبار الجزء)
+  function orderQ(s, i, tag = "") {
+    const n = s.ayat.length;
+    const pool = s.ayat.map((x, j) => j).filter((j) => j !== i);
+    const opts = K.options(i, pool, Math.min(4, n), (x, y) => s.ayat[x] === s.ayat[y]);
+    const ctx = i === 0
+      ? `<div class="q">ما أول آية في سورة <span class="qr">${s.name}</span>؟</div>`
+      : `<div class="q">ما الآية ${ar(i + 1)} بعد:</div>
+         <div class="ctx qr">${i >= 2 && bare(s.ayat[i - 1]).length < 60 ? `<span class="dim">${tailOf(s.ayat[i - 2], 40)} ${num(i - 1)}</span> ` : ""}${tailOf(s.ayat[i - 1])} ${num(i)}</div>`;
+    return {
+      prompt: `<div class="col">${tag}${i === 0 && s.n !== 1 ? `<div class="basmala qr sm">${BASMALA}</div>` : ""}${ctx}</div>`,
+      opts: heads(opts.map((j) => s.ayat[j])),
+      answer: opts.indexOf(i),
+      optsCls: (() => { const m = Math.max(...heads(opts.map((j) => s.ayat[j])).map((t) => bare(t).length)); return "wide qr" + (m <= 34 ? " two" : m > 70 ? " long" : ""); })(),
+      sayOk: () => K.play([audioFile(s, i)]),
+    };
+  }
+
+  // سؤال «أكمل الآية»: الكلمة الأخيرة (last) أو كلمة من الوسط
+  function fillQ(s, i, last, allWords, tag = "") {
+    const w = s.ayat[i].split(" ");
+    // الكلمة الأخيرة غالباً، وأحياناً كلمة من الوسط
+    const cand = w.map((x, j) => j).filter((j) => bare(w[j]).length >= 2);
+    const h = (last || w.length < 3) ? w.length - 1 : K.pick(cand);
+    const opts = K.options(w[h], allWords, 4, (a, b) => bare(a) === bare(b));
+    // في الآية الطويلة نعرض الكلمات القريبة من الكلمة الناقصة فقط
+    let a0 = 0, a1 = w.length;
+    if (bare(s.ayat[i]).length > 110) { a0 = Math.max(0, h - 9); a1 = Math.min(w.length, h + 4); }
+    const shown = (a0 > 0 ? "… " : "") + w.slice(a0, a1).map((x, jj) => (jj + a0 === h ? `<span class="hole">؟</span>` : x)).join(" ") + (a1 < w.length ? " …" : "");
+    return {
+      prompt: `<div class="col">${tag}${i === 0 && s.n !== 1 ? `<div class="basmala qr sm">${BASMALA}</div>` : ""}<div class="ayah qr fillq">${shown} ${num(i + 1)}</div></div>`,
+      opts, answer: opts.indexOf(w[h]),
+      reveal(app) { const e = app.querySelector(".hole"); if (e) { e.textContent = w[h]; e.classList.add("got"); } },
+      sayOk: () => K.play([audioFile(s, i)]),
+    };
+  }
+
   function orderQuiz(si) {
     const s = S[si], n = s.ayat.length;
     return {
@@ -179,21 +219,7 @@
         // السور الطويلة: ١٥ سؤالاً من مواضع مختلفة بالترتيب
         let idx = s.ayat.map((_, i) => i);
         if (n > 15) idx = K.shuffle(idx).slice(0, 15).sort((a, b) => a - b);
-        return idx.map((i) => {
-          const pool = s.ayat.map((x, j) => j).filter((j) => j !== i);
-          const opts = K.options(i, pool, Math.min(4, n), (x, y) => s.ayat[x] === s.ayat[y]);
-          const ctx = i === 0
-            ? `<div class="q">ما أول آية في سورة <span class="qr">${s.name}</span>؟</div>`
-            : `<div class="q">ما الآية ${ar(i + 1)} بعد:</div>
-               <div class="ctx qr">${i >= 2 && bare(s.ayat[i - 1]).length < 60 ? `<span class="dim">${tailOf(s.ayat[i - 2], 40)} ${num(i - 1)}</span> ` : ""}${tailOf(s.ayat[i - 1])} ${num(i)}</div>`;
-          return {
-            prompt: `<div class="col">${i === 0 && s.n !== 1 ? `<div class="basmala qr sm">${BASMALA}</div>` : ""}${ctx}</div>`,
-            opts: heads(opts.map((j) => s.ayat[j])),
-            answer: opts.indexOf(i),
-            optsCls: (() => { const m = Math.max(...heads(opts.map((j) => s.ayat[j])).map((t) => bare(t).length)); return "wide qr" + (m <= 34 ? " two" : m > 70 ? " long" : ""); })(),
-            sayOk: () => K.play([audioFile(s, i)]),
-          };
-        });
+        return idx.map((i) => orderQ(s, i));
       },
       done(score, st) { return record(s, "order", st); },
       next: { label: "أكمل الآية", fn: () => K.replace(K.quizScreen, fillQuiz(si)) },
@@ -212,27 +238,87 @@
         while (idx.length < 4) idx = idx.concat(s.ayat.map((_, i) => i));
         idx = idx.slice(0, Math.max(4, Math.min(10, s.ayat.length)));
         if (s.ayat.length > 10) idx = K.shuffle(s.ayat.map((_, i) => i)).slice(0, 10).sort((a, b) => a - b);
-        return idx.map((i, k) => {
-          const w = s.ayat[i].split(" ");
-          // الكلمة الأخيرة غالباً، وأحياناً كلمة من الوسط
-          const cand = w.map((x, j) => j).filter((j) => bare(w[j]).length >= 2);
-          const h = (k % 2 === 1 || w.length < 3) ? w.length - 1 : K.pick(cand);
-          const opts = K.options(w[h], allWords, 4, (a, b) => bare(a) === bare(b));
-          // في الآية الطويلة نعرض الكلمات القريبة من الكلمة الناقصة فقط
-          let a0 = 0, a1 = w.length;
-          if (bare(s.ayat[i]).length > 110) { a0 = Math.max(0, h - 9); a1 = Math.min(w.length, h + 4); }
-          const shown = (a0 > 0 ? "… " : "") + w.slice(a0, a1).map((x, jj) => (jj + a0 === h ? `<span class="hole">؟</span>` : x)).join(" ") + (a1 < w.length ? " …" : "");
-          return {
-            prompt: `<div class="col">${i === 0 && s.n !== 1 ? `<div class="basmala qr sm">${BASMALA}</div>` : ""}<div class="ayah qr fillq">${shown} ${num(i + 1)}</div></div>`,
-            opts, answer: opts.indexOf(w[h]),
-            reveal(app) { const e = app.querySelector(".hole"); if (e) { e.textContent = w[h]; e.classList.add("got"); } },
-            sayOk: () => K.play([audioFile(s, i)]),
-          };
-        });
+        return idx.map((i, k) => fillQ(s, i, k % 2 === 1, allWords));
       },
       done(score, st) { return record(s, "fill", st); },
       next: si < S.length - 1 && juzOf(S[si + 1]) === juzOf(s) && s.n !== 1 ? { label: `سورة ${S[si + 1].name}`, fn: () => K.replace(surahScreen, si + 1) } : null,
     };
+  }
+
+  // ---------------------------------------------------------------- اختبار الجزء
+  // أسئلة متنوعة من كل سور الجزء بلا نهاية: كل ١٠ إجابات صحيحة من أول محاولة = نجمة
+  const TEST_JUZ = [30];
+  const PER_STAR = 10;
+  const testStars = (jn) => (save.test || {})[jn] || 0;
+  const tagOf = (s) => `<div class="stag">سورة <span class="qr">${s.name}</span></div>`;
+  let T = null; // حالة الاختبار الجاري
+
+  function testQuestion(jn) {
+    const j = JUZ.find((x) => x.n === jn), ss = inJuz(j).map((i) => S[i]);
+    const kind = K.pick(["order", "order", "order", "fill", "fill", "fill", "which", "which", "first"]);
+    const s = K.pick(ss), n = s.ayat.length, i = (Math.random() * n) | 0;
+    if (kind === "order" && i > 0) return { key: `o${s.n}:${i}`, ...orderQ(s, i, tagOf(s)) };
+    if (kind === "fill") {
+      const q = fillQ(s, i, Math.random() < 0.5, [...new Set(s.ayat.flatMap((a) => a.split(" ")))], tagOf(s));
+      return { key: `f${s.n}:${i}`, optsCls: "txt qr", ...q };
+    }
+    if (kind === "which") {
+      // آية لا تتكرر في سورة أخرى من الجزء، وليست طويلة
+      const ok = s.ayat.map((a, k) => k).filter((k) => { const l = bare(s.ayat[k]).length;
+        return l >= 10 && l <= LONG && !ss.some((o) => o !== s && o.ayat.includes(s.ayat[k])); });
+      if (ok.length) {
+        const k = K.pick(ok), names = K.options(s.name, ss.map((o) => o.name), 4);
+        return { key: `w${s.n}:${k}`, prompt: `<div class="col"><div class="q">من أي سورة هذه الآية؟</div><div class="ayah qr fillq">${s.ayat[k]}</div></div>`,
+          opts: names, answer: names.indexOf(s.name), optsCls: "txt qr names", sayOk: () => K.play([audioFile(s, k)]) };
+      }
+    }
+    // ما أول آية في سورة …؟ (الخيارات: بدايات سور أخرى من الجزء)
+    const others = K.shuffle(ss.filter((o) => o !== s && o.ayat[0] !== s.ayat[0])).slice(0, 3);
+    const opts = K.shuffle([s, ...others]), texts = heads(opts.map((o) => o.ayat[0]));
+    const m = Math.max(...texts.map((t) => bare(t).length));
+    return { key: `a${s.n}`, prompt: `<div class="col"><div class="q">ما أول آية في سورة <span class="qr">${s.name}</span>؟</div></div>`,
+      opts: texts, answer: opts.indexOf(s), optsCls: "wide qr" + (m <= 34 ? " two" : m > 70 ? " long" : ""), sayOk: () => K.play([audioFile(s, 0)]) };
+  }
+
+  function testScreen(jn) {
+    if (!T || T.jn !== jn) T = { jn, got: 0, won: 0, recent: [] };
+    let Q;
+    for (let t = 0; t < 30; t++) { Q = testQuestion(jn); if (!T.recent.includes(Q.key)) break; }
+    T.recent = [Q.key, ...T.recent].slice(0, 40);
+    K.begin();
+    let wrong = false, locked = false;
+    const dots = Array.from({ length: PER_STAR }, (_, k) => `<i class="${k < T.got ? "ok" : k === T.got ? "now" : ""}"></i>`).join("");
+    const choose = (k, el) => {
+      if (locked || el.dataset.dead) return;
+      const cheer = K.app.querySelector(".cheer");
+      if (k !== Q.answer) {
+        wrong = true; el.classList.add("bad"); el.dataset.dead = "1"; K.sfx.bad();
+        cheer.textContent = "حاول مرة أخرى 💪"; return;
+      }
+      locked = true; el.classList.add("ok"); K.sfx.ok();
+      if (Q.reveal) Q.reveal(K.app);
+      if (Q.sayOk) Q.sayOk();
+      let wait = 1700;
+      if (!wrong) {
+        T.got++;
+        const d = K.app.querySelectorAll(".dots i")[T.got - 1]; if (d) d.className = "ok";
+        if (T.got >= PER_STAR) {
+          T.got = 0; T.won++;
+          save.test = save.test || {}; save.test[jn] = testStars(jn) + 1; save.save();
+          const p = K.app.querySelector(".tstars"); if (p) p.textContent = `⭐ ${ar(testStars(jn))}`;
+          K.sfx.win(); K.confetti(70, STAR_FX); cheer.textContent = "ربحت نجمة! ⭐"; wait = 3000;
+        } else { K.confetti(10); cheer.textContent = K.pick(["أحسنت! 👏", "رائع! 🌟", "ممتاز! 🎉", "بطل! 🏆", "شاطر! 💪"]); }
+      } else cheer.textContent = "صحيح ✅ (لا تُحسب لأنها ليست من أول محاولة)";
+      K.later(() => { K.top().focus = null; K.render(); }, wait);
+    };
+    const j = JUZ.find((x) => x.n === jn);
+    K.paint(`
+      <div class="top">${K.backBtn()}<div class="tbar"><b>📝 اختبار ${j.name}</b><div class="dots">${dots}</div></div>
+        <span class="pill tstars">⭐ ${ar(testStars(jn))}</span></div>
+      <div class="prompt">${Q.prompt}</div>
+      <div class="opts ${Q.optsCls}">${Q.opts.map((h, k) => `<button class="opt f" ${K.act("o" + k, (el) => choose(k, el))}>${h}</button>`).join("")}</div>
+      <div class="cheer"></div>
+      ${K.HELP}`, "o0");
   }
 
   function record(s, mode, st) {

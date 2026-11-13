@@ -55,3 +55,15 @@ h2 .jn { font-size: .6em; opacity: .85; }
 .opts.wide.two .opt { width: 40vw; min-height: 13vh; font-size: 4.6vh; }
 .opts.txt { gap: 2vw; }
 .opts.txt .opt { font-size: 6.4vh; min-width: 18vw; height: 14vh; }
+/* اختبار الجزء */
+.surah.test { background: linear-gradient(135deg, #f59e0b, #ea580c); color: #fff; }
+.surah.test .emo { font-size: 4.6vh; line-height: 1.2; }
+.surah.test b { font-family: "Baloo", sans-serif; font-weight: 800; color: #fff; font-size: 3vh; line-height: 1.3; }
+.surah.test .st { color: #fff; font-weight: 800; font-size: 2.4vh; }
+.tbar { display: flex; flex-direction: column; align-items: center; gap: 1vh; }
+.tbar b { color: #fff; font-size: 3.6vh; text-shadow: 0 .3vh 0 #0f766e; }
+.tbar .dots i { width: 3vh; height: 3vh; }
+.tbar .dots i.ok { background: #fbbf24; box-shadow: 0 0 1vh #fde68a; }
+.stag { font-size: 2.8vh; font-weight: 800; color: #0f766e; background: #ccfbf1; border-radius: 3vh; padding: .2vh 2vh; }
+.stag .qr { font-size: 1.2em; }
+.opts.names .opt { font-size: 5.6vh; }
