@@ -14,21 +14,71 @@
   const num = (i) => `<span class="num">${ar(i)}</span>`;
   const STAR_FX = "⭐🌟✨";
 
-  // ---------------------------------------------------------------- القائمة: السور
+  // الآيات الطويلة: نعرض جزءاً منها مع «…» حتى تتسع الشاشة (النص نفسه لا يتغير)
+  const LONG = 95;
+  const nWords = (w, lim, fromEnd) => { let k = 0, l = 0; const g = (i) => w[fromEnd ? w.length - 1 - i : i];
+    while (k < w.length && (k < 3 || l + bare(g(k)).length <= lim)) { l += bare(g(k)).length + 1; k++; } return k; };
+  const headOf = (a, lim = 55) => { const w = a.split(" "), k = nWords(w, lim); return k >= w.length ? a : w.slice(0, k).join(" ") + " …"; };
+  const tailOf = (a, lim = 80) => { const w = a.split(" "), k = nWords(w, lim, true); return k >= w.length ? a : "… " + w.slice(w.length - k).join(" "); };
+  // بدايات آيات مختلفة بحيث لا يتشابه خياران
+  function heads(texts, lim = 60) {
+    const W = texts.map((t) => t.split(" "));
+    const k = texts.map((t, i) => (bare(t).length <= LONG ? W[i].length : nWords(W[i], lim)));
+    for (let g = 0; g < 80; g++) {
+      const sh = W.map((w, i) => bare(w.slice(0, k[i]).join(" ")));
+      let dup = false;
+      for (let a = 0; a < sh.length; a++) for (let b = a + 1; b < sh.length; b++)
+        if (texts[a] !== texts[b] && (sh[a] === sh[b] || (k[a] < W[a].length && sh[b].startsWith(sh[a])) || (k[b] < W[b].length && sh[a].startsWith(sh[b])))) { dup = true; k[a]++; k[b]++; }
+      if (!dup) break;
+    }
+    return W.map((w, i) => (k[i] >= w.length ? texts[i] : w.slice(0, k[i]).join(" ") + " …"));
+  }
+
+  // ---------------------------------------------------------------- الأجزاء
+  // جزء عمّ يبدأ بسورة النبأ (٧٨)، وجزء تبارك بسورة الملك (٦٧)، وجزء قد سمع بسورة المجادلة (٥٨)
+  const JUZ = [
+    { n: 30, name: "جزء عمّ", icon: "🌙", bg: "linear-gradient(135deg,#10b981,#0f766e)", has: (x) => x >= 78 },
+    { n: 29, name: "جزء تبارك", icon: "⭐", bg: "linear-gradient(135deg,#06b6d4,#2563eb)", has: (x) => x >= 67 && x <= 77 },
+    { n: 28, name: "جزء قد سمع", icon: "🌟", bg: "linear-gradient(135deg,#8b5cf6,#6d28d9)", has: (x) => x >= 58 && x <= 66 },
+  ];
+  const juzOf = (s) => JUZ.find((j) => j.has(s.n));
+  const inJuz = (j) => S.map((s, i) => i).filter((i) => j.has(S[i].n));
+  const FATIHA = S.findIndex((s) => s.n === 1);
+
   function homeScreen() {
     K.begin();
     const done = S.filter(memorized).length;
-    const tiles = S.map((s, i) => `
-      <button class="tile surah f${memorized(s) ? " done" : ""}" ${K.act("s" + i, () => K.show(surahScreen, i))}>
-        <b class="qr">${s.name}</b><small>${ar(s.ayat.length)} ${ayatWord(s.ayat.length)}</small>
-        <span class="st">${memorized(s) ? "🌟 حفظتها" : K.starsHtml(Math.min(stars(s, "order"), stars(s, "fill")))}</span>
-      </button>`).join("");
+    const card = (key, bg, icon, title, desc, prog, fn) => `
+      <button class="mode juz f" style="background:${bg}" ${K.act(key, fn)}>
+        <span class="big emo">${icon}</span><b>${title}</b><small>${desc}</small><span class="prog">${prog}</span>
+      </button>`;
+    const f = S[FATIHA];
     K.paint(`
       <div class="top"><span></span>
         <div class="title"><span class="mascot emo">📖</span><h1>حفظ القرآن</h1></div>
         <span class="pill">🌟 ${ar(done)} / ${ar(S.length)}</span></div>
-      <div class="grid" style="--cols:10">${tiles}</div>
-      ${K.HELP}`, "s0");
+      <div class="sub">اختر ما تريد أن تحفظ</div>
+      <div class="modes">
+        ${card("f", "linear-gradient(135deg,#f59e0b,#ea580c)", "📖", "سورة الفاتحة", `${ar(f.ayat.length)} آيات`, memorized(f) ? "🌟 حفظتها" : K.starsHtml(Math.min(stars(f, "order"), stars(f, "fill"))), () => K.show(surahScreen, FATIHA))}
+        ${JUZ.map((j) => { const ix = inJuz(j); const d = ix.filter((i) => memorized(S[i])).length;
+          return card("j" + j.n, j.bg, j.icon, j.name, `الجزء ${ar(j.n)}<br>${ar(ix.length)} سورة`, `🌟 ${ar(d)} / ${ar(ix.length)}`, () => K.show(juzScreen, j.n)); }).join("")}
+      </div>
+      ${K.HELP}`, "j30");
+  }
+
+  function juzScreen(jn) {
+    K.begin();
+    const j = JUZ.find((x) => x.n === jn), ix = inJuz(j);
+    const done = ix.filter((i) => memorized(S[i])).length;
+    const tiles = ix.map((i) => { const s = S[i]; return `
+      <button class="tile surah f${memorized(s) ? " done" : ""}" ${K.act("s" + i, () => K.show(surahScreen, i))}>
+        <b class="qr">${s.name}</b><small>${ar(s.ayat.length)} ${ayatWord(s.ayat.length)}</small>
+        <span class="st">${memorized(s) ? "🌟 حفظتها" : K.starsHtml(Math.min(stars(s, "order"), stars(s, "fill")))}</span>
+      </button>`; }).join("");
+    K.paint(`
+      <div class="top">${K.backBtn()}<h2>${j.name} <small class="jn">(الجزء ${ar(j.n)})</small></h2><span class="pill">🌟 ${ar(done)} / ${ar(ix.length)}</span></div>
+      <div class="grid" style="--cols:${Math.min(10, ix.length > 12 ? 10 : 6)}">${tiles}</div>
+      ${K.HELP}`, "s" + ix[0]);
   }
 
   // ---------------------------------------------------------------- السورة
@@ -68,13 +118,13 @@
       once();
     };
     const len = bare(s.ayat[i]).length;
-    const fs = len > 120 ? 5 : len > 70 ? 6.2 : len > 35 ? 7.5 : 9;
+    const fs = len > 330 ? 3.6 : len > 220 ? 4.2 : len > 150 ? 4.8 : len > 120 ? 5.2 : len > 70 ? 6.2 : len > 35 ? 7.5 : 9;
     K.paint(`
       <div class="top">${K.backBtn()}<h2 class="qr">سورة ${s.name}</h2><span class="pill">الآية ${ar(i + 1)} / ${ar(n)}</span></div>
       <div class="mushaf">
         ${i === 0 && s.n !== 1 ? `<div class="basmala qr">${BASMALA}</div>` : ""}
         <div class="ayah qr" style="font-size:${fs}vh">${s.ayat[i]} ${num(i + 1)}</div>
-        ${i < n - 1 ? `<div class="nexthint qr">${s.ayat[i + 1]} ${num(i + 2)}</div>` : `<div class="nexthint">✨ نهاية السورة ✨</div>`}
+        ${i < n - 1 ? `<div class="nexthint qr">${len > 220 ? headOf(s.ayat[i + 1], 30) : bare(s.ayat[i + 1]).length > LONG ? headOf(s.ayat[i + 1]) : s.ayat[i + 1]} ${num(i + 2)}</div>` : `<div class="nexthint">✨ نهاية السورة ✨</div>`}
       </div>
       <div class="nav">
         <button class="btn f" ${K.act("prev", () => go(-1))}>→ السابقة</button>
@@ -135,12 +185,12 @@
           const ctx = i === 0
             ? `<div class="q">ما أول آية في سورة <span class="qr">${s.name}</span>؟</div>`
             : `<div class="q">ما الآية ${ar(i + 1)} بعد:</div>
-               <div class="ctx qr">${i >= 2 ? `<span class="dim">${s.ayat[i - 2]} ${num(i - 1)}</span> ` : ""}${s.ayat[i - 1]} ${num(i)}</div>`;
+               <div class="ctx qr">${i >= 2 && bare(s.ayat[i - 1]).length < 60 ? `<span class="dim">${tailOf(s.ayat[i - 2], 40)} ${num(i - 1)}</span> ` : ""}${tailOf(s.ayat[i - 1])} ${num(i)}</div>`;
           return {
             prompt: `<div class="col">${i === 0 && s.n !== 1 ? `<div class="basmala qr sm">${BASMALA}</div>` : ""}${ctx}</div>`,
-            opts: opts.map((j) => s.ayat[j]),
+            opts: heads(opts.map((j) => s.ayat[j])),
             answer: opts.indexOf(i),
-            optsCls: "wide qr" + (Math.max(...opts.map((j) => bare(s.ayat[j]).length)) > 70 ? " long" : ""),
+            optsCls: "wide qr" + (Math.max(...heads(opts.map((j) => s.ayat[j])).map((t) => bare(t).length)) > 70 ? " long" : ""),
             sayOk: () => K.play([audioFile(s, i)]),
           };
         });
@@ -168,7 +218,10 @@
           const cand = w.map((x, j) => j).filter((j) => bare(w[j]).length >= 2);
           const h = (k % 2 === 1 || w.length < 3) ? w.length - 1 : K.pick(cand);
           const opts = K.options(w[h], allWords, 3, (a, b) => bare(a) === bare(b));
-          const shown = w.map((x, j) => (j === h ? `<span class="hole">؟</span>` : x)).join(" ");
+          // في الآية الطويلة نعرض الكلمات القريبة من الكلمة الناقصة فقط
+          let a0 = 0, a1 = w.length;
+          if (bare(s.ayat[i]).length > 110) { a0 = Math.max(0, h - 9); a1 = Math.min(w.length, h + 4); }
+          const shown = (a0 > 0 ? "… " : "") + w.slice(a0, a1).map((x, jj) => (jj + a0 === h ? `<span class="hole">؟</span>` : x)).join(" ") + (a1 < w.length ? " …" : "");
           return {
             prompt: `<div class="col">${i === 0 && s.n !== 1 ? `<div class="basmala qr sm">${BASMALA}</div>` : ""}<div class="ayah qr fillq">${shown} ${num(i + 1)}</div></div>`,
             opts, answer: opts.indexOf(w[h]),
@@ -178,7 +231,7 @@
         });
       },
       done(score, st) { return record(s, "fill", st); },
-      next: si < S.length - 1 ? { label: `سورة ${S[si + 1].name}`, fn: () => K.replace(surahScreen, si + 1) } : null,
+      next: si < S.length - 1 && juzOf(S[si + 1]) === juzOf(s) && s.n !== 1 ? { label: `سورة ${S[si + 1].name}`, fn: () => K.replace(surahScreen, si + 1) } : null,
     };
   }
 

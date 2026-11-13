@@ -43,3 +43,6 @@ h2 { color: #fff; text-shadow: 0 .3vh 0 #0f766e; }
 .won b { color: #0f766e; }
 .nav { flex-wrap: wrap; justify-content: center; }
 .nav .btn { font-size: 3vh; }
+.mode.juz { width: 19vw; }
+.mode.juz .prog { margin-top: 1vh; font-size: 2.6vh; font-weight: 800; background: rgba(255,255,255,.25); border-radius: 3vh; padding: .3vh 1.6vh; }
+h2 .jn { font-size: .6em; opacity: .85; }
