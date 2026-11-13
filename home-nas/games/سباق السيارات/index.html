@@ -19,14 +19,22 @@
   .turbo { bottom: 3vh; left: 50%; transform: translateX(-50%); font-size: 3vh; opacity: 0; transition: opacity .2s; background: linear-gradient(90deg,#f43f5e,#f97316,#facc15); }
   .turbo.on { opacity: 1; }
   .big { position: absolute; top: 40%; left: 50%; transform: translate(-50%,-50%); font-size: 22vh; font-weight: 800; color: #fde047; display: none; }
+  .big.hurt { font-size: 11vh; color: #ff5a4f; white-space: nowrap; -webkit-text-stroke: .4vh #fff; }
   .big.show { display: block; animation: pop .9s ease-out; }
   @keyframes pop { from { transform: translate(-50%,-50%) scale(2.2); opacity: 0 } 30% { opacity: 1 } to { transform: translate(-50%,-50%) scale(1); } }
   .menu { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 5vh; }
   .menu h1 { position: absolute; top: 3vh; margin: 0; font-size: 11vh; color: #fff; -webkit-text-stroke: 3px #1e3a8a; }
   .row { display: flex; gap: 2.4vh; margin-top: 2vh; }
-  .card { width: 19vh; height: 19vh; border-radius: 4vh; background: rgba(255,255,255,.88); color: #1e3a8a; text-shadow: none; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 3.4vh; font-weight: 800; transition: transform .2s, box-shadow .2s; }
+  .card { width: 14.2vh; height: 15.5vh; border-radius: 3vh; background: rgba(255,255,255,.88); color: #1e3a8a; text-shadow: none; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 3.4vh; font-weight: 800; transition: transform .2s, box-shadow .2s; }
   .card .ic { font-size: 8vh; line-height: 1.1; }
-  .card .pic { width: 16vh; height: 12vh; border-radius: 2.4vh; margin-bottom: .6vh; display: block; }
+  .card .pic { width: 12.4vh; height: 9.3vh; border-radius: 2vh; margin-bottom: .4vh; display: block; }
+  .card { font-size: 2.6vh !important; }
+  .row { gap: 1.6vh !important; }
+  .dot { width: 6.6vh !important; height: 6.6vh !important; }
+  .opts { position: absolute; left: 3vh; top: 20vh; display: flex; flex-direction: column; gap: 1.2vh; }
+  .opt { display: flex; justify-content: space-between; align-items: center; gap: 2vh; min-width: 36vh; padding: .9vh 2.2vh; border-radius: 2.4vh; background: rgba(15,23,42,.6); font-size: 2.9vh; font-weight: 800; transition: transform .15s, box-shadow .15s; }
+  .opt b { color: #fde047; white-space: nowrap; }
+  .opt.sel { background: rgba(30,58,138,.92); transform: scale(1.06); box-shadow: 0 0 0 .6vh #fde047; }
   .card.sel { transform: translateY(-1.5vh) scale(1.1); box-shadow: 0 0 0 1vh #fde047, 0 2vh 4vh rgba(0,0,0,.3); }
   .row.dim .card.sel, .row.dim .dot.sel { box-shadow: 0 0 0 .6vh rgba(255,255,255,.9); }
   .dot { width: 8vh; height: 8vh; border-radius: 50%; border: .6vh solid #fff; transition: transform .2s, box-shadow .2s; }
@@ -54,9 +62,10 @@
 <div class="ui">
   <div class="menu" id="menu">
     <h1>سباق كريم</h1>
+    <div class="opts" id="opts"></div>
     <div class="row" id="vehicles"></div>
     <div class="row dim" id="colors"></div>
-    <div class="help"><b>← →</b> اختر &nbsp; <b>↑ ↓</b> السيارة أو اللون &nbsp; <b>موافق</b> انطلق!</div>
+    <div class="help"><b>↑ ↓</b> تنقّل &nbsp; <b>← →</b> غيّر &nbsp; <b>موافق</b> انطلق! &nbsp; 💣 تجنّب القنابل</div>
   </div>
   <div class="hud" id="hud">
     <div class="pill lap" id="lap"></div>
@@ -64,12 +73,12 @@
     <div class="pill pos" id="pos"></div>
     <div class="pill turbo" id="turbo">🔥 توربو!</div>
     <div class="speedo" dir="ltr"><svg viewBox="-100 -100 200 200" id="dial"></svg><div class="needle" id="needle"></div><div class="hubc"></div><div class="kmh"><b id="kmh">000</b><small>كم/س</small></div></div>
-    <div class="help" style="position:absolute;bottom:3vh;right:3vh;font-size:2.4vh"><b>← →</b> توجيه &nbsp; <b>↑</b> توربو &nbsp; <b>موافق</b> بيب بيب!</div>
+    <div class="help" style="position:absolute;bottom:3vh;right:3vh;font-size:2.4vh"><b>← →</b> توجيه &nbsp; <b>↑</b> توربو &nbsp; <b>موافق</b> بيب بيب! &nbsp; <b>رجوع</b> القائمة</div>
   </div>
   <div class="big" id="big"></div>
   <div class="end" id="end"><div class="cup" id="cup">🏆</div><div class="t1" id="t1"></div><div class="t2" id="t2"></div>
     <div class="help">اضغط <b>موافق</b> لتلعب مرة أخرى</div></div>
 </div>
-<script type="module" src="game.js?v=20261111"></script>
+<script type="module" src="game.js?v=20261113"></script>
 </body>
 </html>
