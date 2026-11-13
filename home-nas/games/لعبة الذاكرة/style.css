@@ -14,3 +14,8 @@
 .card.f.sel { box-shadow: none !important; }
 .card.f.sel .in { box-shadow: 0 0 0 .9vh #fff, 0 2vh 4vh rgba(30,58,138,.35); }
 .cheer { min-height: 7vh; }
+.cards.small { gap: 1.6vh 1.2vw; margin-top: 2vh; }
+.cards.small .card, .cards.small .card .in, .cards.small .back, .cards.small .front { border-radius: 2vh; }
+.cards.small .card { width: 14vh; height: 17vh; }
+.cards.small .back { font-size: 6vh; }
+.cards.small .front .emo { font-size: 9vh; }

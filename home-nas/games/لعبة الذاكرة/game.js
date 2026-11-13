@@ -2,7 +2,8 @@
 (() => {
   "use strict";
   const save = K.store("memory", { level: 0, stars: {} });
-  const LEVELS = [{ pairs: 3, cols: 3, name: "سهل", icon: "🐣" }, { pairs: 6, cols: 4, name: "متوسط", icon: "🐥" }, { pairs: 8, cols: 4, name: "صعب", icon: "🦅" }];
+  const LEVELS = [{ pairs: 3, cols: 3, name: "سهل", icon: "🐣" }, { pairs: 6, cols: 6, name: "متوسط", icon: "🐥" }, { pairs: 8, cols: 8, name: "صعب", icon: "🦅" },
+    { pairs: 9, cols: 6, name: "صعب جداً", icon: "🦁" }, { pairs: 12, cols: 8, name: "خبير", icon: "🏆" }];
   const SETS = [
     { id: "animals", name: "الحيوانات", icon: "🐶", bg: "linear-gradient(135deg,#f97316,#ef4444)", items: [..."🐶🐱🦁🐘🐵🐰🐻🐼🦊🐸🐧🦒"] },
     { id: "fruits", name: "الفواكه", icon: "🍓", bg: "linear-gradient(135deg,#22c55e,#15803d)", items: [..."🍎🍌🍇🍓🍉🍊🍒🍍🥝🍑🍐🥥"] },
@@ -36,10 +37,10 @@
     const deck = K.shuffle([...faces, ...faces].map((f, i) => ({ f, id: faces.indexOf(f) })));
     const face = (f) => (set.photos ? `<img src="${f}" alt="">` : `<span class="emo">${f}</span>`);
     let open = [], found = 0, moves = 0, busy = false;
-    const cols = deck.length === 16 ? 8 : deck.length === 12 ? 6 : 3;
+    const cols = faces.length === lv.pairs ? lv.cols : Math.min(8, Math.ceil(deck.length / (deck.length > 16 ? 3 : 2)));
     K.paint(`
       <div class="top">${K.backBtn()}<span class="pill"><span class="emo">${set.icon}</span> ${set.name}</span><span class="pill moves">🔄 0</span></div>
-      <div class="cards" style="grid-template-columns:repeat(${cols},auto)">
+      <div class="cards${deck.length > 16 ? " small" : ""}" style="grid-template-columns:repeat(${cols},auto)">
         ${deck.map((c, i) => `<button class="card f" ${K.act("k" + i, (el) => flip(i, el))}><div class="in"><div class="back">⭐</div><div class="front">${face(c.f)}</div></div></button>`).join("")}
       </div>
       <div class="cheer"></div>`, "k0");
