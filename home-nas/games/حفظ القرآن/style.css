@@ -8,9 +8,9 @@ h2 { color: #fff; text-shadow: 0 .3vh 0 #0f766e; }
 .num { display: inline-flex; align-items: center; justify-content: center; min-width: 1.5em; height: 1.5em; padding: 0 .2em; border: .12em solid #d97706; border-radius: 50%;
   font-family: "Baloo", sans-serif; font-size: .55em; font-weight: 800; color: #b45309; vertical-align: middle; line-height: 1; }
 
-.surah { width: 15vh; height: 16vh; background: #fff; gap: 0; padding: .5vh; }
-.surah b { font-size: 3.6vh; line-height: 1.8; color: #0f766e; white-space: nowrap; }
-.surah small { font-size: 2.2vh; color: #64748b; }
+.surah { width: 14.5vh; height: 14vh; background: #fff; gap: 0; padding: .5vh; }
+.surah b { font-size: 3.3vh; line-height: 1.7; color: #0f766e; white-space: nowrap; }
+.surah small { font-size: 2vh; color: #64748b; }
 .surah .st { font-size: 1.9vh; }
 .surah.done { background: linear-gradient(135deg, #fde68a, #fbbf24); }
 .surah.done small { color: #92400e; }
@@ -24,6 +24,7 @@ h2 { color: #fff; text-shadow: 0 .3vh 0 #0f766e; }
 .ayah { line-height: 2; color: #111827; }
 .nexthint { font-size: 3.4vh; color: #94a3b8; line-height: 2; opacity: .8; }
 .mushaf.full { justify-content: flex-start; height: 72vh; overflow: hidden; }
+.mushaf.full.paged { height: 62vh; }
 .mushaf.full p { margin: 0; line-height: 2.1; text-align: justify; text-align-last: center; }
 
 .prompt .col { display: flex; flex-direction: column; align-items: center; gap: 1vh; }

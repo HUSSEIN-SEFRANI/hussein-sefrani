@@ -27,7 +27,7 @@
       <div class="top"><span></span>
         <div class="title"><span class="mascot emo">📖</span><h1>حفظ القرآن</h1></div>
         <span class="pill">🌟 ${ar(done)} / ${ar(S.length)}</span></div>
-      <div class="grid" style="--cols:8">${tiles}</div>
+      <div class="grid" style="--cols:10">${tiles}</div>
       ${K.HELP}`, "s0");
   }
 
@@ -89,17 +89,34 @@
     if (cont) playNow();
   }
 
-  function fullScreen(si) {
+  // السورة كاملة: السور الطويلة تُقسَّم إلى صفحات
+  const PAGE_LETTERS = 520;
+  function pagesOf(s) {
+    const len = s.ayat.map((a) => bare(a).length + 4), total = len.reduce((a, b) => a + b, 0);
+    const target = total / Math.ceil(total / PAGE_LETTERS); // صفحات متساوية تقريباً
+    const pages = [[]]; let sum = 0;
+    len.forEach((l, i) => {
+      if (sum + l / 2 > target && pages[pages.length - 1].length) { pages.push([]); sum = 0; }
+      pages[pages.length - 1].push(i); sum += l;
+    });
+    return pages;
+  }
+  function fullScreen(si, p = 0) {
     K.begin();
-    const s = S[si];
-    const letters = s.ayat.reduce((a, x) => a + bare(x).length + 4, 0);
-    const fs = Math.max(2.8, Math.min(6.5, Math.sqrt(8500 / letters)));
+    const s = S[si], pages = pagesOf(s), pg = pages[p], many = pages.length > 1;
+    const letters = pg.reduce((a, i) => a + bare(s.ayat[i]).length + 4, 0) + (p === 0 ? 40 : 0);
+    const fs = Math.max(3.4, Math.min(6.5, Math.sqrt((many ? 6500 : 8500) / letters)));
+    const go = (d) => { K.top().args = [si, p + d]; K.render(); };
     K.paint(`
-      <div class="top">${K.backBtn()}<h2 class="qr">سورة ${s.name}</h2><span class="pill">${ar(s.ayat.length)} ${ayatWord(s.ayat.length)}</span></div>
-      <div class="mushaf full qr" style="font-size:${fs}vh">
-        ${s.n !== 1 ? `<div class="basmala">${BASMALA}</div>` : ""}
-        <p>${s.ayat.map((a, i) => `${a} ${num(i + 1)}`).join(" ")}</p>
-      </div>`, "back");
+      <div class="top">${K.backBtn()}<h2 class="qr">سورة ${s.name}</h2><span class="pill">${many ? `صفحة ${ar(p + 1)} / ${ar(pages.length)}` : `${ar(s.ayat.length)} ${ayatWord(s.ayat.length)}`}</span></div>
+      <div class="mushaf full qr${many ? " paged" : ""}" style="font-size:${fs}vh">
+        ${p === 0 && s.n !== 1 ? `<div class="basmala">${BASMALA}</div>` : ""}
+        <p>${pg.map((i) => `${s.ayat[i]} ${num(i + 1)}`).join(" ")}</p>
+      </div>
+      ${many ? `<div class="nav">
+        ${p > 0 ? `<button class="btn f" ${K.act("prev", () => go(-1))}>→ السابقة</button>` : ""}
+        ${p < pages.length - 1 ? `<button class="btn f go" ${K.act("next", () => go(1))}>التالية ←</button>` : ""}
+      </div>` : ""}`, many ? (p < pages.length - 1 ? "next" : "prev") : "back");
   }
 
   // ---------------------------------------------------------------- رتّب الآيات
@@ -109,7 +126,10 @@
       title: `سورة ${s.name}`,
       optsCls: "wide qr",
       make() {
-        return s.ayat.map((a, i) => {
+        // السور الطويلة: ١٥ سؤالاً من مواضع مختلفة بالترتيب
+        let idx = s.ayat.map((_, i) => i);
+        if (n > 15) idx = K.shuffle(idx).slice(0, 15).sort((a, b) => a - b);
+        return idx.map((i) => {
           const pool = s.ayat.map((x, j) => j).filter((j) => j !== i);
           const opts = K.options(i, pool, Math.min(3, n), (x, y) => s.ayat[x] === s.ayat[y]);
           const ctx = i === 0
