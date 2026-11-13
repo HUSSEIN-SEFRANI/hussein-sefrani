@@ -35,6 +35,7 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
     faces_migrate(_db)
     from . import tv as _tv
     _tv.migrate(_db)
+    _tv.games_migrate(_db, data_paths)
     from . import stars as _stars
     _stars.migrate(_db)
     from . import cameras as _cams

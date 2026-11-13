@@ -227,7 +227,7 @@ async function editTile(u, t, d, reload) {
     $$('.tv-colors button', body).forEach(b => b.classList.toggle('on', b.dataset.c === cur.color));
     $b('.fold').style.display = ['photos', 'cameras'].includes(cur.kind) ? 'none' : '';
     $b('.fp').textContent = folder || (t ? '' : `${u.username}/التلفاز/${cur.title || '…'} (جديد)`);
-    $b('.kindhelp').textContent = cur.kind === 'games' ? 'ضع كل لعبة في مجلد خاص بها داخل مجلد المربع (فيه index.html)، ويمكن إضافة صورة cover.jpg لتظهر كغلاف.'
+    $b('.kindhelp').textContent = cur.kind === 'games' ? 'الألعاب في المجلد المشترك «الألعاب» وتظهر لكل أفراد العائلة. ضع كل لعبة في مجلد خاص بها داخله (فيه index.html)، ويمكن إضافة صورة cover.jpg كغلاف. اترك المجلد تلقائياً ليستعمل المجلد المشترك.'
       : cur.kind === 'photos' ? 'يعرض صور الشخص وفيديوهاته من تطبيق «الصور» (المرفوعة من الهاتف) مع عرض الشرائح.'
       : cur.kind === 'cameras' ? 'يعرض كاميرات المراقبة (البث المباشر والتسجيلات) لمن تضيف له هذا المربع فقط. أضف الكاميرات من تطبيق «الكاميرات».'
       : 'يعرض الفيديو (mp4) والصوت (mp3) والصور وملفات PDF (مثل المصحف أو القصص) والمجلدات الفرعية.';

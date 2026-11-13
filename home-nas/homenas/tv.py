@@ -41,6 +41,9 @@ ICONS = ["cartoon", "music", "animals", "math", "games", "photos", "video", "qur
 COLORS = ["#a855f7,#ec4899", "#f97316,#ef4444", "#22c55e,#15803d", "#06b6d4,#2563eb", "#8b5cf6,#06b6d4",
           "#f59e0b,#f97316", "#10b981,#0ea5e9", "#0f766e,#14532d", "#64748b,#1e293b", "#e11d48,#7f1d1d"]
 
+GAMES_SHARE = "الألعاب"      # مجلد مشترك واحد لكل ألعاب التلفاز
+GAMES_PATH = "/" + GAMES_SHARE
+
 DEFAULT_TILES = {
     "kid": [("رسوم متحركة", "media", "cartoon", 0), ("أناشيد", "media", "music", 1), ("عالم الحيوان", "media", "animals", 2),
             ("عالم الرياضيات", "media", "math", 3), ("ألعاب", "games", "games", 4), ("صوري", "photos", "photos", 5),
@@ -48,7 +51,7 @@ DEFAULT_TILES = {
     "little": [("ألعاب", "games", "games", 4), ("رسوم متحركة", "media", "cartoon", 0), ("أناشيد", "media", "music", 1),
                ("عالم الحيوان", "media", "animals", 2)],
     "adult": [("صوري", "photos", "photos", 5), ("الفيديو", "media", "video", 3), ("الأفلام", "media", "film", 9),
-              ("الموسيقى", "media", "music", 2), ("القرآن الكريم", "media", "quran", 7)],
+              ("الموسيقى", "media", "music", 2), ("القرآن الكريم", "media", "quran", 7), ("ألعاب", "games", "games", 4)],
 }
 
 WORDS = [  # كلمة اليوم: عربي، فرنسي، إنجليزي، رسم
@@ -97,6 +100,52 @@ def migrate(db):
     db.execute("UPDATE settings SET value='HOME ANAB' WHERE key='server_name' AND value='H.SEF'")
     # v1.5.5: نص اليوم الافتراضي صار «حديث، آية، حكمة» (من لم يغيّر الاختيار القديم)
     db.execute("""UPDATE settings SET value='["hadith", "ayah", "wisdom"]' WHERE key='tv_daily_kinds' AND value='["hadith", "proverb", "wisdom"]'""")
+    db.commit()
+
+
+def games_share_dir(db, data_paths) -> Path:
+    """مجلد «الألعاب» المشترك (يُنشأ إن لم يوجد). المدير يضيف الألعاب إليه من «الملفات» أو من الكمبيوتر."""
+    row = db.execute("SELECT path FROM folders WHERE name=?", (GAMES_SHARE,)).fetchone()
+    if row:
+        d = Path(row["path"])
+    else:
+        d = data_paths.shares / GAMES_SHARE
+        db.execute("INSERT INTO folders(name, path, description, created_at) VALUES (?,?,?,?)",
+                   (GAMES_SHARE, str(d.resolve()), "ألعاب التلفاز لكل العائلة: ضع كل لعبة في مجلد خاص بها", now_iso()))
+        db.commit()
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def games_migrate(db, data_paths):
+    """v1.6.2: كل مربعات «ألعاب» تشير إلى المجلد المشترك، والألعاب الموجودة عند الأطفال تُنقل إليه،
+    ولكل ملف على التلفاز (أطفال وبالغين) مربع ألعاب."""
+    if db.execute("SELECT 1 FROM settings WHERE key='games_shared_v1'").fetchone():
+        return
+    shared = games_share_dir(db, data_paths)
+    moved = 0
+    for t in db.execute("SELECT t.id, t.path, u.username FROM tv_tiles t JOIN users u ON u.id=t.user_id WHERE t.kind='games'").fetchall():
+        path = t["path"] or ""
+        if path == GAMES_PATH:
+            continue
+        if path == "/home" or path.startswith("/home/"):
+            old = data_paths.homes / t["username"] / path[len("/home/"):] if path != "/home" else data_paths.homes / t["username"]
+            if old.is_dir() and old.resolve() != shared.resolve():
+                for item in sorted(old.iterdir()):
+                    if item.name.startswith(("#", ".")) or (shared / item.name).exists():
+                        continue   # لعبة بالاسم نفسه موجودة: نترك النسخة القديمة مكانها
+                    try:
+                        item.rename(shared / item.name)
+                        moved += 1
+                    except OSError:
+                        pass
+        db.execute("UPDATE tv_tiles SET path=? WHERE id=?", (GAMES_PATH, t["id"]))
+    for u in db.execute("SELECT id FROM users WHERE disabled=0 AND tv_role IN ('adult','kid','little')").fetchall():
+        if not db.execute("SELECT 1 FROM tv_tiles WHERE user_id=? AND kind='games'", (u["id"],)).fetchone():
+            pos = db.execute("SELECT COALESCE(MAX(position),-1)+1 FROM tv_tiles WHERE user_id=?", (u["id"],)).fetchone()[0]
+            db.execute("INSERT INTO tv_tiles(user_id, title, kind, path, icon, color, position, created_at) VALUES (?,?,?,?,?,?,?,?)",
+                       (u["id"], "ألعاب", "games", GAMES_PATH, "games", COLORS[4], pos, now_iso()))
+    db.execute("INSERT INTO settings(key,value) VALUES('games_shared_v1', ?)", (str(moved),))
     db.commit()
 
 
@@ -235,6 +284,12 @@ def tile_folder(owner, tile) -> Path | None:
     from .vfs import resolve
     if not tile["path"]:
         return None
+    if tile["kind"] == "games" and (tile["path"] == GAMES_PATH or tile["path"].startswith(GAMES_PATH + "/")):
+        from .core import paths
+        base = games_share_dir(get_db(), paths())
+        sub = tile["path"][len(GAMES_PATH):].strip("/")
+        p = (base / sub).resolve() if sub else base
+        return p if str(p).startswith(str(base.resolve())) else None
     try:
         _root, p = resolve(owner, tile["path"])
     except Exception:
@@ -478,7 +533,11 @@ def api_admin_tile_create(uid):
     kind = d.get("kind") or "media"
     if not title or kind not in KINDS:
         abort(400, "اكتب اسماً للمربع")
-    path = norm_tile_path(u, d.get("path")) if kind not in NOFOLDER else None
+    raw = (d.get("path") or "").strip()
+    if kind == "games" and (not raw or raw == GAMES_PATH):
+        path = GAMES_PATH   # المجلد المشترك لكل العائلة
+    else:
+        path = norm_tile_path(u, raw) if kind not in NOFOLDER else None
     if kind not in NOFOLDER and not path:
         path = make_tile_folder(u, title)
     db = get_db()
@@ -507,7 +566,7 @@ def api_admin_tile_defaults(uid):
     for title, kind, icon, color in DEFAULT_TILES[role]:
         if title in have:
             continue
-        path = None if kind in NOFOLDER else make_tile_folder(u, title)
+        path = None if kind in NOFOLDER else GAMES_PATH if kind == "games" else make_tile_folder(u, title)
         db.execute("INSERT INTO tv_tiles(user_id, title, kind, path, icon, color, position, created_at) VALUES (?,?,?,?,?,?,?,?)",
                    (uid, title, kind, path, icon, COLORS[color % len(COLORS)], pos, now_iso()))
         pos += 1
@@ -531,7 +590,10 @@ def api_admin_tile_update(tid):
             db.execute(f"UPDATE tv_tiles SET {k}=? WHERE id=?", ((d[k] or "").strip() or None, tid))
     if "path" in d and t["kind"] not in NOFOLDER:
         owner = user_row(t["user_id"])
-        path = norm_tile_path(owner, d["path"]) or make_tile_folder(owner, d.get("title") or t["title"])
+        if t["kind"] == "games" and (d["path"] or "").strip() in ("", GAMES_PATH):
+            path = GAMES_PATH
+        else:
+            path = norm_tile_path(owner, d["path"]) or make_tile_folder(owner, d.get("title") or t["title"])
         db.execute("UPDATE tv_tiles SET path=? WHERE id=?", (path, tid))
     if "enabled" in d:
         db.execute("UPDATE tv_tiles SET enabled=? WHERE id=?", (int(bool(d["enabled"])), tid))
