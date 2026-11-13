@@ -3,12 +3,13 @@
 .ct { display: flex; align-items: center; gap: 1vw; color: #fff; -webkit-text-stroke: .3vh #1e3a8a; paint-order: stroke fill; font-size: 5.2vh; }
 .ct .emo { -webkit-text-stroke: 0; }
 
-.groups { display: grid; grid-template-columns: repeat(3, 26vw); gap: 2.4vh 2vw; margin-top: 2.5vh; }
-.grpb { height: 16vh; border: 0; border-radius: 3.5vh; color: #fff; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; align-items: center; column-gap: 1.4vw; padding: 1vh 1.8vw;
-  box-shadow: 0 1vh 2vh rgba(30,58,138,.25); text-align: start; }
-.grpb .emo { grid-row: 1 / 3; font-size: 9vh; }
-.grpb b { font-size: 3.6vh; line-height: 1.15; align-self: end; }
-.grpb small { font-size: 2.5vh; opacity: .95; align-self: start; }
+.groups { display: grid; grid-template-columns: repeat(var(--n, 4), 1fr); width: 88vw; gap: 2.6vh 1.6vw; margin-top: 2.5vh; }
+.groups.g5 { --n: 5; }
+.grpb { height: 27vh; border: 0; border-radius: 3.5vh; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .8vh; padding: 1vh 1vw;
+  box-shadow: 0 1vh 2vh rgba(30,58,138,.25); text-align: center; }
+.grpb .emo { font-size: 10vh; }
+.grpb b { font-size: 3.4vh; line-height: 1.15; }
+.grpb small { font-size: 2.4vh; opacity: .95; }
 
 /* شبكة الأعلام: تتمرر مع التركيز */
 .scroll { width: 100%; flex: 1; min-height: 0; overflow-y: auto; margin-top: 1.5vh; padding: 1.5vh 1vw 3vh; scrollbar-width: none; }
@@ -41,3 +42,30 @@
 .opts.txt .opt { font-size: 4.4vh; min-width: 22vw; height: 12vh; }
 .opts.flagopts .opt { height: 24vh; min-width: 30vh; }
 .opts.flagopts .opt .emo { font-size: 17vh; }
+
+/* الخريطة */
+.wmap { width: 100%; height: 100%; display: block; }
+.wmap .sea { fill: #bae6fd; }
+.wmap .land { fill: #fef3c7; stroke: #a8a29e; stroke-width: .8; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.wmap .land.other { fill: #e7e5e4; }
+.wmap .land.tgt { fill: #ef4444; stroke: #7f1d1d; stroke-width: 1.6; animation: blink 1.2s ease-in-out infinite; }
+.wmap .ring { fill: rgba(239,68,68,.22); stroke: #ef4444; stroke-width: 4; vector-effect: non-scaling-stroke; animation: blink 1.2s ease-in-out infinite; }
+.wmap .lbl { font-family: "Baloo", sans-serif; font-weight: 800; fill: #1e3a8a; stroke: #fff; stroke-width: 6; paint-order: stroke fill; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+@keyframes blink { 50% { opacity: .55; } }
+.mapbox { flex: 1; min-width: 0; height: 100%; border-radius: 3.5vh; overflow: hidden; background: #bae6fd; box-shadow: 0 1.5vh 3vh rgba(30,58,138,.25); border: .6vh solid #fff; }
+.mapbox.big { width: 100%; flex: 1; min-height: 0; margin-top: 1.5vh; }
+.mq { display: flex; gap: 2vw; width: 100%; flex: 1; min-height: 0; margin-top: 1.5vh; }
+.mq .side { width: 30vw; display: flex; flex-direction: column; gap: 1.4vh; }
+.mq-q { font-size: 4vh; font-weight: 800; background: #fff; border-radius: 3vh; padding: 1vh 1.5vw; text-align: center; }
+.mq-q .red { color: #dc2626; }
+.mopts { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2vh 1vw; }
+.mo { border: 0; background: #fff; border-radius: 2.6vh; height: 10vh; font-size: 3vh; font-weight: 800; color: #1e3a8a; display: flex; align-items: center; gap: .8vw; padding: 0 1vw; line-height: 1.1; text-align: start; box-shadow: 0 .8vh 1.6vh rgba(30,58,138,.2); }
+.mo .emo { font-size: 5vh; }
+.mo.ok { background: #86efac; box-shadow: 0 0 0 .8vh #16a34a !important; }
+.mo.bad { background: #fecaca; opacity: .7; animation: shake .45s; }
+.mcard { background: rgba(255,255,255,.9); border-radius: 3vh; padding: 1.2vh 1.4vw; display: flex; flex-direction: column; gap: .6vh; font-size: 2.5vh; font-weight: 700; }
+.mcard:empty { display: none; }
+.mc-h { display: flex; align-items: center; gap: 1vw; font-size: 3.4vh; }
+.mc-h .emo { font-size: 5vh; }
+.mc-r b { color: #0369a1; }
+.mq .cheer { margin-top: auto; font-size: 3.8vh; min-height: 6vh; }
