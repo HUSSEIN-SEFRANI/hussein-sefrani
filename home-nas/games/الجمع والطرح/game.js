@@ -1,5 +1,6 @@
 // الجمع والطرح — من العدّ بالصور حتى الطرح بالاستلاف في المئات.
-// 24 مستوى في 5 عوالم، وأغلبها للطرح. كل مستوى 10 مسائل، ويُفتح التالي بعد إنهاء السابق.
+// 28 مستوى في 5 عوالم مرتبة من الأسهل إلى الأصعب، وأغلبها للطرح. كل مستوى 10 مسائل، ويُفتح التالي بعد إنهاء السابق.
+// «الكبير والصغير»: طرف فيه جمع عددين وطرف فيه طرح عددين، والطفل يختار الأكبر أو الأصغر (حتى 10، حتى 20، برقمين، بثلاثة أرقام).
 (() => {
   "use strict";
   const save = K.store("addsub", { stars: {}, best: 0 });
@@ -209,57 +210,98 @@
     return { ...sub(a, b), vis: column(a, b), eq: null, hint: colSteps(a, b) };
   }
 
+  // الكبير والصغير: جمع في طرف وطرح في الطرف الآخر، والقيمتان متقاربتان حتى يحتاج الطفل أن يحسب
+  const CMP = {
+    10: { a: [1, 9], s: [2, 10], c: [2, 10], d: [1, 9], gap: 3 },
+    20: { a: [2, 18], s: [5, 20], c: [8, 20], d: [2, 12], gap: 4 },
+    99: { a: [10, 89], s: [25, 99], c: [30, 99], d: [10, 79], gap: 12 },
+    999: { a: [100, 899], s: [250, 999], c: [300, 999], d: [100, 799], gap: 60 },
+  };
+  function compare(tier) {
+    const T = CMP[tier], cap = tier === 99 ? 99 : tier === 999 ? 999 : tier;
+    let a, b, c, d, n = 0;
+    for (;;) {
+      const S = R(T.s[0], T.s[1]);
+      a = R(T.a[0], Math.min(T.a[1], S - T.a[0])); b = S - a;
+      if (b < T.a[0] || a < T.a[0]) { if (++n < 300) continue; }
+      const D = Math.random() < 0.15 ? S : S + (Math.random() < 0.5 ? -1 : 1) * R(1, T.gap);
+      const dHi = Math.min(T.d[1], cap - D);
+      if (D >= 1 && dHi >= T.d[0]) { d = R(T.d[0], dHi); c = D + d; if (c >= T.c[0] && c <= T.c[1]) break; }
+      if (++n > 300) { c = R(T.c[0], T.c[1]); d = R(1, c - 1); break; }
+    }
+    const S = a + b, D = c - d, sumLeft = Math.random() < 0.5, big = Math.random() < 0.55;
+    const P = { eq: `${a} + ${b}`, v: S, say: `${a} زائد ${b}` }, Mn = { eq: `${c} ${MINUS} ${d}`, v: D, say: `${c} ناقص ${d}` };
+    const [Lf, Rt] = sumLeft ? [P, Mn] : [Mn, P];
+    const ans = Lf.v === Rt.v ? "=" : (Lf.v > Rt.v) === big ? "L" : "R";
+    const word = big ? "أكبر" : "أصغر", rel = Lf.v === Rt.v ? "متساويان" : null;
+    const hint = `${M(`${P.eq} = ${S}`)} و ${M(`${Mn.eq} = ${D}`)}<br>${rel ? "العددان متساويان ⚖️" : big ? `${Math.max(S, D)} أكبر من ${Math.min(S, D)}` : `${Math.min(S, D)} أصغر من ${Math.max(S, D)}`}`;
+    return { cmp: true, L: Lf, R: Rt, big, ans, hint, key: `${Lf.eq}|${Rt.eq}|${big}`,
+      text: `أيهما ${word}؟`, say: `أيهما ${word}: ${Lf.say}، أم ${Rt.say}؟` };
+  }
+
   // ---------------------------------------------------------------- العوالم والمستويات
   const WORLDS = [
     { name: "حديقة الخمسة", icon: "🌱", bg: "linear-gradient(135deg,#4ade80,#16a34a)", levels: [
-      { t: "اجمع حتى 5", g: () => picAdd(5) },
-      { t: "اطرح حتى 5", g: () => picSub(5) },
-      { t: "طار وبقي", g: () => flySub(5) },
-      { t: "اجمع واطرح", g: () => (Math.random() < 0.6 ? picSub(5) : picAdd(5)) },
+      { id: "p5a", t: "اجمع حتى 5", g: () => picAdd(5) },
+      { id: "p5s", t: "اطرح حتى 5", g: () => picSub(5) },
+      { id: "fly5", t: "طار وبقي", g: () => flySub(5) },
+      { id: "mix5", t: "اجمع واطرح", g: () => (Math.random() < 0.6 ? picSub(5) : picAdd(5)) },
     ] },
     { name: "بحر العشرة", icon: "🐠", bg: "linear-gradient(135deg,#38bdf8,#2563eb)", levels: [
-      { t: "اجمع حتى 10", g: () => picAdd(10) },
-      { t: "اطرح حتى 10", g: () => picSub(10) },
-      { t: "كم أخذنا؟", g: () => picTaken(10) },
-      { t: "خط الأعداد", g: () => lineSub(10) },
-      { t: "أرقام فقط", g: () => numMix(10, 0.7) },
+      { id: "p10a", t: "اجمع حتى 10", g: () => picAdd(10) },
+      { id: "p10s", t: "اطرح حتى 10", g: () => picSub(10) },
+      { id: "take10", t: "كم أخذنا؟", g: () => picTaken(10) },
+      { id: "line10", t: "خط الأعداد", g: () => lineSub(10) },
+      { id: "num10", t: "أرقام فقط", g: () => numMix(10, 0.7) },
+      { id: "cmp10", t: "الكبير والصغير حتى 10", tag: "حتى 10", cmp: true, g: () => compare(10) },
     ] },
     { name: "صحراء العشرين", icon: "🐪", bg: "linear-gradient(135deg,#fbbf24,#ea580c)", levels: [
-      { t: "اجمع حتى 20", g: () => frameAdd() },
-      { t: "اطرح من العشرين", g: () => frameSub(false) },
-      { t: "اطرح عبر العشرة", g: () => frameSub(true), pad: true },
-      { t: "العدد الناقص", g: () => missing(20), pad: true },
-      { t: "قصص حتى 20", g: () => story(20), pad: true },
+      { id: "f20a", t: "اجمع حتى 20", g: () => frameAdd() },
+      { id: "f20s", t: "اطرح من العشرين", g: () => frameSub(false) },
+      { id: "f20x", t: "اطرح عبر العشرة", g: () => frameSub(true), pad: true },
+      { id: "cmp20", t: "الكبير والصغير حتى 20", tag: "حتى 20", cmp: true, g: () => compare(20) },
+      { id: "miss20", t: "العدد الناقص", g: () => missing(20), pad: true },
+      { id: "st20", t: "قصص حتى 20", g: () => story(20), pad: true },
     ] },
     { name: "جبال المئة", icon: "⛰️", bg: "linear-gradient(135deg,#a78bfa,#7c3aed)", levels: [
-      { t: "العشرات", g: () => tens(), pad: true },
-      { t: "اجمع حتى 100", g: () => add100(), pad: true },
-      { t: "اطرح حتى 100", g: () => sub100(false), pad: true },
-      { t: "الاستلاف", g: () => sub100(true), pad: true },
-      { t: "قصص حتى 100", g: () => story(100), pad: true },
+      { id: "tens", t: "العشرات", g: () => tens(), pad: true },
+      { id: "a100", t: "اجمع حتى 100", g: () => add100(), pad: true },
+      { id: "s100", t: "اطرح حتى 100", g: () => sub100(false), pad: true },
+      { id: "b100", t: "الاستلاف", g: () => sub100(true), pad: true },
+      { id: "cmp99", t: "الكبير والصغير برقمين", tag: "برقمين", cmp: true, g: () => compare(99) },
+      { id: "st100", t: "قصص حتى 100", g: () => story(100), pad: true },
     ] },
     { name: "فضاء الأبطال", icon: "🚀", bg: "linear-gradient(135deg,#f472b6,#be123c)", levels: [
-      { t: "الناقص حتى 100", g: () => missing(100), pad: true },
-      { t: "ثلاثة أعداد", g: () => three(), pad: true },
-      { t: "المئات", g: () => hundreds(false), pad: true },
-      { t: "استلاف المئات", g: () => hundreds(true), pad: true },
-      { t: "تحدّي السرعة", speed: true, pad: true },
+      { id: "three", t: "ثلاثة أعداد", g: () => three(), pad: true },
+      { id: "miss100", t: "الناقص حتى 100", g: () => missing(100), pad: true },
+      { id: "h", t: "المئات", g: () => hundreds(false), pad: true },
+      { id: "hb", t: "استلاف المئات", g: () => hundreds(true), pad: true },
+      { id: "cmp999", t: "الكبير والصغير بثلاثة أرقام", tag: "بثلاثة أرقام", cmp: true, g: () => compare(999) },
+      { id: "speed", t: "تحدّي السرعة", speed: true, pad: true },
     ] },
   ];
   const LEVELS = WORLDS.flatMap((w, wi) => w.levels.map((l) => ({ ...l, wi })));
-  const isOpen = (i) => i === 0 || (save.stars[i - 1] || 0) > 0;
+  // النجوم محفوظة باسم المستوى (لا برقمه) حتى لا يضيع التقدّم عند إضافة مستويات أو تغيير ترتيبها.
+  // النسخة القديمة كانت تحفظها برقم المستوى بهذا الترتيب:
+  const OLD = ["p5a", "p5s", "fly5", "mix5", "p10a", "p10s", "take10", "line10", "num10", "f20a", "f20s", "f20x", "miss20", "st20",
+    "tens", "a100", "s100", "b100", "st100", "miss100", "three", "h", "hb", "speed"];
+  if (!save.st) { save.st = {}; Object.keys(save.stars || {}).forEach((k) => { if (OLD[k]) save.st[OLD[k]] = save.stars[k]; }); save.save(); }
+  const starsOf = (i) => save.st[LEVELS[i].id] || 0;
+  const setStars = (i, s) => { save.st[LEVELS[i].id] = Math.max(starsOf(i), s); save.save(); };
+  // يُفتح المستوى إذا أُنهي الذي قبله، أو إذا كان الطفل قد أنهاه من قبل (قبل إضافة مستويات جديدة بينهما)
+  const isOpen = (i) => i === 0 || starsOf(i - 1) > 0 || starsOf(i) > 0;
 
   // ---------------------------------------------------------------- الخريطة
   function mapScreen() {
     K.begin();
     let i = 0, focus = null;
-    const total = LEVELS.reduce((s, _, k) => s + (save.stars[k] || 0), 0);
+    const total = LEVELS.reduce((s, _, k) => s + starsOf(k), 0);
     const rows = WORLDS.map((w) => `<div class="world"><div class="wname" style="background:${w.bg}"><span class="emo">${w.icon}</span><b>${w.name}</b></div>
       <div class="lvls">${w.levels.map((L) => {
-        const k = i++, st = save.stars[k] || 0, open = isOpen(k);
+        const k = i++, st = starsOf(k), open = isOpen(k);
         if (open && !st && !focus) focus = "l" + k;
-        return `<button class="lv f${open ? "" : " lock"}${st ? " done" : ""}" style="--bg:${w.bg}" ${K.act("l" + k, () => (open ? K.show(play, k) : lockedMsg()))}>
-          <b>${open ? (L.speed ? "⏱️" : k + 1) : "🔒"}</b><small>${L.t}</small><span class="st">${K.starsHtml(st)}</span></button>`;
+        return `<button class="lv f${open ? "" : " lock"}${st ? " done" : ""}${L.cmp ? " cmp" : ""}" style="--bg:${w.bg}" ${K.act("l" + k, () => (open ? K.show(play, k) : lockedMsg()))}>
+          <b>${open ? (L.speed ? "⏱️" : L.cmp ? "⚖️" : k + 1) : "🔒"}</b><small>${L.cmp ? `الكبير والصغير<i>${L.tag}</i>` : L.t}</small><span class="st">${K.starsHtml(st)}</span></button>`;
       }).join("")}</div></div>`).join("");
     K.paint(`<div class="top"><span class="pill">⭐ ${total} / ${LEVELS.length * 3}</span><h2 class="ttl"><span class="emo">➖</span> الجمع والطرح <span class="emo">➕</span></h2>
       <span class="pill">${save.best ? `⏱️ ${save.best}` : "🦉"}</span></div><div class="map">${rows}</div>${K.HELP}`, focus || "l" + (LEVELS.length - 1));
@@ -275,7 +317,7 @@
   function makeQs(L) {
     const out = [], seen = new Set();
     for (let n = 0; out.length < 10 && n < 200; n++) {
-      const q = L.g(), key = q.eq + "|" + (q.text || "") + "|" + q.ans + "|" + (q.vis || "").length;
+      const q = L.g(), key = q.key || q.eq + "|" + (q.text || "") + "|" + q.ans + "|" + (q.vis || "").length;
       if (seen.has(key) && n < 150) continue;
       seen.add(key); out.push(q);
     }
@@ -285,7 +327,7 @@
   function play(li) {
     const L = LEVELS[li];
     if (L.speed) return speed(li);
-    const qs = makeQs(L), max = Math.max(...qs.map((q) => q.ans), 5);
+    const qs = makeQs(L), max = Math.max(...qs.map((q) => (typeof q.ans === "number" ? q.ans : 0)), 5);
     let q = 0, score = 0;
     const results = [];
     ask();
@@ -293,6 +335,7 @@
     function ask() {
       K.begin();
       const Q = qs[q];
+      if (Q.cmp) return askCmp(Q);
       let tries = 0, done = false, typed = "";
       if (!Q.opts && !L.pad) Q.opts = K.options(Q.ans, near(Q.ans, Math.max(max, 5)), 3);
       const dots = qs.map((_, k) => `<i class="${k < q ? (results[k] ? "ok" : "no") : k === q ? "now" : ""}"></i>`).join("");
@@ -375,11 +418,52 @@
         if (Q.after && !Q.afterDone) { Q.afterDone = true; Q.after(C); }
       }
     }
+    // سؤال «الكبير والصغير»: الطفل يختار الطرف الأكبر (أو الأصغر)، أو «متساويان»
+    function askCmp(Q) {
+      let tries = 0, done = false;
+      const dots = qs.map((_, k) => `<i class="${k < q ? (results[k] ? "ok" : "no") : k === q ? "now" : ""}"></i>`).join("");
+      const side = (k, S) => `<button class="opt side f" ${K.act("c" + k, (el) => choose(k, el))}><span class="ex" dir="ltr">${S.eq}</span><span class="val">&nbsp;</span></button>`;
+      K.paint(`<div class="top">${K.backBtn()}<div class="dots">${dots}</div>
+          ${K.voice("ar") ? `<button class="btn f" ${K.act("say", () => K.tts(Q.say))}><span class="emo">🔊</span></button>` : ""}
+          <span class="pill">${li + 1}. ${L.t}</span></div>
+        <div class="playcol"><div class="card cmpq"><div class="story">أيهما <b class="${Q.big ? "big" : "small"}">${Q.big ? "أكبر" : "أصغر"}</b>؟ ${Q.big ? "🐘" : "🐭"}</div>
+          <div class="cmprow" dir="ltr">${side("L", Q.L)}<span class="rel">?</span>${side("R", Q.R)}</div>
+          <button class="opt eqb f" ${K.act("c=", (el) => choose("=", el))}>متساويان =</button>
+          <div class="hint" hidden></div></div></div><div class="cheer"></div>`, "cL");
+      const C = K.app.querySelector(".card");
+      K.later(() => K.tts(Q.say), 300);
+      function choose(k, el) {
+        if (done || el.dataset.dead) return;
+        const cheer = K.app.querySelector(".cheer");
+        if (k === Q.ans) {
+          done = true; el.classList.add("ok");
+          if (!tries) score++;
+          results[q] = !tries;
+          K.sfx.ok(); K.confetti(10);
+          cheer.textContent = K.pick(GOOD);
+          reveal();
+          K.later(next, tries ? 3000 : 2000);
+          return;
+        }
+        tries++; el.classList.add("bad"); el.dataset.dead = "1";
+        K.sfx.bad();
+        const hb = C.querySelector(".hint");
+        hb.innerHTML = `<span class="emo">💡</span> احسب كل طرف أولاً: ${Q.hint}`; hb.hidden = false;
+        cheer.textContent = tries === 1 ? "حاول مرة أخرى 💪" : "انظر إلى المساعدة 👆";
+      }
+      function reveal() {
+        const v = C.querySelectorAll(".val");
+        v[0].textContent = Q.L.v; v[1].textContent = Q.R.v;
+        const rel = C.querySelector(".rel");
+        rel.textContent = Q.L.v > Q.R.v ? ">" : Q.L.v < Q.R.v ? "<" : "=";
+        rel.classList.add("got");
+      }
+    }
     function next() {
       q++;
       if (q < qs.length) { K.top().focus = null; ask(); return; }
       const s = K.starsFor(score, qs.length);
-      save.stars[li] = Math.max(save.stars[li] || 0, s); save.save();
+      setStars(li, s);
       K.replace(K.resultScreen, { s, score, total: qs.length, title: L.t, again: () => K.replace(play, li),
         next: li + 1 < LEVELS.length ? { label: "المستوى التالي", fn: () => K.replace(play, li + 1) } : null });
     }
@@ -426,7 +510,7 @@
       const s = score >= 15 ? 3 : score >= 10 ? 2 : 1;
       const best = Math.max(save.best || 0, score);
       const isRecord = score > (save.best || 0);
-      save.best = best; save.stars[li] = Math.max(save.stars[li] || 0, s); save.save();
+      save.best = best; save.save(); setStars(li, s);
       K.replace(K.resultScreen, { s, title: "تحدّي السرعة", msg: isRecord && score ? "رقم قياسي جديد! 🏆" : undefined,
         extra: `<div class="sub">حللت ${score} مسألة صحيحة في دقيقة · أفضل نتيجة: ${best}</div>`, again: () => K.replace(speed, li) });
     }
