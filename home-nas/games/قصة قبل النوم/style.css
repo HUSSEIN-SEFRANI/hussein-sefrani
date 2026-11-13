@@ -8,12 +8,13 @@ h2 { color: #e0e7ff; font-size: 5vh; }
 .help b { color: #fde68a; }
 .btn { background: #e0e7ff; }
 .btn.go { background: #fbbf24; color: #1e1b4b; }
-.books { display: grid; grid-template-columns: repeat(3, auto); gap: 2.5vh 2.5vw; margin-top: 3vh; }
-.book { width: 26vw; height: 20vh; border: 0; border-radius: 3vh; background: linear-gradient(135deg, var(--c), #1e1b4b); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .6vh;
+.books { display: grid; grid-template-columns: repeat(5, auto); gap: 2.2vh 1.6vw; margin-top: 2.5vh; }
+.book { width: 17vw; height: 19vh; padding: 0 .8vw; border: 0; border-radius: 3vh; background: linear-gradient(135deg, var(--c), #1e1b4b); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .6vh;
   box-shadow: 0 1.5vh 3vh rgba(0,0,0,.4); }
-.book .emo { font-size: 8vh; }
-.book b { font-size: 3.6vh; }
-.book small { font-size: 2.2vh; color: #bbf7d0; }
+.book .emo { font-size: 6.5vh; }
+.book b { font-size: 2.7vh; line-height: 1.25; text-align: center; }
+.book em { font-style: normal; font-size: 2vh; background: rgba(255,255,255,.22); border-radius: 2vh; padding: 0 1.2vh; }
+.book small { font-size: 2vh; color: #bbf7d0; }
 .page { margin-top: 2vh; width: 80vw; height: 60vh; background: #fffbeb; border-radius: 5vh; border: 1vh solid var(--c); box-shadow: 0 2vh 5vh rgba(0,0,0,.45);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3vh; padding: 3vh 5vw; }
 .page p { margin: 0; font-size: 5.2vh; line-height: 1.7; font-weight: 700; color: #1e1b4b; text-align: center; }
