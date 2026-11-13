@@ -537,11 +537,14 @@ def web_viewer():
 
 
 def tv_viewer():
-    """على التلفاز: من له مربع «الكاميرات»."""
+    """على التلفاز: المدير ومن يختارهم، ومن أُضيف له مربع «الكاميرات»."""
     from . import tv
     if not tv.tv_allowed() or not session.get("tv_uid"):
         return None
     uid = session["tv_uid"]
+    u = get_db().execute("SELECT is_admin FROM users WHERE id=? AND disabled=0", (uid,)).fetchone()
+    if u and (u["is_admin"] or uid in viewers()):
+        return uid
     row = get_db().execute("SELECT 1 FROM tv_tiles WHERE user_id=? AND kind='cameras' AND enabled=1", (uid,)).fetchone()
     return uid if row else None
 

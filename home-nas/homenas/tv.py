@@ -733,6 +733,12 @@ def api_tv_home():
     db = get_db()
     tiles = [tile_dict(t) for t in db.execute("SELECT * FROM tv_tiles WHERE user_id=? AND enabled=1 ORDER BY position, id",
                                               (u["id"],))]
+    # الكاميرات تظهر وحدها للمدير ولمن يختارهم (بلا حاجة لإضافة مربع)، متى وُجدت كاميرا
+    if not any(t["kind"] == "cameras" for t in tiles):
+        from .cameras import viewers
+        if (u["is_admin"] or u["id"] in viewers()) and db.execute("SELECT 1 FROM cameras WHERE enabled=1 LIMIT 1").fetchone():
+            tiles.append({"id": "cams", "user_id": u["id"], "title": "الكاميرات", "kind": "cameras", "path": None,
+                          "icon": "camera", "color": "#0f172a,#2563eb", "position": 999, "enabled": 1})
     s = tv_settings()
     from . import welcome
     daily = session.get("tv_daily")
