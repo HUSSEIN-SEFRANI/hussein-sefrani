@@ -1,0 +1,57 @@
+@font-face { font-family: "AmiriQ"; src: url(/static/fonts/amiri-quran.woff2) format("woff2"); }
+#sky { --sky: linear-gradient(180deg, #fef3c7 0%, #fde68a 55%, #fcd34d 100%); }
+#sky i { opacity: .55; }
+.sun { background: #fff7d6; box-shadow: 0 0 6vh #fde68a; }
+h1 { -webkit-text-stroke-color: #92400e; }
+h2 { color: #78350f; font-size: 5vh; text-align: center; }
+.sub { color: #92400e; }
+.help b { color: #b45309; }
+.btn.go { background: #16a34a; }
+.scn { display: block; width: 100%; height: 100%; }
+.scn.dim { position: absolute; inset: 0; opacity: .35; }
+
+.cards { display: grid; grid-template-columns: repeat(5, auto); gap: 2.2vh 1.6vw; margin-top: 2vh; }
+.card { position: relative; width: 16.5vw; height: 22vh; padding: 0; border: .6vh solid var(--c); border-radius: 3vh; overflow: hidden; background: #fff;
+  box-shadow: 0 1.2vh 2.4vh rgba(120,53,15,.3); display: flex; flex-direction: column; }
+.card .scn { flex: 1; min-height: 0; }
+.card b { background: var(--c); color: #fff; font-size: 2.5vh; line-height: 1.2; padding: .7vh .4vw; text-align: center; }
+.card small { position: absolute; top: .6vh; right: .6vh; background: rgba(255,255,255,.9); border-radius: 2vh; padding: 0 1vh; font-size: 2vh; color: #15803d; font-weight: 800; }
+.card .st { font-size: 2.2vh; letter-spacing: 0; }
+
+.hero { margin-top: 2vh; width: 66vw; height: 52vh; border-radius: 5vh; overflow: hidden; border: 1vh solid var(--c); box-shadow: 0 2vh 4vh rgba(120,53,15,.35); }
+.page { position: relative; margin-top: 1.5vh; width: 86vw; height: 66vh; background: #fffbeb; border-radius: 4vh; border: 1vh solid var(--c); overflow: hidden;
+  box-shadow: 0 2vh 4vh rgba(120,53,15,.35); display: flex; flex-direction: column; }
+.page > .scn { flex: 1; min-height: 0; }
+.page > p { margin: 0; padding: 1.6vh 3vw; font-size: 4.2vh; line-height: 1.6; font-weight: 700; color: #422006; text-align: center; background: #fffbeb; border-top: .6vh solid var(--c); }
+.page.aya, .page.ibra { justify-content: center; align-items: center; }
+.ayabox { position: relative; width: 78%; background: rgba(255,251,235,.94); border-radius: 4vh; padding: 3vh 3vw; text-align: center; box-shadow: 0 1vh 3vh rgba(0,0,0,.15); border: .5vh solid #d97706; }
+.ayabox .lbl { font-size: 3.6vh; font-weight: 800; color: #92400e; }
+.ayabox .q { font-family: "AmiriQ", "Amiri", serif; font-size: 6.2vh; line-height: 2; color: #14532d; margin: 1vh 0; }
+.ayabox .ref { font-size: 2.8vh; color: #78350f; }
+.ayabox p { font-size: 5vh; line-height: 1.6; font-weight: 800; color: #14532d; margin: 1.5vh 0 0; }
+
+.prompt { min-height: 26vh; padding: 2vh 3vw; }
+.prompt .pic { width: 30vh; height: 19vh; border-radius: 3vh; overflow: hidden; flex: none; }
+.prompt .q { max-width: 50vw; font-size: 5vh; color: #78350f; }
+.opts.ans { gap: 2vw; }
+.opts.ans .opt { font-size: 4.4vh; height: 14vh; min-width: 24vw; max-width: 30vw; line-height: 1.25; padding: 0 2vw; color: #422006; }
+
+@media (orientation: portrait) {
+  #app { padding: 3vh 4vw 2vh; }
+  h1 { font-size: 7vh; } .mascot { font-size: 8vh; } .sub { font-size: 2.4vh; }
+  .cards { grid-template-columns: repeat(2, auto); gap: 1.4vh 3vw; overflow-y: auto; padding: 1vh; }
+  .card { width: 43vw; height: 14vh; }
+  .card b { font-size: 1.9vh; }
+  .hero { width: 92vw; height: 30vh; }
+  .nav { flex-wrap: wrap; justify-content: center; gap: 2vh 3vw; }
+  .btn { font-size: 2.4vh; padding: 1vh 2.2vh; }
+  h2 { font-size: 3vh; } .pill { font-size: 2.4vh; padding: .4vh 1.6vh; }
+  .page { width: 94vw; height: 70vh; }
+  .page > p { font-size: 2.6vh; }
+  .ayabox { width: 92%; } .ayabox .q { font-size: 3.6vh; } .ayabox p { font-size: 2.9vh; } .ayabox .lbl { font-size: 2.4vh; } .ayabox .ref { font-size: 2vh; }
+  .prompt { flex-direction: column; gap: 1.5vh; min-height: 0; }
+  .prompt .pic { width: 70vw; height: 20vh; } .prompt .q { max-width: none; font-size: 3vh; }
+  .opts.ans { flex-direction: column; gap: 1.4vh; margin-top: 2vh; }
+  .opts.ans .opt { min-width: 80vw; max-width: none; height: 8vh; font-size: 2.8vh; }
+  .help { display: none; }
+}
