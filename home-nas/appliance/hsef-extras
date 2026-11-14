@@ -1365,17 +1365,64 @@ def tv_mode_set(mode: str):
         subprocess.run(["systemctl", "try-restart", "hsef-tv.service"], capture_output=True)
 
 
-def tv_session(url: str):
-    """يعمل داخل جلسة الشاشة (مستخدم hseftv): يضبط الدقة المحفوظة ثم يشغّل المتصفح."""
+INTERNAL_PANELS = ("eDP", "LVDS", "DSI")   # شاشة اللابتوب نفسها
+
+
+def screen_rank(name: str) -> int:
+    """الأولوية لعرض وضع التلفاز: HDMI (التلفاز عادة) ثم DisplayPort ثم غيرها، وشاشة اللابتوب أخيراً."""
+    if name.startswith(INTERNAL_PANELS):
+        return 3
+    return 0 if name.startswith("HDMI") else 1 if name.startswith("DP") else 2
+
+
+def screen_plan(outs: list, mode: str = "", tried: set | None = None) -> list[list[str]]:
+    """وضع التلفاز على شاشة واحدة فقط: اللابتوب الموصول بتلفاز يعرض على التلفاز وحده (لا تتوزع الصورة
+    على الشاشتين)، وعند فصل التلفاز يعود إلى شاشة اللابتوب. يرجع أوامر wlr-randr المطلوبة (فارغة إن لا تغيير)."""
+    outs = [o for o in outs if o.get("name")]
+    if not outs:
+        return []
+    main = min(outs, key=lambda o: (screen_rank(o["name"]), o["name"]))
+    cmds = []
+    if not main.get("enabled", True):
+        cmds.append(["--output", main["name"], "--on", "--pos", "0,0"])
+    for o in outs:   # نطفئ الباقي بعد تشغيل الشاشة المختارة، حتى لا تبقى الجلسة بلا شاشة
+        if o is not main and o.get("enabled", True):
+            cmds.append(["--output", o["name"], "--off"])
+    if mode and tried is not None and (main["name"], mode) not in tried:
+        modes = {f"{m.get('width')}x{m.get('height')}": m for m in main.get("modes", [])}
+        cur = next((k for k, m in modes.items() if m.get("current")), None)
+        if mode in modes and cur != mode:
+            cmds.append(["--output", main["name"], "--mode", mode])
+        tried.add((main["name"], mode))
+    return cmds
+
+
+def screen_watch():
+    """يعمل في الخلفية داخل جلسة الشاشة: يتابع توصيل التلفاز وفصله كل 3 ثوانٍ."""
     mode = TV_MODE.read_text().strip() if TV_MODE.exists() else ""
-    if mode and shutil.which("wlr-randr"):
+    tried, last = set(), None
+    while True:
         try:
             outs = json.loads(subprocess.run(["wlr-randr", "--json"], capture_output=True, text=True, timeout=10).stdout or "[]")
-            name = next((o["name"] for o in outs if o.get("enabled", True)), None)
-            if name:
-                subprocess.run(["wlr-randr", "--output", name, "--mode", mode], capture_output=True, timeout=10)
+            names = tuple(sorted(o.get("name", "") for o in outs))
+            if names != last:   # شاشة وُصلت أو فُصلت: نعيد ضبط الدقة المحفوظة على الشاشة المختارة
+                tried.clear()
+                last = names
+            for c in screen_plan(outs, mode, tried):
+                subprocess.run(["wlr-randr", *c], capture_output=True, timeout=10)
         except Exception:
             pass
+        _time.sleep(3)
+
+
+def tv_session(url: str):
+    """يعمل داخل جلسة الشاشة (مستخدم hseftv): يختار الشاشة ويضبط الدقة المحفوظة ثم يشغّل المتصفح."""
+    if shutil.which("wlr-randr") and os.fork() == 0:
+        try:
+            os.setsid()
+            screen_watch()
+        finally:
+            os._exit(0)
     if not _re.match(r"^http://127\.0\.0\.1(:\d+)?/tv$", url):
         url = "http://127.0.0.1/tv"
     try:
