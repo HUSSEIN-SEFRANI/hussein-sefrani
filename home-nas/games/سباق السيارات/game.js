@@ -1301,7 +1301,9 @@ function tick() {
     }
     // الكاميرا خلف اللاعب
     const [cb, ch, ca, cly] = CAMS[set.cam].v, sz = SIZE[player.type] || 1;
-    const backD = cb * sz, hgt = set.cam === 2 ? ch + (sz - 1) * 8 : ch * sz;
+    let backD = cb * sz, hgt = set.cam === 2 ? ch + (sz - 1) * 8 : ch * sz;
+    // داخل النفق (وقبله بقليل) تنزل الكاميرا تحت السقف حتى تبقى السيارة ظاهرة
+    if (inTunnel(player.s + 6) || inTunnel(player.s - backD - 4) || inTunnel(player.s - 12)) { hgt = Math.min(hgt, 5.2); backD = Math.max(backD, 8); }
     const back = frameAt(player.s - backD), ahead = frameAt(player.s + ca);
     camPos.copy(back.p).addScaledVector(back.n, player.x * 0.92); camPos.y = Math.max(player.y, H(player.s - backD)) + hgt;
     camLook.copy(ahead.p).addScaledVector(ahead.n, player.x * 0.6); camLook.y = (player.y + H(player.s + ca)) / 2 + cly;
