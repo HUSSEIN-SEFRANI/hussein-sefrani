@@ -744,17 +744,6 @@ def api_tv_profiles():
     return jsonify(profiles=profiles, settings=tv_settings(), current=session.get("tv_uid"), setup=setup)
 
 
-def any_adult_pin_ok(pin: str) -> bool:
-    for u in get_db().execute("SELECT tv_pin FROM users WHERE tv_role='adult' AND disabled=0 AND tv_pin IS NOT NULL"):
-        if check_password_hash(u["tv_pin"], pin):
-            return True
-    return False
-
-
-def adults_have_pins() -> bool:
-    return bool(get_db().execute("SELECT 1 FROM users WHERE tv_role='adult' AND disabled=0 AND tv_pin IS NOT NULL").fetchone())
-
-
 @bp.post("/api/tv/login")
 def api_tv_login():
     tv_guard()
@@ -762,12 +751,7 @@ def api_tv_login():
     u = user_row(int(d.get("id") or 0))
     if not u or u["disabled"] or (u["tv_role"] or "none") == "none":
         abort(404)
-    cur = session.get("tv_uid")
-    cu = user_row(cur) if cur else None
-    # الخروج من ملف طفل إلى ملف آخر يحتاج رمز أحد الوالدين
-    if cu and cu["tv_role"] in ("kid", "little") and cu["id"] != u["id"] and adults_have_pins():
-        if not any_adult_pin_ok(str(d.get("parent_pin") or "")):
-            abort(403, "يحتاج رمز ماما أو بابا")
+    # الرمز عند الدخول فقط (لمن له رمز)، والخروج حر للجميع
     if u["tv_pin"] and not check_password_hash(u["tv_pin"], str(d.get("pin") or "")):
         abort(403, "الرمز غير صحيح")
     session["tv_uid"] = u["id"]
@@ -778,13 +762,8 @@ def api_tv_login():
 
 @bp.post("/api/tv/leave")
 def api_tv_leave():
-    """العودة إلى شاشة اختيار المستخدم."""
+    """العودة إلى شاشة اختيار المستخدم (بلا رمز، حتى للأطفال)."""
     tv_guard()
-    cur = session.get("tv_uid")
-    cu = user_row(cur) if cur else None
-    if cu and cu["tv_role"] in ("kid", "little") and adults_have_pins():
-        if not any_adult_pin_ok(str(body().get("parent_pin") or "")):
-            abort(403, "يحتاج رمز ماما أو بابا")
     session.pop("tv_uid", None)
     return jsonify(ok=True)
 
@@ -807,8 +786,7 @@ def api_tv_home():
     if not daily:
         daily = session["tv_daily"] = welcome.daily(u)
     return jsonify(user=profile_dict(u), tiles=tiles, settings=s, prayer=prayer_now(s), word=daily["word"],
-                   text=daily.get("text") if s["daily_kinds"] else None, weather=weather_now(s),
-                   parent_lock=u["tv_role"] in ("kid", "little") and adults_have_pins())
+                   text=daily.get("text") if s["daily_kinds"] else None, weather=weather_now(s))
 
 
 THEMES = ("grape", "apple", "orange", "strawberry", "lemon", "watermelon")

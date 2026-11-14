@@ -638,7 +638,7 @@ function kidsHome(d) {
   const confetti = u.birthday_today ? `<div class="confetti">${Array.from({ length: 40 }, (_, i) =>
     `<i style="left:${(i * 37) % 100}%;background:${["#f43f5e", "#facc15", "#22c55e", "#3b82f6", "#a855f7"][i % 5]};animation-duration:${4 + (i % 5)}s;animation-delay:-${(i * 0.7) % 6}s"></i>`).join("")}</div>` : "";
   const greet = u.birthday_today ? `عيد ميلاد سعيد يا ${esc(u.name)}!` : `مرحباً يا ${esc(u.name)}!`;
-  const exitTxt = d.parent_lock ? `${A.LOCK} للخروج: رمز ماما أو بابا` : "تبديل المستخدم";
+  const exitTxt = "تبديل المستخدم";
   setTheme(u.theme);
   const el = h(`<div class="kids bg-kids">${kidsBg()}${vineLayer(u.theme, [480, 610])}${confetti}
     <div class="mascot">${F.mascot(u.theme, 150)}</div>
@@ -665,13 +665,6 @@ function kidsHome(d) {
 }
 
 async function leave() {
-  if (me?.parent_lock) {
-    pinScreen({ title: "رمز ماما أو بابا", sub: `للخروج من حساب ${me.user.name}` }, async (pin) => {
-      await api("/api/tv/leave", { json: { parent_pin: pin } });
-      await whoScreen();
-    });
-    return;
-  }
   try { await api("/api/tv/leave", { json: {} }); } catch (e) { toast(e.message); return; }
   whoScreen();
 }
