@@ -32,14 +32,14 @@ canvas.pitch { position: fixed; inset: 0; width: 100vw; height: 100vh; touch-act
 /* اللمس */
 .tc { display: none; }
 .tc.on { display: block; }
-.joy { position: fixed; left: 4vmin; bottom: 4vmin; width: 30vmin; height: 30vmin; max-width: 200px; max-height: 200px; border-radius: 50%; background: rgba(255,255,255,.22); border: 3px solid rgba(255,255,255,.6); z-index: 6; touch-action: none; }
+.joy { position: fixed; left: 4vmin; bottom: 4vmin; width: 30vmin; height: 30vmin; max-width: 200px; max-height: 200px; border-radius: 50%; background: rgba(255,255,255,.22); border: 3px solid rgba(255,255,255,.7); z-index: 6; background: rgba(15,23,42,.45); touch-action: none; }
 .joy i { position: absolute; left: 30%; top: 30%; width: 40%; height: 40%; border-radius: 50%; background: rgba(255,255,255,.85); }
 .tb { position: fixed; right: 4vmin; bottom: 4vmin; display: flex; gap: 3vmin; align-items: flex-end; z-index: 6; }
 .tb button { border: 0; border-radius: 50%; font-weight: 800; color: #fff; touch-action: none; box-shadow: 0 1vmin 2vmin rgba(0,0,0,.35); cursor: pointer; }
 .tb .shoot { width: 22vmin; height: 22vmin; max-width: 140px; max-height: 140px; background: #dc2626; font-size: 7vmin; line-height: 1; }
 .tb .shoot small { display: block; font-size: 3vmin; }
 .tb .pass { width: 16vmin; height: 16vmin; max-width: 104px; max-height: 104px; background: #2563eb; font-size: 3.4vmin; }
-.tb .pause { position: fixed; top: 12vh; right: 3vmin; width: 10vmin; height: 10vmin; max-width: 56px; max-height: 56px; background: rgba(15,23,42,.6); font-size: 4vmin; }
+.tb .pause { position: fixed; top: 12vh; right: 3vmin; width: 10vmin; height: 10vmin; max-width: 56px; max-height: 56px; background: #0f172a; border: 2px solid #fff; font-size: 4vmin; }
 @media (max-aspect-ratio: 1/1) {
   .modes .mode { width: 40vw; height: 22vh; } .mode .big { font-size: 8vh; } .mode b { font-size: 3vh; }
   .teams { flex-direction: column; gap: 1vh; } .team { width: 90vw; padding: 1.4vh 3vw; display: grid; grid-template-columns: auto 1fr; gap: .8vh 3vw; align-items: center; } .team .kit { grid-row: span 4; } .kit { width: 9vh; height: 9vh; font-size: 4.5vh; }
@@ -49,3 +49,11 @@ canvas.pitch { position: fixed; inset: 0; width: 100vw; height: 100vh; touch-act
   .team small { font-size: 1.8vh; } .team .btn { font-size: 2.3vh; padding: 1vh 2vh; } .btn.big { font-size: 3vh; margin-top: 1.5vh; }
   .help { display: none; } .mini { gap: 1.5vh; } .mini .btn, .mini .pill { font-size: 2.2vh; }
 }
+/* شاشة الوقت */
+.times { display: flex; flex-wrap: wrap; gap: 2.5vh 2vw; justify-content: center; margin-top: 14vh; max-width: 90vw; }
+.tm { width: 19vh; height: 22vh; border: 0; border-radius: 4vh; background: #fff; color: #1e3a8a; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .3vh; box-shadow: 0 1vh 2vh rgba(30,58,138,.25); }
+.tm b { font-size: 10vh; line-height: 1; }
+.tm span { font-size: 3vh; font-weight: 800; }
+.tm small { font-size: 2.2vh; color: #64748b; font-weight: 700; }
+.tm.on { background: #22c55e; color: #fff; } .tm.on small { color: #dcfce7; }
+@media (max-aspect-ratio: 1/1) { .tm { width: 26vw; height: 15vh; } .tm b { font-size: 6vh; } .tm span { font-size: 2vh; } .tm small { font-size: 1.5vh; } }
