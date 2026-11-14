@@ -1,0 +1,32 @@
+#sky { --sky: linear-gradient(180deg, #a5f3fc 0%, #e0f2fe 60%, #bbf7d0 60%, #4ade80 100%); }
+.mode { width: 24vw; height: 38vh; }
+.help { font-size: 2.2vh; }
+.hero { width: 22vh; height: 16vh; }
+.legend { font-size: 2.8vh; background: rgba(255,255,255,.75); border-radius: 3vh; padding: .6vh 3vh; margin-top: 3vh; }
+.top h2 { font-size: 5vh; }
+.tile.lv { width: 17vh; height: 17vh; background: var(--c); color: #fff; box-shadow: 0 .8vh 0 rgba(0,0,0,.18), 0 1.2vh 2vh rgba(30,58,138,.25); }
+.tile.lv b { font-size: 7vh; line-height: 1; -webkit-text-stroke: .3vh rgba(0,0,0,.25); paint-order: stroke fill; }
+.tile.lv .st { font-size: 2.4vh; }
+.tile.lv.lock { filter: grayscale(.85); opacity: .65; }
+.endh { font-size: 8vh; }
+.earned { min-height: 6vh; margin-top: 1vh; }
+.gain { background: #fde047; color: #92400e; }
+canvas.maze { position: fixed; inset: 0; width: 100vw; height: 100vh; touch-action: none; }
+.msg { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.msg .count { font-size: 22vh; font-weight: 800; color: #fff; -webkit-text-stroke: 1vh #1e3a8a; paint-order: stroke fill; }
+.msg .win { background: #fff; border: 1.2vh solid var(--c); border-radius: 6vh; padding: 4vh 6vw; font-size: 9vh; font-weight: 800; color: var(--c); text-align: center; box-shadow: 0 3vh 6vh rgba(0,0,0,.35); }
+.msg .win small { display: block; font-size: 3vh; color: #334155; margin-top: 2vh; }
+@media (orientation: portrait) {
+  #app { padding: 3vh 3vw; }
+  h1 { font-size: 6vh; }
+  .title { flex-direction: column; gap: 1vh; }
+  .modes { gap: 2vh; }
+  .mode { width: 80vw; height: 15vh; flex-direction: row; gap: 4vw; }
+  .mode .big { font-size: 8vh; }
+  .grid { --cols: 3 !important; grid-template-columns: repeat(3, auto); }
+  .tile.lv { width: 12vh; height: 12vh; }
+  .top h2 { font-size: 3vh; }
+  .endh { font-size: 5vh; }
+  .nav { flex-wrap: wrap; justify-content: center; gap: 2vh; }
+}
+@media (orientation: portrait) { .help { display: none; } .mini { margin-top: 2vh; } .hero { width: 16vh; height: 11.6vh; } }
