@@ -1,0 +1,51 @@
+#sky { --sky: linear-gradient(180deg, #38bdf8 0%, #bae6fd 55%, #4cb85a 55%, #3fa34d 100%); }
+.modes .mode { width: 19vw; height: 34vh; }
+.help { font-size: 2.3vh; }
+.ttl { color: #fff; -webkit-text-stroke: .3vh #1e3a8a; paint-order: stroke fill; }
+.teams { display: flex; align-items: center; gap: 3vw; margin-top: 2vh; }
+.team { width: 34vw; background: #fff; border-radius: 5vh; padding: 2.5vh 2vw; display: flex; flex-direction: column; align-items: center; gap: 1.4vh;
+  border: 1vh solid var(--c); box-shadow: 0 1.5vh 3vh rgba(30,58,138,.3); }
+.team h2 { font-size: 4.6vh; text-align: center; }
+.team small { font-size: 2.5vh; color: #475569; font-weight: 700; text-align: center; }
+.team .btn { width: 100%; font-size: 3vh; }
+.kit, .sc .kit { width: 15vh; height: 15vh; border-radius: 50%; background: var(--c); border: 1.2vh solid var(--d); display: flex; align-items: center; justify-content: center; font-size: 7vh; }
+.vs { font-size: 6vh; font-weight: 800; color: #fff; -webkit-text-stroke: .35vh #be185d; paint-order: stroke fill; }
+.btn.big { margin-top: 3vh; font-size: 4.4vh; padding: 1.6vh 6vh; }
+canvas.pitch { position: fixed; inset: 0; width: 100vw; height: 100vh; touch-action: none; }
+.msg { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 5; }
+.msg .ready { font-size: 12vmin; font-weight: 800; color: #fff; -webkit-text-stroke: .8vmin #14532d; paint-order: stroke fill; animation: pop .4s; }
+.msg .goal { font-size: 20vmin; font-weight: 800; color: var(--c); -webkit-text-stroke: 1.2vmin var(--d); paint-order: stroke fill; text-align: center; animation: zoom .6s ease-out; filter: drop-shadow(0 1vh 2vh rgba(0,0,0,.4)); }
+.msg .goal small { display: block; font-size: 6vmin; -webkit-text-stroke: .5vmin var(--d); }
+@keyframes zoom { 0% { transform: scale(.2) rotate(-10deg) } 70% { transform: scale(1.15) rotate(3deg) } }
+.msg .box { pointer-events: auto; background: #fff; border-radius: 5vmin; padding: 4vmin 6vmin; font-size: 8vmin; font-weight: 800; color: #1e3a8a; text-align: center; box-shadow: 0 3vh 6vh rgba(0,0,0,.4); max-width: 94vw; }
+.msg .box small { display: block; font-size: 2.6vmin; color: #475569; margin-top: 2vmin; }
+.msg .end .h { font-size: 6vmin; }
+.board { display: flex; align-items: center; justify-content: center; gap: 4vmin; margin: 3vmin 0; }
+.sc { display: flex; flex-direction: column; align-items: center; gap: 1vmin; }
+.sc .kit { width: 14vmin; height: 14vmin; font-size: 7vmin; border-width: 1.2vmin; }
+.sc b { font-size: 3.4vmin; max-width: 28vmin; }
+.board .num { font-size: 13vmin; direction: ltr; color: #0f172a; }
+.earned { font-size: 4vmin; color: #b45309; margin-bottom: 2vmin; }
+.row { display: flex; gap: 3vmin; justify-content: center; }
+.row .btn { font-size: 3.6vmin; cursor: pointer; }
+.row .btn.sel { box-shadow: 0 0 0 .8vmin #2563eb; transform: scale(1.06); }
+/* اللمس */
+.tc { display: none; }
+.tc.on { display: block; }
+.joy { position: fixed; left: 4vmin; bottom: 4vmin; width: 30vmin; height: 30vmin; max-width: 200px; max-height: 200px; border-radius: 50%; background: rgba(255,255,255,.22); border: 3px solid rgba(255,255,255,.6); z-index: 6; touch-action: none; }
+.joy i { position: absolute; left: 30%; top: 30%; width: 40%; height: 40%; border-radius: 50%; background: rgba(255,255,255,.85); }
+.tb { position: fixed; right: 4vmin; bottom: 4vmin; display: flex; gap: 3vmin; align-items: flex-end; z-index: 6; }
+.tb button { border: 0; border-radius: 50%; font-weight: 800; color: #fff; touch-action: none; box-shadow: 0 1vmin 2vmin rgba(0,0,0,.35); cursor: pointer; }
+.tb .shoot { width: 22vmin; height: 22vmin; max-width: 140px; max-height: 140px; background: #dc2626; font-size: 7vmin; line-height: 1; }
+.tb .shoot small { display: block; font-size: 3vmin; }
+.tb .pass { width: 16vmin; height: 16vmin; max-width: 104px; max-height: 104px; background: #2563eb; font-size: 3.4vmin; }
+.tb .pause { position: fixed; top: 12vh; right: 3vmin; width: 10vmin; height: 10vmin; max-width: 56px; max-height: 56px; background: rgba(15,23,42,.6); font-size: 4vmin; }
+@media (max-aspect-ratio: 1/1) {
+  .modes .mode { width: 40vw; height: 22vh; } .mode .big { font-size: 8vh; } .mode b { font-size: 3vh; }
+  .teams { flex-direction: column; gap: 1vh; } .team { width: 90vw; padding: 1.4vh 3vw; display: grid; grid-template-columns: auto 1fr; gap: .8vh 3vw; align-items: center; } .team .kit { grid-row: span 4; } .kit { width: 9vh; height: 9vh; font-size: 4.5vh; }
+  .team h2 { font-size: 3.2vh; } .vs { font-size: 3.5vh; }
+  h1 { font-size: 7vh; } .title .mascot { font-size: 9vh; }
+  .top .btn, .top .pill { font-size: 2.2vh; padding: .8vh 2vh; } .ttl { font-size: 3.2vh; }
+  .team small { font-size: 1.8vh; } .team .btn { font-size: 2.3vh; padding: 1vh 2vh; } .btn.big { font-size: 3vh; margin-top: 1.5vh; }
+  .help { display: none; } .mini { gap: 1.5vh; } .mini .btn, .mini .pill { font-size: 2.2vh; }
+}
