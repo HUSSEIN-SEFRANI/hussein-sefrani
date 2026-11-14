@@ -1,6 +1,6 @@
 """فيديو التلفاز.
 
-متصفح التلفاز لا يشغّل فيديو الآيفون (HEVC / H.265) ولا بعض الصيغ القديمة (AVI، WMV، MPEG-2…).
+متصفح التلفاز لا يشغّل فيديو الآيفون (HEVC / H.265) ولا الصيغ القديمة (AVI، RMVB، ASF/WMV، VOB/MPEG-2، FLV…).
 نفحص كل فيديو بـ ffprobe: إن كان صالحاً يُرسل كما هو، وإلا يُحوَّل مرة واحدة في الخلفية إلى MP4 (H.264 + AAC)
 بدقة لا تتجاوز 1080p، وتُحفظ النسخة المحوّلة في مجلد الذاكرة المؤقتة. الملف الأصلي لا يُمس أبداً.
 فيديو الآيفون الملوّن الواسع (HDR) تُضبط ألوانه حتى لا يظهر باهتاً.
@@ -157,12 +157,21 @@ class TvVideo:
         tone = ("zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,"
                 "zscale=t=bt709:m=bt709:r=tv,format=yuv420p,")
         filters = [tone + scale, scale] if v.get("color_transfer") in HDR else [scale]
-        last_err = ""
+        a = next((s for s in info.get("streams") or [] if s.get("codec_type") == "audio"), {})
+        audio = ["-c:a", "copy"] if a.get("codec_name") in ("aac", "mp3") else ["-c:a", "aac", "-b:a", "160k", "-ac", "2"]
+        head = ["nice", "-n", "10", FFMPEG, "-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-fflags", "+genpts",
+                "-i", str(src), "-map", "0:v:0", "-map", "0:a:0?", "-sn", "-dn"]
+        tail = ["-movflags", "+faststart", "-progress", "pipe:1", str(tmp)]
+        attempts = []
+        # الصورة صالحة للمتصفح والمشكلة في الغلاف فقط (FLV، MKV، TS…): نقل بدون تحويل، يأخذ ثوانٍ
+        if (v.get("codec_name") == "h264" and v.get("pix_fmt") in (None, "yuv420p", "yuvj420p")
+                and int(v.get("width") or 0) <= 1920 and v.get("color_transfer") not in HDR):
+            attempts.append(head + ["-c:v", "copy"] + audio + tail)
         for vf in filters:
-            cmd = ["nice", "-n", "10", FFMPEG, "-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i", str(src),
-                   "-map", "0:v:0", "-map", "0:a:0?", "-sn", "-dn", "-vf", vf,
-                   "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p", "-profile:v", "high",
-                   "-c:a", "aac", "-b:a", "160k", "-ac", "2", "-movflags", "+faststart", "-progress", "pipe:1", str(tmp)]
+            attempts.append(head + ["-vf", vf, "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p",
+                                    "-profile:v", "high", "-c:a", "aac", "-b:a", "160k", "-ac", "2"] + tail)
+        last_err = ""
+        for cmd in attempts:
             p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             for line in p.stdout:
                 if line.startswith("out_time_us=") or line.startswith("out_time_ms="):

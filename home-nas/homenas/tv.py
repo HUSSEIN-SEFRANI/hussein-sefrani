@@ -28,6 +28,9 @@ from . import mawaqit, prayer, welcome
 bp = Blueprint("tv", __name__)
 
 AUDIO_EXT = {".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".opus"}
+# صيغ فيديو قديمة يعرضها التلفاز أيضاً (تُحوَّل مرة واحدة عند أول تشغيل)
+TV_VIDEO_EXT = VIDEO_EXT | {".rmvb", ".rm", ".asf", ".wmv", ".vob", ".flv", ".f4v", ".mpg", ".mpeg", ".ts", ".m2ts", ".mts",
+                            ".divx", ".ogv"}
 BOOK_EXT = {".pdf"}
 ROLES = ("none", "adult", "kid", "little")
 KINDS = ("media", "games", "photos", "cameras")
@@ -264,7 +267,7 @@ def word_of_day() -> dict:
 
 def file_kind(name: str) -> str | None:
     ext = os.path.splitext(name)[1].lower()
-    if ext in VIDEO_EXT:
+    if ext in TV_VIDEO_EXT:
         return "video"
     if ext in AUDIO_EXT:
         return "audio"
