@@ -20,7 +20,7 @@
   // فواكه سحرية: تُطيل الأفعى ولها أثر لبضع ثوانٍ
   const POWERS = {
     fast: { e: "🌶️", t: "أسرع!", f: 0.6, ring: "#ef4444", bg: "#fecaca" },
-    flip: { e: "🍋", t: "مقلوب!", f: 1, ring: "#a855f7", bg: "#f3e8ff" },
+    flip: { e: "🍋", t: "للخلف!", f: 1, ring: "#a855f7", bg: "#f3e8ff" },
     slow: { e: "🥥", t: "أبطأ", f: 1.7, ring: "#3b82f6", bg: "#dbeafe" },
   };
   const EFFECT_MS = 6000;
@@ -165,7 +165,6 @@
     // ---------------------------------------------------------------- الأزرار
     const DIR = { ArrowUp: { x: 0, y: -1 }, ArrowDown: { x: 0, y: 1 }, ArrowLeft: { x: -1, y: 0 }, ArrowRight: { x: 1, y: 0 } };
     function steer(s, d) {
-      if (S.eff && S.eff.type === "flip") d = { x: -d.x, y: -d.y };
       const lastD = s.queue.length ? s.queue[s.queue.length - 1] : s.dir;
       if (d.x === lastD.x && d.y === lastD.y) return;
       if (d.x === -lastD.x && d.y === -lastD.y) {
@@ -176,7 +175,7 @@
     }
     function setState(st) {
       S.state = st;
-      if (st === "ready") ov.innerHTML = `<div class="box"><b>🐍 جاهز؟</b><small>اضغط سهماً لتبدأ</small><small class="legend"><span class="emo">🌶️</span> أسرع · <span class="emo">🍋</span> مقلوب · <span class="emo">🥥</span> أبطأ</small></div>`;
+      if (st === "ready") ov.innerHTML = `<div class="box"><b>🐍 جاهز؟</b><small>اضغط سهماً لتبدأ</small><small class="legend"><span class="emo">🌶️</span> أسرع · <span class="emo">🍋</span> للخلف · <span class="emo">🥥</span> أبطأ</small></div>`;
       else if (st === "pause") ov.innerHTML = `<div class="box"><b>⏸️ استراحة</b><small>✕ أو Enter للمتابعة · ○ أو Backspace للقائمة</small></div>`;
       else ov.innerHTML = "";
       ov.classList.toggle("hide", !ov.innerHTML);
@@ -251,7 +250,12 @@
       S.power = null;
       s.score += 2; sc.textContent = s.score;
       S.pops.push({ x: pw.x, y: pw.y, t: 0, txt: P0.t, gold: true, col: P0.ring });
-      S.eff = { type: pw.type, left: EFFECT_MS };
+      if (pw.type === "flip") { // الليمونة: الأفعى تستدير وتمشي للخلف (الذيل يصير رأساً)
+        s.body.reverse(); s.queue = [];
+        const a = s.body[0], b = s.body[1], u = (v) => (Math.abs(v) > 1 ? -Math.sign(v) : v);
+        s.dir = { x: u(a.x - b.x), y: u(a.y - b.y) };
+        if (!s.dir.x && !s.dir.y) s.dir = { x: 1, y: 0 };
+      } else S.eff = { type: pw.type, left: EFFECT_MS };
       if (pw.type === "fast") [600, 800, 1000, 1200].forEach((f, i) => K.tone(f, 0.08, "square", 0.05, i * 0.05));
       else if (pw.type === "slow") [500, 400, 300].forEach((f, i) => K.tone(f, 0.16, "sine", 0.12, i * 0.12));
       else [700, 500, 700, 500].forEach((f, i) => K.tone(f, 0.08, "triangle", 0.1, i * 0.08));
