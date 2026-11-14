@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Writes /etc/issue — the text shown on the NAS's own screen above the login prompt.
 
-It tells the user which address to open from a phone or computer and, before the
-first admin account exists, the 6-digit setup code needed to create it remotely.
+It tells the user which address to open from a phone or computer, this device's number for
+activation and, before the first admin account exists, how to reach the seller on WhatsApp.
 Runs as root just before the HOME ANAB service starts (ExecStartPre=+ in the unit).
 """
 import json
@@ -30,7 +30,7 @@ def user_count() -> int:
         con = sqlite3.connect(f"file:{db}?immutable=1", uri=True)
         return con.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     except Exception:
-        return 1  # in doubt, do not show a setup code
+        return 1  # in doubt, treat setup as done
 
 
 code = None
@@ -78,7 +78,7 @@ QR = [
     "     █████████████████████████████",
 ]
 if code:
-    lines += ["   First-time setup code: ask the developer on WhatsApp", ""] + QR + [
+    lines += ["   Free trial: 14 days. To activate, send the device number to the seller on WhatsApp", ""] + QR + [
         "     WhatsApp: +32 494 49 94 30", ""]
 try:   # رقم الجهاز للتفعيل (يحسبه hsef-extras من العتاد)
     import subprocess

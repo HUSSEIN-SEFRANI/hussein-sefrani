@@ -67,7 +67,7 @@ def main() -> None:
     print(f"\n{line}\n  HOME ANAB {__version__} يعمل الآن\n{line}")
     if first_run:
         print("\n  ★ الإعداد الأول: افتح الرابط وأنشئ حساب المدير.\n"
-              "    من جهاز آخر سيُطلب رمز الإعداد: اطلبه من المطوّر عبر واتساب +32 494 49 94 30\n")
+              "    تجربة مجانية 14 يوماً. للتفعيل أرسل رقم الجهاز للبائع عبر واتساب +32 494 49 94 30\n")
     from homenas.activation import device, show_device
     if device():
         print(f"  رقم الجهاز (للتفعيل): {show_device(device())}\n")

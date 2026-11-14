@@ -97,17 +97,7 @@ def setup_code_file(p: Paths) -> Path:
     return p.system / "setup_code"
 
 
-# رمز الإعداد الأول سرّي: يحفظ هنا كبصمة فقط (PBKDF2)، ويعطيه المطوّر لمن يريد التثبيت.
-SETUP_SALT = "2f3c5d8d6101bdd4"
-SETUP_HASH = "7d9125db702ada58c758f14a7af422d1cc07a153a458cc02f67310d6e891dd70"
 SETUP_CONTACT = "+32 494 49 94 30"
-
-
-def setup_code_ok(code: str) -> bool:
-    import hashlib
-    import hmac
-    d = hashlib.pbkdf2_hmac("sha256", (code or "").encode(), SETUP_SALT.encode(), 300000).hex()
-    return hmac.compare_digest(d, SETUP_HASH)
 
 
 def ensure_setup_code(p: Paths) -> str:

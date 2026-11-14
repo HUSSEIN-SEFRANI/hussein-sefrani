@@ -16,7 +16,7 @@ from flask import (Blueprint, abort, current_app, jsonify, redirect, render_temp
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from .core import (FFMPEG, admin_required, heic_supported, body, current_user, get_db, get_setting, home_dir,
-                   human_size, log_action, login_required, now_iso, paths, set_setting, setup_code_file, setup_code_ok)
+                   human_size, log_action, login_required, now_iso, paths, set_setting, setup_code_file)
 from .network import on_change, on_password, on_user_deleted
 from .photos import indexer
 from .activation import summary as activation_summary
@@ -34,10 +34,6 @@ RESERVED_NAMES = {"home", "homes", "backup", "@system", "#recycle"}
 
 def server_name() -> str:
     return get_setting("server_name") or "HOME ANAB"
-
-
-def is_local_request() -> bool:
-    return request.remote_addr in ("127.0.0.1", "::1", "localhost")
 
 
 def user_count() -> int:
@@ -61,7 +57,6 @@ def check_password_strength(pw: str):
 # ==========================================================================
 
 _failed: dict[str, list[float]] = {}
-_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890123456789")
 
 
 @bp.route("/login", methods=["GET", "POST"])
@@ -97,28 +92,22 @@ def setup():
     if user_count() > 0:
         return redirect(url_for("auth.login"))
     from . import activation
-    code_file = setup_code_file(paths())
-    need_code = not is_local_request()
+    code_file = setup_code_file(paths())   # ملف قديم من إصدارات سابقة، يُحذف بعد الإعداد
     error = None
-    # كود التفعيل اختياري: بدونه تبدأ التجربة المجانية. يأتي من رابط البائع (‎/activate?c=…) أو يُلصق هنا.
+    # الإعداد الأول بدون رمز إعداد (بطلب صاحب المشروع): كل نسخة تبدأ بتجربة مجانية، ثم كود تفعيل لكل جهاز.
+    # كود التفعيل اختياري هنا: يأتي من رابط البائع (‎/activate?c=…) أو يُلصق في الصفحة.
     act_code = (request.values.get("act_code") or request.values.get("c") or "").strip()
     act = {"st": activation.status(), "act_code": activation.clean_code(act_code) if act_code else ""}
     if request.method == "POST":
         ip = request.remote_addr or "?"
         attempts = [t for t in _failed.get(ip, []) if time.time() - t < 600]
-        # الرمز يظهر على الشاشة بمسافات (1 2 3 4 5 6)، ولوحة مفاتيح الهاتف العربية تكتب ١٢٣ — نقبل الشكلين
-        given = re.sub(r"\D", "", (request.form.get("code") or "").translate(_DIGITS))
-        if need_code and len(attempts) >= 10:
-            return render_template("setup.html", need_code=True, error="محاولات خاطئة كثيرة. انتظر 10 دقائق.",
-                                   server_name="HOME ANAB", **act), 429
-        if need_code and not setup_code_ok(given):
-            _failed[ip] = attempts + [time.time()]
-            return render_template("setup.html", need_code=True, error="رمز الإعداد غير صحيح",
-                                   server_name="HOME ANAB", **act), 403
         if act_code:
+            if len(attempts) >= 10:
+                return render_template("setup.html", error="محاولات خاطئة كثيرة. انتظر 10 دقائق.", server_name="HOME ANAB", **act), 429
             ok, msg = activation.activate(act_code)
             if not ok:
-                return render_template("setup.html", need_code=need_code, error=msg, server_name="HOME ANAB", **act), 400
+                _failed[ip] = attempts + [time.time()]
+                return render_template("setup.html", error=msg, server_name="HOME ANAB", **act), 400
         username = (request.form.get("username") or "").strip()
         pw = request.form.get("password", "")
         if not USERNAME_RE.match(username) or username.lower() in RESERVED_NAMES:
@@ -147,7 +136,7 @@ def setup():
             if tz and APPLIANCE:
                 set_timezone(tz)
             return redirect("/")
-    return render_template("setup.html", need_code=need_code, error=error, server_name="HOME ANAB", **act)
+    return render_template("setup.html", error=error, server_name="HOME ANAB", **act)
 
 
 @bp.get("/logout")
