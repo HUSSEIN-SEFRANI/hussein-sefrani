@@ -61,6 +61,8 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
         fc.start()
         iph.start()
         cams.start()
+        from .tv import start_tv_prep
+        start_tv_prep(data_paths)   # تجهيز الفيديو للتلفاز في الخلفية
 
     from . import (appstore, backup, cameras, faces, files, health, iphone, links, media_cards, network, photos, profile, remote, stars,
                    sysadmin, system, tv, welcome)

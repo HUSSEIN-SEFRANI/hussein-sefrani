@@ -1,7 +1,7 @@
 // ====================================================================
 // لوحة التحكم ← وضع التلفاز: الملفات (المستخدمون على التلفاز)، المربعات، الإعدادات، والشاشة الموصولة
 // ====================================================================
-import { $, $$, h, esc, icon, api, guard, toast, modal, confirmBox, openApp, pickFolder } from '../core.js';
+import { $, $$, h, esc, icon, api, guard, toast, modal, confirmBox, openApp, pickFolder, fmtSize } from '../core.js';
 import * as A from '../tv-art.js';
 
 const ROLE_LABEL = { none: 'لا يظهر على التلفاز', adult: 'بالغ', kid: 'طفل', little: 'طفل صغير (أقل من 6 سنوات)' };
@@ -20,10 +20,69 @@ export async function tvSection(sc, section) {
     `<a class="btn primary" href="/tv" target="_blank" rel="noopener">${icon('external')} معاينة واجهة التلفاز</a>`);
 
   p.appendChild(kioskCard(d, reload));
+  p.appendChild(prepCard());
   p.appendChild(h('<h3 class="tv-h">الأشخاص على التلفاز</h3>'));
   for (const u of d.users) p.appendChild(userCard(u, d, reload));
   p.appendChild(h('<h3 class="tv-h">الشاشة والمواقيت</h3>'));
   p.appendChild(settingsCard(d, reload));
+}
+
+// --------------------------------------------------------------------- تجهيز الفيديو للتلفاز
+const PREP_STATE = {
+  working: '⏳ يُجهَّز الآن', done: '✅ كل الفيديوهات جاهزة', scanning: '🔎 يبحث عن فيديوهات جديدة…',
+  tv_in_use: '⏸ ينتظر: التلفاز قيد الاستعمال (يكمل بعد 15 دقيقة من التوقف، أو ليلاً)', wait_night: '🌙 ينتظر الليل (1–7 صباحاً)',
+  off: 'التجهيز التلقائي متوقف', demand: '⏸ ينتظر: التلفاز يجهّز فيديو طلبته الآن', space: '⚠ توقف: المساحة المخصصة امتلأت أو القرص شبه ممتلئ',
+  idle: '…', error: 'حدث خطأ',
+};
+function prepCard() {
+  const c = h(`<div class="card" style="margin-top:14px"><h4>${icon('video')} تجهيز الفيديو للتلفاز</h4>
+    <p class="muted small" style="margin:0 0 10px">بعض الفيديوهات (فيديو الآيفون، AVI، RMVB، VOB…) يجب تحويلها مرة واحدة قبل أن يشغّلها التلفاز.
+      هنا تُجهَّز كلها مسبقاً في الخلفية، فتعمل فوراً عند الضغط عليها. الملفات الأصلية لا تتغير.</p><div class="pb muted">جارٍ القراءة…</div></div>`);
+  const b = $('.pb', c);
+  let timer = 0;
+  const draw = (r) => {
+    if (!document.body.contains(c) && timer) { clearTimeout(timer); return; }
+    if (!r.available) { b.textContent = 'برنامج ffmpeg غير موجود على السيرفر.'; return; }
+    b.classList.remove('muted');
+    const st = String(r.state || 'idle');
+    const paused = st.startsWith('paused:');
+    const label = paused ? `⏸ متوقف مؤقتاً — ${PREP_STATE[st.slice(7)] || ''}`.replace('⏸ متوقف مؤقتاً — ⏸ ينتظر: ', '⏸ متوقف مؤقتاً: ') : (PREP_STATE[st] || st);
+    const pct = r.total ? Math.round((r.ready / r.total) * 100) : 100;
+    b.innerHTML = `
+      <div class="prep-stat"><b>${esc(label)}</b>${r.manual ? ' <span class="badge accent">تجهيز يدوي</span>' : ''}</div>
+      <div class="media-bar" style="margin:8px 0"><i style="width:${pct}%"></i></div>
+      <div class="small">جاهز للتشغيل الفوري: <b translate="no">${r.ready}</b> من <b translate="no">${r.total}</b> فيديو${r.todo ? ` · ينتظر التجهيز: <b translate="no">${r.todo}</b>` : ''}${r.failed ? ` · تعذّر: <span translate="no">${r.failed}</span>` : ''}</div>
+      ${r.current ? `<div class="small" style="margin-top:4px">الآن: <span translate="no" dir="auto">${esc(r.current)}</span> · <b translate="no">${r.progress}%</b></div>` : ''}
+      <div class="muted small" style="margin-top:4px">النسخ الجاهزة تشغل <bdi dir="ltr" translate="no">${fmtSize(r.cache_bytes || 0)}</bdi> من <bdi dir="ltr" translate="no">${fmtSize(r.limit || 0)}</bdi> مسموحة</div>
+      <div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
+        ${r.manual ? '<button class="btn" data-a="stop">⏸ إيقاف التجهيز اليدوي</button>' : `<button class="btn primary" data-a="start">${icon('play')} جهّز الآن كل الفيديوهات</button>`}
+        <label class="small">تلقائياً: <select class="field" data-x="mode" style="width:auto;display:inline-block">
+          <option value="idle">عندما لا يُستعمل التلفاز (وفي الليل)</option>
+          <option value="night">ليلاً فقط (1–7 صباحاً)</option>
+          <option value="off">متوقف (فقط بالزر)</option></select></label>
+        <button class="btn ghost sm" data-a="space">المساحة…</button>
+      </div>`;
+    $('[data-x=mode]', b).value = r.mode;
+    $('[data-x=mode]', b).onchange = async (e) => { const x = await guard(() => api.post('/api/admin/tv/prep', { mode: e.target.value })); if (x) { toast('تم الحفظ', 'ok'); draw(x); } };
+    b.querySelectorAll('[data-a]').forEach((x) => (x.onclick = async () => {
+      if (x.dataset.a === 'space') {
+        const v = await modal({ title: 'مساحة النسخ الجاهزة', body: `<label class="lbl">أقصى مساحة بالـGB (0 = تلقائي: 40% من القرص)</label><input class="field" name="gb" type="number" min="0" value="${r.max_gb || 0}">`,
+          buttons: [{ label: 'إلغاء', value: null }, { label: 'حفظ', cls: 'primary', value: (bk) => +$('[name=gb]', bk).value || 0 }] });
+        if (v === null) return;
+        const y = await guard(() => api.post('/api/admin/tv/prep', { max_gb: v })); if (y) draw(y);
+        return;
+      }
+      const y = await guard(() => api.post('/api/admin/tv/prep', { action: x.dataset.a }));
+      if (y) { draw(y); toast(x.dataset.a === 'start' ? 'بدأ التجهيز. يمكنك إغلاق الصفحة، سيكمل وحده.' : 'تم', 'ok'); }
+    }));
+  };
+  const load = async () => {
+    const r = await api.get('/api/admin/tv/prep').catch(() => null);
+    if (r) draw(r);
+    if (document.body.contains(c) || !timer) timer = setTimeout(load, 4000);
+  };
+  load();
+  return c;
 }
 
 // --------------------------------------------------------------------- الشاشة الموصولة (kiosk)

@@ -872,6 +872,7 @@ def api_tv_tile_list(tid):
                 if k:
                     items.append({"name": e.name, "type": k, "size": e.stat().st_size})
     items.sort(key=lambda x: (not x.get("self"), x["type"] not in ("folder", "game"), x["name"].casefold()))
+    _tvv().used()
     vids = [folder / x["name"] for x in items if x["type"] == "video"]
     if vids:
         import threading
@@ -893,6 +894,7 @@ def tile_file(tid) -> Path:
 @bp.get("/api/tv/tile/<int:tid>/file")
 def api_tv_tile_file(tid):
     p = tile_file(tid)
+    _tvv().used()
     if file_kind(p.name) == "image" and p.suffix.lower() not in BROWSER_IMAGE_EXT:
         from .files import thumb_response  # صور الآيفون HEIC وغيرها: JPEG يعرضه التلفاز
         return thumb_response(p, True)
@@ -905,7 +907,85 @@ def _tvv():
     return tvvideo.get(paths().cache)
 
 
+def prep_sources(data_paths) -> list[Path]:
+    """كل فيديوهات التلفاز: مجلدات مربعات الوسائط لكل الملفات، وفيديوهات «صوري» لمن له ملف على التلفاز."""
+    from .core import connect
+    out: list[Path] = []
+    db = connect(data_paths.db)
+    try:
+        dirs = []
+        for t in db.execute("SELECT t.path, u.username FROM tv_tiles t JOIN users u ON u.id=t.user_id "
+                            "WHERE t.kind='media' AND t.enabled=1 AND u.disabled=0 AND t.path IS NOT NULL"):
+            parts = [x for x in t["path"].split("/") if x and x != ".."]
+            if not parts:
+                continue
+            if parts[0] == "home":
+                base = data_paths.homes / t["username"]
+            else:
+                row = db.execute("SELECT path FROM folders WHERE name=?", (parts[0],)).fetchone()
+                if not row:
+                    continue
+                base = Path(row["path"])
+            d = base.joinpath(*parts[1:])
+            if d.is_dir() and d not in dirs:
+                dirs.append(d)
+        for d in dirs:
+            for r, ds, fs in os.walk(d):
+                ds[:] = sorted(x for x in ds if not x.startswith((".", "#")))
+                out += [Path(r) / f for f in sorted(fs) if file_kind(f) == "video"]
+        for r in db.execute("SELECT m.rel_path, u.username FROM media m JOIN users u ON m.library='u:' || u.id "
+                            "WHERE m.is_video=1 AND u.disabled=0 AND COALESCE(u.tv_role,'none')!='none' ORDER BY m.id DESC"):
+            out.append(data_paths.homes / r["username"] / "Photos" / r["rel_path"])
+    finally:
+        db.close()
+    return out
+
+
+def start_tv_prep(data_paths):
+    """يبدأ «تجهيز الفيديو للتلفاز» في الخلفية (عند تشغيل السيرفر)."""
+    from . import tvvideo
+    from .core import connect
+
+    def settings():
+        db = connect(data_paths.db)
+        try:
+            g = lambda k, d: (db.execute("SELECT value FROM settings WHERE key=?", (k,)).fetchone() or {"value": d})["value"]
+            return {"mode": g("tv_prep_mode", "idle"), "max_gb": float(g("tv_prep_max_gb", 0) or 0)}
+        finally:
+            db.close()
+    tvvideo.get(data_paths.cache).start_prep(lambda: prep_sources(data_paths), settings)
+
+
+@bp.get("/api/admin/tv/prep")
+@admin_required
+def api_admin_tv_prep():
+    from .tvvideo import FFMPEG
+    return jsonify(available=bool(FFMPEG), mode=get_setting("tv_prep_mode") or "idle",
+                   max_gb=float(get_setting("tv_prep_max_gb") or 0), **_tvv().prep_status())
+
+
+@bp.post("/api/admin/tv/prep")
+@admin_required
+def api_admin_tv_prep_set():
+    d = body()
+    v = _tvv()
+    if d.get("mode") in ("idle", "night", "off"):
+        set_setting("tv_prep_mode", d["mode"])
+    if "max_gb" in d:
+        set_setting("tv_prep_max_gb", max(0.0, float(d["max_gb"] or 0)))
+    if d.get("action") == "start":
+        v.manual, v.rescan = True, True
+        log_action("تجهيز الفيديو للتلفاز", "بدء الآن")
+    elif d.get("action") == "stop":
+        v.manual = False
+    elif d.get("action") == "rescan":
+        v.rescan = True
+    v.prep_wake.set()
+    return api_admin_tv_prep()
+
+
 def _vinfo(src: Path, ready_url: str):
+    _tvv().used()
     st = _tvv().status(src)
     if st["mode"] == "ready":
         st["url"] = ready_url
@@ -914,6 +994,7 @@ def _vinfo(src: Path, ready_url: str):
 
 def _send_ready(src: Path):
     from . import tvvideo
+    _tvv().used()
     st = _tvv().status(src)
     f = _tvv().ready_file(st.get("key", "")) if st["mode"] == "ready" else None
     if not f:
