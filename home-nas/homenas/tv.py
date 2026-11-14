@@ -57,22 +57,6 @@ DEFAULT_TILES = {
               ("الموسيقى", "media", "music", 2), ("القرآن الكريم", "media", "quran", 7), ("ألعاب", "games", "games", 4)],
 }
 
-WORDS = [  # كلمة اليوم: عربي، فرنسي، إنجليزي، رسم
-    ("شمس", "Soleil", "Sun", "sun"), ("قمر", "Lune", "Moon", "moon"), ("قطة", "Chat", "Cat", "cat"),
-    ("نجمة", "Étoile", "Star", "star"), ("شجرة", "Arbre", "Tree", "tree"), ("تفاحة", "Pomme", "Apple", "apple"),
-    ("بيت", "Maison", "House", "house"), ("كتاب", "Livre", "Book", "book"), ("سمكة", "Poisson", "Fish", "fish"),
-    ("عصفور", "Oiseau", "Bird", "bird"), ("كرة", "Ballon", "Ball", "ball"), ("قلب", "Cœur", "Heart", "heart"),
-    ("وردة", "Fleur", "Flower", "flower"), ("سيارة", "Voiture", "Car", "car"), ("ماء", "Eau", "Water", "water"),
-    ("غيمة", "Nuage", "Cloud", "cloud"), ("مدرسة", "École", "School", None), ("صديق", "Ami", "Friend", None),
-    ("عائلة", "Famille", "Family", None), ("أم", "Mère", "Mother", None), ("أب", "Père", "Father", None),
-    ("أخت", "Sœur", "Sister", None), ("أخ", "Frère", "Brother", None), ("قلم", "Crayon", "Pencil", None),
-    ("باب", "Porte", "Door", None), ("نافذة", "Fenêtre", "Window", None), ("حليب", "Lait", "Milk", None),
-    ("خبز", "Pain", "Bread", None), ("بحر", "Mer", "Sea", None), ("جبل", "Montagne", "Mountain", None),
-    ("مطر", "Pluie", "Rain", None), ("ثلج", "Neige", "Snow", None), ("أحمر", "Rouge", "Red", None),
-    ("أزرق", "Bleu", "Blue", None), ("أخضر", "Vert", "Green", None), ("أصفر", "Jaune", "Yellow", None),
-    ("واحد", "Un", "One", None), ("اثنان", "Deux", "Two", None), ("ثلاثة", "Trois", "Three", None),
-    ("شكراً", "Merci", "Thank you", None), ("صباح الخير", "Bonjour", "Good morning", None), ("سلام", "Paix", "Peace", None),
-]
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS tv_tiles (
@@ -185,6 +169,7 @@ def tv_settings() -> dict:
         "words": json.loads(g("tv_words", '["ar","fr","en"]')), "nosleep": g("tv_nosleep", "1") == "1",
         "saver_min": int(g("tv_saver_min", "10")), "night_off": g("tv_night_off", ""),
         "zoom": int(g("tv_zoom", "100")), "margin": int(g("tv_margin", "0")), "text": int(g("tv_text", "100")),
+        "lite": g("tv_lite", "auto"),   # وضع خفيف للأجهزة الضعيفة: auto / on / off
         "source": g("tv_prayer_source", "calc"), "offsets": json.loads(g("tv_prayer_off", "{}")),
         "adhan": {**ADHAN_DEFAULT, **json.loads(g("tv_adhan", "{}"))},
         "weather": g("tv_weather", "1") == "1",
@@ -258,11 +243,6 @@ def prayer_now(s: dict) -> dict | None:
     out["city"] = prayer.CITIES[s["city"]][0] if s["city"] in prayer.CITIES else None
     out["source"] = "calc"
     return out
-
-
-def word_of_day() -> dict:
-    w = WORDS[date.today().toordinal() % len(WORDS)]
-    return {"ar": w[0], "fr": w[1], "en": w[2], "icon": w[3]}
 
 
 def file_kind(name: str) -> str | None:
@@ -392,6 +372,8 @@ def api_admin_tv_settings():
                 set_setting(sk, str(float(d[key])) if str(d[key]).strip() else "")
             except ValueError:
                 abort(400, "إحداثيات غير صالحة")
+    if d.get("lite") in ("auto", "on", "off"):
+        set_setting("tv_lite", d["lite"])
     for key, sk in (("hanafi", "tv_hanafi"), ("prayer", "tv_prayer"), ("nosleep", "tv_nosleep")):
         if key in d:
             set_setting(sk, "1" if d[key] else "0")
@@ -817,11 +799,18 @@ def api_tv_theme():
     return jsonify(ok=True, theme=t)
 
 
+@bp.get("/api/tv/settings")
+def api_tv_settings():
+    """التلفاز يسأل كل دقيقة: إن تغيّرت الإعدادات من لوحة التحكم تُطبَّق بلا إعادة تحميل."""
+    tv_guard()
+    return jsonify(settings=tv_settings())
+
+
 @bp.get("/api/tv/clock")
 def api_tv_clock():
     tv_guard()
     s = tv_settings()
-    return jsonify(prayer=prayer_now(s), word=word_of_day(), now=datetime.now().isoformat(timespec="seconds"),
+    return jsonify(prayer=prayer_now(s), now=datetime.now().isoformat(timespec="seconds"),
                    adhan=s["adhan"] | {"files": adhan_files()}, weather=weather_now(s))
 
 

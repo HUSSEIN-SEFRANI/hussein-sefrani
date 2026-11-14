@@ -1116,4 +1116,7 @@ window.I18N_DICT = {
 "يظهر على التلفاز": ["Shown on the TV", "Affiché sur la TV", "TV'de görünüyor", "Zichtbaar op de tv"],
 "لا يظهر": ["Not shown", "Non affiché", "Görünmüyor", "Niet zichtbaar"],
 "هذه الصفحة للأب والأم فقط": ["This page is for parents only", "Cette page est réservée aux parents", "Bu sayfa yalnızca anne ve baba içindir", "Deze pagina is alleen voor ouders"],
+  "الوضع الخفيف (للتلفاز أو الجهاز الضعيف)": ["Lite mode (for a slow TV or device)", "Mode léger (pour une TV ou un appareil lent)", "Hafif mod (yavaş TV veya cihaz için)", "Lichte modus (voor een trage tv of apparaat)"],
+  "تلقائي حسب الجهاز": ["Automatic, by device", "Automatique selon l'appareil", "Cihaza göre otomatik", "Automatisch per apparaat"],
+  "مفعّل دائماً": ["Always on", "Toujours activé", "Her zaman açık", "Altijd aan"]
 };

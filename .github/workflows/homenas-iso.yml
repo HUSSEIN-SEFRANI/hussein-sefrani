@@ -65,7 +65,7 @@ jobs:
       - name: Package the app for in-place updates
         run: |
           V=${{ steps.meta.outputs.version }}
-          tar -C home-nas --exclude=./iso/build --exclude=./data --exclude=./.venv --exclude='__pycache__' \
+          tar -C home-nas --exclude=./iso/build --exclude=./data --exclude=./.venv --exclude='__pycache__' --exclude=./games \
               --exclude='*.iso' --exclude='*.iso.sha256' -czf "$RUNNER_TEMP/hsef-app-$V.tar.gz" .
           mv "$RUNNER_TEMP/hsef-app-$V.tar.gz" home-nas/
           sha256sum "home-nas/hsef-app-$V.tar.gz" | sed 's#home-nas/##' > "home-nas/hsef-app-$V.tar.gz.sha256"

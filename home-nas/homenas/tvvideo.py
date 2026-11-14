@@ -141,22 +141,27 @@ class TvVideo:
                 self.thread.start()
         self.event.set()
 
-    def prefetch(self, files: list[Path], limit: int = 6):
-        """عند فتح مجلد على التلفاز: نجهّز أول الفيديوهات غير الصالحة مسبقاً (بأولوية منخفضة)."""
-        if not (FFMPEG and FFPROBE):
+    def prefetch(self, files: list[Path], limit: int = 3, max_probe: int = 24):
+        """عند فتح مجلد على التلفاز: نجهّز أول الفيديوهات غير الصالحة مسبقاً (بأولوية منخفضة).
+        خفيف: نفحص أول 24 فيديو فقط، ولا يعمل فحصان معاً (التجهيز الكامل يتولاه «تجهيز الفيديو للتلفاز»)."""
+        if not (FFMPEG and FFPROBE) or getattr(self, "_prefetching", False):
             return
-        n = 0
-        for f in files:
-            if n >= limit:
-                break
-            try:
-                key = self.key(f)
-                if self.out(key).exists() or self.playable(f, self.probe(f, key)):
+        self._prefetching = True
+        try:
+            n = 0
+            for f in files[:max_probe]:
+                if n >= limit:
+                    break
+                try:
+                    key = self.key(f)
+                    if self.out(key).exists() or self.playable(f, self.probe(f, key)):
+                        continue
+                except OSError:
                     continue
-            except OSError:
-                continue
-            self.enqueue(key, f, front=False)
-            n += 1
+                self.enqueue(key, f, front=False)
+                n += 1
+        finally:
+            self._prefetching = False
 
     # ------------------------------------------------------------------ التحويل
     def loop(self):

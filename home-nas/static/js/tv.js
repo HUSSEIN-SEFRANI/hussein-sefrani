@@ -562,7 +562,9 @@ async function homeScreen() {
   me = d;
   settings = d.settings || settings;
   applyPrefs();
-  reset(d.user.role === "adult" ? adultHome(d) : kidsHome(d));
+  const scr = d.user.role === "adult" ? adultHome(d) : kidsHome(d);
+  scr.home = true;
+  reset(scr);
 }
 
 function adultHome(d) {
@@ -1389,7 +1391,7 @@ function showSaver(night, kind) {
   if (night) { el.classList.add("night"); el.innerHTML = SCLOCK; tick(); return; }
   kind = kind || settings.saver_kind || "prayer";
   if (kind === "mix") {
-    const order = ["prayer", "galaxy", "fire", "text", "rain"].filter((k) => k !== "prayer" || prayerOk());
+    const order = (LITE ? ["prayer", "text"] : ["prayer", "galaxy", "fire", "text", "rain"]).filter((k) => k !== "prayer" || prayerOk());
     let i = Math.floor(Math.random() * order.length);
     const run = () => {
       if (el !== saverEl) return;
@@ -1436,6 +1438,7 @@ setInterval(() => {
 
 // حلقة رسم بعدد إطارات محدود (أخف على جهاز السيرفر)
 function frameLoop(fn, fps = 30) {
+  if (LITE) fps = Math.min(fps, 15);
   let id = 0, last = 0, stopped = false;
   const f = (t) => {
     if (stopped) return;
@@ -1449,7 +1452,7 @@ function frameLoop(fn, fps = 30) {
   return () => { stopped = true; cancelAnimationFrame(id); };
 }
 function svCanvas(el, cls) {
-  const k = Math.max(1, Math.min(1.6, scale || 1));
+  const k = LITE ? 1 : Math.max(1, Math.min(1.6, scale || 1));
   const c = document.createElement("canvas");
   c.className = "svc " + (cls || "");
   c.width = Math.round(1280 * k); c.height = Math.round(720 * k);
@@ -1754,7 +1757,15 @@ async function keepAwake() {
   if (!settings.nosleep || !navigator.wakeLock || document.visibilityState !== "visible") return;
   try { if (!wakeLock || wakeLock.released) wakeLock = await navigator.wakeLock.request("screen"); } catch { /* غير متاح */ }
 }
+// وضع خفيف: للأجهزة الضعيفة (تلقائياً) أو من لوحة التحكم ← وضع التلفاز
+let LITE = false;
+function applyLite() {
+  const auto = (navigator.deviceMemory || 8) <= 2 || (navigator.hardwareConcurrency || 8) <= 2;
+  LITE = settings.lite === "on" || (settings.lite !== "off" && auto);
+  document.documentElement.classList.toggle("lite", LITE);
+}
 function applyPrefs() {
+  applyLite();
   fit();
   if (settings.nosleep) keepAwake();
   else if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
@@ -1771,6 +1782,22 @@ async function loadClock(refresh = true) {
 }
 setInterval(loadClock, 30 * 60000);
 setTimeout(() => loadClock(false), 3000);
+
+// إعدادات التلفاز من لوحة التحكم تُطبَّق خلال دقيقة، بلا إعادة تحميل
+let settingsSig = "";
+setInterval(async () => {
+  if (document.hidden) return;
+  let r;
+  try { r = await api("/api/tv/settings"); } catch { return; }
+  const sig = JSON.stringify(r.settings);
+  if (!settingsSig) { settingsSig = sig; return; }
+  if (sig === settingsSig) return;
+  settingsSig = sig;
+  settings = r.settings;
+  applyPrefs();
+  const t = top();
+  if (me && t && t.home && !t.busy?.() && !saverEl) homeScreen();   // على الرئيسية: نعيد رسمها بالإعدادات الجديدة
+}, 60000);
 
 // ============================================================== الأذان
 const adhanDone = {};
@@ -1861,8 +1888,11 @@ function padFire(name, gp) {
   if (name === okB) rumble(gp);
   if (map[name]) padKey(map[name]);
 }
+let padLoop = 0;
 function pollPads() {
-  const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
+  padLoop = 0;
+  const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter((g) => g && g.connected) : [];
+  if (!pads.length) return;   // لا يد موصولة: نتوقف حتى يصل حدث gamepadconnected
   const now = performance.now();
   for (const gp of pads) {
     const b = (i) => !!(gp.buttons[i] && gp.buttons[i].pressed);
@@ -1879,10 +1909,11 @@ function pollPads() {
     padPrev[gp.index] = st;
     padState = st; padName = gp.id;
   }
-  requestAnimationFrame(pollPads);
+  padLoop = requestAnimationFrame(pollPads);
 }
-addEventListener("gamepadconnected", (e) => { toast(`🎮 ${e.gamepad.id.replace(/\(.*\)/, "").trim() || "يد تحكم"}`, 2000); rumble(e.gamepad, 120); });
-requestAnimationFrame(pollPads);
+const startPads = () => { if (!padLoop) padLoop = requestAnimationFrame(pollPads); };
+addEventListener("gamepadconnected", (e) => { toast(`🎮 ${e.gamepad.id.replace(/\(.*\)/, "").trim() || "يد تحكم"}`, 2000); rumble(e.gamepad, 120); startPads(); });
+startPads();
 
 // ============================================================== لوحة مفاتيح على الشاشة
 function oskScreen(opt, done) {
