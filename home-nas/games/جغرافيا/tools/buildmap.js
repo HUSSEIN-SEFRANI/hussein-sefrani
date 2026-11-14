@@ -11,13 +11,14 @@ const d3 = require("d3-geo"), iso = require("i18n-iso-countries");
 const want = fs.readFileSync(path.join(__dirname, "../data.js"), "utf8").split("\n").map((l) => l.split("|")[0]).filter((c) => /^[A-Z]{2}$/.test(c));
 const t = simplify(presimplify(topo), quantile(presimplify(topo), 0.42));
 const geoms = t.objects.countries.geometries;
-// دمج: إسرائيل ضمن فلسطين (قرار المستخدم)، وأجزاء تابعة لدولها
-const MERGE = { "Israel": "PS", "Somaliland": "SO", "N. Cyprus": "CY", "Hong Kong": "CN", "Macao": "CN", "Åland": "FI" };
+// دمج: كل أرض فلسطين (376 و275) تُرسم فلسطين واحدة، وأجزاء تابعة لدولها
+const MERGE_ID = { "376": "PS" };
+const MERGE = { "Somaliland": "SO", "N. Cyprus": "CY", "Hong Kong": "CN", "Macao": "CN", "Åland": "FI" };
 const groups = {}, other = [];
 for (const g of geoms) {
   const name = g.properties.name;
   if (name === "Antarctica" || name === "Fr. S. Antarctic Lands" || name === "Heard I. and McDonald Is.") continue;
-  const a2 = MERGE[name] || (g.id ? iso.numericToAlpha2(g.id) : null);
+  const a2 = MERGE_ID[g.id] || MERGE[name] || (g.id ? iso.numericToAlpha2(g.id) : null);
   if (a2 && want.includes(a2)) (groups[a2] = groups[a2] || []).push(g); else other.push(g);
 }
 const W = 2000, H = 1000;
