@@ -13,7 +13,7 @@
     { c: "#facc15", d: "#a16207" }, { c: "#a855f7", d: "#6b21a8" }, { c: "#ec4899", d: "#9d174d" }, { c: "#f97316", d: "#9a3412" },
   ];
   const VEH = {
-    moto: { name: "دراجة نارية", emo: "🏍️", tip: "الأسرع! 💨", max: 12000, accel: 3000, steer: 2.0, centri: 0.21, kmh: 160, jumpT: 0.55, jumpH: 0.07 },
+    moto: { name: "دراجة نارية", emo: "🏍️", tip: "الأسرع، وتركل المنافسين 💨", max: 12000, accel: 3000, steer: 2.0, centri: 0.21, kmh: 160, jumpT: 0.55, jumpH: 0.07 },
     bike: { name: "دراجة هوائية", emo: "🚲", tip: "تقفز وتركل المنافسين 👟", max: 8600, accel: 3300, steer: 2.6, centri: 0.11, kmh: 45, jumpT: 0.95, jumpH: 0.17 },
   };
   const TRACKS = [
@@ -288,8 +288,8 @@
       const ext = Math.sin((1 - st.kick / 0.35) * Math.PI), th = pw * 0.14, lg = pw * (0.2 + 0.55 * ext);
       ctx.save(); ctx.translate(st.kickDir * pw * 0.12, -ph * 0.4); ctx.scale(st.kickDir, 1); ctx.rotate(-0.4 * ext);
       ctx.fillStyle = "#1f2937"; rr(ctx, -th * 0.3, -th * 0.65, th * 1.4, th * 1.3, th * 0.5);
-      ctx.fillStyle = "#f2b48a"; rr(ctx, th * 0.6, -th / 2, lg, th, th / 2);
-      ctx.fillStyle = "#fff"; rr(ctx, th * 0.4 + lg, -th * 0.75, th * 1.2, th * 1.5, th * 0.5);
+      ctx.fillStyle = st.vk === "moto" ? "#1e3a8a" : "#f2b48a"; rr(ctx, th * 0.6, -th / 2, lg, th, th / 2);
+      ctx.fillStyle = st.vk === "moto" ? "#111827" : "#fff"; rr(ctx, th * 0.4 + lg, -th * 0.75, th * 1.2, th * 1.5, th * 0.5);
       ctx.fillStyle = "#ef4444"; rr(ctx, th * 0.4 + lg, th * 0.35, th * 1.2, th * 0.4, th * 0.2);
       ctx.restore();
     }
@@ -366,7 +366,7 @@
           <span class="big emo">${t.emo}</span><b>${t.name}</b><span class="lv">${"●".repeat(t.lvl)} ${t.diff}</span>
           <small>${b ? `<span class="emo">${w ? "🥇" : "🏆"}</span> ${fmt(b)}` : "&nbsp;"}</small></button>`;
       }).join("")}</div>
-      <div class="help"><b>✕</b> أو <b>↑</b> للتسارع · <b>□</b> أو <b>↓</b> للفرملة · <b>← →</b> للتوجيه · <b>○</b> للإيقاف${S.veh === "bike" ? " · <b>△</b> أو <b>←←</b> للركلة" : ""}</div>`, "tcity");
+      <div class="help"><b>✕</b> أو <b>↑</b> للتسارع · <b>□</b> أو <b>↓</b> للفرملة · <b>← →</b> للتوجيه · <b>○</b> للإيقاف${" · <b>△</b> أو <b>←←</b> للركلة"}</div>`, "tcity");
   }
 
   // ------------------------------------------------------------ السباق
@@ -384,7 +384,7 @@
       skill: t.rival[0] + (t.rival[1] - t.rival[0]) * (i / (RIVALS - 1)) * (0.8 + rr2() * 0.4), img: [rider(vk, c, 0), rider(vk, c, 1)], fr: 0, done: null, tl: 2 + rr2() * 3 }));
     const st = R = { P: 0, d: 0, x: 0.5 * 0, v: 0, t: 0, time: 0, state: "count", cnt: 3.6, lapN: 0, bg1: 0, bg2: 0, img: [rider(vk, col, 0), rider(vk, col, 1)], fr: 0, frT: 0,
       lean: 0, air: 0, airT: V.jumpT, jumpH: V.jumpH, wob: 0, splash: 0, bump: 0, flip: 0, stars: 0, jumps: 0, place: RIVALS + 1, lastSeg: 0, endT: 0, kick: 0, kickDir: 1, kickCd: 0, kicks: 0 };
-    st.x = 0; st.rivals = rivals;
+    st.x = 0; st.rivals = rivals; st.vk = vk;
     const keys = {};
     let paused = false, raf = 0, last = 0, hudN = 0;
 
@@ -395,7 +395,7 @@
         <div class="p spd"><span id="hSp">0</span> <small>كم/س</small></div>
         <div class="bar" id="hBar">${rivals.map((r) => `<i style="background:${r.c.c}"></i>`).join("")}<i class="me" style="background:${col.c}"></i><span class="fl emo">🏁</span></div>
       </div>
-      ${vk === "bike" ? `<div class="hint" id="hint"><span class="emo">👟</span> للركلة: اضغط <b>←←</b> أو <b>→→</b> بسرعة، أو <b>△</b></div>` : ""}
+      <div class="hint" id="hint"><span class="emo">👟</span> للركلة: اضغط <b>←←</b> أو <b>→→</b> بسرعة، أو <b>△</b></div>
       <div class="msg" id="msg"></div>
       <div class="pause" id="pause"><h1>استراحة <span class="emo">⏸️</span></h1>
         <div class="nav"><button class="btn f go" ${K.act("resume", () => setPause(false))}>▶ متابعة</button>
@@ -440,9 +440,9 @@
       key(e) {
         if (paused) { if (e.key === "Backspace") { setPause(false); return true; } return false; }
         if (e.key === "Backspace") { if (st.state !== "done") setPause(true); return true; }
-        if (vk === "bike" && !e.pad && (e.key === "k" || e.key === "K" || e.key === "Shift" || e.key === "Control")) { if (!e.repeat) kickReq = 0.001; return true; }
+        if (!e.pad && (e.key === "k" || e.key === "K" || e.key === "Shift" || e.key === "Control")) { if (!e.repeat) kickReq = 0.001; return true; }
         if (ACC[e.key]) {
-          if (vk === "bike" && !e.pad && !e.repeat && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+          if (!e.pad && !e.repeat && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
             const now = performance.now();
             if (tap.k === e.key && now - tap.t < 320) { kickReq = e.key === "ArrowLeft" ? -1 : 1; tap.t = 0; } else { tap.k = e.key; tap.t = now; }
           }
@@ -457,7 +457,7 @@
         if (paused) { pad.ctl = null; const held = pad.prev[1] && b(1); pad.prev = g.buttons.map((x) => x.pressed); return held; }
         if ((b(1) && !pad.prev[1]) || (b(9) && !pad.prev[9])) { if (st.state !== "done") setPause(true); }
         const ax = g.axes[0] || 0, ay = g.axes[1] || 0;
-        if (vk === "bike") { if (b(3) && !pad.prev[3]) kickReq = 0.001; if (b(4) && !pad.prev[4]) kickReq = -1; if (b(5) && !pad.prev[5]) kickReq = 1; }
+        { if (b(3) && !pad.prev[3]) kickReq = 0.001; if (b(4) && !pad.prev[4]) kickReq = -1; if (b(5) && !pad.prev[5]) kickReq = 1; }
         pad.ctl = { steer: Math.abs(ax) > 0.2 ? ax : b(14) ? -1 : b(15) ? 1 : 0, acc: b(0) || b(7) || b(12) || ay < -0.6, brk: b(2) || b(6) || b(13) || ay > 0.6 };
         pad.prev = g.buttons.map((x) => x.pressed);
         return true;
@@ -600,7 +600,7 @@
         s: place === 1 ? 3 : place <= 3 ? 2 : 1,
         msg: `<span class="emo">${medal}</span> ` + (place === 1 ? "المركز الأول! بطل" : "المركز " + ["", "الأول", "الثاني", "الثالث", "الرابع", "الخامس", "السادس"][place]),
         title: `${t.name} · ${V.name}`,
-        extra: `<div class="res"><div>الوقت<b>${fmt(time)}</b></div><div class="${isBest ? "new" : ""}">أفضل وقت${isBest ? " 🎉" : ""}<b>${fmt(b[vk])}</b></div><div>النجوم<b>⭐ ${st.stars}</b></div>${vk === "bike" ? `<div>الركلات<b>👟 ${st.kicks}</b></div>` : ""}</div><div class="earn" id="earn"></div>`,
+        extra: `<div class="res"><div>الوقت<b>${fmt(time)}</b></div><div class="${isBest ? "new" : ""}">أفضل وقت${isBest ? " 🎉" : ""}<b>${fmt(b[vk])}</b></div><div>النجوم<b>⭐ ${st.stars}</b></div><div>الركلات<b>👟 ${st.kicks}</b></div></div><div class="earn" id="earn"></div>`,
         again: () => K.replace(race, t),
         next: { label: "طريق آخر", fn: () => K.back() },
       });
