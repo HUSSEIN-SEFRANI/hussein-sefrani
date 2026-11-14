@@ -40,6 +40,8 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
     _stars.migrate(_db)
     from . import cameras as _cams
     _cams.migrate(_db)
+    from . import kids as _kids
+    _kids.migrate(_db)
     from . import activation as _act
     _act.ensure_trial(_db)   # التجربة المجانية تبدأ عند أول تشغيل
     _db.close()
@@ -67,9 +69,9 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
         start_tv_prep(data_paths)   # تجهيز الفيديو للتلفاز في الخلفية
 
     from . import (activation, appstore, backup, cameras, faces, files, health, iphone, links, media_cards, network, photos, profile, remote,
-                   stars, sysadmin, system, tv, welcome)
+                   kids, stars, sysadmin, system, tv, welcome)
     for mod in (system, files, photos, links, backup, health, network, appstore, faces, remote, tv, profile, sysadmin, iphone, stars, welcome,
-                cameras, media_cards, activation):
+                cameras, media_cards, activation, kids):
         app.register_blueprint(mod.bp)
 
     @app.teardown_appcontext

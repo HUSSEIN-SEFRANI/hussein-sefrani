@@ -7,6 +7,9 @@
 - /api/tv/tile/1/list?sub=<مجلد>: قائمة ملفات مجلد داخل games (مثل صور اللعبة).
 - /api/tv/wallpaper و /api/tv/photo/<n>/view: «صور الطفل» من مجلد tools/photos إن وُجد.
 - POST /api/tv/stars/earn: يحاكي إضافة النجوم (رصيد يبدأ بـ 10، وحد يومي 20)، انظر _kit/API.txt.
+- /api/tv/family/people و /api/tv/face/<n> و /api/tv/face/<n>/photo: «صور العائلة» من tools/faces/<الاسم>/*.jpg
+  إن وُجد، وإلا وجوه مرسومة لأربعة أشخاص (بابا، ماما، جدّو، تيتا).
+- POST /api/tv/learn/result: يطبع النتيجة فقط (لتقرير الأهل)، انظر _kit/API.txt.
 """
 import http.server
 import json
@@ -22,6 +25,35 @@ PHOTOS = os.path.join(TOOLS, "photos")
 
 
 STARS = {"balance": 10, "today": 0, "limit": 20}
+FACES_DIR = os.path.join(TOOLS, "faces")
+COLORS = ["#f59e0b", "#ec4899", "#22c55e", "#3b82f6", "#a855f7", "#ef4444"]
+
+
+def family():
+    """[(id, name, path_or_None)] — من tools/faces إن وُجد، وإلا وجوه مرسومة."""
+    out, n = [], 0
+    if os.path.isdir(FACES_DIR):
+        for name in sorted(os.listdir(FACES_DIR)):
+            d = os.path.join(FACES_DIR, name)
+            if os.path.isdir(d):
+                for f in sorted(os.listdir(d)):
+                    if f.lower().endswith((".jpg", ".jpeg", ".png")):
+                        n += 1
+                        out.append((n, name, os.path.join(d, f)))
+    if not out:
+        for name in ("بابا", "ماما", "جدّو", "تيتا"):
+            for _ in range(3):
+                n += 1
+                out.append((n, name, None))
+    return out
+
+
+def face_svg(fid, name):
+    c = COLORS[(fid - 1) % len(COLORS)]
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="{c}"/>'
+            f'<circle cx="100" cy="92" r="58" fill="#fde2c8"/><circle cx="80" cy="85" r="7" fill="#333"/><circle cx="120" cy="85" r="7" fill="#333"/>'
+            f'<path d="M78 112 Q100 {128 + fid % 3 * 4} 122 112" stroke="#333" stroke-width="6" fill="none" stroke-linecap="round"/>'
+            f'<text x="100" y="190" font-size="26" text-anchor="middle" fill="#fff" font-family="sans-serif">{name}</text></svg>').encode()
 
 
 class H(http.server.BaseHTTPRequestHandler):
@@ -56,6 +88,18 @@ class H(http.server.BaseHTTPRequestHandler):
                 return self.send(200, json.dumps({"items": [], "missing": True}).encode())
             items = [{"name": n, "type": "image" if n.lower().endswith((".jpg", ".jpeg", ".png", ".webp")) else "other"} for n in sorted(os.listdir(d))]
             return self.send(200, json.dumps({"items": items}).encode())
+        if path == "/api/tv/family/people":
+            people = {}
+            for fid, name, _ in family():
+                people.setdefault(name, []).append(fid)
+            data = [{"id": i + 1, "name": k, "faces": v[:6], "count": len(v)} for i, (k, v) in enumerate(people.items())]
+            return self.send(200, json.dumps({"people": data}, ensure_ascii=False).encode())
+        if path.startswith("/api/tv/face/"):
+            fid = int(path.split("/")[4])
+            hit = next((x for x in family() if x[0] == fid), None)
+            if not hit:
+                return self.send(404, b"nf", "text/plain")
+            return self.file(hit[2]) if hit[2] else self.send(200, face_svg(fid, hit[1]), "image/svg+xml")
         photos = sorted(os.listdir(PHOTOS)) if os.path.isdir(PHOTOS) else []
         if path == "/api/tv/wallpaper":
             return self.send(200, json.dumps({"ids": list(range(1, len(photos) + 1))}).encode())
@@ -71,6 +115,9 @@ class H(http.server.BaseHTTPRequestHandler):
             d = json.loads(self.rfile.read(n) or b"{}")
         except ValueError:
             d = {}
+        if path == "/api/tv/learn/result":
+            print(f"📘 {d.get('game')} · {d.get('topic')} · {'✓' if d.get('ok') else '✗'}", flush=True)
+            return self.send(200, json.dumps({"ok": True, "stored": True}).encode())
         if path != "/api/tv/stars/earn":
             return self.send(404, b"not found", "text/plain")
         try:
