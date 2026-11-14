@@ -462,13 +462,28 @@ def vtuple(v: str):
     return tuple(int(x) if x.isdigit() else 0 for x in v.lstrip("v").split("."))
 
 
+UPDATES = f"https://raw.githubusercontent.com/{REPO}/updates"
+
+
 def latest_release() -> dict:
+    """ملف التحديث في فرع updates بالمستودع (صفحة الإصدار تعرض ملف الإيزو فقط).
+    latest.json: {"version": "1.8.1", "file": "hsef-app-1.8.1.tar.gz", "sha256": "…"}"""
     import urllib.request
+    req = urllib.request.Request(f"{UPDATES}/latest.json", headers={"User-Agent": "hsef-update", "Cache-Control": "no-cache"})
+    try:
+        d = json.loads(urllib.request.urlopen(req, timeout=30).read())
+        v = str(d["version"])
+        return {"version": v, "notes": str(d.get("notes") or "")[:4000], "sha256": d.get("sha256"),
+                "url": f"{UPDATES}/{d['file']}" if d.get("file") else None,
+                "page": f"https://github.com/{REPO}/releases/tag/v{v}"}
+    except Exception:
+        pass
+    # احتياطي: الطريقة القديمة (ملف التحديث مرفق بصفحة الإصدار)
     req = urllib.request.Request(f"https://api.github.com/repos/{REPO}/releases/latest",
                                  headers={"Accept": "application/vnd.github+json", "User-Agent": "hsef-update"})
     d = json.loads(urllib.request.urlopen(req, timeout=30).read())
     asset = next((a for a in d.get("assets", []) if a["name"].startswith("hsef-app-") and a["name"].endswith(".tar.gz")), None)
-    return {"version": d.get("tag_name", "").lstrip("v"), "notes": (d.get("body") or "")[:4000],
+    return {"version": d.get("tag_name", "").lstrip("v"), "notes": (d.get("body") or "")[:4000], "sha256": None,
             "url": asset["browser_download_url"] if asset else None, "page": d.get("html_url")}
 
 
@@ -516,6 +531,11 @@ def update_apply():
     pkg = tmp / "app.tar.gz"
     with urllib.request.urlopen(r["url"], timeout=120) as resp, open(pkg, "wb") as f:
         shutil.copyfileobj(resp, f)
+    if r.get("sha256"):
+        import hashlib
+        if hashlib.sha256(pkg.read_bytes()).hexdigest() != str(r["sha256"]).lower():
+            shutil.rmtree(tmp, ignore_errors=True)
+            die("downloaded package is corrupted (checksum mismatch), try again")
     try:
         install_pkg(pkg)
     finally:

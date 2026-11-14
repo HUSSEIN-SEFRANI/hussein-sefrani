@@ -1054,7 +1054,7 @@ window.I18N_DICT = {
 "التفعيل:": ["Activation:", "Activation :", "Etkinleştirme:", "Activering:"],
 "الكاميرات": ["Cameras", "Caméras", "Kameralar", "Camera's"],
 "ضع ملف": ["Put the file", "Mettez le fichier", "Şu dosyayı", "Zet het bestand"],
-"من صفحة الإصدارات على فلاشة، صِلها بهذا الكمبيوتر واختر الملف": ["from the releases page on a USB stick, plug it into this computer and choose the file", "de la page des versions sur une clé USB, branchez-la sur cet ordinateur et choisissez le fichier", "sürümler sayfasından bir USB belleğe koyun, bu bilgisayara takın ve dosyayı seçin", "van de releasepagina op een USB-stick, steek die in deze computer en kies het bestand"],
+"من صفحة التحديثات على فلاشة، صِلها بهذا الكمبيوتر واختر الملف": ["from the updates page on a USB stick, plug it into this computer and choose the file", "de la page des mises à jour sur une clé USB, branchez-la sur cet ordinateur et choisissez le fichier", "güncellemeler sayfasından bir USB belleğe koyun, bu bilgisayara takın ve dosyayı seçin", "van de updatepagina op een USB-stick, steek die in deze computer en kies het bestand"],
 "العائلة": ["Family", "Famille", "Aile", "Gezin"],
 "تقرير الأسبوع": ["Weekly report", "Rapport de la semaine", "Haftalık rapor", "Weekrapport"],
 "مهام الأطفال": ["Kids' chores", "Tâches des enfants", "Çocukların görevleri", "Taken van de kinderen"],

@@ -93,9 +93,25 @@ jobs:
           make_latest: true
           files: |
             ${{ steps.meta.outputs.iso }}
-            ${{ steps.meta.outputs.iso }}.sha256
-            home-nas/hsef-app-${{ steps.meta.outputs.version }}.tar.gz
-            home-nas/hsef-app-${{ steps.meta.outputs.version }}.tar.gz.sha256
+
+      - name: Publish the update package (branch "updates", read by the devices)
+        if: github.event_name == 'workflow_dispatch' && inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=${{ steps.meta.outputs.version }}
+          F="hsef-app-$V.tar.gz"
+          D="$RUNNER_TEMP/updates"
+          mkdir -p "$D" && cp "home-nas/$F" "$D/"
+          SUM=$(sha256sum "$D/$F" | cut -d' ' -f1)
+          printf '{"version": "%s", "file": "%s", "sha256": "%s"}\n' "$V" "$F" "$SUM" > "$D/latest.json"
+          cd "$D"
+          git init -q -b updates
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A && git commit -q -m "HOME ANAB v$V"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" updates
+          cat latest.json
 
       - name: Keep release pages minimal (version name, one line, author)
         if: github.event_name == 'workflow_dispatch' && inputs.publish
@@ -105,6 +121,10 @@ jobs:
           NOTES=$(printf 'سيرفر منزلي بدون إنترنت\n\nHussein Sefrani')
           for t in $(gh release list --limit 100 --json tagName -q '.[].tagName'); do
             gh release edit "$t" --title "HOME ANAB $t" --notes "$NOTES" || true
+            # صفحة الإصدار تعرض ملف الإيزو فقط
+            for a in $(gh release view "$t" --json assets -q '.assets[].name' | grep -v '\.iso$' || true); do
+              gh release delete-asset "$t" "$a" --yes || true
+            done
           done
 
       - name: Delete old releases from before versioning

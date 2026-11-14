@@ -812,7 +812,7 @@ function updateCard() {
   const c = h(`<div class="card" style="max-width:560px;margin-top:14px"><h4>${icon('download')} تحديث النظام</h4><div class="ub muted">جارٍ البحث عن تحديث…</div>
     <div class="uf" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
       <b>تحديث من فلاشة (بدون إنترنت)</b>
-      <p class="muted small" style="margin:4px 0 8px">ضع ملف <span class="code">hsef-app-…tar.gz</span> من صفحة الإصدارات على فلاشة، صِلها بهذا الكمبيوتر واختر الملف.</p>
+      <p class="muted small" style="margin:4px 0 8px">ضع ملف <span class="code">hsef-app-…tar.gz</span> من صفحة التحديثات على فلاشة، صِلها بهذا الكمبيوتر واختر الملف.<br><a dir="ltr" translate="no" target="_blank" rel="noopener" href="https://github.com/HUSSEIN-SEFRANI/hussein-sefrani/tree/updates">github.com/HUSSEIN-SEFRANI/hussein-sefrani/tree/updates</a></p>
       <input type="file" accept=".gz,application/gzip" class="hidden"><button class="btn">${icon('upload')} اختيار ملف التحديث</button></div></div>`);
   const box = $('.ub', c);
   if (ME.activation && ME.activation.limited) {
