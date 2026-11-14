@@ -1,0 +1,84 @@
+/* حبات الكرمة — منزل العنب: سماء بنفسجية فاتحة وتعريشة خضراء */
+#sky { --sky: linear-gradient(180deg, #ede9fe 0%, #f5f3ff 55%, #d9f99d 55%, #a3e635 100%); }
+#sky::before { content: ""; position: absolute; inset: 0 0 45% 0; opacity: .35;
+  background: repeating-linear-gradient(45deg, transparent 0 7vh, #a16207 7vh 7.6vh), repeating-linear-gradient(-45deg, transparent 0 7vh, #a16207 7vh 7.6vh); }
+#sky .sun { background: #fde68a; box-shadow: 0 0 6vh #fde68a; }
+#app { padding: 2.5vh 3vw 2vh; }
+.logo { font-size: 13vh; -webkit-text-stroke: .7vh #6d28d9; }
+.title .sub { font-size: 3.8vh; color: #5b21b6; }
+canvas.mascot { width: 18vh; height: 18vh; }
+.modes .mode { width: 30vw; height: 38vh; }
+.mode .best { background: rgba(255,255,255,.25); border-radius: 2vh; padding: .2vh 2vh; font-size: 2.8vh; font-weight: 800; }
+.mini .lbl { font-size: 3vh; font-weight: 800; color: #5b21b6; }
+.mini .btn { padding: 1vh 2.6vh; }
+.mini .btn.on { background: #8b5cf6; color: #fff; }
+.help b { color: #7c3aed; }
+
+/* اللعب */
+.hud { width: 100%; display: flex; justify-content: center; align-items: center; gap: 1.6vw; min-height: 7vh; flex-wrap: wrap; }
+.hud .pill b { color: #7c3aed; }
+.hud .pill.gold { background: #fef08a; }
+.hud .btn { padding: .6vh 2.4vh; }
+.stage { flex: 1; min-height: 0; width: 100%; display: flex; align-items: stretch; justify-content: center; gap: 2vw; margin-top: 1vh; }
+.side { width: 20vw; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2vh; }
+.side .box { background: rgba(255,255,255,.8); border-radius: 3vh; padding: 1vh 1.5vw 1.5vh; display: flex; flex-direction: column; align-items: center; box-shadow: 0 1vh 2vh rgba(91,33,182,.18); }
+.side .box small { font-size: 2.6vh; font-weight: 800; color: #5b21b6; }
+.bw { flex: 1 1 0; min-width: 0; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.board { position: relative; }
+.board canvas { display: block; border-radius: 2vh 2vh 3vh 3vh; filter: drop-shadow(0 1.5vh 2vh rgba(120,53,15,.35)); touch-action: none; }
+.over { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.over .box { background: rgba(255,255,255,.94); border-radius: 4vh; padding: 2.5vh 3vw; text-align: center; box-shadow: 0 1.5vh 3vh rgba(91,33,182,.3); pointer-events: auto; max-width: 95%; }
+.over .box b { display: block; font-size: 5.5vh; color: #6d28d9; }
+.over .box small { font-size: 2.8vh; font-weight: 700; color: #1e3a8a; }
+.over .obtn { display: flex; gap: 2vh; justify-content: center; margin-top: 1.5vh; }
+.over .obtn .btn { font-size: 3vh; padding: 1vh 2.5vh; cursor: pointer; }
+.over.hide { display: none; }
+
+.keys { display: grid; gap: 1vh; font-size: 2.6vh; font-weight: 700; color: #4c1d95; background: rgba(255,255,255,.75); border-radius: 3vh; padding: 1.5vh 1.5vw; }
+.keys b { color: #be185d; }
+.tpad { direction: ltr; display: none; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.2vh; width: 100%; max-width: 30vh; touch-action: none; }
+.stage.touch .tpad { display: grid; }
+.stage.touch .keys { display: none; }
+.tp { border: 0; aspect-ratio: 1; border-radius: 2.5vh; background: #fff; color: #6d28d9; font-size: 5vh; font-weight: 800; box-shadow: 0 .8vh 1.5vh rgba(91,33,182,.25); cursor: pointer; touch-action: none; padding: 0; }
+.tp[data-a="rot"] { grid-column: 2; background: #8b5cf6; color: #fff; }
+.tp.wide { grid-column: 1 / 4; aspect-ratio: auto; font-size: 3.4vh; padding: 1vh; background: #84cc16; color: #fff; }
+.tp.on { transform: scale(.92); filter: brightness(.92); }
+
+/* النتيجة */
+.score { display: flex; gap: 3vw; margin: 2vh 0; }
+.score div { background: #fff; border-radius: 4vh; padding: 1.5vh 3.5vw; text-align: center; box-shadow: 0 1vh 2vh rgba(91,33,182,.2); }
+.score b { display: block; font-size: 9vh; line-height: 1.1; color: #6d28d9; }
+.score span { font-size: 3vh; font-weight: 800; }
+.rec { font-size: 4.4vh; font-weight: 800; color: #fff; -webkit-text-stroke: .3vh #be185d; paint-order: stroke fill; min-height: 6vh; }
+
+/* الهاتف بالطول */
+@media (orientation: portrait) {
+  #app { padding: 1.5vh 2vw 1vh; }
+  .logo { font-size: 6vh; }
+  .title { flex-direction: column; text-align: center; }
+  .title .sub { font-size: 2.2vh; }
+  canvas.mascot { width: 12vh; height: 12vh; }
+  .modes { flex-direction: column; gap: 2vh; }
+  .modes .mode { width: 80vw; height: 22vh; }
+  .mode .big { font-size: 8vh; }
+  .mode b { font-size: 3.2vh; } .mode small { font-size: 2vh; }
+  .btn { font-size: 2.4vh; }
+  .help { font-size: 1.7vh; }
+  .hud { gap: 1vw; min-height: 5vh; }
+  .pill { font-size: 1.9vh; padding: .4vh 1.5vh; }
+  .stage { flex-direction: column; align-items: center; gap: 1vh; }
+  .side { width: 100%; flex-direction: row; gap: 3vw; }
+  .side.a { height: 13vh; flex: none; }
+  .side .box { flex-direction: row; gap: 2vw; padding: .6vh 3vw; }
+  .side .box small { font-size: 1.8vh; }
+  .side.b { flex: none; }
+  .tpad { grid-template-columns: repeat(5, minmax(0, 1fr)); max-width: 94vw; gap: 2vw; }
+  .tp[data-a="rot"] { order: 5; } .tp.wide { order: 4; font-size: 2vh; }
+  .tp { font-size: 4vh; }
+  .tp[data-a="rot"], .tp.wide { grid-column: auto; }
+  .tp.wide { aspect-ratio: 1; }
+  .keys { display: none; }
+  .score { flex-direction: column; gap: 1.5vh; }
+  .score b { font-size: 6vh; }
+  h1 { font-size: 6vh; }
+}
