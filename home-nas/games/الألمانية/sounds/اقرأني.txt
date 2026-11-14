@@ -1,0 +1,6 @@
+Töne (optional) — أصوات اختيارية:
+ضع ملف صوت لكل كلمة باسمها الألماني بدون der/die/das (mp3 أو m4a أو ogg)، مثل:
+  Hund.mp3  Katze.mp3  Apfel.mp3  Mädchen.mp3  Fuß.mp3  rot.mp3  eins.mp3
+للجمل: اكتب الجملة كما هي بدون علامات الاستفهام والنقاط، مثل:
+  Guten Morgen.mp3  Wie geht's.mp3  Ich heiße.mp3
+بدون الملفات: يُستعمل صوت ألماني من النظام إن وُجد، وإلا تظهر الكلمة مكتوبة.
