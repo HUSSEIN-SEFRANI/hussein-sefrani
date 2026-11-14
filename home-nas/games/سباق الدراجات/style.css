@@ -1,0 +1,57 @@
+/* سباق الدراجات */
+#cv { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; image-rendering: auto; }
+body.menu #cv { filter: saturate(1.05); }
+body.menu #sky, body.racing #sky { display: none; }
+#app { z-index: 2; }
+
+.logo { font-size: 11vh; margin-top: 1vh; -webkit-text-stroke: .6vh #9a3412; }
+.logo .emo { -webkit-text-stroke: 0; }
+.tag { font-size: 3.4vh; font-weight: 800; color: #fff; background: rgba(15,23,42,.45); border-radius: 3vh; padding: .3vh 3vh; margin-top: .5vh; }
+
+.vehs { display: flex; gap: 4vw; margin-top: 3vh; }
+.veh { width: 30vw; height: 34vh; border: 0; border-radius: 5vh; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .6vh;
+  box-shadow: 0 1.5vh 3vh rgba(15,23,42,.35); text-align: center; background: var(--c); border-bottom: 1.2vh solid var(--d); }
+.veh .big { font-size: 14vh; line-height: 1.05; }
+.veh b { font-size: 4.6vh; line-height: 1.1; -webkit-text-stroke: .25vh rgba(0,0,0,.25); paint-order: stroke fill; }
+.veh small { font-size: 2.7vh; font-weight: 700; opacity: .95; }
+
+.cols { display: flex; gap: 1.8vw; margin-top: 3vh; align-items: center; background: rgba(255,255,255,.75); border-radius: 5vh; padding: 1.2vh 2.5vw; }
+.cols span { font-size: 3vh; font-weight: 800; color: #1e3a8a; margin-inline-end: 1vw; }
+.col { width: 7vh; height: 7vh; border-radius: 50%; border: .6vh solid #fff; background: var(--c); padding: 0; font-size: 3.6vh; color: #fff; }
+.col.on { box-shadow: 0 0 0 .6vh #1e3a8a; }
+
+.tracks { display: flex; gap: 2vw; margin-top: 3vh; }
+.trk { width: 21vw; height: 52vh; border: 0; border-radius: 4.5vh; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .8vh; padding: 1vh 1vw;
+  box-shadow: 0 1.5vh 3vh rgba(15,23,42,.35); text-align: center; background: var(--g); }
+.trk .big { font-size: 13vh; line-height: 1.1; }
+.trk b { font-size: 5vh; line-height: 1.1; -webkit-text-stroke: .25vh rgba(0,0,0,.3); paint-order: stroke fill; }
+.trk .lv { font-size: 2.6vh; background: rgba(255,255,255,.9); color: #1e3a8a; border-radius: 2vh; padding: .2vh 2vh; font-weight: 800; }
+.trk small { font-size: 2.7vh; font-weight: 800; min-height: 3.6vh; text-shadow: 0 .3vh .6vh rgba(0,0,0,.4); }
+
+/* شاشة السباق */
+.hud { position: fixed; inset: 0; pointer-events: none; color: #fff; font-weight: 800; text-shadow: 0 .4vh 0 rgba(0,0,0,.3); }
+.hud .p { position: absolute; background: rgba(15,23,42,.55); border-radius: 3vh; padding: .4vh 2.6vh; font-size: 4.2vh; white-space: nowrap; }
+.hud .lap { top: 2.5vh; right: 3vh; }
+.hud .tm { top: 2.5vh; left: 3vh; direction: ltr; }
+.hud .pos { direction: ltr; top: 2vh; left: 50%; transform: translateX(-50%); font-size: 6vh; padding: .2vh 4vh; }
+.hud .st { top: 11vh; left: 3vh; color: #fde047; letter-spacing: 0; font-size: 4.2vh; }
+.hud .spd { bottom: 3vh; right: 3vh; font-size: 6vh; direction: ltr; }
+.hud .spd small { font-size: 2.6vh; opacity: .8; }
+.hud .bar { position: absolute; bottom: 4vh; left: 7vw; width: 52vw; height: 1.6vh; border-radius: 1vh; background: rgba(255,255,255,.5); }
+.hud .bar i { position: absolute; top: 50%; right: 0; width: 2.6vh; height: 2.6vh; margin: -1.3vh -1.3vh 0 0; border-radius: 50%; border: .3vh solid #fff; }
+.hud .bar i.me { width: 4vh; height: 4vh; margin: -2vh -2vh 0 0; z-index: 2; border-width: .5vh; }
+.hud .bar .fl { position: absolute; right: 100%; top: -3vh; font-size: 4vh; margin-right: .5vh; }
+.msg { position: fixed; top: 34%; left: 50%; transform: translate(-50%, -50%); font-size: 20vh; font-weight: 800; color: #fde047; -webkit-text-stroke: .8vh #9a3412; paint-order: stroke fill; display: none; white-space: nowrap; pointer-events: none; }
+.msg.sm { font-size: 9vh; -webkit-text-stroke: .5vh #1e3a8a; color: #fff; }
+.msg.show { display: block; animation: mpop .8s ease-out; }
+@keyframes mpop { from { transform: translate(-50%, -50%) scale(2); opacity: 0 } 30% { opacity: 1 } to { transform: translate(-50%, -50%) scale(1) } }
+.pause { position: fixed; inset: 0; background: rgba(15,23,42,.55); display: none; flex-direction: column; align-items: center; justify-content: center; gap: 4vh; }
+.pause.on { display: flex; }
+.pause h1 { font-size: 12vh; }
+
+/* النتيجة */
+.res { display: flex; gap: 2vw; margin-top: 1vh; flex-wrap: wrap; justify-content: center; }
+.res div { background: #fff; border-radius: 3vh; padding: 1vh 2.6vw; font-size: 3.4vh; font-weight: 800; box-shadow: 0 1vh 2vh rgba(30,58,138,.2); text-align: center; }
+.res div b { display: block; font-size: 4.4vh; color: #be185d; direction: ltr; }
+.res .new { background: #fde047; }
+.earn { margin-top: 1.5vh; font-size: 4vh; font-weight: 800; color: #fff; -webkit-text-stroke: .3vh #15803d; paint-order: stroke fill; min-height: 5vh; }
