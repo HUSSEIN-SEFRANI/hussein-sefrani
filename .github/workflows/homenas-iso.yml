@@ -52,23 +52,12 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
           ls -lh home-nas/HOME-ANAB-*
-          # release notes = this version's section of CHANGELOG.md, then the install steps
-          python3 - "$VERSION" > release-notes.md <<'PY'
-          import re, sys
-          v = sys.argv[1]
-          text = open("home-nas/CHANGELOG.md", encoding="utf-8").read()
-          m = re.search(r"^## v" + re.escape(v) + r"\s*\n(.*?)(?=^## v|\Z)", text, re.S | re.M)
-          if not m:
-              sys.exit(f"CHANGELOG.md has no section for v{v}")
-          print(m.group(1).strip())
-          print(open("home-nas/iso/release-install.md", encoding="utf-8").read())
-          PY
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && gh release view "v$VERSION" >/dev/null 2>&1; then
             if [ "${{ inputs.replace }}" = "true" ]; then
               echo "Replacing the files of release v$VERSION"
               for a in $(gh release view "v$VERSION" --json assets -q '.assets[].name'); do gh release delete-asset "v$VERSION" "$a" --yes; done
             else
-              echo "::error::Release v$VERSION already exists. Raise __version__ in home-nas/homenas/__init__.py and add a CHANGELOG section."
+              echo "::error::Release v$VERSION already exists. Raise __version__ in home-nas/homenas/__init__.py."
               exit 1
             fi
           fi
@@ -96,8 +85,11 @@ jobs:
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          name: "HOME ANAB"
-          body: ""
+          name: "HOME ANAB ${{ steps.meta.outputs.tag }}"
+          body: |
+            سيرفر منزلي بدون إنترنت
+
+            Hussein Sefrani
           make_latest: true
           files: |
             ${{ steps.meta.outputs.iso }}
@@ -105,13 +97,14 @@ jobs:
             home-nas/hsef-app-${{ steps.meta.outputs.version }}.tar.gz
             home-nas/hsef-app-${{ steps.meta.outputs.version }}.tar.gz.sha256
 
-      - name: Hide release details (name HOME ANAB only, no notes)
+      - name: Keep release pages minimal (version name, one line, author)
         if: github.event_name == 'workflow_dispatch' && inputs.publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          NOTES=$(printf 'سيرفر منزلي بدون إنترنت\n\nHussein Sefrani')
           for t in $(gh release list --limit 100 --json tagName -q '.[].tagName'); do
-            gh release edit "$t" --title "HOME ANAB" --notes "" || true
+            gh release edit "$t" --title "HOME ANAB $t" --notes "$NOTES" || true
           done
 
       - name: Delete old releases from before versioning

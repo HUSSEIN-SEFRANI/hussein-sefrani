@@ -548,7 +548,7 @@ class H(BaseHTTPRequestHandler):
         except ValueError:
             d = {}
         if self.path == "/api/lang":
-            set_state(lang=d.get("lang") if d.get("lang") in ("ar", "en", "fr") else "ar")
+            set_state(lang=d.get("lang") if d.get("lang") in ("ar", "en", "fr", "tr", "nl") else "ar")
             return self.send(200, {"ok": True})
         if self.path == "/api/install":
             if state["stage"] == "installing":

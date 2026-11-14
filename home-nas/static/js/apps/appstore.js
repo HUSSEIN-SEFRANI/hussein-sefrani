@@ -4,7 +4,7 @@
 import { ME, I18N, $, $$, h, esc, icon, api, guard, toast, modal, confirmBox, menuAt, registerApp } from '../core.js';
 
 const CATS = [['all', 'الكل'], ['media', 'الوسائط'], ['home', 'المنزل الذكي'], ['network', 'الشبكة'], ['files', 'الملفات'], ['tools', 'أدوات']];
-const tr = (o) => (o && (o[I18N.lang] || o.ar)) || '';
+const tr = (o) => (o && (o[I18N.lang] || (I18N.lang !== 'ar' && o.en) || o.ar)) || '';   // تركي/هولندي: الإنجليزية إن لم توجد
 // بعض التطبيقات (مثل Frigate) تعمل عبر https فقط
 export const appUrl = (port, path, scheme) => `${scheme ? scheme + ':' : location.protocol}//${location.hostname}:${port}${path || '/'}`;
 
@@ -117,7 +117,7 @@ class AppStore {
     const body = h(`<div>
       <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px"><div class="app-tile" style="background:${a.color}">${icon(a.icon)}</div>
         <div><b translate="no">${esc(a.name)}</b><div class="muted small" translate="no">${esc(tr(a.summary))}</div></div></div>
-      ${a.folders.map(f => `<label class="lbl" translate="no">${esc(tr(f.label))}${f.write ? '' : ` <span class="muted">(${I18N.lang === 'fr' ? 'lecture seule' : I18N.lang === 'en' ? 'read only' : 'قراءة فقط'})</span>`}</label>
+      ${a.folders.map(f => `<label class="lbl" translate="no">${esc(tr(f.label))}${f.write ? '' : ` <span class="muted">(${({ fr: 'lecture seule', en: 'read only', tr: 'salt okunur', nl: 'alleen-lezen' })[I18N.lang] || 'قراءة فقط'})</span>`}</label>
         <select class="field" name="f_${f.key}">${usable.length ? usable.map(x => `<option value="${x.id}" ${inst && inst.folders[f.key] == x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('') : ''}</select>`).join('')}
       ${a.folders.length && !usable.length ? '<p class="alert warn small">أنشئ مجلداً مشتركاً أولاً من «لوحة التحكم ← المجلدات المشتركة»، مثل «أفلام» أو «موسيقى».</p>' : ''}
       ${a.fixed_port ? '' : `<label class="lbl">المنفذ</label><input class="field" name="port" type="number" min="1024" max="65535" value="${inst ? inst.port : a.port}" dir="ltr">`}

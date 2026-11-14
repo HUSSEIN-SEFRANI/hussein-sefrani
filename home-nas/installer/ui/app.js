@@ -83,6 +83,60 @@
       e_dhcp: "Réseau rejoint mais la box n'a donné aucune adresse. Réessayez dans un moment.", e_driver: "Cette carte Wi-Fi ne fonctionne pas avec le système. Utilisez le câble.",
       e_noadapter: "Pas de carte Wi-Fi.", e_psk: "Le mot de passe a au moins 8 caractères.", ip_or: "ou par l'adresse", same_net: "Le téléphone doit être sur le même réseau de la maison",
     },
+    tr: {
+      setup: "Sistem kurulumu", overall: "Genel ilerleme", eta: "Kalan süre: yaklaşık {n} dakika", eta1: "Bir dakikadan az",
+      steps: ["Hoş geldiniz ve dil", "Ağ ve Wi-Fi", "Disk seçimi", "Diskin hazırlanması", "Sistemin kopyalanması", "HOME ANAB ayarları", "Önyükleyici"],
+      now: "Devam ediyor…", stopped: "Burada durdu",
+      w_h: "HOME ANAB'a hoş geldiniz", w_p: "Bu bilgisayarı fotoğraflarınız ve dosyalarınız için bir ev kasasına, aile için de bir TV ekranına dönüştüreceğiz. Kurulum otomatiktir ve 5 ila 15 dakika sürer.",
+      lang: "Sistem dilini seçin", offline: "Her şey USB bellekte: internet gerekmez", next: "İleri", keys: "Ok tuşları ve Enter veya fare",
+      d_h: "Sistem nereye kurulsun?", d_p: "Bu bilgisayarın diskleri bunlar. Silinmemesi için başlangıç USB belleği gizlendi.",
+      chosen: "Seçildi", raid: "İki diski ayna olarak kullan (RAID 1): her dosya ikisinde de saklanır", raid2: "Aynanın ikinci diskini seçin",
+      warn: "Seçilen diskteki her şey silinecek. Önemli bir şey olmadığından emin olun.", go: "Diski sil ve kur", sure: "Onaylamak için tekrar basın",
+      back: "Geri", nodisk: "Uygun disk yok (8 GB veya daha büyük). Diskin bağlı olduğundan emin olun.", ssd: "SSD", hdd: "Sabit disk", nvme: "NVMe disk", usb: "USB disk",
+      i_top: "Bilgisayarı bırakabilirsiniz, kurulumu kendisi bitirir", did: "Biliyor musunuz?",
+      done_h: "Kurulum tamamlandı!", done_p: "USB belleği çıkarın. Bilgisayar {n} saniye içinde yeniden başlayacak.", open: "Telefonunuzdan veya bilgisayarınızdan açın",
+      code: "Kurulum kodu gizlidir", code2: "Geliştiriciden WhatsApp ile isteyin", reboot: "Şimdi yeniden başlat", tv: "Bir TV bağlıysa, açılıştan sonra HOME ANAB ekranı orada görünür",
+      e_h: "Kurulum durdu", e_disk: "Disk yanıt vermiyor. Parolayla kilitli, iyi takılmamış veya arızalı olabilir.",
+      e_space: "Diskte yeterli alan yok.", e_other: "Kurulum sırasında bir sorun oluştu.",
+      fix: ["Diski ve kablosunu kontrol edin.", "Varsa diskin parolasını BIOS'tan kaldırın.", "Başka bir disk deneyin."],
+      retry: "Tekrar dene", off: "Kapat", photo: "Yardım gerekirse bu ekranın fotoğrafını çekin",
+      n_h: "Ev ağına bağlantı", n_p: "Modeme bir ağ kablosu takın veya Wi-Fi ağınızı seçin. Sunucu kurulumdan sonra da bağlı kalır.",
+      cable: "Kablo", cable_off: "Takılı değil", getting: "Adres alınıyor…", wifi: "Wi-Fi", wifi_off: "Bağlı değil", wifi_none: "Bu bilgisayarda Wi-Fi kartı yok",
+      nets: "Yakındaki Wi-Fi ağları: kendinizinkini seçin", scanning: "Ağlar aranıyor…", nonets: "Ağ bulunamadı. Modeme yaklaşın ve “Ara”ya basın.",
+      rescan: "Ara", skip: "Atla (sonra ayarlardan)", nowifi: "Kabloyla devam edebilir veya sonra bir Wi-Fi kartı ekleyebilirsiniz.",
+      pw: "{n} parolası", pw2: "Klavyeyle yazın. Yazdığınızdan farklı harfler çıkarsa klavye türünü değiştirin.", show: "Göster", hide: "Gizle", kb: "Klavye:",
+      connect: "Bağlan", connecting: "Bağlanıyor… yarım dakika sürebilir", open_net: "Parolasız açık ağ",
+      ok_w: "{n} ağına bağlandı. Sunucu kurulumdan sonra kendiliğinden bağlanacak.", e_auth: "Bağlanılamadı. Parolayı (büyük ve küçük harfler) kontrol edin veya modeme yaklaşın.",
+      e_dhcp: "Ağa katıldı ama modem adres vermedi. Biraz sonra tekrar deneyin.", e_driver: "Bu Wi-Fi kartı sistemle çalışmıyor. Kablo kullanın.",
+      e_noadapter: "Wi-Fi kartı yok.", e_psk: "Parola en az 8 karakterdir.", ip_or: "veya şu adresle", same_net: "Telefon aynı ev ağında olmalı",
+    },
+    nl: {
+      setup: "Systeeminstallatie", overall: "Totale voortgang", eta: "Resterende tijd: ongeveer {n} minuten", eta1: "Minder dan een minuut",
+      steps: ["Welkom en taal", "Netwerk en wifi", "Schijf kiezen", "Schijf voorbereiden", "Systeem kopiëren", "HOME ANAB instellen", "Opstartlader"],
+      now: "Bezig…", stopped: "Hier gestopt",
+      w_h: "Welkom bij HOME ANAB", w_p: "We maken van deze computer een kluis voor uw foto's en bestanden, met een tv-scherm voor het gezin. De installatie is automatisch en duurt 5 tot 15 minuten.",
+      lang: "Kies de taal van het systeem", offline: "Alles staat op de USB-stick: geen internet nodig", next: "Volgende", keys: "Pijltjestoetsen en Enter, of de muis",
+      d_h: "Waar moet het systeem komen?", d_p: "Dit zijn de schijven van deze computer. De opstart-USB-stick is verborgen zodat hij niet gewist wordt.",
+      chosen: "Gekozen", raid: "Twee schijven als spiegel gebruiken (RAID 1): elk bestand staat op beide", raid2: "Kies de tweede schijf van de spiegel",
+      warn: "Alles op de gekozen schijf wordt gewist. Controleer dat er niets belangrijks op staat.", go: "Schijf wissen en installeren", sure: "Druk nogmaals om te bevestigen",
+      back: "Terug", nodisk: "Geen geschikte schijf (8 GB of groter). Controleer of de schijf is aangesloten.", ssd: "SSD", hdd: "Harde schijf", nvme: "NVMe-schijf", usb: "USB-schijf",
+      i_top: "U kunt de computer laten staan, hij maakt alles zelf af", did: "Wist u dat?",
+      done_h: "Installatie voltooid!", done_p: "Haal de USB-stick eruit. De computer start over {n} seconden opnieuw op.", open: "Open vanaf uw telefoon of computer",
+      code: "De installatiecode is geheim", code2: "Vraag hem aan de ontwikkelaar via WhatsApp", reboot: "Nu opnieuw opstarten", tv: "Als er een tv is aangesloten, verschijnt daar na het opstarten het HOME ANAB-scherm",
+      e_h: "Installatie onderbroken", e_disk: "De schijf reageert niet. Misschien is hij met een wachtwoord vergrendeld, slecht aangesloten of defect.",
+      e_space: "Niet genoeg ruimte op de schijf.", e_other: "Er ging iets mis tijdens de installatie.",
+      fix: ["Controleer de schijf en de kabel.", "Verwijder het wachtwoord van de schijf in het BIOS als er een is.", "Probeer een andere schijf."],
+      retry: "Opnieuw proberen", off: "Uitschakelen", photo: "Maak een foto van dit scherm als u hulp nodig hebt",
+      n_h: "Verbinden met het thuisnetwerk", n_p: "Sluit een netwerkkabel aan op de router, of kies uw wifi. De server blijft na de installatie verbonden.",
+      cable: "Kabel", cable_off: "Niet aangesloten", getting: "Adres ophalen…", wifi: "Wifi", wifi_off: "Niet verbonden", wifi_none: "Deze computer heeft geen wifikaart",
+      nets: "Wifinetwerken in de buurt: kies het uwe", scanning: "Netwerken zoeken…", nonets: "Geen netwerk gevonden. Ga dichter bij de router staan en druk op “Zoeken”.",
+      rescan: "Zoeken", skip: "Overslaan (later in de instellingen)", nowifi: "U kunt doorgaan met de kabel, of later een wifikaart toevoegen.",
+      pw: "Wachtwoord van {n}", pw2: "Typ het op het toetsenbord. Verschijnen er andere letters dan u typt, kies dan een ander toetsenbord.", show: "Tonen", hide: "Verbergen", kb: "Toetsenbord:",
+      connect: "Verbinden", connecting: "Verbinden… dit kan een halve minuut duren", open_net: "Open netwerk zonder wachtwoord",
+      ok_w: "Verbonden met {n}. De server maakt na de installatie zelf verbinding.", e_auth: "Verbinden lukt niet. Controleer het wachtwoord (hoofd- en kleine letters) of ga dichter bij de router staan.",
+      e_dhcp: "Verbonden met het netwerk, maar de router gaf geen adres. Probeer het straks opnieuw.", e_driver: "Deze wifikaart werkt niet met het systeem. Gebruik de kabel.",
+      e_noadapter: "Geen wifikaart.", e_psk: "Het wachtwoord heeft minstens 8 tekens.", ip_or: "of via het adres", same_net: "De telefoon moet in hetzelfde thuisnetwerk zitten",
+    },
   };
   const TIPS = {
     ar: [["صوري من الآيفون", "احفظ صور هاتفك تلقائياً على السيرفر، وتصفحها بالألبومات والأشخاص.", "#fb7185,#f59e0b", "photos"],
@@ -100,6 +154,16 @@
       ["Des jeux pour les enfants", "Ajoutez des jeux dans le dossier jeux ; ils marchent avec une manette PlayStation.", "#06b6d4,#2563eb", "games"],
       ["Un disque réseau à la maison", "Ouvrez vos fichiers depuis Windows et l'iPhone comme un disque local.", "#22c55e,#15803d", "disk"],
       ["Sans internet", "Le serveur fonctionne à la maison et se met à jour par clé USB.", "#f59e0b,#f97316", "lock"]],
+    tr: [["iPhone fotoğraflarınız", "Telefon fotoğraflarınızı otomatik yedekleyin, albüm ve kişiye göre gezinin.", "#fb7185,#f59e0b", "photos"],
+      ["TV'de aile ekranı", "Herkesin kendi sayfası var: fotoğraflar, videolar, çizgi filmler ve çocuk oyunları, namaz vakitleri.", "#a855f7,#ec4899", "tv"],
+      ["Çocuklar için oyunlar", "Oyunları oyun klasörüne koyun; PlayStation koluyla çalışırlar.", "#06b6d4,#2563eb", "games"],
+      ["Evde bir ağ sürücüsü", "Dosyalarınızı Windows'tan ve iPhone'dan yerel bir disk gibi açın.", "#22c55e,#15803d", "disk"],
+      ["İnternet gerekmez", "Sunucu yalnızca evde çalışır ve USB bellekten güncellenir.", "#f59e0b,#f97316", "lock"]],
+    nl: [["Uw iPhone-foto's", "Maak automatisch een back-up van de foto's van uw telefoon en blader per album en per persoon.", "#fb7185,#f59e0b", "photos"],
+      ["Een gezinsscherm op de tv", "Iedereen heeft een eigen pagina: foto's, video's, tekenfilms en spelletjes voor kinderen, gebedstijden.", "#a855f7,#ec4899", "tv"],
+      ["Spelletjes voor kinderen", "Zet spelletjes in de map spellen; ze werken met een PlayStation-controller.", "#06b6d4,#2563eb", "games"],
+      ["Een netwerkschijf thuis", "Open uw bestanden vanuit Windows en de iPhone alsof het een lokale schijf is.", "#22c55e,#15803d", "disk"],
+      ["Geen internet nodig", "De server werkt alleen thuis en wordt bijgewerkt via een USB-stick.", "#f59e0b,#f97316", "lock"]],
   };
   const ICON = {
     photos: '<svg width="88" height="88" viewBox="0 0 54 54"><rect x="6" y="12" width="42" height="32" rx="6" fill="#fff"/><circle cx="18" cy="23" r="4.5" fill="#fbbf24"/><path d="M10 40 L22 28 L30 35 L36 30 L44 40 Z" fill="#34d399"/></svg>',
@@ -158,7 +222,7 @@
     if (view === "welcome") {
       main.innerHTML = `<h1>${t("w_h")}</h1><p>${t("w_p")}</p>
         <div class="muted" style="margin-top:10px">${t("lang")}</div>
-        <div class="row">${[["ar", "العربية"], ["en", "English"], ["fr", "Français"]].map(([k, n]) =>
+        <div class="row">${[["ar", "العربية"], ["en", "English"], ["fr", "Français"], ["tr", "Türkçe"], ["nl", "Nederlands"]].map(([k, n]) =>
           `<button class="btn f ${k === lang ? "gold" : ""}" data-lang="${k}">${n}</button>`).join("")}</div>
         <div class="ok-line">${CHECK.replace('stroke="#fff"', 'stroke="#86efac"')} ${t("offline")}</div>
         <div class="bottom"><button class="btn go f" data-go="net">${t("next")}</button><span class="muted">${t("keys")}</span></div>`;
@@ -221,7 +285,7 @@
   };
   const ssidHtml = (n) => `<bdi class="ss" dir="auto">${esc(n)}</bdi>`;
   const myIp = () => (net.wifi && net.wifi.ip) || (net.wired && net.wired.ip) || "";
-  const KBN = { us: "QWERTY", be: "AZERTY (BE)", fr: "AZERTY (FR)" };
+  const KBN = { us: "QWERTY", be: "AZERTY (BE)", fr: "AZERTY (FR)", tr: "Türkçe Q" };
 
   function netView() {
     const c = net.wired || {}, w = net.wifi || {};
@@ -286,12 +350,16 @@
   const D = (s) => Object.fromEntries(["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].map((d, i) => [`Digit${d}`, s[i]]));
   const AZ = { KeyQ: "a", KeyW: "z", KeyA: "q", KeyZ: "w", Semicolon: "m" };
   const KBMAP = {
-    be: { n: { ...D("&é\"'(§è!çà"), Backquote: "²", Minus: ")", Equal: "-", BracketLeft: "^", BracketRight: "$", Quote: "ù", Backslash: "µ", IntlBackslash: "<", KeyM: ",", Comma: ";", Period: ":", Slash: "=" },
+    be: { az: true, n: { ...D("&é\"'(§è!çà"), Backquote: "²", Minus: ")", Equal: "-", BracketLeft: "^", BracketRight: "$", Quote: "ù", Backslash: "µ", IntlBackslash: "<", KeyM: ",", Comma: ";", Period: ":", Slash: "=" },
       s: { ...D("1234567890"), Backquote: "³", Minus: "°", Equal: "_", BracketLeft: "¨", BracketRight: "*", Quote: "%", Backslash: "£", IntlBackslash: ">", KeyM: "?", Comma: ".", Period: "/", Slash: "+" },
       g: { Digit1: "|", Digit2: "@", Digit3: "#", Digit6: "^", Digit9: "{", Digit0: "}", BracketLeft: "[", BracketRight: "]", Equal: "~", Quote: "´", Backslash: "`", IntlBackslash: "\\", KeyE: "€" } },
-    fr: { n: { ...D("&é\"'(-è_çà"), Backquote: "²", Minus: ")", Equal: "=", BracketLeft: "^", BracketRight: "$", Quote: "ù", Backslash: "*", IntlBackslash: "<", KeyM: ",", Comma: ";", Period: ":", Slash: "!" },
+    fr: { az: true, n: { ...D("&é\"'(-è_çà"), Backquote: "²", Minus: ")", Equal: "=", BracketLeft: "^", BracketRight: "$", Quote: "ù", Backslash: "*", IntlBackslash: "<", KeyM: ",", Comma: ";", Period: ":", Slash: "!" },
       s: { ...D("1234567890"), Minus: "°", Equal: "+", BracketLeft: "¨", BracketRight: "£", Quote: "%", Backslash: "µ", IntlBackslash: ">", KeyM: "?", Comma: ".", Period: "/", Slash: "§" },
       g: { Digit2: "~", Digit3: "#", Digit4: "{", Digit5: "[", Digit6: "|", Digit7: "`", Digit8: "\\", Digit9: "^", Digit0: "@", Minus: "]", Equal: "}", KeyE: "€" } },
+    tr: { loc: "tr", L: { KeyI: "ı", Quote: "i", BracketLeft: "ğ", BracketRight: "ü", Semicolon: "ş", Comma: "ö", Period: "ç" },
+      n: { Backquote: "\"", Minus: "*", Equal: "-", Backslash: ",", IntlBackslash: "<", Slash: "." },
+      s: { Backquote: "é", Digit2: "'", Digit3: "^", Digit4: "+", Digit6: "&", Digit7: "/", Digit8: "(", Digit9: ")", Digit0: "=", Minus: "?", Equal: "_", Backslash: ";", IntlBackslash: ">", Slash: ":" },
+      g: { Digit2: "£", Digit3: "#", Digit4: "$", Digit5: "½", Digit7: "{", Digit8: "[", Digit9: "]", Digit0: "}", Minus: "\\", Equal: "|", KeyQ: "@", KeyE: "€", BracketRight: "~", Backslash: "`", IntlBackslash: "|" } },
   };
   let altGr = false;
   addEventListener("keyup", (e) => { if (e.code === "AltRight") altGr = false; });
@@ -301,9 +369,10 @@
     if (!m || e.ctrlKey || e.metaKey) return false;
     let ch;
     if (altGr || e.getModifierState("AltGraph")) ch = m.g[e.code] || "";
-    else if (AZ[e.code]) {
+    else if ((m.az && AZ[e.code]) || (m.L && m.L[e.code])) {   // حروف تتأثر بـ CapsLock
+      const base = m.az && AZ[e.code] ? AZ[e.code] : m.L[e.code];
       const up = e.shiftKey !== e.getModifierState("CapsLock");
-      ch = up ? AZ[e.code].toUpperCase() : AZ[e.code];
+      ch = up ? base.toLocaleUpperCase(m.loc || "en") : base;
     } else ch = (e.shiftKey ? m.s : m.n)[e.code];
     if (ch === undefined) return false;
     if (ch) inp.setRangeText(ch, inp.selectionStart, inp.selectionEnd, "end");

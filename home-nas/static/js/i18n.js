@@ -1,11 +1,11 @@
-// HOME ANAB — interface language (العربية / English / Français).
+// HOME ANAB — interface language (العربية / English / Français / Türkçe / Nederlands).
 // Loaded in <head> on every page, before anything is drawn. The interface is written in
-// Arabic; for English and French every Arabic phrase on screen is replaced from
+// Arabic; for the other languages every Arabic phrase on screen is replaced from
 // I18N_DICT as soon as it appears (pages, dialogs, server messages, dynamic text),
 // and the layout switches to left-to-right.
 (function () {
-  var SUPPORTED = ['ar', 'en', 'fr'];
-  var NAMES = { ar: 'العربية', en: 'English', fr: 'Français' };
+  var SUPPORTED = ['ar', 'en', 'fr', 'tr', 'nl'];
+  var NAMES = { ar: 'العربية', en: 'English', fr: 'Français', tr: 'Türkçe', nl: 'Nederlands' };
 
   function pick() {
     try { var s = localStorage.getItem('lang'); if (SUPPORTED.indexOf(s) >= 0) return s; } catch (e) { }
@@ -18,7 +18,7 @@
   var I18N = window.I18N = {
     lang: lang,
     rtl: lang === 'ar',
-    locale: { ar: 'ar', en: 'en-GB', fr: 'fr-FR' }[lang],
+    locale: { ar: 'ar', en: 'en-GB', fr: 'fr-FR', tr: 'tr-TR', nl: 'nl-NL' }[lang],
     names: NAMES,
     supported: SUPPORTED,
     t: function (s) { return s; },
@@ -51,7 +51,9 @@
   html.lang = lang;
   html.dir = 'ltr';
 
-  var col = lang === 'en' ? 0 : 1;
+  var col = { en: 0, fr: 1, tr: 2, nl: 3 }[lang] || 0;
+  // ترجمة ناقصة في لغة: نعرض الإنجليزية بدلها
+  function pick1(v) { return v[col] != null ? v[col] : v[0]; }
   var DICT = window.I18N_DICT || {};
   var HAS_AR = /[؀-ۿ]/;
   var RUN = /[؀-ۿ](?:[؀-ۿً-ٟ«»،؛؟\s\-]*[؀-ۿً-ٟ»])?/g;
@@ -67,7 +69,7 @@
         var key = words.slice(i, j).join(' '), tail = '';
         var m = key.match(/^(.*?)([،؛؟]+)$/);
         if (!DICT[key] && m && DICT[m[1]]) { tail = m[2].replace(/[،؛؟]/g, function (c) { return PUNCT[c]; }); key = m[1]; }
-        if (DICT[key]) { out.push(DICT[key][col] + tail); i = j; hit = true; break; }
+        if (DICT[key]) { out.push(pick1(DICT[key]) + tail); i = j; hit = true; break; }
       }
       if (!hit) { out.push(words[i]); i++; }
     }
@@ -79,11 +81,11 @@
     var out = s.replace(RUN, function (m) {
       var key = m.replace(/\s+/g, ' ').trim();
       var v = DICT[key];
-      return v ? v[col] : pieces(key);
+      return v ? pick1(v) : pieces(key);
     });
     // أسهم الخطوات تتبع اتجاه القراءة، وعلامات الاقتباس حسب اللغة
     out = out.replace(/←/g, '→');
-    if (lang === 'en') out = out.replace(/«\s?/g, '“').replace(/\s?»/g, '”');
+    if (lang !== 'fr') out = out.replace(/«\s?/g, '“').replace(/\s?»/g, '”');
     return out;
   }
   I18N.t = t;
