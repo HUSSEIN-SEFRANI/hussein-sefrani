@@ -17,6 +17,13 @@
     { e: "🔵", t: "أزرق", col: (i) => (i % 2 ? "#60a5fa" : "#3b82f6"), head: "#2563eb" },
     { e: "🟣", t: "بنفسجي", col: (i) => (i % 2 ? "#e879f9" : "#c026d3"), head: "#a21caf" },
   ];
+  // فواكه سحرية: تُطيل الأفعى ولها أثر لبضع ثوانٍ
+  const POWERS = {
+    fast: { e: "🌶️", t: "أسرع!", f: 0.6, ring: "#ef4444", bg: "#fecaca" },
+    flip: { e: "🍋", t: "مقلوب!", f: 1, ring: "#a855f7", bg: "#f3e8ff" },
+    slow: { e: "🥥", t: "أبطأ", f: 1.7, ring: "#3b82f6", bg: "#dbeafe" },
+  };
+  const EFFECT_MS = 6000;
   const FRUITS = ["🍎", "🍌", "🍇", "🍓", "🍉", "🍒", "🍑", "🍐"];
   const rr = (b, x, y, w, h, r) => { b.beginPath(); b.moveTo(x + r, y); b.arcTo(x + w, y, x + w, y + h, r); b.arcTo(x + w, y + h, x, y + h, r); b.arcTo(x, y + h, x, y, r); b.arcTo(x, y, x + w, y, r); b.closePath(); };
   const EMO = '"Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif';
@@ -80,7 +87,7 @@
     if (L) L.map.forEach((row, y) => [...row].forEach((c, x) => { if (c === "#") block[y * COLS + x] = 1; if (c === "H") start = { x, y }; }));
 
     const mkSnake = (sx, sy, dir) => ({ body: [{ x: sx, y: sy }, { x: sx - dir.x, y: sy - dir.y }, { x: sx - 2 * dir.x, y: sy - 2 * dir.y }].map(wrapPos), dir, queue: [], grow: 0, alive: true, skin, score: 0 });
-    const S = { snakes: [mkSnake(start.x, start.y, { x: 1, y: 0 })], fruit: null, gold: null, eaten: 0, state: "ready", acc: 0, pops: [], t: 0, flash: 0 };
+    const S = { snakes: [mkSnake(start.x, start.y, { x: 1, y: 0 })], fruit: null, gold: null, power: null, eff: null, eaten: 0, state: "ready", acc: 0, pops: [], t: 0, flash: 0 };
     const P = S.snakes[0];
     placeFruit();
 
@@ -88,9 +95,10 @@
         <span class="pill">🍎 النقاط: <b id="sc">0</b></span>
         <span class="pill gold">🏆 الأفضل: <b>${best0}</b></span>
         ${L ? `<span class="pill">${L.e} المرحلة ${opt.lv + 1}: <b id="gl">0 / ${L.goal}</b></span>` : `<span class="pill">${walls ? "🧱 بجدران" : "🌀 بلا جدران"}</span>`}
-        <span class="pill"><span class="emo">${SPEEDS[save.speed].e}</span></span></div>
+        <span class="pill"><span class="emo">${SPEEDS[save.speed].e}</span></span>
+        <span class="pill eff hide" id="ef"></span></div>
       <div class="board"><canvas id="cv"></canvas><div class="over" id="ov"></div></div>`);
-    const cv = document.getElementById("cv"), g = cv.getContext("2d"), ov = document.getElementById("ov"), sc = document.getElementById("sc"), gl = document.getElementById("gl");
+    const cv = document.getElementById("cv"), g = cv.getContext("2d"), ov = document.getElementById("ov"), sc = document.getElementById("sc"), ef = document.getElementById("ef"), gl = document.getElementById("gl");
     let C = 40, bg = null, sprites = {}, raf = 0, last = performance.now();
 
     function fit() {
@@ -131,27 +139,33 @@
       if (block[y * COLS + x]) return true;
       return S.snakes.some((s) => s.body.some((b) => b.x === x && b.y === y));
     }
-    function freeCell(avoid) {
+    function freeCell() {
       const free = [];
       const h = P.body[0];
       for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
         if (walls && (x === 0 || y === 0 || x === COLS - 1 || y === ROWS - 1) && Math.random() < 0.6) continue; // أقل على الحواف
-        if (occupied(x, y) || (avoid && avoid.x === x && avoid.y === y)) continue;
+        if (occupied(x, y) || [S.fruit, S.gold, S.power].some((o) => o && o.x === x && o.y === y)) continue;
         if (Math.abs(x - h.x) + Math.abs(y - h.y) < 3) continue;
         free.push({ x, y });
       }
       return free.length ? K.pick(free) : null;
     }
-    function placeFruit() { const c = freeCell(S.gold); S.fruit = c && { ...c, e: K.pick(FRUITS) }; }
+    function placeFruit() { const c = freeCell(); S.fruit = c && { ...c, e: K.pick(FRUITS) }; }
+    function maybePower() {
+      if (S.power || Math.random() > 0.35) return;
+      const c = freeCell();
+      if (c) S.power = { ...c, type: K.pick(Object.keys(POWERS)), life: Math.round(9000 / tick) };
+    }
     function maybeGold() {
       if (S.gold || Math.random() > 0.18) return;
-      const c = freeCell(S.fruit);
+      const c = freeCell();
       if (c) S.gold = { ...c, life: Math.round(7000 / tick) };
     }
 
     // ---------------------------------------------------------------- الأزرار
     const DIR = { ArrowUp: { x: 0, y: -1 }, ArrowDown: { x: 0, y: 1 }, ArrowLeft: { x: -1, y: 0 }, ArrowRight: { x: 1, y: 0 } };
     function steer(s, d) {
+      if (S.eff && S.eff.type === "flip") d = { x: -d.x, y: -d.y };
       const lastD = s.queue.length ? s.queue[s.queue.length - 1] : s.dir;
       if (d.x === lastD.x && d.y === lastD.y) return;
       if (d.x === -lastD.x && d.y === -lastD.y) {
@@ -162,7 +176,7 @@
     }
     function setState(st) {
       S.state = st;
-      if (st === "ready") ov.innerHTML = `<div class="box"><b>🐍 جاهز؟</b><small>اضغط سهماً لتبدأ</small></div>`;
+      if (st === "ready") ov.innerHTML = `<div class="box"><b>🐍 جاهز؟</b><small>اضغط سهماً لتبدأ</small><small class="legend"><span class="emo">🌶️</span> أسرع · <span class="emo">🍋</span> مقلوب · <span class="emo">🥥</span> أبطأ</small></div>`;
       else if (st === "pause") ov.innerHTML = `<div class="box"><b>⏸️ استراحة</b><small>✕ أو Enter للمتابعة · ○ أو Backspace للقائمة</small></div>`;
       else ov.innerHTML = "";
       ov.classList.toggle("hide", !ov.innerHTML);
@@ -204,7 +218,7 @@
         if (!walls) n = wrapPos(n);
         else if (n.x < 0 || n.y < 0 || n.x >= COLS || n.y >= ROWS) { crash(s); return; }
         if (block[n.y * COLS + n.x]) { crash(s); return; }
-        const willGrow = s.grow > 0 || (S.fruit && n.x === S.fruit.x && n.y === S.fruit.y) || (S.gold && n.x === S.gold.x && n.y === S.gold.y);
+        const willGrow = s.grow > 0 || (S.fruit && n.x === S.fruit.x && n.y === S.fruit.y) || (S.gold && n.x === S.gold.x && n.y === S.gold.y) || (S.power && n.x === S.power.x && n.y === S.power.y);
         const bodyCheck = willGrow ? s.body : s.body.slice(0, -1);
         if (bodyCheck.some((b) => b.x === n.x && b.y === n.y)) { crash(s); return; }
         s.body.unshift(n);
@@ -212,8 +226,10 @@
         else if (!willGrow) s.body.pop();
         if (S.fruit && n.x === S.fruit.x && n.y === S.fruit.y) eat(s, 1, S.fruit);
         if (S.gold && n.x === S.gold.x && n.y === S.gold.y) eat(s, 5, S.gold);
+        if (S.power && n.x === S.power.x && n.y === S.power.y) eatPower(s, S.power);
       }
       if (S.gold && --S.gold.life <= 0) S.gold = null;
+      if (S.power && --S.power.life <= 0) S.power = null;
     }
     function eat(s, pts, f) {
       s.score += pts;
@@ -223,12 +239,30 @@
       else {
         S.eaten++;
         K.tone(520 + Math.min(S.eaten, 30) * 18, 0.09, "triangle", 0.13); K.tone(780 + Math.min(S.eaten, 30) * 18, 0.08, "sine", 0.08, 0.06);
-        placeFruit(); maybeGold();
+        placeFruit(); maybeGold(); maybePower();
         if (gl) gl.textContent = `${Math.min(S.eaten, L.goal)} / ${L.goal}`;
         if (L && S.eaten >= L.goal) { win(); return; }
         if (!S.fruit) { win(); return; } // امتلأ اللوح!
       }
       if (!L && s.score > best0 && s.score - pts <= best0 && best0 > 0) { K.sfx.win(); K.confetti(14, "🏆⭐🎉"); }
+    }
+    function eatPower(s, pw) {
+      const P0 = POWERS[pw.type];
+      S.power = null;
+      s.score += 2; sc.textContent = s.score;
+      S.pops.push({ x: pw.x, y: pw.y, t: 0, txt: P0.t, gold: true, col: P0.ring });
+      S.eff = { type: pw.type, left: EFFECT_MS };
+      if (pw.type === "fast") [600, 800, 1000, 1200].forEach((f, i) => K.tone(f, 0.08, "square", 0.05, i * 0.05));
+      else if (pw.type === "slow") [500, 400, 300].forEach((f, i) => K.tone(f, 0.16, "sine", 0.12, i * 0.12));
+      else [700, 500, 700, 500].forEach((f, i) => K.tone(f, 0.08, "triangle", 0.1, i * 0.08));
+      showEff();
+    }
+    function showEff() {
+      if (!S.eff) { ef.classList.add("hide"); return; }
+      const P0 = POWERS[S.eff.type];
+      ef.classList.remove("hide");
+      ef.style.background = P0.bg; ef.style.color = P0.ring;
+      ef.innerHTML = `<span class="emo">${P0.e}</span> ${P0.t} <b>${Math.ceil(S.eff.left / 1000)}</b>`;
     }
     function crash(s) {
       s.alive = false; S.state = "over"; S.flash = 1;
@@ -286,12 +320,23 @@
         g.fillStyle = "rgba(253,224,71,.55)"; g.beginPath(); g.arc(x, y, C * (0.55 + Math.sin(S.t / 140) * 0.08), 0, 7); g.fill();
         g.drawImage(sp, x - sp.width / 2, y - sp.height / 2 - bob);
       }
+      if (S.power && (S.power.life > 12 || Math.floor(S.t / 150) % 2)) {
+        const P0 = POWERS[S.power.type], sp = sprite(P0.e), x = S.power.x * C + C / 2, y = S.power.y * C + C / 2;
+        g.strokeStyle = P0.ring; g.lineWidth = C * 0.09; g.setLineDash([C * 0.18, C * 0.12]);
+        g.beginPath(); g.arc(x, y, C * 0.52, S.t / 300, S.t / 300 + 6.3); g.stroke(); g.setLineDash([]);
+        g.drawImage(sp, x - sp.width / 2, y - sp.height / 2 + bob);
+      }
+      if (S.eff) { // هالة حول الرأس أثناء الأثر
+        const h = P.body[0];
+        g.fillStyle = POWERS[S.eff.type].ring; g.globalAlpha = 0.35 + Math.sin(S.t / 90) * 0.15;
+        g.beginPath(); g.arc(h.x * C + C / 2, h.y * C + C / 2, C * 0.8, 0, 7); g.fill(); g.globalAlpha = 1;
+      }
       S.snakes.forEach(drawSnake);
       g.textAlign = "center"; g.textBaseline = "middle";
       for (const p of S.pops) {
         g.globalAlpha = Math.max(0, 1 - p.t / 700);
         g.font = `800 ${Math.round(C * (p.gold ? 0.8 : 0.6))}px Baloo, sans-serif`;
-        g.lineWidth = C * 0.12; g.strokeStyle = "#fff"; g.fillStyle = p.gold ? "#ca8a04" : "#be185d";
+        g.lineWidth = C * 0.12; g.strokeStyle = "#fff"; g.fillStyle = p.col || (p.gold ? "#ca8a04" : "#be185d");
         const y = p.y * C + C / 2 - p.t / 700 * C;
         g.strokeText(p.txt, p.x * C + C / 2, y); g.fillText(p.txt, p.x * C + C / 2, y);
       }
@@ -302,7 +347,14 @@
       S.t += dt;
       if (S.state === "run") {
         S.acc += dt;
-        while (S.acc >= tick && S.state === "run") { S.acc -= tick; step(); }
+        const tk = tick * (S.eff ? POWERS[S.eff.type].f : 1);
+        while (S.acc >= tk && S.state === "run") { S.acc -= tk; step(); }
+        if (S.eff) {
+          const sec = Math.ceil(S.eff.left / 1000);
+          S.eff.left -= dt;
+          if (S.eff.left <= 0) { S.eff = null; K.tone(880, 0.1, "sine", 0.08); showEff(); }
+          else if (Math.ceil(S.eff.left / 1000) !== sec) showEff();
+        }
       }
       S.pops.forEach((p) => (p.t += dt)); S.pops = S.pops.filter((p) => p.t < 700);
       draw();
