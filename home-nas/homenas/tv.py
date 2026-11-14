@@ -170,6 +170,7 @@ def tv_settings() -> dict:
         "saver_min": int(g("tv_saver_min", "10")), "night_off": g("tv_night_off", ""),
         "zoom": int(g("tv_zoom", "100")), "margin": int(g("tv_margin", "0")), "text": int(g("tv_text", "100")),
         "lite": g("tv_lite", "auto"),   # وضع خفيف للأجهزة الضعيفة: auto / on / off
+        "lang": tv_lang(),               # لغة واجهة التلفاز يختارها الأبوان
         "source": g("tv_prayer_source", "calc"), "offsets": json.loads(g("tv_prayer_off", "{}")),
         "adhan": {**ADHAN_DEFAULT, **json.loads(g("tv_adhan", "{}"))},
         "weather": g("tv_weather", "1") == "1",
@@ -374,6 +375,8 @@ def api_admin_tv_settings():
                 abort(400, "إحداثيات غير صالحة")
     if d.get("lite") in ("auto", "on", "off"):
         set_setting("tv_lite", d["lite"])
+    if d.get("lang") in TV_LANGS:
+        set_setting("tv_lang", d["lang"])
     for key, sk in (("hanafi", "tv_hanafi"), ("prayer", "tv_prayer"), ("nosleep", "tv_nosleep")):
         if key in d:
             set_setting(sk, "1" if d[key] else "0")
@@ -707,7 +710,7 @@ def tv_page():
     from . import __version__
     from .system import server_name
     local = request.remote_addr in ("127.0.0.1", "::1")
-    return render_template("tv.html", server_name=server_name(), version=__version__, preview=not local)
+    return render_template("tv.html", server_name=server_name(), version=__version__, preview=not local, tv_lang=tv_lang())
 
 
 @bp.get("/api/tv/profiles")
@@ -797,6 +800,14 @@ def api_tv_theme():
     db.execute("UPDATE users SET theme=? WHERE id=?", (t, u["id"]))
     db.commit()
     return jsonify(ok=True, theme=t)
+
+
+TV_LANGS = ("ar", "en", "fr", "tr", "nl")
+
+
+def tv_lang() -> str:
+    v = get_setting("tv_lang", "ar")
+    return v if v in TV_LANGS else "ar"
 
 
 @bp.get("/api/tv/settings")

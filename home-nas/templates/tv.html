@@ -1,7 +1,12 @@
 <!doctype html>
-<html lang="ar" dir="rtl" translate="no">
+<html lang="{{ tv_lang }}" dir="{{ 'rtl' if tv_lang == 'ar' else 'ltr' }}"{% if tv_lang == 'ar' %} translate="no"{% endif %}>
 <head>
   <meta charset="utf-8">
+  <meta name="google" content="notranslate">
+  <script>window.FORCE_LANG = {{ tv_lang|tojson }}; window.I18N_STRICT = true;</script>
+  {% if tv_lang != 'ar' %}<script src="{{ url_for('static', filename='js/i18n-dict.js') }}?v={{ version }}"></script>
+  <script src="{{ url_for('static', filename='js/i18n-tv.js') }}?v={{ version }}"></script>{% endif %}
+  <script src="{{ url_for('static', filename='js/i18n.js') }}?v={{ version }}"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b1630">
   <link rel="icon" href="{{ url_for('static', filename='img/icon.svg') }}">
@@ -9,7 +14,7 @@
   <title>{{ server_name }} TV</title>
 </head>
 <body>
-  <div id="stage" dir="rtl"></div>
+  <div id="stage" dir="{{ 'rtl' if tv_lang == 'ar' else 'ltr' }}"></div>
   <script>window.__TV__ = {{ {"server": server_name, "version": version, "preview": preview}|tojson }};</script>
   <script type="module" src="{{ url_for('static', filename='js/tv.js') }}?v={{ version }}"></script>
 </body>

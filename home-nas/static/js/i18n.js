@@ -8,6 +8,8 @@
   var NAMES = { ar: 'العربية', en: 'English', fr: 'Français', tr: 'Türkçe', nl: 'Nederlands' };
 
   function pick() {
+    // التلفاز: اللغة يختارها الأبوان من لوحة التحكم (لا من الجهاز)
+    if (window.FORCE_LANG && SUPPORTED.indexOf(window.FORCE_LANG) >= 0) return window.FORCE_LANG;
     try { var s = localStorage.getItem('lang'); if (SUPPORTED.indexOf(s) >= 0) return s; } catch (e) { }
     var m = document.cookie.match(/(?:^|; )lang=(\w+)/);
     if (m && SUPPORTED.indexOf(m[1]) >= 0) return m[1];
@@ -81,10 +83,11 @@
     var out = s.replace(RUN, function (m) {
       var key = m.replace(/\s+/g, ' ').trim();
       var v = DICT[key];
-      return v ? pick1(v) : pieces(key);
+      // التلفاز (STRICT): نترجم العبارة المعروفة كاملةً فقط، فتبقى الأسماء والآيات كما هي
+      return v ? pick1(v) : window.I18N_STRICT ? m : pieces(key);
     });
-    // أسهم الخطوات تتبع اتجاه القراءة، وعلامات الاقتباس حسب اللغة
-    out = out.replace(/←/g, '→');
+    // أسهم الخطوات تتبع اتجاه القراءة (داخل الجمل فقط)، وعلامات الاقتباس حسب اللغة
+    if (HAS_AR.test(s)) out = out.replace(/←/g, '→');
     if (lang !== 'fr') out = out.replace(/«\s?/g, '“').replace(/\s?»/g, '”');
     return out;
   }

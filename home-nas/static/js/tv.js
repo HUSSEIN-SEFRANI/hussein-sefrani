@@ -55,13 +55,24 @@ addEventListener("resize", fit);
 fit();
 
 // ============================================================== التاريخ والوقت
-const fmtDate = new Intl.DateTimeFormat("ar-SY-u-nu-latn", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-const fmtDM = new Intl.DateTimeFormat("ar-SY-u-nu-latn", { day: "numeric", month: "long" });
+// لغة الواجهة يختارها الأبوان (لوحة التحكم ← وضع التلفاز). النصوص العربية تُترجم في i18n.js
+const AR = !window.I18N || I18N.lang === "ar";
+/** اسم داخل جملة: نعزله (FSI…PDI) ليُترجم ما حوله ويبقى الاسم كما هو، وليُعرض صحيحاً بين الاتجاهين */
+const nm = (s) => `\u2068${s}\u2069`;
+const LOC = AR ? "ar-SY" : I18N.locale;
+const NEXT_KEY = AR ? "ArrowLeft" : "ArrowRight", PREV_KEY = AR ? "ArrowRight" : "ArrowLeft";   // «التالي» حسب اتجاه القراءة
+const unitText = (n, unit, unitDisplay = "long") => new Intl.NumberFormat(LOC, { style: "unit", unit, unitDisplay }).format(n);
+const agoText = (n, unit) => new Intl.RelativeTimeFormat(LOC, { numeric: "auto" }).format(-n, unit);
+/** مدة حتى موعد: «بعد 2 س و 5 د» بالعربية، و«2 hr 5 min» بغيرها */
+const inText = (hh, mm, long = false) => AR ? `بعد ${hh ? `${hh} ${long ? "ساعة" : "س"} و ` : ""}${mm} ${long ? "دقيقة" : "د"}`
+  : `· ${hh ? unitText(hh, "hour", "short") + " " : ""}${unitText(mm, "minute", "short")}`;
+const fmtDate = new Intl.DateTimeFormat(`${LOC}-u-nu-latn`, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+const fmtDM = new Intl.DateTimeFormat(`${LOC}-u-nu-latn`, { day: "numeric", month: "long" });
 let fmtHijri = null;
-try { fmtHijri = new Intl.DateTimeFormat("ar-SA-u-ca-islamic-umalqura-nu-latn", { day: "numeric", month: "long", year: "numeric" }); } catch { /* غير مدعوم */ }
+try { fmtHijri = new Intl.DateTimeFormat(`${AR ? "ar-SA" : LOC}-u-ca-islamic-umalqura-nu-latn`, { day: "numeric", month: "long", year: "numeric" }); } catch { /* غير مدعوم */ }
 const hhmm = (d = new Date()) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-const ageText = (n) => (n === 1 ? "سنة واحدة" : n === 2 ? "سنتان" : n <= 10 ? `${n} سنوات` : `${n} سنة`);
-const daysText = (n) => (n === 1 ? "يوم واحد" : n === 2 ? "يومان" : n <= 10 ? `${n} أيام` : `${n} يوماً`);
+const ageText = (n) => !AR ? unitText(n, "year") : (n === 1 ? "سنة واحدة" : n === 2 ? "سنتان" : n <= 10 ? `${n} سنوات` : `${n} سنة`);
+const daysText = (n) => !AR ? unitText(n, "day") : (n === 1 ? "يوم واحد" : n === 2 ? "يومان" : n <= 10 ? `${n} أيام` : `${n} يوماً`);
 const birthDM = (u) => fmtDM.format(new Date(2000, u.birth_month - 1, u.birth_day));
 
 function tick() {
@@ -265,12 +276,13 @@ function starBurst() {
 }
 function ago(ts) {
   const m = Math.round((Date.now() - new Date(ts).getTime()) / 60000);
+  if (m >= 1 && !AR) return m < 60 ? agoText(m, "minute") : m < 1440 ? agoText(Math.round(m / 60), "hour") : agoText(Math.round(m / 1440), "day");
   return m < 1 ? "الآن" : m < 60 ? `قبل ${m} د` : m < 1440 ? `قبل ${Math.round(m / 60)} س` : `قبل ${Math.round(m / 1440)} يوم`;
 }
 function starsLine(x) {
   const n = `<b class="sv">⭐ ${x.amount}</b>`;
-  const what = x.kind === "transfer" ? `${esc(x.from || "?")} ← ${esc(x.to || "?")} ${n}` : x.kind === "give" ? `${esc(x.by || "?")} أعطى ${esc(x.to || "?")} ${n}`
-    : x.kind === "game" ? `🎮 ${esc(x.to || "?")} ربح ${n}` : `${esc(x.by || "?")} خصم من ${esc(x.to || "?")} ${n}`;
+  const what = x.kind === "transfer" ? `${nm(esc(x.from || "?"))} ← ${nm(esc(x.to || "?"))} ${n}` : x.kind === "give" ? `${nm(esc(x.by || "?"))} أعطى ${nm(esc(x.to || "?"))} ${n}`
+    : x.kind === "game" ? `🎮 ${nm(esc(x.to || "?"))} ربح ${n}` : `${nm(esc(x.by || "?"))} خصم من ${nm(esc(x.to || "?"))} ${n}`;
   return `<div class="sl ${x.kind}"><span>${what}</span><i>${esc(x.reason)}</i><small>${ago(x.ts)}</small></div>`;
 }
 async function starsScreen() {
@@ -321,7 +333,7 @@ function starFlow(kind, r, redraw) {
       toast(kind !== "transfer" ? "الرصيد صفر" : r.can_manage ? "رصيدك صفر. لتعطي نجوماً دون أن ينقص رصيدك اختر «⭐ أعطِ نجوماً»" : "رصيدك صفر، لا تستطيع الإهداء الآن", 6000);
       return;
     }
-    choiceScreen(`${verb} لـ ${esc(to.name)}: كم نجمة؟`, amounts.map((n) => ({ value: n, html: `<span class="big">${n}</span><span class="emo">${"⭐".repeat(Math.min(n, 5))}</span>` })), (amount) => {
+    choiceScreen(`${verb} لـ ${nm(esc(to.name))}: كم نجمة؟`, amounts.map((n) => ({ value: n, html: `<span class="big">${n}</span><span class="emo">${"⭐".repeat(Math.min(n, 5))}</span>` })), (amount) => {
       const reasons = STAR_REASONS[kind].map((t) => ({ value: t, html: `<b>${esc(t)}</b>` }));
       reasons.push({ value: null, html: `<b>✏️ سبب آخر…</b>` });
       choiceScreen("ما السبب؟", reasons, (reason) => {
@@ -329,7 +341,7 @@ function starFlow(kind, r, redraw) {
           const url = kind === "transfer" ? "/api/tv/stars/transfer" : "/api/tv/stars/adjust";
           const d = await api(url, { json: { to: to.id, amount, reason: why, kind, pin } });
           backToStars(); redraw(d); starBurst();
-          toast(kind === "take" ? `خُصمت ${amount} من ${to.name}` : `⭐ ${amount} لـ ${to.name}`, 3500);
+          toast(kind === "take" ? `خُصمت ${amount} من ${nm(to.name)}` : `⭐ ${amount} لـ ${nm(to.name)}`, 3500);
         };
         const withPin = (why) => {
           if (kind === "transfer" && r.has_pin) pinScreen({ title: "رمزك للتأكيد", sub: `${amount} ⭐ ← ${to.name}`, face: face(meP) }, (pin) => send(why, pin));
@@ -388,7 +400,7 @@ function updatePrayer(card) {
   else { nx = cand[0]; diff = 24 * 60 - nowM + mins(nx.dataset.t); }
   rows.forEach((r) => r.classList.toggle("nx", r === nx));
   const hh = Math.floor(diff / 60), mm = diff % 60;
-  const txt = `${nx.dataset.n} بعد ${hh ? `${hh} س و ` : ""}${mm} د`;
+  const txt = `${nx.dataset.n} ${inText(hh, mm)}`;
   const cd = card.querySelector(".cd");
   if (cd && cd.textContent !== txt) cd.textContent = txt;
 }
@@ -400,10 +412,10 @@ function wordCard(w, topPx, kids = false) {
   const art = (size) => (w.emoji ? `<span class="emo" style="font-size:${Math.round(size * 0.82)}px;line-height:1">${w.emoji}</span>` : A.wordArt(w.icon, size));
   if (kids) {
     return `<div class="kcard" style="top:${topPx}px;left:40px">${art(66)}<div><div class="lbl">كلمة اليوم</div>
-      <div class="big">${esc(w.ar)}</div><div class="tr">${tr}</div></div></div>`;
+      <div class="big" translate="no">${esc(w.ar)}</div><div class="tr" translate="no">${tr}</div></div></div>`;
   }
   return `<div class="card glass word" style="top:${topPx}px">${art(76)}<div style="flex:1"><div class="lbl">كلمة اليوم</div>
-    <div class="ar">${esc(w.ar)}</div><div class="tr">${tr}</div></div></div>`;
+    <div class="ar" translate="no">${esc(w.ar)}</div><div class="tr" translate="no">${tr}</div></div></div>`;
 }
 
 // الطقس ونص اليوم (حديث، آية، حكمة، مثل) في الصفحة الرئيسية
@@ -423,8 +435,8 @@ function textCard(t, kids = false, cls = "") {
   const icon = TEXT_ICON[t.kind] || "✨";
   const long = letters(t.text) > (kids ? 42 : 55) ? " long" : "";
   return `<div class="tcard ${kids ? "kid" : "glass"} ${t.kind}${long} ${cls}"><div class="lbl"><span class="emo">${icon}</span> ${esc(t.label)}</div>
-    <div class="tx">${textBody(t)}</div>
-    ${t.source ? `<div class="src">${esc(t.source)}</div>` : ""}${t.explain && (kids || t.kind === "proverb") ? `<div class="ex">${esc(t.explain)}</div>` : ""}</div>`;
+    <div class="tx" translate="no">${textBody(t)}</div>
+    ${t.source ? `<div class="src" translate="no">${esc(t.source)}</div>` : ""}${t.explain && (kids || t.kind === "proverb") ? `<div class="ex" translate="no">${esc(t.explain)}</div>` : ""}</div>`;
 }
 
 // صورة الشخص الحقيقية إن رُفعت، وإلا الرسم المختار
@@ -495,7 +507,7 @@ async function whoScreen(boot = false) {
 
 async function chooseProfile(p) {
   if (p.has_pin) {
-    pinScreen({ title: `أهلاً ${p.name}`, sub: "أدخل رمزك", avatar: p.avatar, face: face(p) }, async (pin) => {
+    pinScreen({ title: `أهلاً ${nm(p.name)}`, sub: "أدخل رمزك", avatar: p.avatar, face: face(p) }, async (pin) => {
       await api("/api/tv/login", { json: { id: p.id, pin } });
       await homeScreen();
     });
@@ -651,11 +663,11 @@ function kidsHome(d) {
     bday = `<div class="kcard bday">${A.cake(64)}<div><div class="big">عيد ميلاد سعيد!</div><div class="info">صار عمري ${ageText(u.age)} 🎈</div></div></div>`;
   } else if (u.birth_month) {
     bday = `<div class="kcard bday">${A.cake(56)}<div><div class="lbl">عيد ميلادي</div><div class="big">${esc(birthDM(u))}</div>
-      <div class="info">عمري ${ageText(u.age)} · باقي ${daysText(u.birthday_in)}</div></div></div>`;
+      <div class="info">عمري ${ageText(u.age)} · ${AR ? `باقي ${daysText(u.birthday_in)}` : new Intl.RelativeTimeFormat(LOC).format(u.birthday_in, "day")}</div></div></div>`;
   }
   const confetti = u.birthday_today ? `<div class="confetti">${Array.from({ length: 40 }, (_, i) =>
     `<i style="left:${(i * 37) % 100}%;background:${["#f43f5e", "#facc15", "#22c55e", "#3b82f6", "#a855f7"][i % 5]};animation-duration:${4 + (i % 5)}s;animation-delay:-${(i * 0.7) % 6}s"></i>`).join("")}</div>` : "";
-  const greet = u.birthday_today ? `عيد ميلاد سعيد يا ${esc(u.name)}!` : `مرحباً يا ${esc(u.name)}!`;
+  const greet = u.birthday_today ? `عيد ميلاد سعيد يا ${nm(esc(u.name))}!` : `مرحباً يا ${nm(esc(u.name))}!`;
   const exitTxt = "تبديل المستخدم";
   setTheme(u.theme);
   const el = h(`<div class="kids bg-kids">${kidsBg()}${vineLayer(u.theme, [480, 610])}${confetti}
@@ -938,8 +950,8 @@ function viewerScreen(items, idx, slideshow = false) {
     destroy() { clearTimeout(timer); clearTimeout(hideT); v.pause(); },
     key(e) {
       const k = e.key;
-      if (k === "ArrowLeft") { go(1); showOsd(); return true; }
-      if (k === "ArrowRight") { go(-1); showOsd(); return true; }
+      if (k === NEXT_KEY) { go(1); showOsd(); return true; }
+      if (k === PREV_KEY) { go(-1); showOsd(); return true; }
       if (k === "Enter" || k === " " || k === "MediaPlayPause") {
         if (items[idx].video && !playing) { v.paused ? v.play() : v.pause(); return true; }
         playing = !playing; toast(playing ? "عرض الشرائح" : "إيقاف عرض الشرائح", 1500); schedule(); return true;
@@ -963,7 +975,7 @@ async function photosScreen(t) {
     return d.items;
   };
   try { await load(); } catch (e) { toast(e.message); return; }
-  const fmtMonth = new Intl.DateTimeFormat("ar-SY-u-nu-latn", { month: "long", year: "numeric" });
+  const fmtMonth = new Intl.DateTimeFormat(`${LOC}-u-nu-latn`, { month: "long", year: "numeric" });
   let lastMonth = "";
   const cell = (x, i) => {
     let head = "";
@@ -1074,8 +1086,8 @@ function camLiveScreen(cams, idx) {
   push({
     el, busy: () => true,
     key(e) {
-      if (e.key === "ArrowLeft") { show(idx + 1); return true; }
-      if (e.key === "ArrowRight") { show(idx - 1); return true; }
+      if (e.key === NEXT_KEY) { show(idx + 1); return true; }
+      if (e.key === PREV_KEY) { show(idx - 1); return true; }
       if (e.key === "Enter" || e.key === " ") { camRecScreen(cams[idx]); return true; }
       if (e.key === "ArrowUp" || e.key === "ArrowDown") { showOsd(); return true; }
       return false;
@@ -1092,10 +1104,10 @@ async function camRecScreen(c) {
   let dd;
   try { dd = await api(`/api/cameras/${c.id}/days`); } catch (e) { toast(e.message); return; }
   if (!dd.days.length) { toast("لا توجد تسجيلات لهذه الكاميرا بعد"); return; }
-  const fmtDay = (s) => { try { return new Date(s + "T12:00").toLocaleDateString("ar-SY-u-nu-latn", { weekday: "long", day: "numeric", month: "long" }); } catch { return s; } };
+  const fmtDay = (s) => { try { return new Date(s + "T12:00").toLocaleDateString(`${LOC}-u-nu-latn`, { weekday: "long", day: "numeric", month: "long" }); } catch { return s; } };
   const el = h(`<div class="bg-dark cams">
     <div class="bhead"><button class="back f js-back">${A.CHEVRON}<span>رجوع</span></button>
-      <div class="ti" style="background:linear-gradient(135deg,#0f172a,#2563eb)">${A.icon("camera")}</div><h1>تسجيلات ${esc(c.name)}</h1></div>
+      <div class="ti" style="background:linear-gradient(135deg,#0f172a,#2563eb)">${A.icon("camera")}</div><h1>تسجيلات ${nm(esc(c.name))}</h1></div>
     <div class="cam-days">${dd.days.map((x) => `<button class="btn f day" data-d="${x.day}">${esc(fmtDay(x.day))}</button>`).join("")}</div>
     <div class="cam-segs"></div>
     ${hints([["موافق", "تشغيل"], ["رجوع", "البث المباشر"]])}</div>`);
@@ -1217,7 +1229,7 @@ async function onThisDayScreen(t) {
   let items;
   try { items = (await api("/api/tv/onthisday")).items; } catch (e) { toast(e.message); return; }
   if (!items.length) { toast("لا توجد صور من هذا اليوم في السنوات السابقة"); return; }
-  const ago = (n) => n === 1 ? "قبل سنة" : n === 2 ? "قبل سنتين" : n <= 10 ? `قبل ${n} سنوات` : `قبل ${n} سنة`;
+  const ago = (n) => !AR ? agoText(n, "year") : n === 1 ? "قبل سنة" : n === 2 ? "قبل سنتين" : n <= 10 ? `قبل ${n} سنوات` : `قبل ${n} سنة`;
   viewerScreen(items.map((x) => ({ src: `/api/tv/media/${x.id}/view`, name: `في مثل هذا اليوم · ${ago(x.ago)} (${x.year})` })), 0, true);
 }
 
@@ -1227,7 +1239,7 @@ async function storiesScreen(t) {
   try { items = (await api("/api/tv/stories")).items; } catch (e) { toast(e.message); return; }
   const el = h(`<div class="bg-dark kscr">${header(t, t.title, "")}
     <div class="kgrid">${items.map((x, i) => `<button class="kcard f" data-i="${i}"><span class="emo">🎧</span><b>${esc(x.title)}</b>
-      <span class="kst">${x.by ? `بصوت ${esc(x.by)}` : ""}</span></button>`).join("") || `<div class="empty">لا توجد قصص بعد.</div>`}</div>
+      <span class="kst">${x.by ? `بصوت ${nm(esc(x.by))}` : ""}</span></button>`).join("") || `<div class="empty">لا توجد قصص بعد.</div>`}</div>
     ${hints([["موافق", "استمع"], ["رجوع", "الرئيسية"]])}</div>`);
   el.querySelector(".js-back").addEventListener("click", pop);
   el.querySelectorAll(".kcard").forEach((b) => b.addEventListener("click", () => storyPlayer(t, items[+b.dataset.i])));
@@ -1236,7 +1248,7 @@ async function storiesScreen(t) {
 function storyPlayer(t, x) {
   const el = h(`<div class="bg-dark kplay" style="--glow1:#ec489966">
     <div class="cover" style="background:${A.gradient(t.color)}"><span class="emo">🎧</span></div>
-    <h1>${esc(x.title)}</h1><div class="by">${x.by ? `بصوت ${esc(x.by)}` : ""}</div>
+    <h1>${esc(x.title)}</h1><div class="by">${x.by ? `بصوت ${nm(esc(x.by))}` : ""}</div>
     <div class="bar"><i></i></div><div class="tm"></div>
     <audio src="/api/tv/stories/${x.id}/audio" autoplay></audio>
     ${hints([["موافق", "إيقاف/تشغيل"], ["← →", "10 ثوانٍ"], ["رجوع", "القصص"]])}</div>`);
@@ -1277,7 +1289,7 @@ async function ramadanScreen(t) {
   let d;
   try { d = await api(`/api/tv/ramadan${q}`); } catch (e) { toast(e.message); return; }
   let hdate = "";
-  try { hdate = new Intl.DateTimeFormat("ar-SA-u-ca-islamic-umalqura", { day: "numeric", month: "long", year: "numeric" }).format(new Date()); } catch { /* */ }
+  try { hdate = new Intl.DateTimeFormat(`${AR ? "ar-SA" : LOC}-u-ca-islamic-umalqura${AR ? "" : "-nu-latn"}`, { day: "numeric", month: "long", year: "numeric" }).format(new Date()); } catch { /* */ }
   const el = h(`<div class="bg-dark kscr ramadan">${header(t, t.title, "", `<span class="hd">${esc(hdate)}</span>`)}
     <div class="rtop"><div class="rcount"><span class="lbl"></span><b class="clock"></b></div>
       <div class="rchal"><span class="lbl">🌙 تحدّي اليوم</span><b class="ctext"></b><button class="btn f js-ch"></button></div></div>
@@ -1354,8 +1366,8 @@ async function bookScreen(t, path) {
     destroy() { clearTimeout(hideT); },
     key(e) {
       const k = e.key;
-      if (k === "ArrowLeft" || k === "PageDown") { show(n + 1); return true; }
-      if (k === "ArrowRight" || k === "PageUp") { show(n - 1); return true; }
+      if (k === NEXT_KEY || k === "PageDown") { show(n + 1); return true; }
+      if (k === PREV_KEY || k === "PageUp") { show(n - 1); return true; }
       if (k === "Enter" || k === " ") { img.classList.toggle("zoom"); wrap.scrollTop = 0; return true; }
       if (k === "ArrowDown") { wrap.scrollBy({ top: 200, behavior: "smooth" }); return true; }
       if (k === "ArrowUp") { wrap.scrollBy({ top: -200, behavior: "smooth" }); return true; }
@@ -1491,7 +1503,7 @@ function svPrayer(el) {
     if (nx) diff = mins(nx.dataset.t) - nowM; else { nx = cand[0]; diff = 1440 - nowM + mins(nx.dataset.t); }
     cells.forEach((c) => { c.classList.toggle("nx", c === nx); c.classList.toggle("past", mins(c.dataset.t) <= nowM && c !== nx); });
     const hh = Math.floor(diff / 60), mm = diff % 60;
-    el.querySelector(".pr-next").innerHTML = `<span>${diff <= 1 ? `حان الآن وقت صلاة ${nx.dataset.n}` : `صلاة <b>${nx.dataset.n}</b> بعد ${hh ? `${hh} ساعة و ` : ""}${mm} دقيقة`}</span>`;
+    el.querySelector(".pr-next").innerHTML = `<span>${diff <= 1 ? `حان الآن وقت صلاة ${nm(nx.dataset.n)}` : `${AR ? "صلاة " : ""}<b>${nx.dataset.n}</b> ${inText(hh, mm, true)}`}</span>`;
   };
   upd();
   const id = setInterval(upd, 15000);
@@ -1792,6 +1804,11 @@ setInterval(async () => {
   const sig = JSON.stringify(r.settings);
   if (!settingsSig) { settingsSig = sig; return; }
   if (sig === settingsSig) return;
+  if ((r.settings.lang || "ar") !== (window.FORCE_LANG || "ar")) {   // تغيّرت لغة الواجهة: نعيد تحميل الصفحة (إلا أثناء مشاهدة أو لعب)
+    const t = top();
+    if (!(t && t.busy?.())) location.reload();
+    return;
+  }
   settingsSig = sig;
   settings = r.settings;
   applyPrefs();
@@ -1826,7 +1843,7 @@ function playAdhan(t, c) {
   const a = c.adhan;
   const paused = a.pause ? playingMedia() : [];
   paused.forEach((m) => m.pause());
-  const ov = h(`<div class="adhan-ov"><div class="adhan-card"><div class="emo mosque">🕌</div><h2>حان الآن وقت صلاة ${esc(t.name)}</h2>
+  const ov = h(`<div class="adhan-ov"><div class="adhan-card"><div class="emo mosque">🕌</div><h2>حان الآن وقت صلاة ${nm(esc(t.name))}</h2>
     <p>${esc(c.prayer.city || "")} · <span class="ltr">${esc(t.time)}</span></p><small>اضغط أي زر لإيقاف الأذان</small></div></div>`);
   stage.appendChild(ov);
   let au = null, done = false;
@@ -1860,7 +1877,7 @@ function adhanTick() {
     const k = day + t.key;
     if (t.time === hm && !adhanDone[k]) { adhanDone[k] = 1; playAdhan(t, c); }
     if (c.adhan.remind && hmShift(t.time, -c.adhan.remind) === hm && !adhanDone[k + "r"]) {
-      adhanDone[k + "r"] = 1; chime(2); toast(`🕌 بعد ${c.adhan.remind} دقيقة: صلاة ${t.name}`, 10000);
+      adhanDone[k + "r"] = 1; chime(2); toast(`🕌 بعد ${c.adhan.remind} دقيقة: صلاة ${nm(t.name)}`, 10000);
     }
   }
 }
