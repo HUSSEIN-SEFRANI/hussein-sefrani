@@ -790,6 +790,8 @@ def api_tv_home():
         if (u["is_admin"] or u["id"] in viewers()) and db.execute("SELECT 1 FROM cameras WHERE enabled=1 LIMIT 1").fetchone():
             tiles.append({"id": "cams", "user_id": u["id"], "title": "الكاميرات", "kind": "cameras", "path": None,
                           "icon": "camera", "color": "#0f172a,#2563eb", "position": 999, "enabled": 1})
+    from .kids import extra_tiles   # مهامي، رمضان، قصص بصوتنا، في مثل هذا اليوم
+    tiles += extra_tiles(db, u)
     s = tv_settings()
     from . import welcome
     daily = session.get("tv_daily")

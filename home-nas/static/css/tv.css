@@ -557,3 +557,41 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 .cams .cam-segs { position: absolute; top: 190px; bottom: 64px; right: 44px; left: 44px; display: grid; grid-template-columns: repeat(8, minmax(0,1fr));
   gap: 12px; align-content: start; overflow-y: auto; scrollbar-width: none; direction: ltr; }
 .cams .cam-segs .seg { font-size: 20px; }
+
+/* ---- شاشات العائلة: مهامي، قصص بصوتنا، تعلّم ثم العب، رمضان ---- */
+.kscr .kgrid { position: absolute; top: 120px; bottom: 70px; right: 44px; left: 44px; display: grid; grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 22px; align-content: start; overflow-y: auto; padding: 10px; }
+.kscr .kcard { min-height: 170px; border-radius: 22px; background: rgba(255,255,255,.08); border: 2px solid rgba(255,255,255,.12); color: #fff;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px; text-align: center; font-family: inherit; }
+.kscr .kcard b { font-size: 24px; line-height: 1.35; }
+.kscr .kcard .emo { font-size: 54px; line-height: 1; font-family: "Noto Color Emoji", sans-serif; }
+.kscr .kcard .ic svg { width: 64px; height: 64px; }
+.kscr .kcard .kst { font-size: 17px; color: #cbd5e1; }
+.kscr .kcard.done { border-color: #f59e0b; background: rgba(245,158,11,.18); }
+.kscr .kcard.confirmed { border-color: #22c55e; background: rgba(34,197,94,.2); }
+.kscr .kmsg { position: absolute; top: 118px; right: 44px; left: 44px; text-align: center; display: flex; flex-direction: column; gap: 6px; }
+.kscr .kmsg b { font-size: 40px; color: #fde68a; }
+.kscr .kmsg span { font-size: 22px; color: #e2e8f0; }
+.kscr .kmsg + .kgrid { top: 250px; }
+.kplay { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: #fff; text-align: center; }
+.kplay .cover { width: 220px; height: 220px; border-radius: 40px; display: grid; place-items: center; box-shadow: 0 20px 60px rgba(0,0,0,.4); }
+.kplay .cover .emo { font-size: 110px; font-family: "Noto Color Emoji", sans-serif; }
+.kplay h1 { font-size: 46px; margin: 10px 0 0; }
+.kplay .by { font-size: 24px; color: #fbcfe8; }
+.kplay .bar { width: 60%; height: 10px; border-radius: 99px; background: rgba(255,255,255,.15); overflow: hidden; margin-top: 18px; }
+.kplay .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ec4899, #8b5cf6); }
+.kplay .tm { font-size: 18px; color: #cbd5e1; direction: ltr; }
+.ramadan .hd { font-size: 22px; color: #fde68a; }
+.ramadan .rtop { position: absolute; top: 112px; right: 44px; left: 44px; display: grid; grid-template-columns: 1fr 1.3fr; gap: 22px; }
+.ramadan .rcount, .ramadan .rchal { border-radius: 24px; background: rgba(255,255,255,.08); padding: 18px 22px; display: flex; flex-direction: column; gap: 8px; color: #fff; }
+.ramadan .rcount .clock { font-size: 64px; letter-spacing: 2px; direction: ltr; color: #fde68a; font-variant-numeric: tabular-nums; }
+.ramadan .lbl { font-size: 20px; color: #c4b5fd; }
+.ramadan .rchal .ctext { font-size: 28px; line-height: 1.5; }
+.ramadan .rchal .btn { align-self: flex-start; font-size: 20px; }
+.ramadan .kh-l { position: absolute; top: 330px; right: 48px; }
+.ramadan .khatma { position: absolute; top: 368px; bottom: 64px; right: 44px; left: 44px; display: grid; grid-template-columns: repeat(10, minmax(0,1fr)); gap: 10px; align-content: start; }
+.ramadan .juz { border-radius: 14px; background: rgba(255,255,255,.07); border: 2px solid rgba(255,255,255,.12); color: #fff; height: 72px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: inherit; }
+.ramadan .juz b { font-size: 24px; }
+.ramadan .juz span { font-size: 13px; color: #fde68a; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ramadan .juz.done { background: rgba(124,58,237,.45); border-color: #a78bfa; }

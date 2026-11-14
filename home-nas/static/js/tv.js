@@ -689,6 +689,10 @@ async function leave() {
 function openTile(t) {
   if (t.kind === "photos") photosScreen(t);
   else if (t.kind === "cameras") camerasScreen(t);
+  else if (t.kind === "chores") choresScreen(t);
+  else if (t.kind === "ramadan") ramadanScreen(t);
+  else if (t.kind === "stories") storiesScreen(t);
+  else if (t.kind === "onthisday") onThisDayScreen(t);
   else browseScreen(t, "");
 }
 const isKid = () => me && me.user.role !== "adult";
@@ -1127,7 +1131,28 @@ function shareGamepads(fr) {
   } catch { /* لعبة من مصدر آخر */ }
 }
 
-function gameScreen(t, path) {
+// «تعلّم ثم العب» ووقت اللعب: يسأل السيرفر قبل فتح اللعبة، ونبضة كل 30 ثانية أثناء اللعب
+const gameName = (t, path) => (path || "").split("/").filter(Boolean).pop() || t.title;
+function blockedScreen(t, c) {
+  const learn = c.learn_games || [];
+  const title = c.reason === "limit" ? "انتهى وقت اللعب اليوم 🌙" : `تعلّم أولاً ${c.learn_need} ${c.learn_need === 1 ? "دقيقة" : "دقائق"} 📚`;
+  const sub = c.reason === "limit" ? "يمكنك أن تتعلّم شيئاً جديداً، أو تستمع إلى قصة." : "بعدها تُفتح الألعاب الأخرى وحدها.";
+  const el = h(`<div class="bg-dark kscr">${header(t, t.title, "")}
+    <div class="kmsg"><b>${esc(title)}</b><span>${esc(sub)}</span></div>
+    ${learn.length ? `<div class="kgrid">${learn.map((g, i) => `<button class="kcard f" data-i="${i}"><span class="ic">${A.icon("letters")}</span><b>${esc(g)}</b></button>`).join("")}</div>` : ""}
+    ${hints([["موافق", "تعلّم"], ["رجوع", "رجوع"]])}</div>`);
+  el.querySelector(".js-back").addEventListener("click", pop);
+  el.querySelectorAll(".kcard").forEach((b) => b.addEventListener("click", () => { pop(); gameScreen(t, learn[+b.dataset.i]); }));
+  push({ el, initial: () => el.querySelector(".kcard") || el.querySelector(".js-back") });
+}
+
+async function gameScreen(t, path) {
+  const gname = gameName(t, path);
+  if (isKid()) {
+    let c = null;
+    try { c = await api(`/api/tv/play/check?game=${encodeURIComponent(gname)}`); } catch { /* السيرفر القديم: نفتح */ }
+    if (c && !c.allowed) { blockedScreen(t, c); return; }
+  }
   const el = h(`<div class="game"><iframe src="/tv/game/${t.id}/${path ? `${encPath(path)}/` : ""}" allow="autoplay; fullscreen; gamepad" title="${esc(path)}"></iframe>
     <div class="exit">للخروج من اللعبة اضغط «رجوع» (Esc)</div></div>`);
   const fr = el.querySelector("iframe");
@@ -1141,13 +1166,159 @@ function gameScreen(t, path) {
     } catch { /* لعبة من مصدر آخر */ }
   });
   setTimeout(() => { const x = el.querySelector(".exit"); if (x) x.style.opacity = 0; }, 5000);
+  const beat = setInterval(async () => {
+    try {
+      const r = await api("/api/tv/play/beat", { json: { game: gname } });
+      if (r.stop && top() && top().el === el) { pop(); blockedScreen(t, r); }
+    } catch { /* */ }
+  }, 30000);
   push({
     el,
     busy: () => true,
     isGame: true,
+    destroy() { clearInterval(beat); },
     key(e) { if (e.key === "Escape" || BACK_KEYS.has(e.key)) { pop(); return true; } return false; },
   });
   setTimeout(() => { try { fr.contentWindow.focus(); } catch { /* */ } }, 300);
+}
+
+// ============================================================== مهامي اليوم
+const CHORE_ST = { done: ["⏳", "ينتظر تأكيد ماما أو بابا"], confirmed: ["✅", "أُضيفت النجوم"] };
+async function choresScreen(t) {
+  let items;
+  try { items = (await api("/api/tv/chores")).items; } catch (e) { toast(e.message); return; }
+  const el = h(`<div class="bg-dark kscr">${header(t, t.title, "")}<div class="kgrid chores"></div>
+    ${hints([["موافق", "فعلتها"], ["رجوع", "الرئيسية"]])}</div>`);
+  const grid = el.querySelector(".kgrid");
+  const draw = (keep) => {
+    grid.innerHTML = items.length ? items.map((c, i) => {
+      const st = CHORE_ST[c.status];
+      return `<button class="kcard f ${c.status || ""}" data-i="${i}"><span class="emo">${esc(c.icon)}</span><b>${esc(c.title)}</b>
+        <span class="kst">${st ? `${st[0]} ${st[1]}` : `اضغط عندما تنتهي · ⭐ ${c.stars}`}</span></button>`;
+    }).join("") : `<div class="empty">لا توجد مهام اليوم.</div>`;
+    grid.querySelectorAll(".kcard").forEach((b) => b.addEventListener("click", async () => {
+      const c = items[+b.dataset.i];
+      if (c.status === "confirmed") { toast("أحسنت! أُضيفت النجوم ⭐"); return; }
+      try { items = (await api(`/api/tv/chores/${c.id}/done`, { method: "POST" })).items; } catch (e) { toast(e.message); return; }
+      if (!c.status) toast("أحسنت! 👏 ماما أو بابا سيؤكدان ويضيفان النجوم");
+      draw(+b.dataset.i);
+    }));
+    if (keep !== undefined) setFocus(grid.querySelectorAll(".kcard")[keep] || grid);
+  };
+  el.querySelector(".js-back").addEventListener("click", pop);
+  draw();
+  push({ el, initial: () => el.querySelector(".kcard") || el.querySelector(".js-back") });
+}
+
+// ============================================================== في مثل هذا اليوم
+async function onThisDayScreen(t) {
+  let items;
+  try { items = (await api("/api/tv/onthisday")).items; } catch (e) { toast(e.message); return; }
+  if (!items.length) { toast("لا توجد صور من هذا اليوم في السنوات السابقة"); return; }
+  const ago = (n) => n === 1 ? "قبل سنة" : n === 2 ? "قبل سنتين" : n <= 10 ? `قبل ${n} سنوات` : `قبل ${n} سنة`;
+  viewerScreen(items.map((x) => ({ src: `/api/tv/media/${x.id}/view`, name: `في مثل هذا اليوم · ${ago(x.ago)} (${x.year})` })), 0, true);
+}
+
+// ============================================================== قصص بصوت العائلة
+async function storiesScreen(t) {
+  let items;
+  try { items = (await api("/api/tv/stories")).items; } catch (e) { toast(e.message); return; }
+  const el = h(`<div class="bg-dark kscr">${header(t, t.title, "")}
+    <div class="kgrid">${items.map((x, i) => `<button class="kcard f" data-i="${i}"><span class="emo">🎧</span><b>${esc(x.title)}</b>
+      <span class="kst">${x.by ? `بصوت ${esc(x.by)}` : ""}</span></button>`).join("") || `<div class="empty">لا توجد قصص بعد.</div>`}</div>
+    ${hints([["موافق", "استمع"], ["رجوع", "الرئيسية"]])}</div>`);
+  el.querySelector(".js-back").addEventListener("click", pop);
+  el.querySelectorAll(".kcard").forEach((b) => b.addEventListener("click", () => storyPlayer(t, items[+b.dataset.i])));
+  push({ el, initial: () => el.querySelector(".kcard") || el.querySelector(".js-back") });
+}
+function storyPlayer(t, x) {
+  const el = h(`<div class="bg-dark kplay" style="--glow1:#ec489966">
+    <div class="cover" style="background:${A.gradient(t.color)}"><span class="emo">🎧</span></div>
+    <h1>${esc(x.title)}</h1><div class="by">${x.by ? `بصوت ${esc(x.by)}` : ""}</div>
+    <div class="bar"><i></i></div><div class="tm"></div>
+    <audio src="/api/tv/stories/${x.id}/audio" autoplay></audio>
+    ${hints([["موافق", "إيقاف/تشغيل"], ["← →", "10 ثوانٍ"], ["رجوع", "القصص"]])}</div>`);
+  const au = el.querySelector("audio"), bar = el.querySelector(".bar i"), tm = el.querySelector(".tm");
+  const fmt = (n) => `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2, "0")}`;
+  au.addEventListener("timeupdate", () => {
+    if (au.duration) bar.style.width = `${(100 * au.currentTime) / au.duration}%`;
+    tm.textContent = `${fmt(au.currentTime)} / ${au.duration ? fmt(au.duration) : "…"}`;
+  });
+  au.addEventListener("error", () => toast("تعذر تشغيل التسجيل"));
+  push({
+    el, busy: () => !au.paused,
+    destroy() { au.pause(); au.removeAttribute("src"); },
+    key(e) {
+      activity();
+      if (e.key === "Enter" || e.key === " ") { au.paused ? au.play() : au.pause(); return true; }
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        const d = (e.key === "ArrowLeft") === (document.dir === "rtl") ? 10 : -10;
+        au.currentTime = Math.max(0, Math.min(au.duration || 0, au.currentTime + d)); return true;
+      }
+      if (e.key === "Escape" || BACK_KEYS.has(e.key)) { pop(); return true; }
+      return false;
+    },
+  });
+}
+
+// ============================================================== رمضان
+function hijriParts() {
+  try {
+    const f = new Intl.DateTimeFormat("en-u-ca-islamic-umalqura-nu-latn", { day: "numeric", month: "numeric", year: "numeric" });
+    const o = Object.fromEntries(f.formatToParts(new Date()).filter((p) => p.type !== "literal").map((p) => [p.type, parseInt(p.value, 10)]));
+    return { y: o.year, m: o.month, d: o.day };
+  } catch { return null; }
+}
+async function ramadanScreen(t) {
+  const hj = hijriParts();
+  const q = hj ? `?hy=${hj.y}&hd=${hj.d}` : "";
+  let d;
+  try { d = await api(`/api/tv/ramadan${q}`); } catch (e) { toast(e.message); return; }
+  let hdate = "";
+  try { hdate = new Intl.DateTimeFormat("ar-SA-u-ca-islamic-umalqura", { day: "numeric", month: "long", year: "numeric" }).format(new Date()); } catch { /* */ }
+  const el = h(`<div class="bg-dark kscr ramadan">${header(t, t.title, "", `<span class="hd">${esc(hdate)}</span>`)}
+    <div class="rtop"><div class="rcount"><span class="lbl"></span><b class="clock"></b></div>
+      <div class="rchal"><span class="lbl">🌙 تحدّي اليوم</span><b class="ctext"></b><button class="btn f js-ch"></button></div></div>
+    <div class="lbl kh-l">📖 ختمة العائلة: <b class="kh-n"></b> من 30 جزءاً</div>
+    <div class="khatma"></div>
+    ${hints([["موافق", "قرأتُ هذا الجزء"], ["رجوع", "الرئيسية"]])}</div>`);
+  const times = Object.fromEntries(((me && me.prayer && me.prayer.times) || []).map((x) => [x.key, x.time]));
+  const at = (hm, addDay = 0) => { const [H, M] = (hm || "00:00").split(":").map(Number); const x = new Date(); x.setHours(H, M, 0, 0); x.setDate(x.getDate() + addDay); return x; };
+  const tick = () => {
+    const now = new Date();
+    let label = "", target = null;
+    if (times.maghrib && now < at(times.maghrib)) { label = "🍽️ الإفطار بعد"; target = at(times.maghrib); }
+    else if (times.fajr) { label = "🌅 السحور ينتهي (الفجر) بعد"; target = now < at(times.fajr) ? at(times.fajr) : at(times.fajr, 1); }
+    el.querySelector(".rcount .lbl").textContent = label || "رمضان كريم 🌙";
+    if (!target) el.querySelector(".clock").innerHTML = `<small style="font-size:20px;color:#e2e8f0;letter-spacing:0">لعرض وقت الإفطار والسحور اضبط أوقات الصلاة من لوحة التحكم ← وضع التلفاز</small>`;
+    if (target) {
+      const s = Math.max(0, Math.round((target - now) / 1000));
+      el.querySelector(".clock").textContent = `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+    }
+  };
+  const draw = (keep) => {
+    el.querySelector(".ctext").textContent = d.challenge.text;
+    const cb = el.querySelector(".js-ch");
+    cb.textContent = d.challenge.done ? "✅ فعلتها اليوم" : "فعلتها ⭐ +2";
+    cb.classList.toggle("gold", !d.challenge.done);
+    el.querySelector(".kh-n").textContent = d.khatma.filter((k) => k.user_id).length;
+    const kh = el.querySelector(".khatma");
+    kh.innerHTML = d.khatma.map((k) => `<button class="juz f ${k.user_id ? "done" : ""}" data-j="${k.juz}"><b>${k.juz}</b><span>${k.user_id ? esc(k.name) : ""}</span></button>`).join("");
+    kh.querySelectorAll(".juz").forEach((b) => b.addEventListener("click", async () => {
+      try { d = await api("/api/tv/ramadan/khatma", { json: { hy: d.hy, juz: +b.dataset.j } }); } catch (e) { toast(e.message); return; }
+      draw(+b.dataset.j);
+    }));
+    if (keep) setFocus(kh.querySelector(`[data-j="${keep}"]`));
+  };
+  el.querySelector(".js-back").addEventListener("click", pop);
+  el.querySelector(".js-ch").addEventListener("click", async () => {
+    if (d.challenge.done) return;
+    try { const r = await api("/api/tv/ramadan/challenge", { method: "POST" }); if (r.added) toast(`أحسنت! ⭐ +${r.added}`); } catch (e) { toast(e.message); return; }
+    d.challenge.done = true; draw();
+  });
+  draw(); tick();
+  const timer = setInterval(tick, 1000);
+  push({ el, busy: () => true, initial: () => el.querySelector(".js-ch"), destroy() { clearInterval(timer); } });
 }
 
 // ============================================================== الكتب (PDF): صفحات تُقلب بالأسهم

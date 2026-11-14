@@ -176,6 +176,7 @@ def desktop():
     return render_template("desktop.html", server_name=server_name(),
                            me={"id": user["id"], "username": user["username"], "is_admin": bool(user["is_admin"]),
                                "cameras": user["id"] in viewers(), **look(user),
+                               "parent": bool(user["is_admin"] or (user["tv_role"] or "") == "adult"),
                                **({"activation": activation_summary()} if user["is_admin"] else {})})
 
 

@@ -8,6 +8,7 @@ import './apps/system.js';
 import './apps/stars.js';
 import './apps/cameras.js';
 import './apps/media.js';
+import './apps/family.js';
 import { appUrl } from './apps/appstore.js';
 import { vine } from './tv-fruit.js';
 

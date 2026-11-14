@@ -563,3 +563,33 @@ pre.applog.big { max-height: 60vh; font-size: 12px; }
 .media-acts .btn { justify-content: flex-start; }
 .media-gone { text-align: center; padding: 40px 10px; font-size: 40px; }
 .media-gone p { font-size: 16px; color: var(--muted); }
+
+/* ---- «العائلة»: تقرير الأسبوع، المهام، القصص ---- */
+.fam { display: flex; flex-direction: column; height: 100%; }
+.fam-tabs { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.fam-body { padding: 14px; flex: 1; }
+.fam-kid { margin-bottom: 14px; }
+.fam-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+.fam-kpis div { background: var(--surface-2); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 2px; }
+.fam-kpis b { font-size: 20px; }
+.fam-kpis span { font-size: 12px; color: var(--muted); }
+.fam-chart { display: flex; gap: 10px; align-items: flex-end; height: 130px; padding: 4px 2px; }
+.fam-bar { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; }
+.fam-bar .st { flex: 1; width: 100%; max-width: 34px; display: flex; flex-direction: column-reverse; border-radius: 8px; overflow: hidden; background: var(--surface-2); }
+.fam-bar span { font-size: 11px; color: var(--muted); }
+.fam-bar i, .fam-leg i { display: block; }
+.fam .le { background: #22c55e; }
+.fam .pl { background: #a855f7; }
+.fam-leg { display: flex; gap: 16px; font-size: 12px; color: var(--muted); margin: 6px 0 10px; }
+.fam-leg span { display: inline-flex; gap: 6px; align-items: center; }
+.fam-leg i { width: 12px; height: 12px; border-radius: 3px; }
+.fam-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.fam-list { list-style: none; margin: 6px 0 10px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.fam-list li { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 6px 8px; border-radius: 10px; background: var(--surface-2); }
+.fam-list li .grow { flex: 1; }
+.fam-icons { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 8px; }
+.fam-icons .btn { font-family: "Noto Color Emoji", sans-serif; font-size: 18px; }
+.fam-rule { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.fam-rule select { width: auto; display: inline-block; }
+.fam-games { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 14px; }
+@media (max-width: 760px) { .fam-kpis { grid-template-columns: repeat(2, 1fr); } .fam-cols { grid-template-columns: 1fr; } }
