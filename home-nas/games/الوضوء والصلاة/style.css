@@ -1,0 +1,153 @@
+@font-face { font-family: "AmiriQ"; src: url(fonts/amiri-quran.woff2) format("woff2"); }
+#sky { --sky: linear-gradient(180deg, #0e7490 0%, #22d3ee 60%, #a5f3fc 100%); }
+.sun { background: #fef9c3; box-shadow: 0 0 6vh #fef08a; }
+h1 { -webkit-text-stroke-color: #0e7490; }
+h2 { color: #fff; text-shadow: 0 .3vh 0 #0e7490; font-size: 5.4vh; }
+.sub { color: #fff; text-shadow: 0 .2vh 0 #0e7490; }
+.qr { font-family: "AmiriQ", "Amiri", "Noto Naskh Arabic", serif; font-weight: 400; }
+.title h1 { font-size: 8vh; }
+
+/* القائمة */
+.modes.sm { margin-top: 2.4vh; gap: 2vw; }
+.modes.sm .mode { width: 19vw; height: 30vh; }
+.mode .big { display: flex; align-items: center; justify-content: center; height: 13vh; }
+.mode .big .emo { font-size: 10vh; }
+.mode .ico { display: block; height: 14vh; width: 14vh; background: rgba(255,255,255,.9); border-radius: 50%; padding: .6vh; }
+.mode .ico svg { width: 100%; height: 100%; }
+.mode .st { font-size: 2.4vh; }
+.kidbtn { font-size: 3vh; }
+
+/* اختيار الطفل */
+.kids { display: flex; gap: 6vw; margin-top: 3vh; }
+.kidc { border: 0; background: #fff; border-radius: 5vh; width: 26vh; height: 46vh; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 1.5vh 3vh rgba(14,116,144,.3); }
+.kidc svg { height: 36vh; }
+.kidc b { font-size: 4.4vh; color: #0e7490; }
+
+/* الرسوم */
+.hl { animation: glow 1.1s ease-in-out infinite alternate; }
+@keyframes glow { from { opacity: .45 } to { opacity: 1 } }
+.drop { animation: fall2 1.4s ease-in infinite; transform-box: fill-box; }
+@keyframes fall2 { 0% { transform: translateY(-6px); opacity: 0 } 25% { opacity: 1 } 100% { transform: translateY(26px); opacity: 0 } }
+.beat { animation: beat 1s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes beat { 50% { transform: scale(1.18) } }
+.pop { animation: pop 0.5s ease; transform-box: fill-box; transform-origin: center; }
+.swipe { animation: dash 1s linear infinite; }
+@keyframes dash { to { stroke-dashoffset: -24 } }
+.turn { animation: glow .9s ease-in-out infinite alternate; }
+
+/* درس */
+.lesson { flex: 1; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; gap: 3vw; margin-top: 1vh; }
+.fig { width: 34vw; height: 62vh; background: rgba(255,255,255,.92); border-radius: 5vh; display: flex; align-items: center; justify-content: center; box-shadow: 0 1.5vh 3vh rgba(14,116,144,.3); padding: 2vh; }
+.fig svg { height: 100%; max-width: 100%; }
+.fig.side { padding: 4vh 3vw; }
+.fig.side svg { width: 100%; height: auto; max-height: 100%; }
+.fig.sm { width: 26vw; height: 44vh; }
+.card { flex: 1; max-width: 54vw; max-height: 64vh; background: #fff; border-radius: 5vh; padding: 3vh 3vw; box-shadow: 0 1.5vh 3vh rgba(14,116,144,.3); display: flex; flex-direction: column; align-items: center; text-align: center; gap: 1.4vh; overflow: hidden; }
+.card h3 { margin: 0; font-size: 5.4vh; color: #0e7490; line-height: 1.2; }
+.card p { margin: 0; font-size: 3.4vh; line-height: 1.55; color: #1e3a8a; font-weight: 700; }
+.card .when { color: #64748b; font-size: 3vh; }
+.stepn { background: #cffafe; color: #0e7490; border-radius: 3vh; padding: .2vh 2.4vh; font-size: 2.6vh; font-weight: 800; }
+.dh { color: #065f46; background: #ecfdf5; border: .4vh solid #6ee7b7; border-radius: 3vh; padding: .6vh 2vw; line-height: 1.9; width: 100%; }
+.dh .an { font-family: "Baloo", sans-serif; font-size: .5em; color: #b45309; border: .12em solid #d97706; border-radius: 50%; padding: 0 .35em; vertical-align: middle; }
+.times { display: flex; align-items: center; gap: 1.4vh; font-size: 3.6vh; color: #0369a1; }
+.times .dr { width: 4vh; height: 5.2vh; animation: bob 1.5s ease-in-out infinite; }
+.times svg { width: 100%; height: 100%; }
+.tip { font-size: 2.6vh; color: #92400e; background: #fef3c7; border-radius: 2vh; padding: .5vh 2vh; font-weight: 700; }
+.say { font-size: 2.8vh; background: #e0f2fe; }
+
+/* أذكار */
+.chips { display: flex; flex-wrap: wrap; gap: 1vh; justify-content: center; margin-top: 1vh; max-width: 92vw; }
+.chip { border: 0; border-radius: 3vh; background: rgba(255,255,255,.8); color: #0f766e; font-size: 2.5vh; font-weight: 800; padding: .5vh 1.8vh; }
+.chip.on { background: #fbbf24; color: #fff; }
+.lesson.dl .card { max-height: 56vh; }
+
+/* لعبة الترتيب */
+.slots { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: .8vw; width: 92vw; margin-top: 1vh; }
+.slot { height: 15vh; background: rgba(255,255,255,.2); border-radius: 2.4vh; border: .4vh dashed rgba(255,255,255,.9); display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; font-size: 4vh; }
+.slot.now { border-color: #fbbf24; background: rgba(251,191,36,.25); }
+.slot.full { background: #fff; border: .4vh solid #22c55e; color: #0f766e; animation: pop .35s ease; }
+.slot .ic { height: 10vh; display: block; }
+.slot .ic svg { height: 100%; width: auto; max-width: 8vw; }
+.slot small { font-size: 1.9vh; font-weight: 800; line-height: 1.1; }
+.q2 { margin: 1.2vh 0 .4vh; font-size: 3.6vh; }
+.pool { display: grid; grid-template-columns: repeat(var(--cols), auto); gap: 1.6vh 1.4vw; justify-content: center; }
+.otile { width: 15vw; max-width: 22vh; height: 22vh; border: 0; border-radius: 3vh; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .4vh; box-shadow: 0 .8vh 1.6vh rgba(14,116,144,.3); }
+.otile .ic { height: 15vh; display: block; }
+.otile .ic svg { height: 100%; width: auto; max-width: 13vw; }
+.otile b { font-size: 2.7vh; color: #0e7490; }
+.otile.bad { background: #fecaca; animation: shake .45s; }
+.cheer { -webkit-text-stroke-color: #0e7490; min-height: 6vh; font-size: 4.6vh; margin-top: 1vh; }
+
+/* ما ينقض الوضوء */
+.two { display: flex; gap: 3vw; margin-top: 2vh; }
+.two .col { width: 40vw; background: #fff; border-radius: 4vh; padding: 2vh 2vw; box-shadow: 0 1.5vh 3vh rgba(14,116,144,.3); display: flex; flex-direction: column; align-items: center; }
+.two h3 { margin: 0 0 1vh; font-size: 4.4vh; }
+.two .yes h3 { color: #be123c; } .two .no h3 { color: #15803d; }
+.two ul { list-style: none; margin: 0; padding: 0; width: 100%; }
+.two li { font-size: 3.4vh; font-weight: 700; padding: .6vh 1vw; border-radius: 2vh; margin: .5vh 0; }
+.two .yes li { background: #ffe4e6; color: #9f1239; } .two .no li { background: #dcfce7; color: #166534; }
+.two .tip { margin-top: auto; }
+
+/* الصلوات الخمس */
+.prayers { display: flex; gap: 1.6vw; margin-top: 3vh; }
+.pcard { width: 16vw; height: 46vh; border: 0; border-radius: 4vh; background: #fff; overflow: hidden; display: flex; flex-direction: column; align-items: center; padding: 0 0 1.4vh; gap: .4vh; box-shadow: 0 1.5vh 3vh rgba(14,116,144,.3); }
+.pcard .skyp { width: 100%; height: 19vh; display: block; }
+.pcard b { font-size: 4.6vh; color: #0e7490; line-height: 1.2; }
+.pcard .rn { font-size: 6.4vh; font-weight: 800; color: #fff; background: #f59e0b; border-radius: 50%; width: 9vh; height: 9vh; display: flex; align-items: center; justify-content: center; line-height: 1; }
+.pcard small { font-size: 2.3vh; color: #475569; font-weight: 700; padding: 0 1vw; line-height: 1.3; }
+.pinfo { margin-top: 2.6vh; background: #fff; border-radius: 4vh; padding: 1.6vh 3vw; display: flex; flex-direction: column; align-items: center; gap: 1vh; box-shadow: 0 1.5vh 3vh rgba(14,116,144,.3); min-width: 60vw; }
+.pinfo b { font-size: 3.8vh; color: #0e7490; }
+.pinfo small { font-size: 2.4vh; color: #475569; font-weight: 700; }
+.map { display: flex; gap: 1vh; align-items: center; }
+.map i { font-style: normal; }
+.map .rk { width: 6vh; height: 6vh; border-radius: 50%; background: #22c55e; color: #fff; font-size: 3.6vh; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.map .ts { font-size: 4vh; font-family: "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif; }
+
+/* الأسئلة */
+.prompt { min-height: 24vh; }
+.prompt .col { display: flex; flex-direction: column; align-items: center; gap: 1vh; }
+.prompt .q { max-width: 70vw; font-size: 4.6vh; }
+.prompt .pic { font-size: 12vh; }
+.prompt .skyp { width: 22vh; height: 14vh; border-radius: 2vh; }
+.prompt .qpic { display: block; height: 22vh; }
+.prompt .qpic svg { height: 100%; width: auto; }
+.opts { margin-top: 3vh; }
+.opts.txt .opt { font-size: 4.6vh; height: 12vh; min-width: 18vw; padding: 0 2vw; }
+.opts.txt.num .opt { font-size: 8vh; min-width: 16vh; height: 15vh; }
+.opts.wide { flex-direction: row; flex-wrap: wrap; width: 86vw; gap: 2vh 2vw; }
+.opts.wide .opt { width: 40vw; min-height: 11vh; font-size: 3.8vh; }
+.opts.wide.qr .opt { font-family: "AmiriQ", serif; font-weight: 400; font-size: 4.4vh; line-height: 1.9; color: #065f46; }
+.earned { margin: 1vh 0; font-size: 4vh; font-weight: 800; color: #fff; background: #f59e0b; border-radius: 3vh; padding: .6vh 3vh; animation: pop .5s ease; }
+.won b { color: #0e7490; }
+
+/* الهاتف (شاشة طولية) */
+@media (max-aspect-ratio: 1/1) {
+  #app { padding: 2vh 3vw; overflow-y: auto; }
+  .screen { height: auto; min-height: 100%; }
+  .title h1 { font-size: 3.6vh; white-space: nowrap; }
+  h1 { font-size: 5.5vh; }
+  h2 { font-size: 2.8vh; white-space: nowrap; }
+  .top { gap: 2vw; min-height: 5vh; }
+  .top .btn, .top .pill { font-size: 2vh; padding: .6vh 1.6vh; }
+  .stars { font-size: 9vh; }
+  .modes.sm { gap: 2.5vw; margin-top: 1.4vh; }
+  .modes.sm .mode { width: 44vw; height: 21vh; }
+  .mode .big { height: 9vh; } .mode .big .emo { font-size: 7vh; } .mode .ico { width: 9vh; height: 9vh; }
+  .mode b { font-size: 2.8vh; } .mode small { font-size: 1.9vh; }
+  .lesson { flex-direction: column; gap: 2vh; }
+  .fig { width: 92vw; height: 32vh; } .fig.sm { width: 92vw; height: 24vh; }
+  .card { max-width: 94vw; width: 94vw; max-height: none; }
+  .card h3 { font-size: 3.6vh; } .card p { font-size: 2.4vh; }
+  .slots { grid-template-columns: repeat(5, 1fr); gap: 1vh; }
+  .slot { height: 10vh; } .slot .ic { height: 6vh; } .slot .ic svg { max-width: 16vw; }
+  .pool { grid-template-columns: repeat(3, auto); }
+  .otile { width: 29vw; height: 16vh; } .otile .ic { height: 10vh; } .otile .ic svg { max-width: 26vw; } .otile b { font-size: 2vh; }
+  .two { flex-direction: column; } .two .col { width: 92vw; } .two li { font-size: 2.4vh; }
+  .prayers { flex-wrap: wrap; justify-content: center; gap: 2vw; }
+  .pcard { width: 29vw; height: 30vh; } .pcard .skyp { height: 11vh; } .pcard b { font-size: 3vh; } .pcard .rn { width: 6vh; height: 6vh; font-size: 4vh; } .pcard small { font-size: 1.6vh; }
+  .pinfo { min-width: 0; width: 94vw; } .map .rk { width: 4.4vh; height: 4.4vh; font-size: 2.6vh; }
+  .opts.wide .opt { width: 90vw; font-size: 2.8vh; } .opts.wide.qr .opt { font-size: 3vh; }
+  .opts.txt .opt { font-size: 3vh; height: 9vh; min-width: 40vw; }
+  .kidc { width: 40vw; height: 34vh; } .kidc svg { height: 26vh; }
+  .help { display: none; }
+}
