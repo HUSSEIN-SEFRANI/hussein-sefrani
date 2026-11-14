@@ -80,6 +80,14 @@ QR = [
 if code:
     lines += ["   First-time setup code: ask the developer on WhatsApp", ""] + QR + [
         "     WhatsApp: +32 494 49 94 30", ""]
+try:   # رقم الجهاز للتفعيل (يحسبه hsef-extras من العتاد)
+    import subprocess
+    dev = json.loads(subprocess.run(["/usr/local/sbin/hsef-extras", "device-id"], capture_output=True, text=True,
+                                    timeout=20).stdout or "{}").get("device", "")
+except Exception:
+    dev = ""
+if len(dev) == 8:
+    lines += [f"   Device number (for activation):  HA-{dev[:4]}-{dev[4:]}", ""]
 lines += ["   If the web page stops working after an update, log in here and type:",
           "       sudo hsef-extras update-rollback", ""]
 lines += ["   HOME ANAB by Hussein Sefrani  -  +32 494 49 94 30  -  Hussein@sefrani.com",

@@ -433,6 +433,15 @@ function face(p) {
 }
 
 // ============================================================== من يشاهد؟
+let qrReady = null;
+function loadQR() {
+  if (window.HSEF_QR) return Promise.resolve();
+  qrReady = qrReady || ["/static/vendor/qrcode.js", "/static/js/qr.js"].reduce((p, src) => p.then(() => new Promise((res, rej) => {
+    const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s);
+  })), Promise.resolve());
+  return qrReady;
+}
+
 async function whoScreen(boot = false) {
   let d;
   try { d = await api("/api/tv/profiles"); } catch (e) { toast(e.message); return; }
@@ -457,10 +466,17 @@ async function whoScreen(boot = false) {
     ${d.setup ? "" : "<h1>من يشاهد الآن؟</h1>"}
     ${d.setup ? `<div class="empty-who"><b style="font-size:30px;color:#fff">أهلاً بك في HOME ANAB!</b><br>لإنشاء حساب المدير افتح من هاتفك أو كمبيوترك:<br>
       ${d.setup.urls.map((u) => `<bdi dir="ltr"><b style="font-size:30px;color:#fde68a">${esc(u)}</b></bdi>`).join("<br>")}
-      <div style="display:flex;gap:18px;align-items:center;justify-content:center;margin-top:18px"><img src="/static/img/whatsapp-qr.png" alt="" style="width:120px;height:120px;border-radius:12px;background:#fff;padding:4px">
-      <span style="text-align:right">رمز الإعداد: اطلبه من المطوّر عبر واتساب<br><bdi dir="ltr"><b>+32 494 49 94 30</b></bdi></span></div></div>`
+      <div style="display:flex;gap:18px;align-items:center;justify-content:center;margin-top:18px"><span class="tv-qr" style="width:132px;height:132px;border-radius:12px;background:#fff;padding:4px;flex:none"><img src="/static/img/whatsapp-qr.png" alt="" style="width:100%;height:100%"></span>
+      <span style="text-align:right">${d.setup.device ? `رقم هذا الجهاز: <bdi dir="ltr"><b style="font-size:30px;color:#fde68a;letter-spacing:1px">${esc(d.setup.device)}</b></bdi><br>
+        تجربة مجانية ${d.setup.trial_days} يوماً. للتفعيل امسح الرمز وأرسل رقم الجهاز للبائع عبر واتساب<br>` : "للتواصل مع المطوّر عبر واتساب<br>"}<bdi dir="ltr"><b>+32 494 49 94 30</b></bdi></span></div></div>`
     : d.profiles.length ? `<div class="pf-wrap"><div class="profiles">${cards}</div><div class="pf-arrow r">›</div><div class="pf-arrow l">‹</div></div>` : `<div class="empty-who">لا توجد ملفات على التلفاز بعد.<br>من الكمبيوتر افتح لوحة التحكم ← <b>وضع التلفاز</b> واختر نوع كل مستخدم (بالغ أو طفل).</div>`}
+    ${d.activation ? `<div class="act-note">${d.activation.state === "expired"
+      ? (d.activation.was === "trial" ? "انتهت التجربة المجانية" : "انتهى تفعيل HOME ANAB") + ": كل شيء يعمل، لكن التحديثات متوقفة. جدّد من لوحة التحكم ← التفعيل"
+      : `باقي ${d.activation.days_left} ${d.activation.days_left === 1 ? "يوم" : "أيام"} على انتهاء التفعيل. جدّد من لوحة التحكم ← التفعيل`}</div>` : ""}
     ${hints([["← →", "للتنقل"], ["موافق", "للدخول"]])}</div>`);
+  if (d.setup && d.setup.whatsapp) {   // رمز QR فيه رقم الجهاز (يُرسم محلياً بدون إنترنت)
+    loadQR().then(() => { const q = el.querySelector(".tv-qr"); if (q) { q.innerHTML = window.HSEF_QR(d.setup.whatsapp); const s = q.querySelector("svg"); if (s) { s.style.width = "100%"; s.style.height = "100%"; } } }).catch(() => {});
+  }
   const byId = Object.fromEntries(d.profiles.map((p) => [String(p.id), p]));
   el.querySelectorAll(".pf").forEach((b) => b.addEventListener("click", () => chooseProfile(byId[b.dataset.id])));
   // شريط واحد يمرَّر يميناً ويساراً، مع سهمين عند وجود أشخاص خارج الشاشة

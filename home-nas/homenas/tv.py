@@ -740,11 +740,18 @@ def api_tv_profiles():
         from flask import current_app
         from .system import server_urls
         setup = {"urls": server_urls(current_app.config["NAS_CFG"].get("port", 80))}
+    from .activation import status as act_status
+    act = act_status(db)
+    if setup is not None:   # شاشة الإعداد الأول: رقم الجهاز ورمز واتساب للتفعيل
+        setup.update(device=act["display"], whatsapp=act["whatsapp"], seller=act["seller"], trial_days=act["trial_days"])
     from .stars import balance
     profiles = [profile_dict(u) | {"stars": balance(db, u["id"])} for u in rows]
     weather_now(tv_settings())  # يبدأ جلب الطقس في الخلفية
     db.commit()
-    return jsonify(profiles=profiles, settings=tv_settings(), current=session.get("tv_uid"), setup=setup)
+    notice = None   # تنبيه صغير على شاشة «من يشاهد؟»: قبل الانتهاء بـ7 أيام، وبعده
+    if setup is None and (act["state"] == "expired" or (act["warn"] and (act["days_left"] or 99) <= 7)):
+        notice = {"state": act["state"], "days_left": act["days_left"], "was": act.get("was")}
+    return jsonify(profiles=profiles, settings=tv_settings(), current=session.get("tv_uid"), setup=setup, activation=notice)
 
 
 @bp.post("/api/tv/login")

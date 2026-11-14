@@ -168,6 +168,8 @@ def api_engine():
 @bp.post("/api/appstore/<app_id>/install")
 @admin_required
 def api_install(app_id):
+    from .activation import require_active
+    require_active()   # بعد انتهاء التفعيل: لا تطبيقات جديدة (المثبتة تبقى تعمل)
     if not available():
         abort(400, "هذه الميزة متاحة على جهاز HOME ANAB المخصص فقط")
     cat = load_catalog()

@@ -135,3 +135,29 @@ async function checkHealth() {
 }
 checkHealth(); setInterval(checkHealth, 120000);
 addEventListener('nas-health', checkHealth);
+
+// التفعيل (للمدير): زر في شريط المهام أثناء التجربة، وقبل الانتهاء بـ30 يوماً، وبعد الانتهاء
+function drawActivation(a) {
+  let btn = $('#tb-act');
+  if (!a || !a.warn) { btn && btn.remove(); return; }
+  if (!btn) {
+    btn = h(`<button class="tb-btn" id="tb-act">${icon('key')}<span></span></button>`);
+    btn.onclick = () => openApp('control', { section: 'activation' });
+    $('#tb-clock').before(btn);
+  }
+  const text = a.state === 'expired' ? 'انتهى التفعيل'
+    : a.state === 'trial' ? `تجربة مجانية: باقي ${a.days_left} يوماً` : `التفعيل: باقي ${a.days_left} يوماً`;
+  $('span', btn).textContent = text;
+  btn.title = a.state === 'expired' ? 'توقفت التحديثات وتثبيت التطبيقات الجديدة. اضغط للتجديد.' : 'اضغط لإدخال كود التفعيل';
+  btn.classList.toggle('warn', a.state !== 'expired');
+  try {
+    if ((a.state === 'expired' || a.days_left <= 7) && !sessionStorage.getItem('hsef-act-toast')) {
+      sessionStorage.setItem('hsef-act-toast', '1');
+      toast(a.state === 'expired' ? 'انتهى تفعيل HOME ANAB: ملفاتك تعمل كالعادة، لكن التحديثات متوقفة حتى التجديد' : `${text}. جدّد من لوحة التحكم ← التفعيل`, a.state === 'expired' ? 'err' : 'ok');
+    }
+  } catch (e) { /* التخزين غير متاح */ }
+}
+if (ME.is_admin) {
+  drawActivation(ME.activation);
+  addEventListener('nas-activation', (e) => { ME.activation = e.detail; drawActivation(e.detail); });
+}

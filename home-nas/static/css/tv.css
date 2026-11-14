@@ -102,6 +102,7 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 @keyframes bob { 0%,100% { translate: 0 0 } 50% { translate: 0 -6px } }
 .pf.focus .ring { animation: bob 3s ease-in-out infinite; }
 .empty-who { position: absolute; top: 260px; width: 100%; text-align: center; font-size: 22px; color: #cbd5e1; line-height: 1.9; }
+.act-note { position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%); max-width: 80%; background: rgba(245, 158, 11, .92); color: #1f1300; font-weight: 700; font-size: 18px; padding: 8px 20px; border-radius: 99px; text-align: center; z-index: 3; }
 
 /* ------------------------------------------------------------- الرمز */
 .pin-wrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 120px; }

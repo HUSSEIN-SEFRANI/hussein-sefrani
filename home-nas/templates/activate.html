@@ -1,0 +1,28 @@
+{% extends "auth_base.html" %}
+{% block content %}
+<h1>تفعيل HOME ANAB</h1>
+{% if st.device %}
+<p class="sub" style="margin-bottom:6px">رقم هذا الجهاز</p>
+<div class="act-dev" translate="no">{{ st.display }}</div>
+{% endif %}
+{% if msg %}<div class="{{ 'okbox' if ok else 'err' }}">{{ msg }}</div>{% endif %}
+<p class="act-state">
+  {% if st.state == 'free' %}<span class="badge ok">مفعّل بدون تاريخ انتهاء</span>
+  {% elif st.state == 'active' %}<span class="badge ok">مفعّل حتى <bdi>{{ st.expiry_text }}</bdi></span>
+  {% elif st.state == 'trial' %}<span class="badge warn">تجربة مجانية: باقي {{ st.days_left }} يوماً</span>
+  {% elif st.state == 'expired' %}<span class="badge err">انتهى التفعيل في <bdi>{{ st.ended_text }}</bdi></span>
+  {% endif %}
+</p>
+{% if not (ok and msg) %}
+<form method="post" action="/activate">
+  <label class="lbl">كود التفعيل</label>
+  <textarea class="field act-code" name="c" placeholder="HA1-…" autocapitalize="characters" spellcheck="false" required>{{ code }}</textarea>
+  <button class="btn primary" type="submit">تفعيل الكود</button>
+</form>
+{% if st.device %}
+<p class="muted" style="font-size:13px;margin:14px 0 0">ليس عندك كود؟ أرسل رقم الجهاز للبائع:
+  <a href="{{ st.whatsapp }}" target="_blank" rel="noopener" style="white-space:nowrap">واتساب <bdi dir="ltr">{{ st.seller }}</bdi></a></p>
+{% endif %}
+{% endif %}
+<p style="text-align:center;margin:16px 0 0"><a href="/">العودة إلى HOME ANAB</a></p>
+{% endblock %}

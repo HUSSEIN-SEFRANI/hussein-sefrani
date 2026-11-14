@@ -16,6 +16,7 @@
     hsef-extras update-status            progress of update-run as JSON
     hsef-extras update-rollback          go back to the previous version (kept in /opt/homenas/app.prev)
     hsef-extras update-verify            after an update: go back automatically if the app does not start
+    hsef-extras device-id                this device's number for activation (from board UUID + network card) as JSON
 """
 import json
 import os
@@ -1479,6 +1480,106 @@ TimeoutStartSec=400
     subprocess.run(["udevadm", "control", "--reload"], capture_output=True)
 
 
+# ----------------------------------------------------------------------------- رقم الجهاز (للتفعيل)
+DEVICE_CACHE = Path("/var/lib/homenas/device.json")
+DEV_ALPH = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+BOGUS_UUIDS = {"00000000-0000-0000-0000-000000000000", "ffffffff-ffff-ffff-ffff-ffffffffffff",
+               "03000200-0400-0500-0006-000700080009", "00020003-0004-0005-0006-000700080009",
+               "12345678-1234-5678-90ab-cddeefaabbcc", "4c4c4544-0000-0000-0000-000000000000"}
+
+
+def _dev_b32(data: bytes) -> str:
+    n, bits = int.from_bytes(data, "big"), len(data) * 8
+    return "".join(DEV_ALPH[(n >> (bits - 5 * (i + 1))) & 31] for i in range(bits // 5))
+
+
+def _dev_check(core7: str) -> str:
+    import hashlib
+    return DEV_ALPH[hashlib.sha256(("HA" + core7).encode()).digest()[0] >> 3]
+
+
+def _board_uuid() -> str:
+    try:
+        u = Path("/sys/class/dmi/id/product_uuid").read_text().strip().lower()
+    except OSError:
+        return ""
+    if not _re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", u):
+        return ""
+    if u in BOGUS_UUIDS or len(set(u.replace("-", ""))) <= 2:
+        return ""
+    return u
+
+
+def _nic_macs() -> set:
+    """العناوين الأصلية لبطاقات الشبكة الداخلية (لا USB، ولا العناوين العشوائية)."""
+    out = set()
+    try:
+        links = json.loads(subprocess.run(["ip", "-j", "link"], capture_output=True, text=True, timeout=10).stdout or "[]")
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        links = []
+    if not links:   # بدون أمر ip: من /sys، والعنوان الأصلي فقط (addr_assign_type = 0)
+        for d in sorted(Path("/sys/class/net").glob("*")):
+            try:
+                if (d / "addr_assign_type").read_text().strip() == "0":
+                    links.append({"ifname": d.name, "address": (d / "address").read_text().strip()})
+            except OSError:
+                pass
+    for ln in links:
+        name = ln.get("ifname", "")
+        dev = Path("/sys/class/net", name, "device")
+        if not name or not dev.exists() or "/usb" in os.path.realpath(dev):
+            continue
+        mac = (ln.get("permaddr") or ln.get("address") or "").lower()
+        if not _re.fullmatch(r"([0-9a-f]{2}:){5}[0-9a-f]{2}", mac) or mac == "00:00:00:00:00:00" or int(mac[:2], 16) & 2:
+            continue
+        out.add(mac)
+    return out
+
+
+def device_id():
+    """رقم الجهاز: من رقم اللوحة الأم وبطاقة الشبكة. يُحفظ أول مرة حتى لا يتغير إذا أُضيفت بطاقة شبكة،
+    ويُحسب من جديد إذا نُسخ القرص إلى جهاز آخر (رقم لوحة مختلف أو بطاقات شبكة مختلفة كلها)."""
+    import hashlib
+    if FAKE:
+        core = (os.environ.get("HSEF_FAKE_DEVICE") or "TEST123")[:7]
+        print(json.dumps({"device": core + _dev_check(core)}))
+        return
+    uuid, macs = _board_uuid(), _nic_macs()
+    try:
+        cache = json.loads(DEVICE_CACHE.read_text())
+    except (OSError, ValueError):
+        cache = {}
+    old_macs = set(cache.get("macs") or [])
+    if cache.get("device") and cache.get("uuid", "") == uuid and (not macs or not old_macs or old_macs & macs):
+        dev = cache["device"]
+        if macs and not old_macs:
+            cache["macs"] = sorted(macs)
+            _write_device_cache(cache)
+    else:
+        mid = ""
+        if not uuid and not macs:
+            try:
+                mid = Path("/etc/machine-id").read_text().strip()
+            except OSError:
+                pass
+        material = f"HOMEANAB-DEV1|{uuid or '-'}|{min(macs) if macs else '-'}|{mid or '-'}"
+        core = _dev_b32(hashlib.sha256(material.encode()).digest())[:7]
+        dev = core + _dev_check(core)
+        _write_device_cache({"device": dev, "uuid": uuid, "macs": sorted(macs)})
+    print(json.dumps({"device": dev}))
+
+
+def _write_device_cache(data: dict):
+    try:
+        DEVICE_CACHE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = DEVICE_CACHE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(data))
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, DEVICE_CACHE)
+    except OSError:
+        pass
+
+
 def main():
     if sys.argv[1:2] == ["tv-session"]:  # يعمل بصلاحية مستخدم الشاشة
         tv_session(sys.argv[2] if len(sys.argv) > 2 else "")
@@ -1550,6 +1651,8 @@ def main():
         bt_remove(a[1])
     elif a == ["pad-diag"]:
         pad_diag()
+    elif a == ["device-id"]:
+        device_id()
     elif a == ["media-list"]:
         media_list()
     elif len(a) == 2 and a[0] == "media-mount":

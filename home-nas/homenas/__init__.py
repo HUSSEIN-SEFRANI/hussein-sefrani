@@ -40,6 +40,8 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
     _stars.migrate(_db)
     from . import cameras as _cams
     _cams.migrate(_db)
+    from . import activation as _act
+    _act.ensure_trial(_db)   # التجربة المجانية تبدأ عند أول تشغيل
     _db.close()
     app.extensions["nas_paths"] = data_paths
     app.extensions["nas_indexer"] = idx = Indexer(data_paths)
@@ -64,10 +66,10 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
         from .tv import start_tv_prep
         start_tv_prep(data_paths)   # تجهيز الفيديو للتلفاز في الخلفية
 
-    from . import (appstore, backup, cameras, faces, files, health, iphone, links, media_cards, network, photos, profile, remote, stars,
-                   sysadmin, system, tv, welcome)
+    from . import (activation, appstore, backup, cameras, faces, files, health, iphone, links, media_cards, network, photos, profile, remote,
+                   stars, sysadmin, system, tv, welcome)
     for mod in (system, files, photos, links, backup, health, network, appstore, faces, remote, tv, profile, sysadmin, iphone, stars, welcome,
-                cameras, media_cards):
+                cameras, media_cards, activation):
         app.register_blueprint(mod.bp)
 
     @app.teardown_appcontext

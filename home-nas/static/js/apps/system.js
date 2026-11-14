@@ -174,8 +174,62 @@ const SECTIONS = [
   { id: 'photos', label: 'إعدادات الصور', icon: 'image', admin: true },
   { id: 'tv', label: 'وضع التلفاز', icon: 'video', admin: true },
   { id: 'general', label: 'عام', icon: 'sliders', admin: true },
+  { id: 'activation', label: 'التفعيل', icon: 'key', admin: true },
   { id: 'logs', label: 'سجل النشاط', icon: 'clock', admin: true },
 ];
+
+// رموز QR محلية (بدون إنترنت): تُحمَّل عند الحاجة فقط
+let qrReady = null;
+function loadQR() {
+  if (window.HSEF_QR) return Promise.resolve();
+  qrReady = qrReady || ['/static/vendor/qrcode.js', '/static/js/qr.js'].reduce((p, src) => p.then(() => new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s);
+  })), Promise.resolve());
+  return qrReady;
+}
+
+function activationSection(sc) {
+  const p = section(sc, 'التفعيل', 'لكل جهاز رقم خاص، وكود التفعيل يُصنع لهذا الرقم فقط ويعمل بدون إنترنت.');
+  const c = h('<div class="card" style="max-width:620px"><div class="muted">جارٍ القراءة…</div></div>');
+  p.appendChild(c);
+  p.appendChild(h(`<div class="card" style="max-width:620px;margin-top:14px"><h4>${icon('info')} بعد انتهاء المدة</h4>
+    <p class="small" style="margin:0 0 6px">تبقى <b>الملفات والصور والتلفاز والنسخ الاحتياطي</b> تعمل كالعادة.</p>
+    <p class="small muted" style="margin:0">تتوقف فقط <b>تحديثات النظام وتثبيت تطبيقات جديدة</b> من مركز التطبيقات، حتى تُدخل كود التجديد.</p></div>`));
+  const draw = (s) => {
+    const badge = s.state === 'free' ? '<span class="badge ok">مفعّل بدون تاريخ انتهاء</span>'
+      : s.state === 'active' ? `<span class="badge ${s.warn ? 'warn' : 'ok'}">مفعّل حتى <bdi>${esc(s.expiry_text)}</bdi> · باقي ${s.days_left} يوماً</span>`
+      : s.state === 'trial' ? `<span class="badge warn">تجربة مجانية: باقي ${s.days_left} يوماً (حتى <bdi>${esc(s.expiry_text)}</bdi>)</span>`
+      : s.state === 'expired' ? `<span class="badge err">${s.was === 'trial' ? 'انتهت التجربة المجانية' : 'انتهى التفعيل'} في <bdi>${esc(s.ended_text)}</bdi></span>`
+      : '<span class="badge">لم تُقرأ حالة التفعيل بعد</span>';
+    c.innerHTML = `<h4>${icon('key')} حالة هذا الجهاز</h4>
+      <p style="margin:0 0 12px">${badge}</p>
+      ${s.problem ? `<p class="alert warn small">${esc(s.problem)}</p>` : ''}
+      ${s.device ? `<div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+        <span class="act-qr" title="امسح الرمز بكاميرا الهاتف لإرسال رقم الجهاز عبر واتساب"></span>
+        <div style="min-width:0"><div class="muted small">رقم هذا الجهاز</div>
+          <div class="act-dev-big" translate="no">${esc(s.display)}</div>
+          <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap">
+            <button class="btn sm" data-a="copy">${icon('copy')} نسخ الرقم</button>
+            <a class="btn sm" href="${esc(s.whatsapp)}" target="_blank" rel="noopener">إرسال الرقم للبائع عبر واتساب</a></div></div></div>` : ''}
+      <label class="lbl">كود التفعيل</label>
+      <textarea class="field act-code" placeholder="HA1-…" autocapitalize="characters" spellcheck="false"></textarea>
+      <p class="muted small" style="margin:6px 0 10px">الصقه كما وصلك في واتساب، أو اضغط الرابط الذي في الرسالة.</p>
+      <button class="btn primary" data-a="go">${icon('check')} تفعيل الكود</button>`;
+    if (s.device) loadQR().then(() => { const q = $('.act-qr', c); if (q) q.innerHTML = window.HSEF_QR(s.whatsapp); }).catch(() => { const q = $('.act-qr', c); if (q) q.remove(); });
+    const cp = $('[data-a=copy]', c);
+    if (cp) cp.onclick = async () => toast(await copyText(s.display) ? 'تم نسخ رقم الجهاز' : s.display, 'ok');
+    $('[data-a=go]', c).onclick = async () => {
+      const code = $('textarea', c).value.trim();
+      if (!code) { toast('الصق كود التفعيل أولاً', 'err'); return; }
+      const r = await guard(() => api.post('/api/activation', { code }));
+      if (!r) return;
+      toast(r.message, 'ok');
+      dispatchEvent(new CustomEvent('nas-activation', { detail: r.status }));
+      draw(r.status);
+    };
+  };
+  api.get('/api/activation').then(draw).catch(() => { c.innerHTML = '<p class="muted">تعذر الاتصال بالسيرفر</p>'; });
+}
 
 registerApp({
   id: 'control', title: 'لوحة التحكم', icon: 'sliders', color: 'linear-gradient(135deg,#536976,#292e49)', width: 980, height: 640,
@@ -210,6 +264,7 @@ function section(sc, title, desc, actions = '') {
 const CP = {
   tv(sc) { return tvSection(sc, section); },
   device(sc) { return deviceSection(sc, section); },
+  activation(sc) { return activationSection(sc); },
 
   async account(sc) {
     const me = await guard(() => api.get('/api/me')); if (!me) return;
@@ -760,6 +815,11 @@ function updateCard() {
       <p class="muted small" style="margin:4px 0 8px">ضع ملف <span class="code">hsef-app-…tar.gz</span> من صفحة الإصدارات على فلاشة، صِلها بهذا الكمبيوتر واختر الملف.</p>
       <input type="file" accept=".gz,application/gzip" class="hidden"><button class="btn">${icon('upload')} اختيار ملف التحديث</button></div></div>`);
   const box = $('.ub', c);
+  if (ME.activation && ME.activation.limited) {
+    const al = h(`<p class="alert warn small">انتهى التفعيل، فتحديثات النظام متوقفة. <a href="#">جدّد من صفحة «التفعيل»</a></p>`);
+    $('a', al).onclick = (e) => { e.preventDefault(); openApp('control', { section: 'activation' }); };
+    box.before(al);
+  }
   const fileIn = $('.uf input', c);
   $('.uf button', c).onclick = () => fileIn.click();
   fileIn.onchange = async () => {

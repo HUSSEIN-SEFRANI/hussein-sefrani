@@ -68,6 +68,9 @@ def main() -> None:
     if first_run:
         print("\n  ★ الإعداد الأول: افتح الرابط وأنشئ حساب المدير.\n"
               "    من جهاز آخر سيُطلب رمز الإعداد: اطلبه من المطوّر عبر واتساب +32 494 49 94 30\n")
+    from homenas.activation import device, show_device
+    if device():
+        print(f"  رقم الجهاز (للتفعيل): {show_device(device())}\n")
     print("  من الهاتف أو أي جهاز على نفس شبكة Wi-Fi افتح:")
     for url in server_urls(port):
         print(f"       {url}")

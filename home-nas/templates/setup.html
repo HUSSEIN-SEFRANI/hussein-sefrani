@@ -12,6 +12,19 @@
   <input class="field" name="code" dir="ltr" inputmode="numeric" maxlength="16" autocomplete="one-time-code" required style="letter-spacing:6px;text-align:center;font-size:22px">
   {% endif %}
   {% if error %}<div class="err">{{ error }}</div>{% endif %}
+  {% if st and st.device %}
+  <div class="act-box">
+    <div class="lbl" style="text-align:center">رقم هذا الجهاز</div>
+    <div class="act-dev" translate="no">{{ st.display }}</div>
+    <label class="lbl">كود التفعيل <span class="muted">(اختياري)</span></label>
+    <textarea class="field act-code" name="act_code" placeholder="HA1-…" autocapitalize="characters" spellcheck="false">{{ act_code }}</textarea>
+    <p class="muted" style="font-size:13px;margin:6px 0 0"><b>تجربة مجانية: {{ st.trial_days }} يوماً</b> إذا لم تُدخل كوداً. للتفعيل أرسل رقم الجهاز للبائع عبر واتساب:</p>
+    <div class="act-wa"><span class="qr" data-qr="{{ st.whatsapp }}"></span>
+      <a class="btn" href="{{ st.whatsapp }}" target="_blank" rel="noopener">إرسال رقم الجهاز عبر واتساب</a></div>
+  </div>
+  <script src="{{ url_for('static', filename='vendor/qrcode.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/qr.js') }}"></script>
+  {% endif %}
   <label class="lbl">اسم السيرفر</label>
   <input class="field" name="server_name" value="{{ request.form.server_name or 'HOME ANAB' }}" maxlength="40">
   <label class="lbl">اسم المستخدم للمدير (أحرف إنجليزية)</label>

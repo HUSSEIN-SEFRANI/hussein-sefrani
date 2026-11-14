@@ -19,6 +19,7 @@ from .core import (FFMPEG, admin_required, heic_supported, body, current_user, g
                    human_size, log_action, login_required, now_iso, paths, set_setting, setup_code_file, setup_code_ok)
 from .network import on_change, on_password, on_user_deleted
 from .photos import indexer
+from .activation import summary as activation_summary
 
 try:
     import psutil
@@ -95,9 +96,13 @@ def login():
 def setup():
     if user_count() > 0:
         return redirect(url_for("auth.login"))
+    from . import activation
     code_file = setup_code_file(paths())
     need_code = not is_local_request()
     error = None
+    # كود التفعيل اختياري: بدونه تبدأ التجربة المجانية. يأتي من رابط البائع (‎/activate?c=…) أو يُلصق هنا.
+    act_code = (request.values.get("act_code") or request.values.get("c") or "").strip()
+    act = {"st": activation.status(), "act_code": activation.clean_code(act_code) if act_code else ""}
     if request.method == "POST":
         ip = request.remote_addr or "?"
         attempts = [t for t in _failed.get(ip, []) if time.time() - t < 600]
@@ -105,11 +110,15 @@ def setup():
         given = re.sub(r"\D", "", (request.form.get("code") or "").translate(_DIGITS))
         if need_code and len(attempts) >= 10:
             return render_template("setup.html", need_code=True, error="محاولات خاطئة كثيرة. انتظر 10 دقائق.",
-                                   server_name="HOME ANAB"), 429
+                                   server_name="HOME ANAB", **act), 429
         if need_code and not setup_code_ok(given):
             _failed[ip] = attempts + [time.time()]
             return render_template("setup.html", need_code=True, error="رمز الإعداد غير صحيح",
-                                   server_name="HOME ANAB"), 403
+                                   server_name="HOME ANAB", **act), 403
+        if act_code:
+            ok, msg = activation.activate(act_code)
+            if not ok:
+                return render_template("setup.html", need_code=need_code, error=msg, server_name="HOME ANAB", **act), 400
         username = (request.form.get("username") or "").strip()
         pw = request.form.get("password", "")
         if not USERNAME_RE.match(username) or username.lower() in RESERVED_NAMES:
@@ -138,7 +147,7 @@ def setup():
             if tz and APPLIANCE:
                 set_timezone(tz)
             return redirect("/")
-    return render_template("setup.html", need_code=need_code, error=error, server_name="HOME ANAB")
+    return render_template("setup.html", need_code=need_code, error=error, server_name="HOME ANAB", **act)
 
 
 @bp.get("/logout")
@@ -177,7 +186,8 @@ def desktop():
     user = current_user()
     return render_template("desktop.html", server_name=server_name(),
                            me={"id": user["id"], "username": user["username"], "is_admin": bool(user["is_admin"]),
-                               "cameras": user["id"] in viewers(), **look(user)})
+                               "cameras": user["id"] in viewers(), **look(user),
+                               **({"activation": activation_summary()} if user["is_admin"] else {})})
 
 
 # ==========================================================================
@@ -655,6 +665,8 @@ def api_update_check():
 @bp.post("/api/admin/update")
 @admin_required
 def api_update_run():
+    from .activation import require_active
+    require_active()
     ok, out = _extras("update-run")
     if not ok:
         abort(400, out or "error")
@@ -700,6 +712,8 @@ def api_update_upload():
 @bp.post("/api/admin/update/apply-file")
 @admin_required
 def api_update_apply_file():
+    from .activation import require_active
+    require_active()
     dest = paths().tmp / "hsef-update.tar.gz"
     if not dest.exists():
         abort(400, "ارفع ملف التحديث أولاً")
