@@ -1,0 +1,6 @@
+Sonidos (opcional) — أصوات اختيارية:
+ضع ملف صوت لكل كلمة باسمها الإسباني بدون el/la (mp3 أو m4a أو ogg)، مثل:
+  perro.mp3  gato.mp3  manzana.mp3  pingüino.mp3  araña.mp3  rojo.mp3  uno.mp3  dieciséis.mp3
+للجمل: اكتب الجملة كما هي بدون ¿ ¡ ? ! والنقاط، مثل:
+  Hola.mp3  Buenos días.mp3  Cómo estás.mp3  Me llamo.mp3
+بدون الملفات: يُستعمل صوت إسباني من النظام إن وُجد، وإلا تظهر الكلمة مكتوبة.
