@@ -55,3 +55,5 @@ body.menu #sky, body.racing #sky { display: none; }
 .res div b { display: block; font-size: 4.4vh; color: #be185d; direction: ltr; }
 .res .new { background: #fde047; }
 .earn { margin-top: 1.5vh; font-size: 4vh; font-weight: 800; color: #fff; -webkit-text-stroke: .3vh #15803d; paint-order: stroke fill; min-height: 5vh; }
+.hint { position: fixed; pointer-events: none; font-weight: 800; bottom: 11vh; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,.9); color: #1e3a8a; text-shadow: none; border-radius: 3vh; padding: .6vh 3vh; font-size: 3.2vh; white-space: nowrap; }
+.hint b { color: #be185d; }

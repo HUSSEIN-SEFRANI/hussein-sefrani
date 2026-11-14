@@ -14,7 +14,7 @@
   ];
   const VEH = {
     moto: { name: "دراجة نارية", emo: "🏍️", tip: "الأسرع! 💨", max: 12000, accel: 3000, steer: 2.0, centri: 0.21, kmh: 160, jumpT: 0.55, jumpH: 0.07 },
-    bike: { name: "دراجة هوائية", emo: "🚲", tip: "أسهل في المنعطفات وتقفز 🤸", max: 8600, accel: 3300, steer: 2.6, centri: 0.11, kmh: 45, jumpT: 0.95, jumpH: 0.17 },
+    bike: { name: "دراجة هوائية", emo: "🚲", tip: "تقفز وتركل المنافسين 👟", max: 8600, accel: 3300, steer: 2.6, centri: 0.11, kmh: 45, jumpT: 0.95, jumpH: 0.17 },
   };
   const TRACKS = [
     { id: "city", name: "المدينة", emo: "🏙️", diff: "سهل", lvl: 1, curve: 2.6, hill: 900, len: 1100, gap: 34, rival: [0.70, 0.80], grip: 1, earn: 1,
@@ -270,7 +270,9 @@
         const p = c.pct, csc = lerp(s.p1.sc, s.p2.sc, p);
         const cx = lerp(s.p1.sx, s.p2.sx, p) + csc * c.x * RW * W / 2, cy = lerp(s.p1.sy, s.p2.sy, p);
         drawSprite(SPR.shadow, 300, csc, cx, cy + csc * 40 * W / 2, s.clip, 0);
-        drawSprite(c.img[c.fr], 240, csc, cx, cy, s.clip, 0);
+        const wx = c.wob > 0 ? Math.sin(st.t * 25) * csc * 50 * W / 2 : 0;
+        drawSprite(c.img[c.fr], 240, csc, cx + wx, cy, s.clip, 0);
+        if (c.wob > 0) for (let k = 0; k < 3; k++) { const a = st.t * 7 + k * 2.1; drawSprite(SPR.star.img, 80, csc, cx + Math.cos(a) * csc * 110 * W / 2, cy, s.clip, 0, 5.2 + Math.sin(a) * 0.4); }
       }
     }
     // اللاعب
@@ -282,6 +284,15 @@
     ctx.translate(W / 2, by - lift);
     ctx.rotate(st.lean + (st.wob > 0 ? Math.sin(st.t * 30) * 0.12 : 0) + (st.flip ? st.flip : 0));
     ctx.drawImage(pimg, -pw / 2, -ph, pw, ph);
+    if (st.kick > 0) {
+      const ext = Math.sin((1 - st.kick / 0.35) * Math.PI), th = pw * 0.14, lg = pw * (0.2 + 0.55 * ext);
+      ctx.save(); ctx.translate(st.kickDir * pw * 0.12, -ph * 0.4); ctx.scale(st.kickDir, 1); ctx.rotate(-0.4 * ext);
+      ctx.fillStyle = "#1f2937"; rr(ctx, -th * 0.3, -th * 0.65, th * 1.4, th * 1.3, th * 0.5);
+      ctx.fillStyle = "#f2b48a"; rr(ctx, th * 0.6, -th / 2, lg, th, th / 2);
+      ctx.fillStyle = "#fff"; rr(ctx, th * 0.4 + lg, -th * 0.75, th * 1.2, th * 1.5, th * 0.5);
+      ctx.fillStyle = "#ef4444"; rr(ctx, th * 0.4 + lg, th * 0.35, th * 1.2, th * 0.4, th * 0.2);
+      ctx.restore();
+    }
     ctx.restore();
     if (st.splash > 0) {
       ctx.fillStyle = T.id === "snow" ? "#ecfeff" : "#7dd3fc";
@@ -309,6 +320,8 @@
     splash() { K.tone(420, 0.12, "triangle", 0.1); K.tone(260, 0.2, "triangle", 0.08, 0.06); },
     jump() { [523, 659, 880].forEach((f, i) => K.tone(f, 0.1, "triangle", 0.1, i * 0.06)); },
     beep(hi) { K.tone(hi ? 880 : 440, hi ? 0.5 : 0.2, "square", 0.07); },
+    kick() { K.tone(320, 0.08, "square", 0.08); K.tone(620, 0.16, "triangle", 0.1, 0.05); K.tone(900, 0.12, "sine", 0.07, 0.12); },
+    whoosh() { K.tone(500, 0.08, "triangle", 0.05); K.tone(380, 0.1, "triangle", 0.04, 0.05); },
     bell() { K.tone(1568, 0.25, "sine", 0.1); K.tone(1568, 0.3, "sine", 0.1, 0.18); },
     lap() { [784, 988, 1175].forEach((f, i) => K.tone(f, 0.14, "triangle", 0.1, i * 0.09)); },
   };
@@ -353,7 +366,7 @@
           <span class="big emo">${t.emo}</span><b>${t.name}</b><span class="lv">${"●".repeat(t.lvl)} ${t.diff}</span>
           <small>${b ? `<span class="emo">${w ? "🥇" : "🏆"}</span> ${fmt(b)}` : "&nbsp;"}</small></button>`;
       }).join("")}</div>
-      <div class="help"><b>✕</b> أو <b>↑</b> للتسارع · <b>□</b> أو <b>↓</b> للفرملة · <b>← →</b> للتوجيه · <b>○</b> للإيقاف</div>`, "tcity");
+      <div class="help"><b>✕</b> أو <b>↑</b> للتسارع · <b>□</b> أو <b>↓</b> للفرملة · <b>← →</b> للتوجيه · <b>○</b> للإيقاف${S.veh === "bike" ? " · <b>△</b> أو <b>←←</b> للركلة" : ""}</div>`, "tcity");
   }
 
   // ------------------------------------------------------------ السباق
@@ -370,8 +383,8 @@
     const rivals = others.map((c, i) => ({ c, x: grid[i][0], lane: grid[i][0], d: grid[i][1], v: 0,
       skill: t.rival[0] + (t.rival[1] - t.rival[0]) * (i / (RIVALS - 1)) * (0.8 + rr2() * 0.4), img: [rider(vk, c, 0), rider(vk, c, 1)], fr: 0, done: null, tl: 2 + rr2() * 3 }));
     const st = R = { P: 0, d: 0, x: 0.5 * 0, v: 0, t: 0, time: 0, state: "count", cnt: 3.6, lapN: 0, bg1: 0, bg2: 0, img: [rider(vk, col, 0), rider(vk, col, 1)], fr: 0, frT: 0,
-      lean: 0, air: 0, airT: V.jumpT, jumpH: V.jumpH, wob: 0, splash: 0, bump: 0, flip: 0, stars: 0, jumps: 0, place: RIVALS + 1, lastSeg: 0, endT: 0 };
-    st.x = 0;
+      lean: 0, air: 0, airT: V.jumpT, jumpH: V.jumpH, wob: 0, splash: 0, bump: 0, flip: 0, stars: 0, jumps: 0, place: RIVALS + 1, lastSeg: 0, endT: 0, kick: 0, kickDir: 1, kickCd: 0, kicks: 0 };
+    st.x = 0; st.rivals = rivals;
     const keys = {};
     let paused = false, raf = 0, last = 0, hudN = 0;
 
@@ -382,6 +395,7 @@
         <div class="p spd"><span id="hSp">0</span> <small>كم/س</small></div>
         <div class="bar" id="hBar">${rivals.map((r) => `<i style="background:${r.c.c}"></i>`).join("")}<i class="me" style="background:${col.c}"></i><span class="fl emo">🏁</span></div>
       </div>
+      ${vk === "bike" ? `<div class="hint" id="hint"><span class="emo">👟</span> للركلة: اضغط <b>←←</b> أو <b>→→</b> بسرعة، أو <b>△</b></div>` : ""}
       <div class="msg" id="msg"></div>
       <div class="pause" id="pause"><h1>استراحة <span class="emo">⏸️</span></h1>
         <div class="nav"><button class="btn f go" ${K.act("resume", () => setPause(false))}>▶ متابعة</button>
@@ -390,6 +404,7 @@
     const $ = (id) => document.getElementById(id);
     const hud = { lap: $("hLap"), tm: $("hTm"), pos: $("hPos"), st: $("hSt"), sp: $("hSp"), dots: [...$("hBar").querySelectorAll("i")], msg: $("msg") };
     const cache = {};
+    let hintEl = $("hint");
     const setT = (k, v) => { if (cache[k] !== v) { cache[k] = v; hud[k].textContent = v; } };
     let msgT = 0;
     const say = (txt, small) => { hud.msg.textContent = txt; hud.msg.className = "msg" + (small ? " sm" : ""); void hud.msg.offsetWidth; hud.msg.classList.add("show"); msgT = small ? 1.1 : 0.9; };
@@ -403,12 +418,36 @@
     const app = () => K.app;
 
     const ACC = { ArrowUp: "acc", Enter: "acc", " ": "acc", ArrowDown: "brk", ArrowLeft: "left", ArrowRight: "right" };
-    const pad = { prev: [] };
+    const pad = { prev: [] }, tap = { k: "", t: 0 };
+    let kickReq = 0;
+    // ركلة الدراجة الهوائية: تُبطئ المنافس القريب وتجعله يتمايل (بلا سقوط)
+    function doKick(dir) {
+      if (st.kickCd > 0 || st.state !== "race" || st.air > 0) return;
+      let best = null, bd = 1e9;
+      for (const r of rivals) {
+        const rel = mod(r.d - st.d + L / 2, L) - L / 2, dx = r.x - st.x;
+        if (rel < -200 || rel > 900 || Math.abs(dx) > 0.8) continue;
+        if (Math.abs(dir) === 1 && Math.abs(dx) > 0.15 && Math.sign(dx) !== dir) continue;
+        if (Math.abs(rel) < bd) { bd = Math.abs(rel); best = r; }
+      }
+      const kd = Math.abs(dir) === 1 ? dir : best ? Math.sign(best.x - st.x) || 1 : st.lean < 0 ? -1 : 1;
+      st.kick = 0.35; st.kickDir = kd; st.kickCd = 0.8;
+      if (!best) { snd.whoosh(); return; }
+      best.v *= 0.55; best.wob = 1.2; best.lane = Math.max(-0.9, Math.min(0.9, best.x + kd * 0.3)); best.tl = 2.5;
+      st.kicks++; snd.kick(); say("ركلة! 👟", true);
+    }
     K.mode = {
       key(e) {
         if (paused) { if (e.key === "Backspace") { setPause(false); return true; } return false; }
         if (e.key === "Backspace") { if (st.state !== "done") setPause(true); return true; }
-        if (ACC[e.key]) { if (!e.pad) keys[ACC[e.key]] = true; return true; }
+        if (vk === "bike" && !e.pad && (e.key === "k" || e.key === "K" || e.key === "Shift" || e.key === "Control")) { if (!e.repeat) kickReq = 0.001; return true; }
+        if (ACC[e.key]) {
+          if (vk === "bike" && !e.pad && !e.repeat && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+            const now = performance.now();
+            if (tap.k === e.key && now - tap.t < 320) { kickReq = e.key === "ArrowLeft" ? -1 : 1; tap.t = 0; } else { tap.k = e.key; tap.t = now; }
+          }
+          if (!e.pad) keys[ACC[e.key]] = true; return true;
+        }
         return false;
       },
       keyup(e) { if (ACC[e.key]) keys[ACC[e.key]] = false; },
@@ -418,6 +457,7 @@
         if (paused) { pad.ctl = null; const held = pad.prev[1] && b(1); pad.prev = g.buttons.map((x) => x.pressed); return held; }
         if ((b(1) && !pad.prev[1]) || (b(9) && !pad.prev[9])) { if (st.state !== "done") setPause(true); }
         const ax = g.axes[0] || 0, ay = g.axes[1] || 0;
+        if (vk === "bike") { if (b(3) && !pad.prev[3]) kickReq = 0.001; if (b(4) && !pad.prev[4]) kickReq = -1; if (b(5) && !pad.prev[5]) kickReq = 1; }
         pad.ctl = { steer: Math.abs(ax) > 0.2 ? ax : b(14) ? -1 : b(15) ? 1 : 0, acc: b(0) || b(7) || b(12) || ay < -0.6, brk: b(2) || b(6) || b(13) || ay > 0.6 };
         pad.prev = g.buttons.map((x) => x.pressed);
         return true;
@@ -432,6 +472,10 @@
       st.t += dt;
       if (msgT > 0 && (msgT -= dt) <= 0) hud.msg.classList.remove("show");
       const pc = pad.ctl || {};
+      if (st.kick > 0) st.kick -= dt;
+      if (st.kickCd > 0) st.kickCd -= dt;
+      if (kickReq) { doKick(kickReq); kickReq = 0; }
+      if (hintEl && st.state === "race" && st.time > 7) { hintEl.remove(); hintEl = null; }
       let steer = (keys.left ? -1 : 0) + (keys.right ? 1 : 0) + (pc.steer || 0);
       steer = Math.max(-1, Math.min(1, steer));
       let acc = keys.acc || pc.acc, brk = keys.brk || pc.brk;
@@ -510,7 +554,8 @@
         r.d += r.v * dt;
         r.tl -= dt;
         if (r.tl < 0) { r.tl = 2 + Math.random() * 4; r.lane = [-0.6, 0, 0.6][(Math.random() * 3) | 0]; }
-        r.x += (r.lane - r.x) * Math.min(1, dt * 0.8);
+        if (r.wob > 0) r.wob -= dt;
+        r.x += (r.lane - r.x) * Math.min(1, dt * (r.wob > 0 ? 1.5 : 0.8));
         r.frT = (r.frT || 0) + dt * (r.v / max) * 6; if (r.frT > 1) { r.frT = 0; r.fr = vk === "bike" ? r.fr ^ 1 : 0; }
         if (r.done == null && r.d >= LAPS * L) r.done = st.time;
         // تصادم لطيف: يبطئ فقط
@@ -521,7 +566,7 @@
         if (r.d > st.d) ahead++;
         const z = mod(r.d + PZ, L), s = segs[Math.floor(z / SEG) % N];
         const rp = mod(z - st.P, L);
-        if (rp > PZ * 0.5 && rp < DRAW * SEG) s.cars.push({ x: r.x, pct: (z % SEG) / SEG, img: r.img, fr: r.fr });
+        if (rp > PZ * 0.5 && rp < DRAW * SEG) s.cars.push({ x: r.x, pct: (z % SEG) / SEG, img: r.img, fr: r.fr, wob: r.wob || 0 });
       }
       if (st.state !== "done") st.place = ahead + 1;
 
@@ -555,7 +600,7 @@
         s: place === 1 ? 3 : place <= 3 ? 2 : 1,
         msg: `<span class="emo">${medal}</span> ` + (place === 1 ? "المركز الأول! بطل" : "المركز " + ["", "الأول", "الثاني", "الثالث", "الرابع", "الخامس", "السادس"][place]),
         title: `${t.name} · ${V.name}`,
-        extra: `<div class="res"><div>الوقت<b>${fmt(time)}</b></div><div class="${isBest ? "new" : ""}">أفضل وقت${isBest ? " 🎉" : ""}<b>${fmt(b[vk])}</b></div><div>النجوم<b>⭐ ${st.stars}</b></div></div><div class="earn" id="earn"></div>`,
+        extra: `<div class="res"><div>الوقت<b>${fmt(time)}</b></div><div class="${isBest ? "new" : ""}">أفضل وقت${isBest ? " 🎉" : ""}<b>${fmt(b[vk])}</b></div><div>النجوم<b>⭐ ${st.stars}</b></div>${vk === "bike" ? `<div>الركلات<b>👟 ${st.kicks}</b></div>` : ""}</div><div class="earn" id="earn"></div>`,
         again: () => K.replace(race, t),
         next: { label: "طريق آخر", fn: () => K.back() },
       });
