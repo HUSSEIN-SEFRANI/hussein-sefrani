@@ -1,0 +1,41 @@
+#sky { --sky: linear-gradient(180deg, #60a5fa 0%, #bae6fd 68%, #86efac 68%, #22c55e 100%); }
+#cv { position: fixed; inset: 0; width: 100vw; height: 100vh; object-fit: contain; display: none; background: #0f172a; }
+body.playing #cv { display: block; }
+body.playing #sky { display: none; }
+body.playing #app { padding: 0; }
+#app { padding: 3vh 4vw 2.5vh; }
+
+/* الشاشة الأولى */
+.hero { display: flex; align-items: center; gap: 3vw; margin-top: 1vh; }
+.hero canvas { height: 36vh; animation: bob 2.4s ease-in-out infinite; }
+.logo { font-size: 15vh; -webkit-text-stroke: .7vh #0369a1; }
+.hero .sub { font-size: 4vh; color: #075985; margin: 0; }
+.modes .mode { width: 24vw; height: 34vh; }
+.ttl { color: #fff; -webkit-text-stroke: .3vh #0369a1; paint-order: stroke fill; font-size: 5.4vh; }
+
+/* المراحل */
+.worlds { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.6vh 2vw; width: 90vw; margin-top: 2vh; }
+.world { border-radius: 4vh; padding: 1.4vh 1.4vw 2vh; background: linear-gradient(160deg, var(--c1), var(--c2)); box-shadow: 0 1.2vh 2.4vh rgba(30,58,138,.25); }
+.wname { color: #fff; font-size: 4vh; font-weight: 800; text-align: center; text-shadow: 0 .3vh 0 rgba(0,0,0,.25); margin-bottom: 1vh; }
+.lvls { display: flex; gap: 1.4vw; justify-content: center; }
+.lv { width: 12vw; height: 17vh; border: 0; border-radius: 3vh; background: #fff; color: #1e3a8a; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .5vh; box-shadow: 0 .8vh 1.6vh rgba(0,0,0,.2); }
+.lv b { font-size: 7vh; line-height: 1; }
+.lv .st { font-size: 2.8vh; font-weight: 800; color: #db2777; }
+.lv.locked { background: rgba(255,255,255,.35); box-shadow: none; }
+.lv.locked .emo { font-size: 7vh; opacity: .7; }
+
+/* الهدايا */
+.gifts { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2.4vh 1.4vw; width: 92vw; margin-top: 3vh; }
+.gift { height: 27vh; border: 0; border-radius: 3vh; background: #fff; color: #1e3a8a; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1vh; box-shadow: 0 .8vh 1.6vh rgba(30,58,138,.25); font-size: 2.8vh; }
+.gift canvas { width: 13vw; height: auto; }
+.gift.no { background: rgba(255,255,255,.55); }
+.gift.no .emo { font-size: 9vh; opacity: .6; }
+.giftbig { width: 70vw; height: auto; margin-top: 2vh; background: rgba(255,255,255,.6); border-radius: 5vh; }
+.giftwin { width: 60vw; height: auto; margin-top: 1vh; background: rgba(255,255,255,.65); border-radius: 5vh; }
+.stars.sm { font-size: 9vh; line-height: 1.1; margin-top: 1vh; }
+
+/* الاستراحة */
+.pause { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(15,23,42,.45); }
+.pause.on { display: flex; }
+.pcard { background: #fff; border-radius: 5vh; padding: 5vh 5vw; display: flex; flex-direction: column; align-items: center; gap: 3vh; box-shadow: 0 2vh 5vh rgba(0,0,0,.35); }
+.pcard h1 { font-size: 9vh; }
