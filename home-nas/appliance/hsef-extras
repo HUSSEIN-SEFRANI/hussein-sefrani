@@ -682,12 +682,78 @@ def wired_iface() -> str | None:
     return None
 
 
+def wifi_ifaces() -> list[str]:
+    return [l["ifname"] for l in jrun(["ip", "-j", "link"]) if l.get("ifname", "").startswith("wl")]
+
+
+def is_usb_iface(name: str) -> bool:
+    """بطاقة وايفاي USB: اسمها wlx… (من عنوانها) أو جهازها على ناقل USB."""
+    if name.startswith("wlx"):
+        return True
+    try:
+        return Path(f"/sys/class/net/{name}/device/subsystem").resolve().name == "usb"
+    except OSError:
+        return False
+
+
+def configured_wifi_iface() -> str | None:
+    try:
+        m = _re.search(r"^iface\s+(\S+)\s+inet", WIFI_FILE.read_text(), _re.M)
+        return m.group(1) if m else None
+    except OSError:
+        return None
+
+
 def wifi_iface() -> str | None:
-    for l in jrun(["ip", "-j", "link"]):
-        n = l.get("ifname", "")
-        if n.startswith("wl"):
-            return n
-    return None
+    """البطاقة المحفوظة إن كانت موصولة، وإلا بطاقة USB الموصولة، وإلا البطاقة الداخلية."""
+    names = wifi_ifaces()
+    if not names:
+        return None
+    cfg = configured_wifi_iface()
+    if cfg in names:
+        return cfg
+    usb = [n for n in names if is_usb_iface(n)]
+    return (usb or names)[0]
+
+
+def rfkill_unblock():
+    """بعض البطاقات (ومنها USB) تبدأ والوايفاي مقفول برمجياً."""
+    if not shutil.which("rfkill") or subprocess.run(["rfkill", "unblock", "wifi"], capture_output=True).returncode != 0:
+        for f in Path("/sys/class/rfkill").glob("rfkill*/soft"):
+            try:
+                f.write_text("0")
+            except OSError:
+                pass
+
+
+WIFI_RULES = Path("/etc/udev/rules.d/90-hsef-wifi.rules")
+
+
+def write_wifi_rules():
+    """قاعدة udev: عند توصيل بطاقة وايفاي (USB) نفكّ قفلها ونستعمل عليها الشبكة المحفوظة."""
+    WIFI_RULES.write_text('ACTION=="add", SUBSYSTEM=="net", KERNEL=="wl*", '
+                          'RUN+="/usr/bin/systemd-run --no-block --collect /usr/local/sbin/hsef-extras wifi-hotplug %k"\n')
+    subprocess.run(["udevadm", "control", "--reload"], capture_output=True)
+
+
+def wifi_hotplug(name: str):
+    """وُصلت بطاقة وايفاي. إن كانت هناك شبكة محفوظة على بطاقة لم تعد موجودة (بطاقة USB جديدة أو مختلفة)
+    ننقل الشبكة إلى البطاقة الجديدة ونتصل. إن كانت البطاقة المحفوظة موجودة لا نغيّر شيئاً."""
+    if not _re.match(r"^wl[\w.-]{1,13}$", name):
+        die("invalid interface")
+    if FAKE:
+        return
+    rfkill_unblock()
+    if not WIFI_CONF.exists():
+        return   # لا شبكة محفوظة: تظهر البطاقة في لوحة التحكم ← الجهاز والاتصال ليختار المدير شبكته
+    cfg = configured_wifi_iface()
+    if cfg == name or (cfg and cfg in wifi_ifaces()):
+        return   # نفس البطاقة (يتولاها allow-hotplug)، أو البطاقة المحفوظة ما زالت موصولة
+    ensure_linkdown_sysctl()
+    WIFI_FILE.write_text(f"allow-hotplug {name}\niface {name} inet dhcp\n    wpa-conf {WIFI_CONF}\n")
+    subprocess.run(["sh", "-c", f"ip link set {name} up; ifup {name}"], capture_output=True, timeout=120)
+    if iface_ipv4(name):
+        subprocess.run(["systemctl", "restart", "avahi-daemon"], capture_output=True)
 
 
 def net_status():
@@ -703,7 +769,7 @@ def net_status():
     txt = IFACES.read_text() if IFACES.exists() else ""
     mode = "static" if ifc and _re.search(rf"iface\s+{_re.escape(ifc)}\s+inet\s+static", txt) else "dhcp"
     wi = wifi_iface()
-    wifi = {"iface": wi, "installed": bool(shutil.which("wpa_supplicant")), "ssid": None}
+    wifi = {"iface": wi, "usb": bool(wi and is_usb_iface(wi)), "installed": bool(shutil.which("wpa_supplicant")), "ssid": None}
     if wi and WIFI_FILE.exists():
         txt = WIFI_CONF.read_text() if WIFI_CONF.exists() else WIFI_FILE.read_text()
         m = _re.search(r'ssid="(.*?)"', txt) or _re.search(r'wpa-ssid\s+"?(.*?)"?\s*$', txt, _re.M)
@@ -787,7 +853,8 @@ def net_confirm():
 
 
 # ----------------------------------------------------------------------------- الوايفاي
-WIFI_PKGS = ("wpasupplicant", "iw", "firmware-iwlwifi", "firmware-realtek", "firmware-atheros", "firmware-misc-nonfree")
+WIFI_PKGS = ("wpasupplicant", "iw", "firmware-iwlwifi", "firmware-realtek", "firmware-atheros", "firmware-misc-nonfree",
+             "firmware-mediatek", "firmware-brcm80211", "firmware-libertas", "firmware-zd1211")
 
 
 def wifi_install():
@@ -806,6 +873,7 @@ def wifi_scan():
     wi = wifi_iface()
     if not wi:
         die("no wifi adapter found")
+    rfkill_unblock()
     subprocess.run(["ip", "link", "set", wi, "up"], capture_output=True)
     r = subprocess.run(["iw", "dev", wi, "scan"], capture_output=True, text=True, timeout=40)
     nets, cur = {}, {}
@@ -854,6 +922,7 @@ def wifi_connect(ssid: str):
     wi = wifi_iface()
     if not wi:
         die("no wifi adapter found")
+    rfkill_unblock()
     ensure_linkdown_sysctl()
     WIFI_CONF.parent.mkdir(parents=True, exist_ok=True)
     net = f'network={{\n    ssid="{ssid}"\n    scan_ssid=1\n'
@@ -874,8 +943,12 @@ def wifi_connect(ssid: str):
 
 
 def net_fixups():
-    """عند التحديث: إعداد الكابل المفصول، وتحويل اتصال وايفاي قديم (wpa-ssid بين علامات تنصيص) إلى الطريقة الجديدة."""
+    """عند التحديث: إعداد الكابل المفصول، وقاعدة بطاقات الوايفاي USB، وتحويل اتصال وايفاي قديم إلى الطريقة الجديدة."""
     ensure_linkdown_sysctl()
+    try:
+        write_wifi_rules()
+    except OSError:
+        pass
     if WIFI_FILE.exists() and "wpa-ssid" in WIFI_FILE.read_text():
         txt = WIFI_FILE.read_text()
         ssid = (_re.search(r'wpa-ssid\s+(.*)$', txt, _re.M) or [None, ""])[1].strip().strip('"')
@@ -1700,6 +1773,8 @@ def main():
         wifi_connect(a[1])
     elif a == ["wifi-forget"]:
         wifi_forget()
+    elif len(a) == 2 and a[0] == "wifi-hotplug":
+        wifi_hotplug(a[1])
     elif len(a) == 2 and a[0] == "time-set":
         time_set(a[1])
     elif a in (["offline", "on"], ["offline", "off"]):

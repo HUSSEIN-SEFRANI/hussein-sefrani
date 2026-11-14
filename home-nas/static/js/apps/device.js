@@ -63,14 +63,20 @@ function wifiCard(w, reload) {
   const c = h(`<div class="card" style="max-width:640px;margin-top:14px"><h4>${icon('wifi')} الوايفاي</h4><div class="wb"></div></div>`);
   const b = $('.wb', c);
   if (!w.iface) {
-    b.innerHTML = `<p class="muted">لا توجد بطاقة وايفاي ظاهرة في هذا الجهاز. إن كانت موجودة فقد تحتاج تعريفاً:</p>
+    // بطاقة وايفاي USB: تظهر هنا تلقائياً خلال ثوانٍ من توصيلها
+    const t = setInterval(async () => {
+      if (!c.isConnected) return clearInterval(t);
+      const r = await api.get('/api/admin/device').catch(() => null);
+      if (r && r.net && r.net.wifi && r.net.wifi.iface) { clearInterval(t); toast('ظهرت بطاقة الوايفاي', 'ok'); reload(); }
+    }, 5000);
+    b.innerHTML = `<p class="muted">لا توجد بطاقة وايفاي ظاهرة في هذا الجهاز. يمكنك وصل بطاقة وايفاي USB فتظهر هنا خلال ثوانٍ. إن لم تظهر فقد تحتاج تعريفاً:</p>
       <button class="btn" data-x="inst">${icon('download')} تثبيت تعريفات الوايفاي (يحتاج إنترنت)</button>
       <p class="muted small">بعد التثبيت أعد تشغيل الجهاز. الكابل أسرع وأثبت للسيرفر دائماً.</p>`;
   } else if (!w.installed) {
     b.innerHTML = `<p>بطاقة الوايفاي <b class="ltr">${esc(w.iface)}</b> موجودة. ثبّت أدوات الاتصال أولاً (يحتاج إنترنت عبر الكابل):</p>
       <button class="btn primary" data-x="inst">${icon('download')} تثبيت الوايفاي</button>`;
   } else {
-    b.innerHTML = `${w.ssid ? `<p>متصل بـ <b>${esc(w.ssid)}</b> ${w.ip ? `· <span class="ltr">${esc(w.ip)}</span>` : '<span class="badge warn">بلا عنوان</span>'}
+    b.innerHTML = `${w.usb ? `<p class="muted small">${icon('wifi')} بطاقة وايفاي USB <span class="ltr">${esc(w.iface)}</span></p>` : ''}${w.ssid ? `<p>متصل بـ <b>${esc(w.ssid)}</b> ${w.ip ? `· <span class="ltr">${esc(w.ip)}</span>` : '<span class="badge warn">بلا عنوان</span>'}
         <button class="btn ghost sm" data-x="forget">نسيان الشبكة</button></p>` : '<p class="muted">غير متصل بأي شبكة وايفاي.</p>'}
       <button class="btn" data-x="scan">${icon('search')} البحث عن الشبكات</button><div class="nets" style="margin-top:10px"></div>`;
   }

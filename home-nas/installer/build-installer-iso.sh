@@ -86,6 +86,7 @@ in_root apt-get install -y --no-install-recommends \
     parted gdisk dosfstools e2fsprogs mdadm rsync util-linux \
     ifupdown dhcpcd-base iproute2 iputils-ping netbase wpasupplicant iw bluez \
     firmware-linux-free firmware-misc-nonfree firmware-realtek firmware-iwlwifi firmware-atheros \
+    firmware-mediatek firmware-brcm80211 firmware-libertas firmware-zd1211 \
     firmware-intel-graphics firmware-amd-graphics firmware-intel-sound \
     cage chromium fonts-noto-core fonts-noto-color-emoji pipewire-audio wireplumber pulseaudio-utils wlr-randr \
     python3-opencv usbmuxd libimobiledevice-utils ifuse fuse3 less nano
