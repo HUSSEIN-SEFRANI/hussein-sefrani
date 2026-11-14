@@ -1,0 +1,48 @@
+// كلمات «الحروف المتساقطة»: [الرسم في pics.js, الكلمة بالعربية, الكلمة بالفرنسية]
+// المستوى يُحسب من عدد الأحرف. العربية: 2 ثم 3 ثم 4. الفرنسية: 2–3 ثم 4 ثم 5–6 (الأطول لا يظهر).
+// null = لا تظهر في تلك اللغة.
+window.WORDS = [
+  // حرفان
+  ["hand", "يد", "main"], ["mouth", "فم", "bouche"], ["bear", "دب", "ours"], ["duck", "بط", "canard"],
+  ["dad", "أب", "papa"], ["mom", "أم", "maman"], ["grandpa", "جد", "papi"], ["tooth", "سن", "dent"],
+  ["cheek", "خد", "joue"], ["nest", "عش", "nid"], ["button", "زر", "bouton"], ["rice", "رز", "riz"],
+  ["lettuce", "خس", "salade"], ["hill", "تل", "colline"], ["shadow", "ظل", "ombre"], ["jasmine", "فل", "jasmin"],
+  ["brother", "أخ", "frère"], ["coffee", "بن", "café"], ["uncle", "عم", "oncle"], ["shelf", "رف", "étagère"],
+  ["straw", "قش", "paille"], ["tambourine", "دف", "tambourin"], ["vinegar", "خل", "vinaigre"],
+  // ثلاثة أحرف
+  ["cat", "قطة", "chat"], ["lion", "أسد", "lion"], ["dog", "كلب", "chien"], ["elephant", "فيل", "éléphant"],
+  ["tiger", "نمر", "tigre"], ["wolf", "ذئب", "loup"], ["rooster", "ديك", "coq"], ["mouse", "فأر", "souris"],
+  ["monkey", "قرد", "singe"], ["whale", "حوت", "baleine"], ["camel", "جمل", "chameau"], ["bull", "ثور", "taureau"],
+  ["eagle", "نسر", "aigle"], ["owl", "بوم", "hibou"], ["lamb", "حمل", "agneau"], ["bird", "طير", "oiseau"],
+  ["banana", "موز", "banane"], ["date", "تمر", "datte"], ["fig", "تين", "figue"], ["grapes", "عنب", "raisin"],
+  ["berry", "توت", "mûre"], ["peach", "خوخ", "pêche"], ["carrot", "جزر", "carotte"], ["onion", "بصل", "oignon"],
+  ["garlic", "ثوم", "ail"], ["bean", "فول", "fève"], ["corn", "ذرة", "maïs"], ["cherry", "كرز", "cerise"],
+  ["bread", "خبز", "pain"], ["egg", "بيض", "œuf"], ["meat", "لحم", "viande"], ["tea", "شاي", "thé"],
+  ["honey", "عسل", "miel"], ["salt", "ملح", "sel"], ["sugar", "سكر", "sucre"], ["water", "ماء", "eau"],
+  ["eye", "عين", "œil"], ["ear", "أذن", "oreille"], ["nose", "أنف", "nez"], ["head", "رأس", "tête"],
+  ["foot", "قدم", "pied"], ["leg", "رجل", "jambe"], ["hair", "شعر", "cheveux"], ["belly", "بطن", "ventre"],
+  ["heart", "قلب", "cœur"], ["sun", "شمس", "soleil"], ["moon", "قمر", "lune"], ["star", "نجم", "étoile"],
+  ["sea", "بحر", "mer"], ["river", "نهر", "rivière"], ["mountain", "جبل", "montagne"], ["fire", "نار", "feu"],
+  ["snow", "ثلج", "neige"], ["rain", "مطر", "pluie"], ["sand", "رمل", "sable"], ["grass", "عشب", "herbe"],
+  ["cave", "كهف", "grotte"], ["door", "باب", "porte"], ["house", "بيت", "maison"], ["ball", "كرة", "balle"],
+  ["pen", "قلم", "stylo"], ["cup", "كوب", "tasse"], ["plate", "صحن", "assiette"], ["comb", "مشط", "peigne"],
+  ["bucket", "دلو", "seau"], ["flag", "علم", "drapeau"], ["drum", "طبل", "tambour"], ["bell", "جرس", "cloche"],
+  ["rope", "حبل", "corde"], ["thread", "خيط", "fil"], ["ladder", "سلم", "échelle"], ["stick", "عصا", "bâton"],
+  ["bus", "باص", "bus"], ["dress", "ثوب", "robe"], ["crown", "تاج", "couronne"], ["basket", "سلة", "panier"],
+  ["scissors", "مقص", "ciseaux"], ["bridge", "جسر", "pont"], ["pyramid", "هرم", "pyramide"],
+  // أربعة أحرف
+  ["rabbit", "أرنب", "lapin"], ["horse", "حصان", "cheval"], ["cow", "بقرة", "vache"], ["fish", "سمكة", "poisson"],
+  ["sheep", "خروف", "mouton"], ["bee", "نحلة", "abeille"], ["frog", "ضفدع", "grenouille"], ["gazelle", "غزال", "gazelle"],
+  ["fox", "ثعلب", "renard"], ["donkey", "حمار", "âne"], ["ant", "نملة", "fourmi"], ["hedgehog", "قنفذ", "hérisson"],
+  ["crow", "غراب", "corbeau"], ["apple", "تفاح", "pomme"], ["pomegranate", "رمان", "grenade"], ["watermelon", "بطيخ", "pastèque"],
+  ["apricot", "مشمش", "abricot"], ["cucumber", "خيار", "concombre"], ["pepper", "فلفل", "poivron"], ["milk", "حليب", "lait"],
+  ["juice", "عصير", "jus"], ["cake", "كعكة", "gâteau"], ["candy", "حلوى", "bonbon"], ["book", "كتاب", "livre"],
+  ["bed", "سرير", "lit"], ["chair", "كرسي", "chaise"], ["clock", "ساعة", "horloge"], ["candle", "شمعة", "bougie"],
+  ["umbrella", "مظلة", "parapluie"], ["phone", "هاتف", "téléphone"], ["fork", "شوكة", "fourchette"], ["knife", "سكين", "couteau"],
+  ["mirror", "مرآة", "miroir"], ["doll", "دمية", "poupée"], ["boat", "قارب", "bateau"], ["train", "قطار", "train"],
+  ["rocket", "صاروخ", "fusée"], ["hat", "قبعة", "chapeau"], ["shoe", "حذاء", "chaussure"], ["sock", "جورب", "chaussette"],
+  ["shirt", "قميص", "chemise"], ["ring", "خاتم", "bague"], ["tree", "شجرة", "arbre"], ["flower", "زهرة", "fleur"],
+  ["rose", "وردة", "rose"], ["leaf", "ورقة", "feuille"], ["rock", "صخرة", "rocher"], ["wave", "موجة", "vague"],
+  ["finger", "إصبع", "doigt"], ["tongue", "لسان", "langue"], ["neck", "رقبة", "cou"], ["knee", "ركبة", "genou"],
+  ["cloud", "غيمة", "nuage"], ["tent", "خيمة", "tente"], ["bag", "شنطة", "sac"], ["gift", "هدية", "cadeau"],
+];

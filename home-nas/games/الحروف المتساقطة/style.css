@@ -1,0 +1,71 @@
+#sky { --sky: linear-gradient(180deg, #93c5fd 0%, #c4b5fd 55%, #fbcfe8 82%, #86efac 82%, #4ade80 100%); }
+#app { padding: 2.5vh 4vw 2vh; }
+.ttl { color: #fff; -webkit-text-stroke: .3vh #1e40af; paint-order: stroke fill; font-size: 5.4vh; }
+.abc { font-size: 9vh !important; font-weight: 800; letter-spacing: .5vh; }
+.title { margin-top: 2vh; }
+.demo-svg { height: 22vh; font-family: inherit; animation: bob 2.4s ease-in-out infinite; }
+.modes .mode { width: 26vw; height: 40vh; }
+.modes.lv { margin-top: 5vh; }
+.modes.lv .mode { width: 24vw; height: 50vh; }
+.mini-boxes { display: flex; gap: .6vh; margin: .5vh 0; }
+.mini-boxes i { width: 3.4vh; height: 4vh; border-radius: .8vh; background: rgba(255,255,255,.85); }
+.tip { margin-top: 3vh; background: rgba(255,255,255,.7); border-radius: 3vh; padding: .6vh 3vh; }
+
+/* ساحة اللعب */
+.field { position: fixed; inset: 0; z-index: 1; touch-action: none; }
+.screen > .top, .screen > .card, .screen > .cheer { position: relative; z-index: 3; }
+.screen > .top { pointer-events: none; }
+.screen > .top > * { pointer-events: auto; }
+.card { margin-top: .5vh; background: rgba(255,255,255,.94); border-radius: 4vh; padding: 1vh 3vw; display: flex; align-items: center; gap: 2.5vw; box-shadow: 0 1.2vh 2.4vh rgba(30,58,138,.2); max-width: 92vw; }
+.card .pic { width: 16vh; height: 16vh; flex: none; }
+.card.won { box-shadow: 0 0 0 .9vh #86efac, 0 1.2vh 2.4vh rgba(30,58,138,.2); }
+.card.won .pic { animation: bob .8s ease-in-out infinite; }
+.cw { display: flex; flex-direction: column; align-items: center; gap: 1vh; }
+.word { font-size: 7vh; font-weight: 800; line-height: 1; color: #1e3a8a; }
+.slots { display: flex; gap: 1vh; }
+.slot { width: 7.4vh; height: 8vh; border-radius: 1.8vh; background: #e2e8f0; color: #94a3b8; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 5.4vh; font-weight: 800; line-height: 1; box-shadow: inset 0 -.8vh 0 #cbd5e1; }
+.slot.next { background: #fef9c3; color: #ca8a04; box-shadow: 0 0 0 .5vh #facc15, inset 0 -.8vh 0 #fde047; animation: pulse 1s ease-in-out infinite; }
+.slot.on { background: #22c55e; color: #fff; box-shadow: inset 0 -.8vh 0 #15803d; animation: drop .35s ease; }
+@keyframes pulse { 50% { transform: scale(1.1) } }
+@keyframes drop { from { transform: translateY(-3vh) scale(1.3); opacity: 0; } }
+.screen > .cheer { min-height: 6vh; margin-top: 1vh; font-size: 4vh; pointer-events: none; }
+.tr { font-size: 3.4vh; color: #fff; -webkit-text-stroke: .25vh #7c3aed; margin-inline-start: 1.5vw; }
+.won-st { direction: ltr; unicode-bidi: isolate; font-size: 5vh; font-weight: 800; color: #ca8a04; min-height: 6vh; }
+
+/* الهاتف بالطول */
+@media (orientation: portrait) {
+  .modes .mode, .modes.lv .mode { width: 40vw; height: 26vh; }
+  .modes.lv .mode .big { font-size: 7vh; }
+  .card { flex-direction: column; gap: 1vh; padding: 1.2vh 4vw; }
+  .card .pic { width: 12vh; height: 12vh; }
+  .word { font-size: 5vh; }
+  .slot { width: 6vh; height: 6.5vh; font-size: 4.4vh; }
+  .title { flex-direction: column; gap: 0; }
+  .title h1 { font-size: 6.5vh; }
+  .demo-svg { height: 14vh; }
+}
+.card { background: #fff; }
+@media (orientation: portrait) {
+  .screen > .top .btn { font-size: 2.6vh; padding: 1vh 2vh; }
+  .screen > .top .pill { font-size: 2.6vh; padding: .6vh 2vh; }
+  .screen > .top .dots { flex-wrap: nowrap; }
+  .dots i { width: 1.6vh; height: 1.6vh; }
+}
+.top .btn { white-space: nowrap; }
+@media (orientation: portrait) {
+  h1, .title h1 { font-size: 5.2vh; }
+  .sub { font-size: 2.3vh; }
+  .help { font-size: 1.5vh; }
+  .ttl { font-size: 3.4vh; }
+  .abc { font-size: 5.5vh !important; }
+  .mode b { font-size: 2.8vh; }
+  .mode small { font-size: 1.8vh; }
+  .modes .mode, .modes.lv .mode { width: 42vw; height: 24vh; border-radius: 3vh; }
+  .modes.lv .mode .big { font-size: 5.5vh; }
+  .mini-boxes i { width: 2vh; height: 2.4vh; }
+  .tip { font-size: 2vh; }
+  .stars { font-size: 8vh; }
+  .btn { font-size: 2.6vh; }
+  .nav { flex-wrap: wrap; justify-content: center; gap: 2vh; }
+}
