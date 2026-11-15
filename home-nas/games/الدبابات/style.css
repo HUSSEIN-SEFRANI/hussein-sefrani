@@ -1,0 +1,41 @@
+#sky { --sky: linear-gradient(180deg, #7dd3fc 0%, #e0f2fe 62%, #a3e635 62%, #65a30d 100%); }
+.mode { width: 26vw; height: 40vh; }
+.help { font-size: 2.2vh; }
+.hero { width: 36vh; height: 18vh; }
+.top h2 { font-size: 5vh; }
+.endh { font-size: 8vh; }
+.score { font-size: 7vh; font-weight: 800; color: #fff; -webkit-text-stroke: .35vh #1e3a8a; paint-order: stroke fill; margin: 1vh 0; }
+.earned { min-height: 6vh; margin-top: 1vh; }
+.gain { background: #fde047; color: #92400e; }
+.legend { font-size: 2.8vh; background: rgba(255,255,255,.8); border-radius: 3vh; padding: .6vh 3vh; margin-top: 3vh; text-align: center; }
+canvas.war { position: fixed; inset: 0; width: 100vw; height: 100vh; touch-action: none; }
+.msg { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 5; }
+.msg .count { font-size: 22vh; font-weight: 800; color: #fff; -webkit-text-stroke: 1vh #1e3a8a; paint-order: stroke fill; }
+.msg .win { background: #fff; border: 1.2vh solid var(--c); border-radius: 6vh; padding: 3vh 6vw; font-size: 8vh; font-weight: 800; color: var(--c); text-align: center; box-shadow: 0 3vh 6vh rgba(0,0,0,.35); }
+.msg .win small { display: block; font-size: 3.2vh; color: #334155; margin-top: 1.5vh; }
+/* أزرار اللمس */
+.tpad { position: fixed; bottom: 2vmin; display: none; gap: 1.4vmin; z-index: 4; direction: ltr; }
+.tpad.on { display: flex; }
+.tpad.p1 { right: 2vmin; }
+.tpad.p2 { left: 2vmin; }
+.tpad button { width: 11vmin; height: 11vmin; border: 0; border-radius: 3vmin; background: rgba(255,255,255,.8); color: #1e3a8a; font-size: 5vmin; font-weight: 800;
+  box-shadow: 0 .8vmin 0 rgba(0,0,0,.2); touch-action: none; padding: 0; }
+.tpad button.fire { background: var(--c); color: #fff; width: 14vmin; }
+.tpad button.dn { transform: translateY(.6vmin); box-shadow: 0 .2vmin 0 rgba(0,0,0,.2); filter: brightness(.9); }
+@media (orientation: portrait) {
+  #app { padding: 3vh 3vw; }
+  h1 { font-size: 6vh; }
+  .title { flex-direction: column; gap: 1vh; }
+  .modes { gap: 2vh; }
+  .mode { width: 80vw; height: 15vh; flex-direction: row; gap: 4vw; }
+  .mode .big { font-size: 8vh; }
+  .top h2 { font-size: 3vh; }
+  .endh { font-size: 5vh; }
+  .nav { flex-wrap: wrap; justify-content: center; gap: 2vh; }
+  .help { display: none; }
+  .hero { width: 30vh; height: 15vh; }
+  .tpad button { width: 13vmin; height: 13vmin; }
+  .tpad button.fire { width: 16vmin; }
+  .tpad.p1 { right: 50%; transform: translateX(50%); }
+  .tpad.p2 { left: 50%; transform: translateX(-50%); bottom: 18vmin; }
+}
