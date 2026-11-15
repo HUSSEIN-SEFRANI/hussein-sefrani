@@ -100,7 +100,7 @@
 
     // ------------------------------------------------ الأرض
     function makeGround() {
-      H = clamp(Math.round((W * innerHeight) / innerWidth), 640, 1500);
+      H = clamp(Math.round((W * innerHeight) / innerWidth), 640, 1100);
       fit();
       const N = W / 8 + 1, h = new Float32Array(N), base = H - 230;
       const waves = [[rnd(60, 95), rnd(800, 1300)], [rnd(20, 40), rnd(380, 560)], [rnd(5, 10), rnd(160, 240)]].map(([a, l]) => [a, l, rnd(0, 7)]);
@@ -146,7 +146,7 @@
     const kmap = (i) => (CPU ? [P1K, P2K] : [[P1K], [P2K]][i]);
     const isHuman = (i) => !(CPU && i === 1);
     const switchW = (t) => {
-      if (t.ko || state !== "run") return;
+      if (t.ko || state !== "run" || t.charging) return;
       const o = 1 - t.sel;
       if (t.ammo[o] > 0) { t.sel = o; K.tone(700, 0.06, "triangle", 0.1); } else K.sfx.bad();
     };
@@ -307,7 +307,7 @@
       // الرمي بالضغط المطوّل
       if (c.f && !t.charging && t.cool <= 0) {
         if (t.ammo[t.sel] <= 0 && t.ammo[1 - t.sel] > 0) t.sel = 1 - t.sel;
-        if (t.ammo[t.sel] > 0) { t.charging = true; t.charge = 0; }
+        if (t.ammo[t.sel] > 0) { t.charging = true; t.charge = 0; t.cw = t.sel; }
         else if (!t.noAmmoBeep) { K.sfx.bad(); t.noAmmoBeep = 1; }
       }
       if (!c.f) t.noAmmoBeep = 0;
@@ -322,7 +322,7 @@
     }
     function fire(t) {
       t.charging = false;
-      const w = t.sel;
+      const w = t.ammo[t.cw] > 0 ? t.cw : t.sel;
       if (t.ammo[w] <= 0) return;
       t.ammo[w]--; t.cool = 0.5;
       const [x, y] = tip(t), sp = 260 + 640 * Math.max(0.1, t.charge);
@@ -567,7 +567,7 @@
     }
 
     startRound();
-    K.dbg = () => ({ tanks, wins, state });
+    K.dbg = () => ({ tanks, wins, state, knockout });
     raf = requestAnimationFrame(frame);
   }
 
