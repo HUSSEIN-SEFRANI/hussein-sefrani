@@ -604,3 +604,21 @@ html[dir=ltr] .crescent { right: auto; left: 150px; }
 .bg-kids.kcustom { background: #e0f2fe; }
 .bg-kids.kcars .kt .lb, .bg-kids.kcars .knote { color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,.55); }
 .bg-kids.kislamic .mosque { opacity: .5; }
+
+/* الليل: إضاءة خفيفة جداً، والنصوص ومواقيت الصلاة واضحة دون وهج */
+.night-dim #stage > div[class*="bg-"]:not(.bg-kids) { background: #04060b !important; }
+.night-dim .layer, .night-dim .vinelayer { opacity: .14; }
+.night-dim .wallimg, .night-dim .photolayer { opacity: .2; }
+.night-dim .glass { background: rgba(255,255,255,.05) !important; border-color: rgba(255,255,255,.08) !important; box-shadow: none !important; }
+.night-dim .clockbig .tm { color: #cbd5e1; text-shadow: none; }
+.night-dim .clockbig .dt, .night-dim .clockbig .hj, .night-dim .clockbig .wx, .night-dim .tcard, .night-dim .word { color: #94a3b8; }
+.night-dim .prayer .row span { color: #e2e8f0; }
+.night-dim .prayer .row.nx span { color: #fcd34d; }
+.night-dim .bg-kids { filter: brightness(.45) saturate(.8); }
+.night-dim .saver.sv-prayer { background: #000; }
+.night-dim .saver.sv-prayer .pr-p { background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.1); backdrop-filter: none; }
+.night-dim .saver.sv-prayer .pr-p span { color: #e2e8f0; }
+.night-dim .saver.sv-prayer .pr-p.nx { box-shadow: none; background: rgba(251,191,36,.12); }
+.night-dim .saver .sclock .tm { color: #94a3b8; }
+.night-dim .prayer .row.nx { background: rgba(251,191,36,.16) !important; box-shadow: none !important; }
+.night-dim .dk .ic, .night-dim .kt .box { filter: brightness(.6); }

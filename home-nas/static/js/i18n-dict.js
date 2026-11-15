@@ -1129,5 +1129,7 @@ window.I18N_DICT = {
 "صورة شاشة الأطفال": ["Kids screen picture", "Image de l'écran des enfants", "Çocuk ekranı resmi", "Foto kinderscherm"],
 "رفع صورة": ["Upload a picture", "Envoyer une image", "Resim yükle", "Foto uploaden"],
 "تم رفع الصورة. اختر «صورة من اختياري» ثم احفظ": ["Picture uploaded. Choose «A picture of my choice», then save", "Image envoyée. Choisissez «Une image de mon choix» puis enregistrez", "Resim yüklendi. «Seçtiğim bir resim»i seçip kaydedin", "Foto geüpload. Kies «Een foto naar keuze» en sla op"],
-"هذه ليست صورة مدعومة": ["This is not a supported picture", "Ce n'est pas une image prise en charge", "Bu desteklenen bir resim değil", "Dit is geen ondersteunde afbeelding"]
+"هذه ليست صورة مدعومة": ["This is not a supported picture", "Ce n'est pas une image prise en charge", "Bu desteklenen bir resim değil", "Dit is geen ondersteunde afbeelding"],
+"إضاءة خفيفة في الليل": ["Dim light at night", "Éclairage doux la nuit", "Gece loş ışık", "Gedimd licht 's nachts"],
+"تلقائي: من العشاء حتى الشروق": ["Automatic: from Isha until sunrise", "Automatique : de l'Icha au lever du soleil", "Otomatik: yatsıdan güneş doğana kadar", "Automatisch: van Isha tot zonsopgang"]
 };

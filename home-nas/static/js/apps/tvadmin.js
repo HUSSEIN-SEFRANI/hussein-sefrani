@@ -344,6 +344,7 @@ function settingsCard(d, reload) {
       <label>حجم الواجهة على الشاشة (%)<input class="field" type="number" min="70" max="130" step="5" name="zoom"></label>
       <label>هامش حول الواجهة (% إن كان التلفاز يقص الأطراف)<input class="field" type="number" min="0" max="8" name="margin"></label>
       <label>لغة واجهة التلفاز<select class="field" name="lang" translate="no"><option value="ar">العربية</option><option value="en">English</option><option value="fr">Français</option><option value="tr">Türkçe</option><option value="nl">Nederlands</option></select></label>
+      <label>إضاءة خفيفة في الليل<select class="field" name="night_dim"><option value="auto">تلقائي: من العشاء حتى الشروق</option><option value="off">متوقف</option></select></label>
       <label>الوضع الخفيف (للتلفاز أو الجهاز الضعيف)<select class="field" name="lite"><option value="auto">تلقائي حسب الجهاز</option><option value="on">مفعّل دائماً</option><option value="off">متوقف</option></select></label>
     </div>
     <div class="wall-files" style="margin:8px 0"></div>
@@ -399,7 +400,7 @@ function settingsCard(d, reload) {
     <label class="check"><input type="checkbox" name="weather"> عرض الطقس لمدينة المواقيت تحت الساعة (من Open-Meteo، بلا حساب)</label>
     <div style="margin-top:14px"><button class="btn primary" data-x="save">حفظ</button></div></div>`);
   const f = (n) => $(`[name=${n}]`, c);
-  f('wallpaper').value = s.wallpaper; f('kids_wallpaper').value = s.kids_wallpaper || 'garden'; f('saver_min').value = s.saver_min; f('nosleep').checked = s.nosleep; f('lite').value = s.lite || 'auto'; f('lang').value = s.lang || 'ar';
+  f('wallpaper').value = s.wallpaper; f('kids_wallpaper').value = s.kids_wallpaper || 'garden'; f('saver_min').value = s.saver_min; f('nosleep').checked = s.nosleep; f('lite').value = s.lite || 'auto'; f('lang').value = s.lang || 'ar'; f('night_dim').value = s.night_dim || 'auto';
   f('zoom').value = s.zoom || 100; f('margin').value = s.margin || 0;
   f('night_from').value = nf || ''; f('night_to').value = nt || '';
   f('prayer').checked = s.prayer; f('city').value = s.city || ''; f('lat').value = s.lat || ''; f('lon').value = s.lon || '';
@@ -497,7 +498,7 @@ function settingsCard(d, reload) {
   $('[data-x=save]', c).onclick = async () => {
     const nightFrom = f('night_from').value, nightTo = f('night_to').value;
     const data = {
-      wallpaper: f('wallpaper').value, kids_wallpaper: f('kids_wallpaper').value, saver_min: +f('saver_min').value || 0, nosleep: f('nosleep').checked, lite: f('lite').value, lang: f('lang').value,
+      wallpaper: f('wallpaper').value, kids_wallpaper: f('kids_wallpaper').value, saver_min: +f('saver_min').value || 0, nosleep: f('nosleep').checked, lite: f('lite').value, lang: f('lang').value, night_dim: f('night_dim').value,
       zoom: +f('zoom').value || 100, margin: +f('margin').value || 0,
       night_off: nightFrom && nightTo ? `${nightFrom}-${nightTo}` : '',
       prayer: f('prayer').checked, city: f('city').value, method: f('method').value, hanafi: f('hanafi').checked,

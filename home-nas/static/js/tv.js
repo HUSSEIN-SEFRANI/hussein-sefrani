@@ -1471,7 +1471,7 @@ function showSaver(night, kind) {
   stage.appendChild(saverEl);
   const el = saverEl;
   if (night) { el.classList.add("night"); el.innerHTML = SCLOCK; tick(); return; }
-  kind = kind || settings.saver_kind || "prayer";
+  kind = kind || (isNightNow() && prayerOk() ? "prayer" : settings.saver_kind || "prayer");   // في الليل: مواقيت الصلاة بإضاءة خفيفة
   if (kind === "mix") {
     const order = (LITE ? ["prayer", "text"] : ["prayer", "galaxy", "fire", "text", "rain"]).filter((k) => k !== "prayer" || prayerOk());
     let i = Math.floor(Math.random() * order.length);
@@ -1846,8 +1846,23 @@ function applyLite() {
   LITE = settings.lite === "on" || (settings.lite !== "off" && auto);
   document.documentElement.classList.toggle("lite", LITE);
 }
+// الليل: خلفية بإضاءة خفيفة جداً ومواقيت الصلاة واضحة، حتى لا يزعج الضوء العين.
+// من العشاء حتى الشروق (أو 21:00–06:00 إن لم تُضبط المواقيت)، ويمكن إيقافه من لوحة التحكم
+function isNightNow() {
+  if ((settings.night_dim || "auto") === "off") return false;
+  const t = (clockData && clockData.prayer && clockData.prayer.times) || (me && me.prayer && me.prayer.times) || [];
+  const at = (k) => (t.find((x) => x.key === k) || {}).time;
+  const toM = (v) => { const [a, b] = v.split(":").map(Number); return a * 60 + b; };
+  const now = new Date(), m = now.getHours() * 60 + now.getMinutes();
+  const from = at("isha") ? toM(at("isha")) : 21 * 60;
+  const to = at("sunrise") ? toM(at("sunrise")) : at("fajr") ? toM(at("fajr")) : 6 * 60;
+  return from > to ? m >= from || m < to : m >= from && m < to;
+}
+function applyNightDim() { document.documentElement.classList.toggle("night-dim", isNightNow()); }
+setInterval(applyNightDim, 60000);
 function applyPrefs() {
   applyLite();
+  applyNightDim();
   fit();
   if (settings.nosleep) keepAwake();
   else if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }

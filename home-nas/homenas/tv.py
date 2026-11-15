@@ -172,6 +172,7 @@ def tv_settings() -> dict:
         "lite": g("tv_lite", "auto"),   # وضع خفيف للأجهزة الضعيفة: auto / on / off
         "lang": tv_lang(),               # لغة واجهة التلفاز يختارها الأبوان
         "kids_wallpaper": g("tv_kids_wallpaper", "garden"), "walls": wall_versions(),
+        "night_dim": g("tv_night_dim", "auto"),   # إضاءة خفيفة جداً في الليل (من العشاء حتى الشروق): auto / off
         "source": g("tv_prayer_source", "calc"), "offsets": json.loads(g("tv_prayer_off", "{}")),
         "adhan": {**ADHAN_DEFAULT, **json.loads(g("tv_adhan", "{}"))},
         "weather": g("tv_weather", "1") == "1",
@@ -394,6 +395,8 @@ def api_admin_tv_settings():
                 abort(400, "إحداثيات غير صالحة")
     if d.get("lite") in ("auto", "on", "off"):
         set_setting("tv_lite", d["lite"])
+    if d.get("night_dim") in ("auto", "off"):
+        set_setting("tv_night_dim", d["night_dim"])
     if d.get("lang") in TV_LANGS:
         set_setting("tv_lang", d["lang"])
     for key, sk in (("hanafi", "tv_hanafi"), ("prayer", "tv_prayer"), ("nosleep", "tv_nosleep")):
