@@ -155,14 +155,19 @@ async function rules(box) {
       ${d.kids.map((k) => `<div class="fam-rule" data-u="${k.id}"><b><bdi translate="no">${esc(k.name)}</bdi></b>
         <label class="small">تعلّم أولاً <select class="field" data-x="learn">${opt([0, 10, 15, 20, 30, 45], k.learn, 'لا')}</select></label>
         <label class="small">وقت اللعب اليومي <select class="field" data-x="play">${opt([0, 30, 45, 60, 90, 120, 180], k.play, 'بلا حد')}</select></label>
-        <span class="muted small">اليوم: تعلّم ${Math.round(k.today.learn / 60)} د · لعب ${Math.round(k.today.play / 60)} د</span></div>`).join('') || '<p class="muted">لا يوجد أطفال على التلفاز بعد.</p>'}</div>
+        <label class="small">وقت الشاشة اليومي (كل التلفاز) <select class="field" data-x="screen">${opt([0, 30, 45, 60, 90, 120, 150, 180, 240], k.screen || 0, 'بلا حد')}</select></label>
+        <label class="small">وقت النوم <input class="field" type="time" data-x="bed" value="${esc(k.bed || '')}"></label>
+        <label class="small">حتى الصباح <input class="field" type="time" data-x="wake" value="${esc(k.wake || '07:00')}"></label>
+        <span class="muted small">اليوم: شاشة ${Math.round((k.today.screen || 0) / 60)} د · تعلّم ${Math.round(k.today.learn / 60)} د · لعب ${Math.round(k.today.play / 60)} د</span></div>`).join('') || '<p class="muted">لا يوجد أطفال على التلفاز بعد.</p>'}
+      <p class="muted small" style="margin:10px 0 0">عند انتهاء وقت الشاشة أو في وقت النوم يُقفل حساب الطفل على التلفاز، مع تنبيه قبل 5 دقائق. «وقت إضافي»: الأب أو الأم يكتب رمزه على التلفاز فيضيف 15 دقيقة. اترك «وقت النوم» فارغاً لإيقافه.</p></div>
     <div class="card" style="margin-top:14px"><h4>📚 الألعاب التعليمية</h4>
       <p class="muted small" style="margin:0 0 8px">الألعاب المعلَّمة هنا تُحسب «تعلّماً»، والباقي «لعباً».</p>
       <div class="fam-games">${d.games.map((g) => `<label class="check" style="margin:0"><input type="checkbox" value="${esc(g.name)}" ${g.learn ? 'checked' : ''}> <span translate="no">${esc(g.name)}</span></label>`).join('') || '<p class="muted small">لا توجد ألعاب في مجلد «الألعاب» بعد.</p>'}</div></div>
     <div style="margin-top:14px"><button class="btn primary fam-save">حفظ</button></div>`;
   $('.fam-save', box).onclick = async () => {
     const rulesObj = {};
-    $$('.fam-rule', box).forEach((r) => { rulesObj[r.dataset.u] = { learn: +$('[data-x=learn]', r).value, play: +$('[data-x=play]', r).value }; });
+    $$('.fam-rule', box).forEach((r) => { rulesObj[r.dataset.u] = { learn: +$('[data-x=learn]', r).value, play: +$('[data-x=play]', r).value,
+      screen: +$('[data-x=screen]', r).value, bed: $('[data-x=bed]', r).value, wake: $('[data-x=wake]', r).value || '07:00' }; });
     const learn_games = $$('.fam-games input', box).filter((x) => x.checked).map((x) => x.value);
     if (await guard(() => api.post('/api/kids/settings', { rules: rulesObj, ...(d.games.length ? { learn_games } : {}) }))) toast('تم الحفظ', 'ok');
   };

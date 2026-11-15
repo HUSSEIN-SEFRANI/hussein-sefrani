@@ -651,3 +651,11 @@ html[dir=ltr] .crescent { right: auto; left: 150px; }
 .audio[data-view=vinyl] .vinyl { top: 96px; right: 110px; width: 340px; height: 340px; }
 .audio .disc { width: 330px; height: 330px; }
 .audio .disc .lbl { width: 120px; height: 120px; }
+
+/* قفل حساب الطفل: انتهى وقت الشاشة أو حان وقت النوم */
+.kidlock .kl { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; z-index: 2; padding: 0 120px; }
+.kidlock .kl .emo { font-size: 130px; line-height: 1.1; }
+.kidlock .kl h1 { font-family: "Baloo Bhaijaan 2", sans-serif; font-size: 64px; margin: 10px 0 6px; color: #fde68a; }
+.kidlock .kl p { font-size: 28px; color: #e2e8f0; margin: 0 0 30px; max-width: 900px; line-height: 1.6; }
+.kidlock .kl-btns { display: flex; gap: 20px; }
+.kidlock .kl-btns .btn { font-size: 22px; padding: 14px 28px; }

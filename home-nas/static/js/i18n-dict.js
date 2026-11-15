@@ -1131,5 +1131,12 @@ window.I18N_DICT = {
 "تم رفع الصورة. اختر «صورة من اختياري» ثم احفظ": ["Picture uploaded. Choose «A picture of my choice», then save", "Image envoyée. Choisissez «Une image de mon choix» puis enregistrez", "Resim yüklendi. «Seçtiğim bir resim»i seçip kaydedin", "Foto geüpload. Kies «Een foto naar keuze» en sla op"],
 "هذه ليست صورة مدعومة": ["This is not a supported picture", "Ce n'est pas une image prise en charge", "Bu desteklenen bir resim değil", "Dit is geen ondersteunde afbeelding"],
 "إضاءة خفيفة في الليل": ["Dim light at night", "Éclairage doux la nuit", "Gece loş ışık", "Gedimd licht 's nachts"],
-"تلقائي: من العشاء حتى الشروق": ["Automatic: from Isha until sunrise", "Automatique : de l'Icha au lever du soleil", "Otomatik: yatsıdan güneş doğana kadar", "Automatisch: van Isha tot zonsopgang"]
+"تلقائي: من العشاء حتى الشروق": ["Automatic: from Isha until sunrise", "Automatique : de l'Icha au lever du soleil", "Otomatik: yatsıdan güneş doğana kadar", "Automatisch: van Isha tot zonsopgang"],
+"وقت الشاشة اليومي (كل التلفاز)": ["Daily screen time (whole TV)", "Temps d'écran quotidien (toute la TV)", "Günlük ekran süresi (tüm TV)", "Dagelijkse schermtijd (hele tv)"],
+"وقت النوم": ["Bedtime", "Heure du coucher", "Uyku saati", "Bedtijd"],
+"حتى الصباح": ["Until morning", "Jusqu'au matin", "Sabaha kadar", "Tot de ochtend"],
+"عند انتهاء وقت الشاشة أو في وقت النوم يُقفل حساب الطفل على التلفاز، مع تنبيه قبل 5 دقائق": ["When screen time runs out or at bedtime, the child's TV account locks, with a warning 5 minutes before", "Quand le temps d'écran est écoulé ou à l'heure du coucher, le compte TV de l'enfant se verrouille, avec un avertissement 5 minutes avant", "Ekran süresi bitince veya uyku saatinde çocuğun TV hesabı kilitlenir; 5 dakika önce uyarı gelir", "Als de schermtijd op is of op bedtijd wordt het tv-account van het kind vergrendeld, met een waarschuwing 5 minuten vooraf"],
+"الأب أو الأم يكتب رمزه على التلفاز فيضيف 15 دقيقة": ["Mum or Dad types their code on the TV to add 15 minutes", "Papa ou maman tape son code sur la TV pour ajouter 15 minutes", "Anne veya baba TV'de kodunu yazarak 15 dakika ekler", "Mama of papa typt de code op de tv om 15 minuten toe te voegen"],
+"اترك «وقت النوم» فارغاً لإيقافه": ["Leave «Bedtime» empty to turn it off", "Laissez «Heure du coucher» vide pour la désactiver", "Kapatmak için «Uyku saati»ni boş bırakın", "Laat «Bedtijd» leeg om het uit te zetten"],
+"شاشة": ["screen", "écran", "ekran", "scherm"]
 };

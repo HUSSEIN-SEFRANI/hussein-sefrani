@@ -522,6 +522,7 @@ function loadQR() {
 }
 
 async function whoScreen(boot = false) {
+  stopKidWatch();
   let d;
   try { d = await api("/api/tv/profiles"); } catch (e) { toast(e.message); return; }
   settings = d.settings || settings;
@@ -644,6 +645,53 @@ async function homeScreen() {
   const scr = d.user.role === "adult" ? adultHome(d) : kidsHome(d);
   scr.home = true;
   reset(scr);
+  startKidWatch();
+}
+
+// ============================================================== وقت الشاشة ووقت النوم (حسابات الأطفال)
+// يضبطها الأهل من تطبيق «العائلة»: وقت شاشة يومي لكل طفل، ووقت نوم يُقفل فيه الحساب حتى الصباح،
+// وتنبيه قبل 5 دقائق، و«وقت إضافي» 15 دقيقة برمز الأب أو الأم
+let kidTimer = 0, kidWarned = {}, kidLocked = false;
+function stopKidWatch() { clearInterval(kidTimer); kidTimer = 0; kidLocked = false; }
+function startKidWatch() {
+  stopKidWatch();
+  kidWarned = {};
+  if (!isKid()) return;
+  const tickKid = async (beat) => {
+    if (!isKid()) { stopKidWatch(); return; }
+    if (document.hidden || saverEl) beat = false;   // شاشة التوقف لا تُحسب من وقت الشاشة
+    let st;
+    try { st = await api(beat ? "/api/tv/kid/beat" : "/api/tv/kid/status", beat ? { json: {} } : undefined); } catch { return; }
+    kidStatus(st);
+  };
+  tickKid(false);
+  kidTimer = setInterval(() => tickKid(true), 30000);
+}
+function kidStatus(st) {
+  if (!st) return;
+  if (st.locked) { if (!kidLocked) kidLockScreen(st); return; }
+  kidLocked = false;
+  if (st.warn && !kidWarned[st.warn]) {
+    kidWarned[st.warn] = 1;
+    toast(st.warn === "bed" ? "🌙 باقي 5 دقائق على وقت النوم" : "⏳ باقي 5 دقائق من وقت الشاشة اليوم", 9000);
+  }
+}
+function kidLockScreen(st) {
+  kidLocked = true;
+  const bed = st.reason === "bed";
+  const el = h(`<div class="bg-night kidlock">${nightBg()}
+    <div class="kl"><div class="emo">${bed ? "🌙" : "⏳"}</div>
+      <h1>${bed ? "حان وقت النوم" : "انتهى وقت الشاشة اليوم"}</h1>
+      <p>${bed ? "تصبح على خير! نلتقي غداً صباحاً ☀️" : "أحسنت! حان وقت اللعب بعيداً عن الشاشة، أو القراءة، أو مساعدة ماما وبابا."}</p>
+      <div class="kl-btns"><button class="btn f js-extra">⏱️ وقت إضافي (رمز الأب أو الأم)</button><button class="btn f js-switch">تبديل المستخدم</button></div></div></div>`);
+  el.querySelector(".js-switch").addEventListener("click", () => { stopKidWatch(); leave(); });
+  el.querySelector(".js-extra").addEventListener("click", () => pinScreen({ title: "رمز الأب أو الأم", sub: "15 دقيقة إضافية" }, async (pin) => {
+    await api("/api/tv/kid/extra", { json: { pin } });
+    kidLocked = false;
+    toast("⏱️ 15 دقيقة إضافية", 4000);
+    await homeScreen();
+  }));
+  reset({ el, back() {}, initial: () => el.querySelector(".js-extra") });
 }
 
 function adultHome(d) {

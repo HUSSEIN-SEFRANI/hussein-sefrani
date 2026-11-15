@@ -6,11 +6,13 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import re
 import math
 import time
 from pathlib import Path
 
 from flask import Blueprint, abort, jsonify, request, send_file
+from werkzeug.security import check_password_hash
 
 from .core import body, current_user, get_db, get_setting, log_action, login_required, now_iso, paths, set_setting
 
@@ -233,9 +235,16 @@ def rules() -> dict:
     return v if isinstance(v, dict) else {}
 
 
+def _hm(v, default: str = "") -> str:
+    v = str(v or "").strip()
+    return v if re.match(r"^([01]\d|2[0-3]):[0-5]\d$", v) else default
+
+
 def rule_for(uid: int) -> dict:
     r = rules().get(str(uid)) or {}
-    return {"play": max(0, int(r.get("play") or 0)), "learn": max(0, int(r.get("learn") or 0))}
+    return {"play": max(0, int(r.get("play") or 0)), "learn": max(0, int(r.get("learn") or 0)),
+            "screen": max(0, int(r.get("screen") or 0)),          # وقت الشاشة اليومي كله (فيديو، أناشيد، ألعاب…)
+            "bed": _hm(r.get("bed")), "wake": _hm(r.get("wake"), "07:00")}   # وقت النوم: يُقفل الحساب حتى الاستيقاظ
 
 
 def installed_games() -> list[str]:
@@ -253,7 +262,7 @@ def installed_games() -> list[str]:
 
 def usage_today(db, uid: int) -> dict:
     day = dt.date.today().isoformat()
-    out = {"learn": 0, "play": 0}
+    out = {"learn": 0, "play": 0, "screen": 0}
     for r in db.execute("SELECT kind, SUM(seconds) s FROM tv_usage WHERE user_id=? AND day=? GROUP BY kind", (uid, day)):
         out[r["kind"]] = int(r["s"] or 0)
     return out
@@ -306,6 +315,115 @@ def api_play_beat():
     return jsonify(stop=not c["allowed"] and c["reason"] == "limit", **c)
 
 
+# ============================================================================= وقت الشاشة ووقت النوم
+SCREEN = "__screen__"    # صف الاستعمال اليومي الكامل للحساب في tv_usage
+WARN_SEC = 5 * 60        # تنبيه «باقي 5 دقائق»
+EXTRA_MIN = 15           # «وقت إضافي» يضيفه الأب أو الأم برمزه
+_extra_fail: dict[int, list] = {}
+
+
+def _extra(uid: int) -> dict:
+    """الدقائق الإضافية لليوم: {"screen": د، "bed": د}"""
+    try:
+        v = json.loads(get_setting("kids_extra") or "{}").get(str(uid)) or {}
+    except ValueError:
+        v = {}
+    return v if v.get("day") == dt.date.today().isoformat() else {}
+
+
+def _mins(hm: str) -> int:
+    h, m = hm.split(":")
+    return int(h) * 60 + int(m)
+
+
+def kid_status(db, u) -> dict:
+    """هل حساب الطفل مقفل الآن (انتهى وقت الشاشة أو حان وقت النوم)؟ مع تنبيه قبل 5 دقائق."""
+    if not _is_kid(u):
+        return {"locked": False}
+    r, ex = rule_for(u["id"]), _extra(u["id"])
+    out = {"locked": False, "reason": None, "warn": None, "screen_left": None, "bed": r["bed"] or None}
+    if r["screen"]:
+        left = (r["screen"] + int(ex.get("screen") or 0)) * 60 - usage_today(db, u["id"])["screen"]
+        out["screen_left"] = max(0, math.ceil(left / 60))
+        if left <= 0:
+            out.update(locked=True, reason="screen")
+        elif left <= WARN_SEC:
+            out["warn"] = "screen"
+    if r["bed"]:
+        now = dt.datetime.now()
+        m = now.hour * 60 + now.minute
+        bed = (_mins(r["bed"]) + int(ex.get("bed") or 0)) % 1440
+        wake = _mins(r["wake"] or "07:00")
+        night = (m >= bed or m < wake) if bed > wake else (bed <= m < wake)
+        if night:
+            out.update(locked=True, reason="bed")
+        elif 0 < (bed - m) % 1440 <= WARN_SEC // 60 and not out["warn"]:
+            out["warn"] = "bed"
+    return out
+
+
+@bp.get("/api/tv/kid/status")
+def api_kid_status():
+    u = _tv_user()
+    return jsonify(kid_status(get_db(), u))
+
+
+@bp.post("/api/tv/kid/beat")
+def api_kid_beat():
+    """نبضة كل 30 ثانية ما دام الطفل يستعمل التلفاز (ليس أثناء شاشة التوقف): يُحسب وقت الشاشة اليومي."""
+    u = _tv_user()
+    db = get_db()
+    if _is_kid(u):
+        day, now = dt.date.today().isoformat(), time.time()
+        row = db.execute("SELECT last FROM tv_usage WHERE user_id=? AND day=? AND game=?", (u["id"], day, SCREEN)).fetchone()
+        if row is None:
+            db.execute("INSERT INTO tv_usage(user_id, day, game, kind, seconds, last) VALUES (?,?,?,?,?,?)",
+                       (u["id"], day, SCREEN, "screen", BEAT, now))
+        elif now - row["last"] >= BEAT - 8:
+            db.execute("UPDATE tv_usage SET seconds=seconds+?, last=? WHERE user_id=? AND day=? AND game=?",
+                       (BEAT, now, u["id"], day, SCREEN))
+        db.commit()
+    return jsonify(kid_status(db, u))
+
+
+@bp.post("/api/tv/kid/extra")
+def api_kid_extra():
+    """«وقت إضافي»: الأب أو الأم يكتب رمزه على التلفاز فيُضاف للطفل 15 دقيقة اليوم (للشاشة أو بعد وقت النوم)."""
+    u = _tv_user()
+    if not _is_kid(u):
+        abort(400)
+    fails = [t for t in _extra_fail.get(u["id"], []) if time.time() - t < 600]
+    if len(fails) >= 6:
+        abort(429, "محاولات كثيرة. انتظر 10 دقائق")
+    pin = str(body().get("pin") or "")
+    db = get_db()
+    parent = None
+    for p in db.execute("SELECT id, username, tv_pin FROM users WHERE disabled=0 AND tv_pin IS NOT NULL AND (tv_role='adult' OR is_admin=1)"):
+        if check_password_hash(p["tv_pin"], pin):
+            parent = p
+            break
+    if parent is None:
+        _extra_fail[u["id"]] = fails + [time.time()]
+        abort(403, "الرمز غير صحيح. يحتاج رمز الأب أو الأم")
+    st = kid_status(db, u)
+    try:
+        allx = json.loads(get_setting("kids_extra") or "{}")
+    except ValueError:
+        allx = {}
+    cur = _extra(u["id"]) or {"day": dt.date.today().isoformat()}
+    key = "bed" if st.get("reason") == "bed" else "screen"
+    if key == "bed":   # بعد وقت النوم: 15 دقيقة من الآن
+        r = rule_for(u["id"])
+        now = dt.datetime.now()
+        cur["bed"] = ((now.hour * 60 + now.minute + EXTRA_MIN) - _mins(r["bed"])) % 1440
+    else:
+        cur["screen"] = int(cur.get("screen") or 0) + EXTRA_MIN
+    allx[str(u["id"])] = cur
+    set_setting("kids_extra", json.dumps(allx))
+    log_action("وقت إضافي على التلفاز", f"{EXTRA_MIN} دقيقة لـ {_name(u)}", parent["username"])
+    return jsonify(kid_status(db, u))
+
+
 @bp.get("/api/kids/settings")
 @login_required
 def api_kids_settings():
@@ -329,7 +447,9 @@ def api_kids_settings_set():
         for k, v in d["rules"].items():
             if isinstance(v, dict):
                 cur[str(int(k))] = {"play": max(0, min(600, int(v.get("play") or 0))),
-                                    "learn": max(0, min(240, int(v.get("learn") or 0)))}
+                                    "learn": max(0, min(240, int(v.get("learn") or 0))),
+                                    "screen": max(0, min(720, int(v.get("screen") or 0))),
+                                    "bed": _hm(v.get("bed")), "wake": _hm(v.get("wake"), "07:00")}
         set_setting("kids_rules", json.dumps(cur))
     log_action("تعلّم ثم العب", "تغيير الإعدادات", u["username"])
     return api_kids_settings()
@@ -348,11 +468,13 @@ def api_kids_report():
     out = []
     for m in _members(db, kids_only=True):
         uid = m["id"]
-        per_day = {(start + dt.timedelta(days=i)).isoformat(): {"learn": 0, "play": 0} for i in range(days)}
+        per_day = {(start + dt.timedelta(days=i)).isoformat(): {"learn": 0, "play": 0, "screen": 0} for i in range(days)}
         games: dict[str, dict] = {}
         for r in db.execute("SELECT day, game, kind, seconds FROM tv_usage WHERE user_id=? AND day>=?", (uid, s0)):
-            if r["day"] in per_day:
+            if r["day"] in per_day and r["kind"] in per_day[r["day"]]:
                 per_day[r["day"]][r["kind"]] += r["seconds"]
+            if r["kind"] == "screen":
+                continue
             g = games.setdefault(r["game"], {"game": r["game"], "kind": r["kind"], "seconds": 0})
             g["seconds"] += r["seconds"]
         acc = {}
@@ -371,7 +493,9 @@ def api_kids_report():
         total_n = sum(a["total"] for a in acc.values())
         out.append({
             "id": uid, "name": _name(m), "role": m["tv_role"],
-            "days": [{"day": k, "learn": round(v["learn"] / 60), "play": round(v["play"] / 60)} for k, v in per_day.items()],
+            "days": [{"day": k, "learn": round(v["learn"] / 60), "play": round(v["play"] / 60), "screen": round(v["screen"] / 60)}
+                     for k, v in per_day.items()],
+            "screen_min": round(sum(v["screen"] for v in per_day.values()) / 60),
             "learn_min": round(sum(v["learn"] for v in per_day.values()) / 60),
             "play_min": round(sum(v["play"] for v in per_day.values()) / 60),
             "games": sorted(({**g, "minutes": round(g["seconds"] / 60)} for g in games.values()), key=lambda x: -x["seconds"])[:8],
