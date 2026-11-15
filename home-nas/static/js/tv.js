@@ -258,6 +258,73 @@ function kidsBg() {
   <div class="cloud" style="top:150px;left:480px;width:210px">${A.CLOUD}</div>
   <div class="cloud" style="top:110px;left:860px;width:150px;animation-duration:22s">${A.CLOUD}</div></div>`;
 }
+// ---------------------------------------------------------------- خلفيات إضافية: سيارات، إسلامية، صورة من اختيار الأهل
+function carSvg(color, w = 210) {
+  return `<svg width="${w}" height="${Math.round(w * 0.46)}" viewBox="0 0 220 100" aria-hidden="true">
+    <ellipse cx="114" cy="92" rx="100" ry="6" fill="#000" opacity=".25"/>
+    <path d="M12 72 Q12 52 38 48 L68 45 Q90 18 120 17 L150 17 Q174 19 188 45 L202 49 Q216 53 216 72 L216 80 L12 80 Z" fill="${color}"/>
+    <path d="M12 72 L216 72 L216 80 L12 80 Z" fill="#000" opacity=".15"/>
+    <path d="M78 46 Q96 25 122 25 L132 25 L132 46 Z M140 25 L150 25 Q167 27 178 46 L140 46 Z" fill="#dbeafe" opacity=".92"/>
+    <circle cx="58" cy="80" r="16" fill="#1f2937"/><circle cx="58" cy="80" r="7" fill="#cbd5e1"/>
+    <circle cx="172" cy="80" r="16" fill="#1f2937"/><circle cx="172" cy="80" r="7" fill="#cbd5e1"/>
+    <rect x="203" y="57" width="12" height="7" rx="3" fill="#fef08a"/><rect x="12" y="58" width="9" height="7" rx="3" fill="#f87171"/></svg>`;
+}
+function carsBg(kids = false) {
+  const lane = (y, list, rev = false) => list.map(([c, dur, delay, w]) =>
+    `<div class="car${rev ? " rev" : ""}" style="bottom:${y}px;animation-duration:${dur}s;animation-delay:-${delay}s">${carSvg(c, w)}</div>`).join("");
+  const city = kids ? "" : Array.from({ length: 22 }, (_, i) => {
+    const w = 46 + ((i * 37) % 40), hgt = 90 + ((i * 53) % 150), x = i * 60 - 10;
+    const win = Array.from({ length: Math.floor(hgt / 26) }, (_, j) => (i + j) % 3 ? `<rect x="${x + 10}" y="${470 - hgt + 14 + j * 26}" width="8" height="10" fill="#fde68a" opacity=".8"/><rect x="${x + w - 18}" y="${470 - hgt + 14 + j * 26}" width="8" height="10" fill="#fde68a" opacity=".55"/>` : "").join("");
+    return `<rect x="${x}" y="${470 - hgt}" width="${w}" height="${hgt + 10}" fill="#1e1b4b" opacity=".9"/>${win}`;
+  }).join("");
+  const hills = kids ? `<path d="M0 470 C200 400 380 440 560 410 C760 376 940 450 1280 400 L1280 480 L0 480 Z" fill="#86efac"/>
+    <circle cx="180" cy="430" r="34" fill="#22c55e"/><rect x="176" y="440" width="8" height="40" fill="#92400e"/>
+    <circle cx="1090" cy="420" r="40" fill="#16a34a"/><rect x="1086" y="430" width="9" height="50" fill="#92400e"/>` : "";
+  return `<div class="layer">
+    <svg style="position:absolute;inset:0" width="1280" height="720" viewBox="0 0 1280 720" aria-hidden="true">
+      ${kids ? "" : `<circle cx="980" cy="440" r="90" fill="#fdba74" opacity=".85"/>`}${city}${hills}
+      <rect x="0" y="480" width="1280" height="240" fill="${kids ? "#64748b" : "#1f2937"}"/>
+      <rect x="0" y="480" width="1280" height="8" fill="${kids ? "#e2e8f0" : "#475569"}"/>
+      <rect x="0" y="712" width="1280" height="8" fill="${kids ? "#e2e8f0" : "#475569"}"/>
+      <g class="dashes"><rect x="0" y="596" width="2600" height="8" fill="url(#dash)"/></g>
+      <defs><pattern id="dash" width="120" height="8" patternUnits="userSpaceOnUse"><rect width="64" height="8" fill="#fde68a"/></pattern></defs></svg>
+    ${lane(14, [["#ef4444", 13, 0, 200], ["#3b82f6", 13, 6.5, 190]])}
+    ${lane(122, [["#22c55e", 16, 3, 170], ["#f59e0b", 16, 11, 175]], true)}</div>`;
+}
+function mosqueSvg(fill, glow, kids) {
+  const arch = (x, y, w, h) => `<path d="M${x} ${y + h} L${x} ${y + w / 2} Q${x} ${y} ${x + w / 2} ${y} Q${x + w} ${y} ${x + w} ${y + w / 2} L${x + w} ${y + h} Z" fill="${glow}"/>`;
+  const minaret = (x) => `<rect x="${x}" y="300" width="34" height="420" fill="${fill}"/><rect x="${x - 8}" y="360" width="50" height="12" rx="4" fill="${fill}"/>
+    <path d="M${x - 4} 300 L${x + 17} 236 L${x + 38} 300 Z" fill="${kids ? "#f59e0b" : fill}"/><circle cx="${x + 17}" cy="230" r="5" fill="${kids ? "#f59e0b" : glow}"/>
+    ${arch(x + 10, 400, 14, 26)}${arch(x + 10, 470, 14, 26)}`;
+  return `<svg class="mosque" style="position:absolute;inset:0" width="1280" height="720" viewBox="0 0 1280 720" aria-hidden="true">
+    ${minaret(270)}${minaret(976)}
+    <path d="M360 720 L360 520 L920 520 L920 720 Z" fill="${fill}"/>
+    <path d="M500 520 Q500 380 640 350 Q780 380 780 520 Z" fill="${kids ? "#fbbf24" : fill}"/>
+    <path d="M630 350 L640 312 L650 350 Z" fill="${kids ? "#f59e0b" : fill}"/><path d="M646 300 a12 12 0 1 1 -10 -18 a9 9 0 1 0 10 18 Z" fill="${kids ? "#f59e0b" : glow}"/>
+    <path d="M380 520 Q380 455 440 440 Q500 455 500 520 Z" fill="${kids ? "#fcd34d" : fill}"/>
+    <path d="M780 520 Q780 455 840 440 Q900 455 900 520 Z" fill="${kids ? "#fcd34d" : fill}"/>
+    ${[400, 470, 560, 690, 780, 850].map((x) => arch(x, 580, 30, 60)).join("")}${arch(615, 600, 50, 120)}</svg>`;
+}
+function islamicBg(kids = false) {
+  const lantern = (x, len, d) => `<div class="lantern" style="left:${x}px;animation-delay:-${d}s"><i style="height:${len}px"></i>
+    <svg width="46" height="78" viewBox="0 0 46 78" aria-hidden="true"><path d="M23 0 L32 12 L14 12 Z" fill="#b45309"/><rect x="10" y="12" width="26" height="6" rx="2" fill="#d97706"/>
+    <path d="M10 18 Q4 40 12 62 L34 62 Q42 40 36 18 Z" fill="#fbbf24" opacity=".95"/><path d="M17 22 Q14 40 18 58 L28 58 Q32 40 29 22 Z" fill="#fff7d6"/>
+    <rect x="9" y="62" width="28" height="6" rx="2" fill="#d97706"/><path d="M16 68 L30 68 L23 78 Z" fill="#b45309"/></svg></div>`;
+  const stars = kids ? "" : Array.from({ length: 26 }, (_, i) => `<div class="star" style="top:${(i * 47) % 300 + 20}px;left:${(i * 97) % 1240 + 20}px;width:${2 + (i % 3)}px;height:${2 + (i % 3)}px;background:#fef9c3;animation-delay:${(i % 5) * 0.6}s"></div>`).join("");
+  return `<div class="layer">
+    <svg class="geo" style="position:absolute;inset:0" width="1280" height="720" aria-hidden="true"><defs>
+      <pattern id="star8" width="80" height="80" patternUnits="userSpaceOnUse"><g fill="none" stroke="${kids ? "#0f766e" : "#fde68a"}" stroke-width="1.4">
+        <rect x="22" y="22" width="36" height="36"/><rect x="22" y="22" width="36" height="36" transform="rotate(45 40 40)"/><circle cx="40" cy="40" r="7"/></g></pattern></defs>
+      <rect width="1280" height="720" fill="url(#star8)" opacity="${kids ? ".10" : ".07"}"/></svg>
+    ${stars}
+    ${kids ? "" : `<div class="crescent"></div>`}
+    ${mosqueSvg(kids ? "#ffffff" : "#0b1730", kids ? "#99f6e4" : "#fbbf24", kids)}
+    ${lantern(120, 40, 0)}${lantern(1110, 70, 1.4)}${kids ? "" : lantern(1190, 20, 0.7)}</div>`;
+}
+function customBg(who) {
+  const v = (settings.walls || {})[who];
+  return v ? `<div class="layer wallimg ${who}" style="background-image:url('/api/tv/wall/${who}?v=${v}')"></div>` : skyBg();
+}
 function brand(size = 54) {
   return `<div class="brand">${F.LOGO(Math.round(size * 0.8))}<div class="t2">منزل العنب</div></div>`;
 }
@@ -581,9 +648,10 @@ async function homeScreen() {
 
 function adultHome(d) {
   const u = d.user;
-  const wp = settings.wallpaper;
-  const bgCls = wp === "photos" ? "bg-photos" : wp === "dark" ? "bg-night" : "bg-sky";
-  const bgHtml = wp === "photos" ? `<div class="layer photolayer"></div>` : wp === "dark" ? nightBg() : skyBg();
+  const wp = settings.wallpaper === "custom" && !(settings.walls || {}).adult ? "animated" : settings.wallpaper;
+  const bgCls = { photos: "bg-photos", dark: "bg-night", cars: "bg-cars", islamic: "bg-islamic", custom: "bg-custom" }[wp] || "bg-sky";
+  const bgHtml = wp === "photos" ? `<div class="layer photolayer"></div>` : wp === "dark" ? nightBg() : wp === "cars" ? carsBg()
+    : wp === "islamic" ? islamicBg() : wp === "custom" ? customBg("adult") : skyBg();
   const dock = d.tiles.length ? d.tiles.map((t) => `<button class="dk f" data-id="${t.id}"><div class="ic" style="background:${A.gradient(t.color)}">${A.icon(t.icon)}</div><span>${esc(t.title)}</span></button>`).join("")
     : `<div class="dock-empty">أضف مربعات لهذا الحساب من لوحة التحكم ← وضع التلفاز</div>`;
   const setTile = `<button class="dk f js-stars"><div class="ic emo" style="background:linear-gradient(135deg,#fef3c7,#f59e0b)">⭐</div><span>النجوم <b class="js-sb"></b></span></button>`
@@ -670,7 +738,9 @@ function kidsHome(d) {
   const greet = u.birthday_today ? `عيد ميلاد سعيد يا ${nm(esc(u.name))}!` : `مرحباً يا ${nm(esc(u.name))}!`;
   const exitTxt = "تبديل المستخدم";
   setTheme(u.theme);
-  const el = h(`<div class="kids bg-kids">${kidsBg()}${vineLayer(u.theme, [480, 610])}${confetti}
+  const kw = settings.kids_wallpaper === "custom" && !(settings.walls || {}).kids ? "garden" : settings.kids_wallpaper;
+  const kBg = kw === "cars" ? ["kcars", carsBg(true)] : kw === "islamic" ? ["kislamic", islamicBg(true)] : kw === "custom" ? ["kcustom", customBg("kids")] : ["", kidsBg()];
+  const el = h(`<div class="kids bg-kids ${kBg[0]}">${kBg[1]}${vineLayer(u.theme, [480, 610])}${confetti}
     <div class="mascot">${F.mascot(u.theme, 150)}</div>
     <div class="kgreet"><div class="h">${greet}</div><div class="s">ماذا نشاهد اليوم؟</div></div>
     <div class="kclock"><div class="tm js-tm"></div><div class="dt js-dt"></div><div class="wx js-wx">${weatherLine(d.weather)}</div></div>

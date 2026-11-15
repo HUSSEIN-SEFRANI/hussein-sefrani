@@ -1118,5 +1118,16 @@ window.I18N_DICT = {
 "هذه الصفحة للأب والأم فقط": ["This page is for parents only", "Cette page est réservée aux parents", "Bu sayfa yalnızca anne ve baba içindir", "Deze pagina is alleen voor ouders"],
   "الوضع الخفيف (للتلفاز أو الجهاز الضعيف)": ["Lite mode (for a slow TV or device)", "Mode léger (pour une TV ou un appareil lent)", "Hafif mod (yavaş TV veya cihaz için)", "Lichte modus (voor een trage tv of apparaat)"],
   "تلقائي حسب الجهاز": ["Automatic, by device", "Automatique selon l'appareil", "Cihaza göre otomatik", "Automatisch per apparaat"],
-  "مفعّل دائماً": ["Always on", "Toujours activé", "Her zaman açık", "Altijd aan"]
+  "مفعّل دائماً": ["Always on", "Toujours activé", "Her zaman açık", "Altijd aan"],
+"خلفية شاشة الأطفال": ["Kids screen background", "Fond de l'écran des enfants", "Çocuk ekranı arka planı", "Achtergrond kinderscherm"],
+"سيارات": ["Cars", "Voitures", "Arabalar", "Auto's"],
+"إسلامية (مسجد وهلال وفوانيس)": ["Islamic (mosque, crescent, lanterns)", "Islamique (mosquée, croissant, lanternes)", "İslami (cami, hilal, fenerler)", "Islamitisch (moskee, maansikkel, lantaarns)"],
+"إسلامية": ["Islamic", "Islamique", "İslami", "Islamitisch"],
+"صورة من اختياري": ["A picture of my choice", "Une image de mon choix", "Seçtiğim bir resim", "Een foto naar keuze"],
+"حديقة وسماء": ["Garden and sky", "Jardin et ciel", "Bahçe ve gökyüzü", "Tuin en lucht"],
+"صورة شاشة البالغين": ["Adults screen picture", "Image de l'écran des adultes", "Yetişkin ekranı resmi", "Foto volwassenenscherm"],
+"صورة شاشة الأطفال": ["Kids screen picture", "Image de l'écran des enfants", "Çocuk ekranı resmi", "Foto kinderscherm"],
+"رفع صورة": ["Upload a picture", "Envoyer une image", "Resim yükle", "Foto uploaden"],
+"تم رفع الصورة. اختر «صورة من اختياري» ثم احفظ": ["Picture uploaded. Choose «A picture of my choice», then save", "Image envoyée. Choisissez «Une image de mon choix» puis enregistrez", "Resim yüklendi. «Seçtiğim bir resim»i seçip kaydedin", "Foto geüpload. Kies «Een foto naar keuze» en sla op"],
+"هذه ليست صورة مدعومة": ["This is not a supported picture", "Ce n'est pas une image prise en charge", "Bu desteklenen bir resim değil", "Dit is geen ondersteunde afbeelding"]
 };

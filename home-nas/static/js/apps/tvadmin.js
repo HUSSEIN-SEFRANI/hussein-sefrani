@@ -329,7 +329,10 @@ function settingsCard(d, reload) {
   const c = h(`<div class="card">
     <div class="tv-grid">
       <label>خلفية شاشة البالغين<select class="field" name="wallpaper">
-        <option value="animated">سماء متحركة</option><option value="photos">صوري المفضلة (تتبدل)</option><option value="dark">ليلي هادئ</option></select></label>
+        <option value="animated">سماء متحركة</option><option value="photos">صوري المفضلة (تتبدل)</option><option value="dark">ليلي هادئ</option>
+        <option value="cars">🚗 سيارات</option><option value="islamic">🕌 إسلامية (مسجد وهلال وفوانيس)</option><option value="custom">🖼️ صورة من اختياري</option></select></label>
+      <label>خلفية شاشة الأطفال<select class="field" name="kids_wallpaper">
+        <option value="garden">🌳 حديقة وسماء</option><option value="cars">🚗 سيارات</option><option value="islamic">🕌 إسلامية</option><option value="custom">🖼️ صورة من اختياري</option></select></label>
       <label>شاشة التوقف بعد (دقيقة، 0 = أبداً)<input class="field" type="number" min="0" max="240" name="saver_min"></label>
       <label>نوع شاشة التوقف<select class="field" name="saver_kind">
         <option value="prayer">🕌 مواقيت الصلاة بكامل الشاشة</option><option value="photos">🖼️ صوري المفضلة</option><option value="fire">🔥 نار (مدفأة)</option>
@@ -343,6 +346,7 @@ function settingsCard(d, reload) {
       <label>لغة واجهة التلفاز<select class="field" name="lang" translate="no"><option value="ar">العربية</option><option value="en">English</option><option value="fr">Français</option><option value="tr">Türkçe</option><option value="nl">Nederlands</option></select></label>
       <label>الوضع الخفيف (للتلفاز أو الجهاز الضعيف)<select class="field" name="lite"><option value="auto">تلقائي حسب الجهاز</option><option value="on">مفعّل دائماً</option><option value="off">متوقف</option></select></label>
     </div>
+    <div class="wall-files" style="margin:8px 0"></div>
     <label class="check"><input type="checkbox" name="nosleep"> منع الشاشة من الانطفاء أثناء الاستخدام</label>
     <h4 style="margin-top:16px">${icon('clock')} مواقيت الصلاة</h4>
     <label class="check"><input type="checkbox" name="prayer"> عرض مواقيت الصلاة على شاشة البالغين</label>
@@ -395,7 +399,7 @@ function settingsCard(d, reload) {
     <label class="check"><input type="checkbox" name="weather"> عرض الطقس لمدينة المواقيت تحت الساعة (من Open-Meteo، بلا حساب)</label>
     <div style="margin-top:14px"><button class="btn primary" data-x="save">حفظ</button></div></div>`);
   const f = (n) => $(`[name=${n}]`, c);
-  f('wallpaper').value = s.wallpaper; f('saver_min').value = s.saver_min; f('nosleep').checked = s.nosleep; f('lite').value = s.lite || 'auto'; f('lang').value = s.lang || 'ar';
+  f('wallpaper').value = s.wallpaper; f('kids_wallpaper').value = s.kids_wallpaper || 'garden'; f('saver_min').value = s.saver_min; f('nosleep').checked = s.nosleep; f('lite').value = s.lite || 'auto'; f('lang').value = s.lang || 'ar';
   f('zoom').value = s.zoom || 100; f('margin').value = s.margin || 0;
   f('night_from').value = nf || ''; f('night_to').value = nt || '';
   f('prayer').checked = s.prayer; f('city').value = s.city || ''; f('lat').value = s.lat || ''; f('lon').value = s.lon || '';
@@ -448,6 +452,25 @@ function settingsCard(d, reload) {
     }));
   };
   adFiles(d.adhan_files || {});
+  // صورة خلفية من اختيار الأهل (لشاشة البالغين وشاشة الأطفال)
+  const wallFiles = (walls) => {
+    const row = (w, label) => `<div style="margin:4px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">${label}: ${walls[w]
+      ? `<img src="/api/tv/wall/${w}?v=${walls[w]}" alt="" style="height:44px;border-radius:6px"> <button class="btn sm ghost" data-wall-del="${w}">حذف</button>`
+      : '<span class="muted">لا توجد</span>'} <label class="btn sm" style="cursor:pointer">${icon('upload')} رفع صورة<input type="file" accept="image/*" data-wall-up="${w}" hidden></label></div>`;
+    const box = $('.wall-files', c);
+    box.innerHTML = '<div class="muted small">«صورة من اختياري»:</div>' + row('adult', 'صورة شاشة البالغين') + row('kids', 'صورة شاشة الأطفال');
+    box.querySelectorAll('[data-wall-del]').forEach((b) => (b.onclick = async () => { const r = await guard(() => api.del(`/api/admin/tv/wall/${b.dataset.wallDel}`)); if (r) wallFiles(r.walls); }));
+    box.querySelectorAll('[data-wall-up]').forEach((inp) => (inp.onchange = async () => {
+      const file = inp.files[0]; if (!file) return;
+      const fd = new FormData(); fd.append('file', file);
+      try {
+        const res = await fetch(`/api/admin/tv/wall/${inp.dataset.wallUp}`, { method: 'POST', body: fd }); const r = await res.json();
+        if (!res.ok) throw new Error(r.error || res.status);
+        toast('تم رفع الصورة. اختر «صورة من اختياري» ثم احفظ', 'ok'); wallFiles(r.walls);
+      } catch (e) { toast(e.message, 'err'); }
+    }));
+  };
+  wallFiles(s.walls || {});
   f('w_fr').checked = s.words.includes('fr'); f('w_en').checked = s.words.includes('en');
   for (const k of ['hadith', 'ayah', 'proverb', 'wisdom']) f('dk_' + k).checked = (s.daily_kinds || []).includes(k);
   f('saver_kind').value = s.saver_kind || 'prayer'; f('saver_text').value = s.saver_text || '';
@@ -474,7 +497,7 @@ function settingsCard(d, reload) {
   $('[data-x=save]', c).onclick = async () => {
     const nightFrom = f('night_from').value, nightTo = f('night_to').value;
     const data = {
-      wallpaper: f('wallpaper').value, saver_min: +f('saver_min').value || 0, nosleep: f('nosleep').checked, lite: f('lite').value, lang: f('lang').value,
+      wallpaper: f('wallpaper').value, kids_wallpaper: f('kids_wallpaper').value, saver_min: +f('saver_min').value || 0, nosleep: f('nosleep').checked, lite: f('lite').value, lang: f('lang').value,
       zoom: +f('zoom').value || 100, margin: +f('margin').value || 0,
       night_off: nightFrom && nightTo ? `${nightFrom}-${nightTo}` : '',
       prayer: f('prayer').checked, city: f('city').value, method: f('method').value, hanafi: f('hanafi').checked,

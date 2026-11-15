@@ -171,6 +171,7 @@ def tv_settings() -> dict:
         "zoom": int(g("tv_zoom", "100")), "margin": int(g("tv_margin", "0")), "text": int(g("tv_text", "100")),
         "lite": g("tv_lite", "auto"),   # وضع خفيف للأجهزة الضعيفة: auto / on / off
         "lang": tv_lang(),               # لغة واجهة التلفاز يختارها الأبوان
+        "kids_wallpaper": g("tv_kids_wallpaper", "garden"), "walls": wall_versions(),
         "source": g("tv_prayer_source", "calc"), "offsets": json.loads(g("tv_prayer_off", "{}")),
         "adhan": {**ADHAN_DEFAULT, **json.loads(g("tv_adhan", "{}"))},
         "weather": g("tv_weather", "1") == "1",
@@ -213,6 +214,24 @@ def adhan_dir() -> Path:
     d = paths().system / "adhan"
     d.mkdir(parents=True, exist_ok=True)
     return d
+
+
+WALLS = ("adult", "kids")
+
+
+def wall_dir() -> Path:
+    d = paths().system / "tv-wall"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def wall_versions() -> dict:
+    """خلفية من اختيار الأهل لكل شاشة: رقم نسخة (وقت الرفع) أو 0 إن لا توجد."""
+    out = {}
+    for w in WALLS:
+        f = wall_dir() / f"{w}.jpg"
+        out[w] = int(f.stat().st_mtime) if f.exists() else 0
+    return out
 
 
 def adhan_files() -> dict:
@@ -363,8 +382,8 @@ def api_admin_tv():
 @admin_required
 def api_admin_tv_settings():
     d = body()
-    for key, sk in (("theme", "tv_theme"), ("wallpaper", "tv_wallpaper"), ("city", "tv_city"), ("method", "tv_method"),
-                    ("night_off", "tv_night_off")):
+    for key, sk in (("theme", "tv_theme"), ("wallpaper", "tv_wallpaper"), ("kids_wallpaper", "tv_kids_wallpaper"),
+                    ("city", "tv_city"), ("method", "tv_method"), ("night_off", "tv_night_off")):
         if key in d:
             set_setting(sk, str(d[key] or "")[:40])
     for key, sk in (("lat", "tv_lat"), ("lon", "tv_lon")):
@@ -465,6 +484,50 @@ def api_admin_adhan_delete(which):
         abort(404)
     (adhan_dir() / f"{which}.mp3").unlink(missing_ok=True)
     return jsonify(ok=True, files=adhan_files())
+
+
+@bp.post("/api/admin/tv/wall/<who>")
+@admin_required
+def api_admin_wall_upload(who):
+    """صورة خلفية من اختيار الأهل (للبالغين أو للأطفال): تُصغَّر إلى 1920×1080 وتُحفظ JPEG."""
+    if who not in WALLS:
+        abort(404)
+    f = request.files.get("file")
+    if not f:
+        abort(400, "اختر صورة")
+    data = f.read(40 * 1024 * 1024 + 1)
+    if len(data) > 40 * 1024 * 1024:
+        abort(400, "الملف كبير جداً (الحد 40 ميغابايت)")
+    import io
+    from PIL import Image, ImageOps
+    try:
+        im = ImageOps.exif_transpose(Image.open(io.BytesIO(data))).convert("RGB")
+    except Exception:
+        abort(400, "هذه ليست صورة مدعومة (JPG أو PNG)")
+    im.thumbnail((1920, 1080))
+    tmp = wall_dir() / f".{who}.tmp"
+    im.save(tmp, "JPEG", quality=86)
+    tmp.replace(wall_dir() / f"{who}.jpg")
+    log_action("خلفية التلفاز", who)
+    return jsonify(ok=True, walls=wall_versions())
+
+
+@bp.delete("/api/admin/tv/wall/<who>")
+@admin_required
+def api_admin_wall_delete(who):
+    if who not in WALLS:
+        abort(404)
+    (wall_dir() / f"{who}.jpg").unlink(missing_ok=True)
+    return jsonify(ok=True, walls=wall_versions())
+
+
+@bp.get("/api/tv/wall/<who>")
+def api_tv_wall(who):
+    tv_guard()
+    f = wall_dir() / f"{who}.jpg"
+    if who not in WALLS or not f.exists():
+        abort(404)
+    return send_file(f, mimetype="image/jpeg", max_age=86400)
 
 
 @bp.get("/api/tv/adhan/<which>")
