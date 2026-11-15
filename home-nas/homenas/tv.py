@@ -54,7 +54,7 @@ DEFAULT_TILES = {
     "little": [("ألعاب", "games", "games", 4), ("رسوم متحركة", "media", "cartoon", 0), ("أناشيد", "media", "music", 1),
                ("عالم الحيوان", "media", "animals", 2)],
     "adult": [("صوري", "photos", "photos", 5), ("الفيديو", "media", "video", 3), ("الأفلام", "media", "film", 9),
-              ("الموسيقى", "media", "music", 2), ("القرآن الكريم", "media", "quran", 7), ("ألعاب", "games", "games", 4)],
+              ("الصوتيات", "media", "music", 2), ("القرآن الكريم", "media", "quran", 7), ("ألعاب", "games", "games", 4)],
 }
 
 
@@ -87,6 +87,8 @@ def migrate(db):
     db.execute("UPDATE settings SET value='HOME ANAB' WHERE key='server_name' AND value='H.SEF'")
     # v1.5.5: نص اليوم الافتراضي صار «حديث، آية، حكمة» (من لم يغيّر الاختيار القديم)
     db.execute("""UPDATE settings SET value='["hadith", "ayah", "wisdom"]' WHERE key='tv_daily_kinds' AND value='["hadith", "proverb", "wisdom"]'""")
+    # v1.8.2: مربع «الموسيقى» صار «الصوتيات»
+    db.execute("UPDATE tv_tiles SET title='الصوتيات' WHERE title='الموسيقى'")
     db.commit()
 
 

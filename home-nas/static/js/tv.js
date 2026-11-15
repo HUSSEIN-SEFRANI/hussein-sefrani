@@ -922,50 +922,119 @@ function videoScreen(t, paths, idx) {
   load(idx);
 }
 
-// ============================================================== الصوت (أناشيد، قرآن، موسيقى)
+// ============================================================== الصوتيات (أناشيد، قرآن، تسجيلات)
+// أربع طرق عرض (تُحفظ لكل مربع): قائمة، أسطوانة دوّارة، موجات صوتية، شاشة كبيرة. مع تكرار وتشغيل عشوائي
+const AUDIO_VIEWS = [["list", "📋", "قائمة"], ["vinyl", "💿", "أسطوانة"], ["waves", "🌊", "موجات"], ["big", "🖥️", "شاشة كبيرة"]];
 function audioScreen(t, paths, idx) {
   const names = paths.map((p) => p.split("/").pop().replace(/\.[^.]+$/, ""));
+  const vkey = `hsef-aview-${t.id}`;
+  let view = "list", repeat = "all", shuffle = false;
+  try { view = localStorage.getItem(vkey) || "list"; repeat = localStorage.getItem("hsef-arep") || "all"; shuffle = localStorage.getItem("hsef-ashuf") === "1"; } catch { /* */ }
   const list = names.map((n, i) => `<button class="trk f" data-i="${i}"><span class="n">${i + 1}</span><span class="x">${esc(n)}</span></button>`).join("");
-  const el = h(`<div class="bg-dark audio" style="--glow1:${(t.color || "#a855f7").split(",")[0]}66">
+  const c1 = (t.color || "#a855f7,#ec4899").split(",")[0];
+  const el = h(`<div class="bg-dark audio" style="--glow1:${c1}66;--ac:${c1}">
     ${header(t, t.title, "")}
     <div class="cover" style="background:${A.gradient(t.color)}">${A.icon(t.icon)}</div>
-    <div class="now"><div class="tt"></div><div class="bar"><i></i></div>
-      <div class="vbtns"><button class="btn f js-vd">${VOL_ICON(false).replace(/34/g, "24")} −</button><button class="btn f js-vm">${VOL_ICON(true).replace(/34/g, "24")}</button><button class="btn f js-vu">${VOL_ICON(false).replace(/34/g, "24")} +</button></div></div>
+    <div class="vinyl"><div class="disc"><div class="lbl" style="background:${A.gradient(t.color)}">${A.icon(t.icon)}</div></div><div class="arm"></div></div>
+    <canvas class="waves" width="1280" height="420"></canvas>
+    <div class="bigtt"></div>
+    <div class="now"><div class="tt"></div><div class="bar"><i></i></div><div class="tms"><span class="cur">0:00</span><span class="dur"></span></div>
+      <div class="vbtns"><button class="btn f js-vd">${VOL_ICON(false).replace(/34/g, "24")} −</button><button class="btn f js-vm">${VOL_ICON(true).replace(/34/g, "24")}</button><button class="btn f js-vu">${VOL_ICON(false).replace(/34/g, "24")} +</button></div>
+      <div class="vbtns"><button class="btn f js-view"></button><button class="btn f js-rep"></button><button class="btn f js-shuf"></button></div></div>
     <div class="list">${list}</div><audio autoplay></audio>
-    ${hints([["موافق", "تشغيل"], ["+ −", "الصوت"], ["M", "كتم"], ["رجوع", "خروج"]])}</div>`);
+    ${hints([["موافق", "تشغيل"], ["+ −", "الصوت"], ["V", "طريقة العرض"], ["رجوع", "خروج"]])}</div>`);
   const au = el.querySelector("audio"), bar = el.querySelector(".now .bar i"), cover = el.querySelector(".cover");
+  const fmt = (x) => (isFinite(x) ? `${Math.floor(x / 60)}:${pad(Math.floor(x % 60))}` : "");
+  const save = () => { try { localStorage.setItem(vkey, view); localStorage.setItem("hsef-arep", repeat); localStorage.setItem("hsef-ashuf", shuffle ? "1" : "0"); } catch { /* */ } };
+  // الموجات: محلّل الصوت يُنشأ مرة واحدة عند أول عرض لها
+  let an = null, stopWaves = null;
+  const startWaves = () => {
+    if (stopWaves) return;
+    try {
+      if (!an) {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const src = ctx.createMediaElementSource(au);
+        an = ctx.createAnalyser(); an.fftSize = 128;
+        src.connect(an); an.connect(ctx.destination);
+        au.addEventListener("play", () => ctx.resume().catch(() => {}));
+      }
+    } catch { an = null; }
+    const cv = el.querySelector("canvas.waves"), g = cv.getContext("2d");
+    const data = new Uint8Array(64);
+    stopWaves = frameLoop((dt, ts) => {
+      g.clearRect(0, 0, 1280, 420);
+      if (an) an.getByteFrequencyData(data);
+      const n = 48, w = 1280 / n;
+      for (let i = 0; i < n; i++) {
+        const v = an && !au.paused ? data[Math.min(63, Math.floor(i * 1.2))] / 255 : 0.08 + 0.05 * Math.sin(ts * 2 + i / 3);
+        const hh = Math.max(6, v * 380);
+        g.fillStyle = `hsla(${(i * 7 + ts * 20) % 360}, 85%, 62%, .9)`;
+        g.beginPath(); g.roundRect?.(i * w + 4, 210 - hh / 2, w - 8, hh, 8); g.fill();
+      }
+    }, 30);
+  };
+  const setView = (v) => {
+    view = AUDIO_VIEWS.some(([k]) => k === v) ? v : "list";
+    el.dataset.view = view;
+    const [, ic, lb] = AUDIO_VIEWS.find(([k]) => k === view);
+    el.querySelector(".js-view").textContent = `${ic} ${lb}`;
+    if (view === "waves") startWaves(); else if (stopWaves) { stopWaves(); stopWaves = null; }
+    save();
+  };
+  const drawModes = () => {
+    el.querySelector(".js-rep").textContent = repeat === "one" ? "🔂 تكرار المقطع" : repeat === "all" ? "🔁 تكرار الكل" : "➡️ بلا تكرار";
+    el.querySelector(".js-shuf").textContent = shuffle ? "🔀 عشوائي" : "⏭️ بالترتيب";
+    el.querySelector(".js-shuf").classList.toggle("on", shuffle);
+    save();
+  };
   const load = (i) => {
     idx = i;
     au.src = fileUrl(t, paths[i]);
     au.play().catch(() => {});
     el.querySelector(".now .tt").textContent = names[i];
+    el.querySelector(".bigtt").textContent = names[i];
     el.querySelectorAll(".trk").forEach((b) => b.classList.toggle("cur", +b.dataset.i === i));
   };
-  au.addEventListener("timeupdate", () => { bar.style.width = `${(au.currentTime / au.duration) * 100 || 0}%`; });
-  au.addEventListener("play", () => cover.classList.add("playing"));
-  au.addEventListener("pause", () => cover.classList.remove("playing"));
-  au.addEventListener("ended", () => { if (idx + 1 < paths.length) load(idx + 1); });
+  const nextIdx = () => {
+    if (repeat === "one") return idx;
+    if (shuffle && paths.length > 1) { let j; do { j = Math.floor(Math.random() * paths.length); } while (j === idx); return j; }
+    return idx + 1 < paths.length ? idx + 1 : repeat === "all" ? 0 : -1;
+  };
+  au.addEventListener("timeupdate", () => {
+    bar.style.width = `${(au.currentTime / au.duration) * 100 || 0}%`;
+    el.querySelector(".tms .cur").textContent = fmt(au.currentTime);
+    el.querySelector(".tms .dur").textContent = fmt(au.duration);
+  });
+  au.addEventListener("play", () => { cover.classList.add("playing"); el.classList.add("playing"); });
+  au.addEventListener("pause", () => { cover.classList.remove("playing"); el.classList.remove("playing"); });
+  au.addEventListener("ended", () => { const j = nextIdx(); if (j >= 0) load(j); });
   au.addEventListener("error", () => { toast("لا يمكن تشغيل هذا الملف"); if (idx + 1 < paths.length) setTimeout(() => load(idx + 1), 1500); });
   el.querySelector(".js-back").addEventListener("click", pop);
   el.querySelector(".js-vd").addEventListener("click", volDown);
   el.querySelector(".js-vu").addEventListener("click", volUp);
   el.querySelector(".js-vm").addEventListener("click", volMute);
+  el.querySelector(".js-view").addEventListener("click", () => { const i = AUDIO_VIEWS.findIndex(([k]) => k === view); setView(AUDIO_VIEWS[(i + 1) % AUDIO_VIEWS.length][0]); });
+  el.querySelector(".js-rep").addEventListener("click", () => { repeat = { all: "one", one: "none", none: "all" }[repeat] || "all"; drawModes(); });
+  el.querySelector(".js-shuf").addEventListener("click", () => { shuffle = !shuffle; drawModes(); });
   el.querySelectorAll(".trk").forEach((b) => b.addEventListener("click", () => {
     const i = +b.dataset.i;
     if (i === idx) (au.paused ? au.play() : au.pause()); else load(i);
   }));
   push({
     el,
-    initial: () => el.querySelector(`.trk[data-i="${idx}"]`),
+    initial: () => (view === "list" ? el.querySelector(`.trk[data-i="${idx}"]`) : el.querySelector(".js-view")),
     busy: () => !au.paused,
-    destroy() { au.pause(); au.removeAttribute("src"); au.load(); },
+    destroy() { stopWaves?.(); au.pause(); au.removeAttribute("src"); au.load(); },
     key(e) {
       if (e.key === " " || e.key === "MediaPlayPause") { au.paused ? au.play() : au.pause(); return true; }
-      if (e.key === "MediaTrackNext" && idx + 1 < paths.length) { load(idx + 1); return true; }
+      if (e.key === "v" || e.key === "V") { el.querySelector(".js-view").click(); return true; }
+      if (e.key === "MediaTrackNext") { const j = nextIdx(); if (j >= 0) load(j); return true; }
       if (e.key === "MediaTrackPrevious" && idx > 0) { load(idx - 1); return true; }
       return false;
     },
   });
+  setView(view);
+  drawModes();
   load(idx);
 }
 

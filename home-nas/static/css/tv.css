@@ -622,3 +622,32 @@ html[dir=ltr] .crescent { right: auto; left: 150px; }
 .night-dim .saver .sclock .tm { color: #94a3b8; }
 .night-dim .prayer .row.nx { background: rgba(251,191,36,.16) !important; box-shadow: none !important; }
 .night-dim .dk .ic, .night-dim .kt .box { filter: brightness(.6); }
+
+/* الصوتيات: طرق العرض (قائمة، أسطوانة، موجات، شاشة كبيرة) */
+.audio .vinyl, .audio canvas.waves, .audio .bigtt { display: none; }
+.audio .now .tms { display: flex; justify-content: space-between; direction: ltr; font-size: 16px; color: #cbd5e1; margin-top: 6px; }
+.audio .vbtns .btn.on { background: var(--gold); color: #3b2a0b; }
+.audio[data-view=vinyl] .cover { display: none; }
+.audio[data-view=vinyl] .vinyl { display: block; position: absolute; top: 110px; right: 80px; width: 400px; height: 400px; }
+.audio .disc { width: 380px; height: 380px; border-radius: 50%; background: repeating-radial-gradient(circle, #111 0 3px, #1f1f1f 3px 6px); box-shadow: 0 30px 60px rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; animation: spin 4s linear infinite; animation-play-state: paused; }
+.audio.playing .disc { animation-play-state: running; }
+.audio .disc .lbl { width: 140px; height: 140px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.audio .disc .lbl svg { width: 60%; height: 60%; }
+.audio .arm { position: absolute; top: -10px; left: -20px; width: 12px; height: 210px; background: linear-gradient(#e5e7eb,#9ca3af); border-radius: 6px; transform-origin: 6px 6px; transform: rotate(-38deg); transition: transform .8s; }
+.audio.playing .arm { transform: rotate(-18deg); }
+@keyframes spin { to { transform: rotate(360deg); } }
+.audio[data-view=waves] .cover, .audio[data-view=waves] .list, .audio[data-view=big] .cover, .audio[data-view=big] .list { display: none; }
+.audio[data-view=waves] canvas.waves { display: block; position: absolute; top: 100px; left: 0; width: 1280px; height: 420px; }
+.audio[data-view=waves] .now, .audio[data-view=big] .now { top: auto; bottom: 70px; right: 50%; transform: translateX(50%); width: 640px; }
+.audio[data-view=big] { background: radial-gradient(circle at 50% 35%, var(--glow1), transparent 60%), #0b1020; }
+.audio[data-view=big] .bigtt, .audio[data-view=waves] .bigtt { display: block; position: absolute; left: 80px; right: 80px; text-align: center; font-family: "Baloo Bhaijaan 2", sans-serif; font-weight: 800; color: #fff; }
+.audio[data-view=big] .bigtt { top: 190px; font-size: 76px; line-height: 1.25; text-shadow: 0 6px 30px rgba(0,0,0,.6); }
+.audio[data-view=waves] .bigtt { top: 96px; font-size: 40px; z-index: 1; }
+.audio[data-view=waves] .now .tt, .audio[data-view=big] .now .tt { display: none; }
+.lite .audio .disc { animation: none; }
+/* مكان للزرين الجديدين: الغلاف أصغر قليلاً */
+.audio .cover { top: 104px; right: 120px; width: 320px; height: 320px; }
+.audio .now { top: 440px; }
+.audio[data-view=vinyl] .vinyl { top: 96px; right: 110px; width: 340px; height: 340px; }
+.audio .disc { width: 330px; height: 330px; }
+.audio .disc .lbl { width: 120px; height: 120px; }
