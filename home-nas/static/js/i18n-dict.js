@@ -1138,5 +1138,7 @@ window.I18N_DICT = {
 "عند انتهاء وقت الشاشة أو في وقت النوم يُقفل حساب الطفل على التلفاز، مع تنبيه قبل 5 دقائق": ["When screen time runs out or at bedtime, the child's TV account locks, with a warning 5 minutes before", "Quand le temps d'écran est écoulé ou à l'heure du coucher, le compte TV de l'enfant se verrouille, avec un avertissement 5 minutes avant", "Ekran süresi bitince veya uyku saatinde çocuğun TV hesabı kilitlenir; 5 dakika önce uyarı gelir", "Als de schermtijd op is of op bedtijd wordt het tv-account van het kind vergrendeld, met een waarschuwing 5 minuten vooraf"],
 "الأب أو الأم يكتب رمزه على التلفاز فيضيف 15 دقيقة": ["Mum or Dad types their code on the TV to add 15 minutes", "Papa ou maman tape son code sur la TV pour ajouter 15 minutes", "Anne veya baba TV'de kodunu yazarak 15 dakika ekler", "Mama of papa typt de code op de tv om 15 minuten toe te voegen"],
 "اترك «وقت النوم» فارغاً لإيقافه": ["Leave «Bedtime» empty to turn it off", "Laissez «Heure du coucher» vide pour la désactiver", "Kapatmak için «Uyku saati»ni boş bırakın", "Laat «Bedtijd» leeg om het uit te zetten"],
-"شاشة": ["screen", "écran", "ekran", "scherm"]
+"شاشة": ["screen", "écran", "ekran", "scherm"],
+"أنهى": ["finished", "a terminé", "bitirdi", "is klaar met"],
+"افتح «العائلة» ← المهام للتأكيد": ["open «Family» → Tasks to confirm", "ouvrez «Famille» → Tâches pour confirmer", "onaylamak için «Aile» → Görevler'i açın", "open «Gezin» → Taken om te bevestigen"]
 };

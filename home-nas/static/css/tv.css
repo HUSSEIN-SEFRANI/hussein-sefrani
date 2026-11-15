@@ -659,3 +659,9 @@ html[dir=ltr] .crescent { right: auto; left: 150px; }
 .kidlock .kl p { font-size: 28px; color: #e2e8f0; margin: 0 0 30px; max-width: 900px; line-height: 1.6; }
 .kidlock .kl-btns { display: flex; gap: 20px; }
 .kidlock .kl-btns .btn { font-size: 22px; padding: 14px 28px; }
+
+/* مهام الأطفال: رقم أحمر وشاشة التأكيد */
+.dk b.badge { background: #ef4444; color: #fff; border-radius: 10px; padding: 0 7px; font-size: 13px; }
+.kscr .kgrid.chk .kcard { min-height: 210px; }
+.kscr .kcard .acts { display: flex; gap: 10px; margin-top: 4px; }
+.kscr .kcard .acts .btn { font-size: 18px; padding: 8px 16px; }

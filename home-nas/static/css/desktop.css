@@ -593,3 +593,8 @@ pre.applog.big { max-height: 60vh; font-size: 12px; }
 .fam-rule select { width: auto; display: inline-block; }
 .fam-games { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 14px; }
 @media (max-width: 760px) { .fam-kpis { grid-template-columns: repeat(2, 1fr); } .fam-cols { grid-template-columns: 1fr; } }
+
+/* رقم أحمر على أيقونة التطبيق (مثل مهام الأطفال التي تنتظر التأكيد) */
+.app-tile { position: relative; }
+.dbadge { position: absolute; top: -6px; inset-inline-end: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: #ef4444; color: #fff;
+  font-size: 12px; font-weight: 800; font-style: normal; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px #fff; }

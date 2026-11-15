@@ -637,25 +637,75 @@ def api_kids_chore_del(cid):
     return api_kids_chores()
 
 
-@bp.post("/api/kids/chores/log/<int:lid>")
-@login_required
-def api_kids_chore_confirm(lid):
-    u = _parent()
-    action = body().get("action")
-    db = get_db()
+def chore_decide(db, lid: int, action, by_id: int) -> None:
+    """تأكيد مهمة أنهاها طفل (تُضاف النجوم) أو رفضها (ترجع إليه ليعيدها)."""
     row = db.execute("SELECT l.*, c.title, c.stars FROM chore_log l JOIN chores c ON c.id=l.chore_id WHERE l.id=?",
                      (lid,)).fetchone()
     if not row or row["status"] != "done":
         abort(400, "لا يوجد ما يُؤكَّد")
     if action == "confirm":
-        db.execute("UPDATE chore_log SET status='confirmed', by_id=? WHERE id=?", (u["id"], lid))
-        grant_stars(db, row["user_id"], row["stars"], "give", f"✅ {row['title']}", u["id"])
+        db.execute("UPDATE chore_log SET status='confirmed', by_id=? WHERE id=?", (by_id, lid))
+        grant_stars(db, row["user_id"], row["stars"], "give", f"✅ {row['title']}", by_id)
     elif action == "reject":
         db.execute("DELETE FROM chore_log WHERE id=?", (lid,))
     else:
         abort(400)
     db.commit()
+
+
+def pending_chores(db) -> list[dict]:
+    """المهام التي أنهاها الأطفال وتنتظر تأكيد الأب أو الأم."""
+    names = {m["id"]: _name(m) for m in _members(db, kids_only=True)}
+    rows = db.execute("""SELECT l.id, l.day, l.user_id, c.title, c.icon, c.stars FROM chore_log l JOIN chores c ON c.id=l.chore_id
+                         WHERE l.status='done' ORDER BY l.day DESC, l.id DESC LIMIT 60""").fetchall()
+    return [{**dict(r), "kid": names.get(r["user_id"], "?")} for r in rows]
+
+
+@bp.post("/api/kids/chores/log/<int:lid>")
+@login_required
+def api_kids_chore_confirm(lid):
+    u = _parent()
+    chore_decide(get_db(), lid, body().get("action"), u["id"])
     return api_kids_chores()
+
+
+@bp.get("/api/kids/pending")
+@login_required
+def api_kids_pending():
+    """عدد المهام المنتظرة: رقم أحمر على أيقونة «العائلة» للأب والأم."""
+    u = current_user()
+    if not u or not (u["is_admin"] or (u["tv_role"] or "") == "adult"):
+        return jsonify(count=0, items=[])
+    items = pending_chores(get_db())
+    return jsonify(count=len(items), items=items[:10])
+
+
+def _tv_parent():
+    u = _tv_user()
+    if not (u["is_admin"] or (u["tv_role"] or "") == "adult"):
+        abort(403, "للأب والأم فقط")
+    return u
+
+
+@bp.get("/api/tv/chores/pending")
+def api_tv_chores_pending():
+    u = _tv_parent()
+    items = pending_chores(get_db())
+    return jsonify(count=len(items), items=items, has_pin=bool(u["tv_pin"]))
+
+
+@bp.post("/api/tv/chores/pending")
+def api_tv_chores_decide():
+    """من التلفاز: الأب أو الأم يؤكد أو يرفض برمزه (حتى لا يؤكد الطفل مهامه من حساب أبيه)."""
+    u = _tv_parent()
+    d = body()
+    if not u["tv_pin"]:
+        abort(400, "ضع رمز دخول لحسابك على التلفاز أولاً، من لوحة التحكم ← وضع التلفاز")
+    if not check_password_hash(u["tv_pin"], str(d.get("pin") or "")):
+        abort(403, "الرمز غير صحيح")
+    if d.get("id"):
+        chore_decide(get_db(), int(d["id"]), d.get("action"), u["id"])
+    return api_tv_chores_pending()
 
 
 # ============================================================================= رمضان

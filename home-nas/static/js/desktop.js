@@ -33,11 +33,13 @@ const visible = () => apps().filter(a => !a.hidden);
 
 // أيقونات سطح المكتب
 const icons = $('#icons');
+let famPending = 0;   // مهام أنهاها الأطفال وتنتظر تأكيد الأب أو الأم
 const shortcuts = [...visible(), { id: 'phone', title: 'ربط الآيفون', icon: 'phone', color: 'linear-gradient(135deg,#00b4db,#0083b0)', launch: () => openApp('control', { section: 'phone' }) }];
 function drawIcons() {
   icons.innerHTML = '';
   for (const a of shortcuts) {
-    const b = h(`<button class="dicon"><div class="app-tile" style="background:${a.color}">${icon(a.icon)}</div><span ${a.external ? 'translate="no"' : ''}>${esc(a.title)}</span></button>`);
+    const badge = a.id === 'family' && famPending ? `<i class="dbadge">${famPending}</i>` : '';
+    const b = h(`<button class="dicon"><div class="app-tile" style="background:${a.color}">${icon(a.icon)}${badge}</div><span ${a.external ? 'translate="no"' : ''}>${esc(a.title)}</span></button>`);
     b.onclick = () => a.launch ? a.launch() : openApp(a.id);
     icons.appendChild(b);
   }
@@ -161,4 +163,21 @@ function drawActivation(a) {
 if (ME.is_admin) {
   drawActivation(ME.activation);
   addEventListener('nas-activation', (e) => { ME.activation = e.detail; drawActivation(e.detail); });
+}
+
+// مهام الأطفال: رقم أحمر على «العائلة» وتنبيه عند مهمة جديدة تنتظر التأكيد (للأب والأم)
+if (ME.parent) {
+  let first = true, timer = 0;
+  const pollPending = async () => {
+    clearTimeout(timer);
+    const r = await api.get('/api/kids/pending').catch(() => null);
+    if (r) {
+      if (!first && r.count > famPending && r.items[0]) toast(`🧹 ${r.items[0].kid} أنهى: ${r.items[0].title}. افتح «العائلة» ← المهام للتأكيد`, 'ok');
+      if (r.count !== famPending) { famPending = r.count; drawIcons(); }
+      first = false;
+    }
+    timer = setTimeout(pollPending, document.hidden ? 120000 : 45000);
+  };
+  pollPending();
+  addEventListener('nas-chores', pollPending);
 }

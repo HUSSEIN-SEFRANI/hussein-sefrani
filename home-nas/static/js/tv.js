@@ -703,6 +703,7 @@ function adultHome(d) {
   const dock = d.tiles.length ? d.tiles.map((t) => `<button class="dk f" data-id="${t.id}"><div class="ic" style="background:${A.gradient(t.color)}">${A.icon(t.icon)}</div><span>${esc(t.title)}</span></button>`).join("")
     : `<div class="dock-empty">أضف مربعات لهذا الحساب من لوحة التحكم ← وضع التلفاز</div>`;
   const setTile = `<button class="dk f js-stars"><div class="ic emo" style="background:linear-gradient(135deg,#fef3c7,#f59e0b)">⭐</div><span>النجوم <b class="js-sb"></b></span></button>`
+    + `<button class="dk f js-chk"><div class="ic emo" style="background:linear-gradient(135deg,#dcfce7,#22c55e)">✅</div><span>مهام الأطفال <b class="js-chn"></b></span></button>`
     + `<button class="dk f js-theme"><div class="ic emo" style="background:linear-gradient(135deg,#faf5ff,#e9d5ff)">${F.themeOf(u.theme).emoji}</div><span>ثيمي</span></button>`
     + (u.admin ? `<button class="dk f js-settings"><div class="ic" style="background:linear-gradient(135deg,#64748b,#1e293b)">${GEAR}</div><span>الإعدادات</span></button>` : "");
   const hasPrayer = d.prayer && settings.prayer;
@@ -719,14 +720,28 @@ function adultHome(d) {
   el.querySelector(".js-settings")?.addEventListener("click", settingsScreen);
   el.querySelector(".js-theme").addEventListener("click", themeScreen);
   el.querySelector(".js-stars").addEventListener("click", starsScreen);
+  el.querySelector(".js-chk").addEventListener("click", choresConfirmScreen);
   fillBalance(el);
+  let lastPending = -1;
+  const fillPending = async () => {   // رقم أحمر بعدد المهام التي تنتظر التأكيد، وتنبيه عند مهمة جديدة
+    let r;
+    try { r = await api("/api/tv/chores/pending"); } catch { return; }
+    const b = el.querySelector(".js-chn");
+    b.textContent = r.count ? r.count : "";
+    b.classList.toggle("badge", r.count > 0);
+    if (lastPending >= 0 && r.count > lastPending && r.items[0]) toast(`🧹 ${nm(r.items[0].kid)} أنهى: ${r.items[0].title} (تنتظر تأكيدك)`, 7000);
+    lastPending = r.count;
+  };
+  fillPending();
+  const pendTimer = setInterval(fillPending, 60000);
   el.querySelectorAll(".dk[data-id]").forEach((b) => b.addEventListener("click", () => openTile(tiles[b.dataset.id])));
   el.querySelector(".js-switch").addEventListener("click", leave);
   const scr = {
     el,
     initial: () => el.querySelector(".dk"),
     back: () => setFocus(el.querySelector(".js-switch")),
-    onShow: () => fillBalance(el),
+    onShow: () => { fillBalance(el); fillPending(); },
+    destroy: () => clearInterval(pendTimer),
     refresh(c) {
       d.prayer = c.prayer;
       el.querySelector(".cards").innerHTML = (hasPrayer ? prayerCard(c.prayer, 112) : "") + wordCard(d.word, hasPrayer ? 336 : 112);
@@ -1410,6 +1425,38 @@ async function choresScreen(t) {
   el.querySelector(".js-back").addEventListener("click", pop);
   draw();
   push({ el, initial: () => el.querySelector(".kcard") || el.querySelector(".js-back") });
+}
+
+// ============================================================== تأكيد مهام الأطفال (للأب والأم برمزهم)
+async function choresConfirmScreen() {
+  let r;
+  try { r = await api("/api/tv/chores/pending"); } catch (e) { toast(e.message); return; }
+  if (!r.has_pin) { toast("لتأكيد مهام الأطفال من التلفاز ضع رمز دخول (PIN) لحسابك: لوحة التحكم ← وضع التلفاز", 8000); return; }
+  if (!r.count) { toast("لا توجد مهام تنتظر التأكيد 👍", 4000); return; }
+  pinScreen({ title: "رمزك للتأكيد", sub: "مهام الأطفال", face: face(me.user) }, async (pin) => {
+    const first = await api("/api/tv/chores/pending", { json: { pin } });   // يتحقق من الرمز
+    pop();
+    const el = h(`<div class="bg-dark kscr"><div class="bhead"><button class="back f js-back">${A.CHEVRON}<span>الرئيسية</span></button>
+      <div class="ti" style="background:linear-gradient(135deg,#22c55e,#15803d)"><span class="emo">✅</span></div><h1>مهام الأطفال</h1></div>
+      <div class="kgrid chk"></div>${hints([["موافق", "اختيار"], ["رجوع", "الرئيسية"]])}</div>`);
+    const grid = el.querySelector(".kgrid");
+    const draw = (res) => {
+      grid.innerHTML = res.items.length ? res.items.map((c) => `<div class="kcard ${c.id}"><span class="emo">${esc(c.icon)}</span><b>${esc(c.title)}</b>
+        <span class="kst"><bdi translate="no">${esc(c.kid)}</bdi> · ⭐ ${c.stars}</span>
+        <div class="acts"><button class="btn f" data-ok="${c.id}">✓ تأكيد</button><button class="btn f" data-no="${c.id}">✗ رفض</button></div></div>`).join("")
+        : `<div class="empty">لا توجد مهام تنتظر التأكيد 👍</div>`;
+      grid.querySelectorAll("[data-ok],[data-no]").forEach((b) => b.addEventListener("click", async () => {
+        const ok = !!b.dataset.ok;
+        try { draw(await api("/api/tv/chores/pending", { json: { pin, id: +(b.dataset.ok || b.dataset.no), action: ok ? "confirm" : "reject" } })); }
+        catch (e) { toast(e.message); return; }
+        toast(ok ? "أُضيفت النجوم ⭐" : "رجعت المهمة للطفل ليعيدها", 3000);
+        setFocus(grid.querySelector(".f") || el.querySelector(".js-back"));
+      }));
+    };
+    el.querySelector(".js-back").addEventListener("click", pop);
+    draw(first);
+    push({ el, initial: () => grid.querySelector(".f") || el.querySelector(".js-back") });
+  });
 }
 
 // ============================================================== في مثل هذا اليوم

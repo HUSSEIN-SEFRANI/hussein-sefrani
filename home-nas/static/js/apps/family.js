@@ -88,8 +88,8 @@ function chores_draw(box, d, kid, pending) {
     if (dd) { toast('أُضيفت المهمة', 'ok'); redraw(dd); }
   };
   $$('[data-del]', box).forEach((b) => (b.onclick = async () => { if (await confirmBox('حذف هذه المهمة؟')) redraw(await guard(() => api.del('/api/kids/chores/' + b.dataset.del))); }));
-  $$('[data-ok]', box).forEach((b) => (b.onclick = async () => { const dd = await guard(() => api.post(`/api/kids/chores/log/${b.dataset.ok}`, { action: 'confirm' })); if (dd) { toast('أُضيفت النجوم ⭐', 'ok'); redraw(dd); } }));
-  $$('[data-no]', box).forEach((b) => (b.onclick = async () => redraw(await guard(() => api.post(`/api/kids/chores/log/${b.dataset.no}`, { action: 'reject' })))));
+  $$('[data-ok]', box).forEach((b) => (b.onclick = async () => { const dd = await guard(() => api.post(`/api/kids/chores/log/${b.dataset.ok}`, { action: 'confirm' })); if (dd) { toast('أُضيفت النجوم ⭐', 'ok'); redraw(dd); dispatchEvent(new Event('nas-chores')); } }));
+  $$('[data-no]', box).forEach((b) => (b.onclick = async () => { redraw(await guard(() => api.post(`/api/kids/chores/log/${b.dataset.no}`, { action: 'reject' }))); dispatchEvent(new Event('nas-chores')); }));
 }
 
 // ------------------------------------------------------------------------- قصص بصوتنا
