@@ -541,7 +541,7 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 /* ---- شاشات العائلة: مهامي، قصص بصوتنا، تعلّم ثم العب، رمضان ---- */
 .kscr .kgrid { position: absolute; top: 120px; bottom: 70px; right: 44px; left: 44px; display: grid; grid-template-columns: repeat(4, minmax(0,1fr));
   gap: 22px; align-content: start; overflow-y: auto; padding: 10px; }
-.kscr .kcard { min-height: 170px; border-radius: 22px; background: rgba(255,255,255,.08); border: 2px solid rgba(255,255,255,.12); color: #fff;
+.kscr .kcard { position: relative; min-height: 170px; border-radius: 22px; background: rgba(255,255,255,.08); border: 2px solid rgba(255,255,255,.12); color: #fff;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px; text-align: center; font-family: inherit; }
 .kscr .kcard b { font-size: 24px; line-height: 1.35; }
 .kscr .kcard .emo { font-size: 54px; line-height: 1; font-family: "Noto Color Emoji", sans-serif; }

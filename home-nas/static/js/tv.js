@@ -990,7 +990,7 @@ function audioScreen(t, paths, idx) {
       <div class="vbtns"><button class="btn f js-vd">${VOL_ICON(false).replace(/34/g, "24")} −</button><button class="btn f js-vm">${VOL_ICON(true).replace(/34/g, "24")}</button><button class="btn f js-vu">${VOL_ICON(false).replace(/34/g, "24")} +</button></div>
       <div class="vbtns"><button class="btn f js-view"></button><button class="btn f js-rep"></button><button class="btn f js-shuf"></button></div></div>
     <div class="list">${list}</div><audio autoplay></audio>
-    ${hints([["موافق", "تشغيل"], ["+ −", "الصوت"], ["V", "طريقة العرض"], ["رجوع", "خروج"]])}</div>`);
+    ${hints([["موافق", "تشغيل"], ["+ −", "الصوت"], ["△", "طريقة العرض"], ["□", "تكرار"], ["رجوع", "خروج"]])}</div>`);
   const au = el.querySelector("audio"), bar = el.querySelector(".now .bar i"), cover = el.querySelector(".cover");
   const fmt = (x) => (isFinite(x) ? `${Math.floor(x / 60)}:${pad(Math.floor(x % 60))}` : "");
   const save = () => { try { localStorage.setItem(vkey, view); localStorage.setItem("hsef-arep", repeat); localStorage.setItem("hsef-ashuf", shuffle ? "1" : "0"); } catch { /* */ } };
@@ -1075,7 +1075,8 @@ function audioScreen(t, paths, idx) {
     destroy() { stopWaves?.(); au.pause(); au.removeAttribute("src"); au.load(); },
     key(e) {
       if (e.key === " " || e.key === "MediaPlayPause") { au.paused ? au.play() : au.pause(); return true; }
-      if (e.key === "v" || e.key === "V") { el.querySelector(".js-view").click(); return true; }
+      if (e.key === "v" || e.key === "V" || e.key === "ContextMenu") { el.querySelector(".js-view").click(); return true; }
+      if (e.key === "F2") { el.querySelector(".js-rep").click(); return true; }
       if (e.key === "MediaTrackNext") { const j = nextIdx(); if (j >= 0) load(j); return true; }
       if (e.key === "MediaTrackPrevious" && idx > 0) { load(idx - 1); return true; }
       return false;
