@@ -798,7 +798,8 @@ def write_wifi_rules():
         rules += (f'ACTION=="add", SUBSYSTEM=="usb", ATTR{{idVendor}}=="0bda", ATTR{{idProduct}}=="{pid}", '
                   f'RUN+="/usr/bin/systemd-run --no-block --collect /usr/sbin/usb_modeswitch -K -v 0bda -p {pid}"\n')
     WIFI_RULES.write_text(rules)
-    subprocess.run(["udevadm", "control", "--reload"], capture_output=True)
+    if shutil.which("udevadm"):
+        subprocess.run(["udevadm", "control", "--reload"], capture_output=True)
     # إن كانت البطاقة موصولة الآن وهي في وضع القرص: نحوّلها فوراً
     if shutil.which("usb_modeswitch"):
         for d in Path("/sys/bus/usb/devices").glob("*"):
