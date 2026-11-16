@@ -447,4 +447,5 @@ Object.assign(window.I18N_DICT = window.I18N_DICT || {}, {
 "أُضيفت النجوم": ["Stars added", "Étoiles ajoutées", "Yıldızlar eklendi", "Sterren toegevoegd"],
 "رجعت المهمة للطفل ليعيدها": ["The task went back to the child to redo", "La tâche est revenue à l'enfant pour la refaire", "Görev tekrar yapması için çocuğa geri döndü", "De taak ging terug naar het kind om opnieuw te doen"],
 "للأب والأم فقط": ["For Mum and Dad only", "Réservé à papa et maman", "Yalnızca anne ve baba için", "Alleen voor mama en papa"],
+"غير مكتشف، جرّبه": ["not detected, try it", "non détecté, essayez-le", "algılanmadı, deneyin", "niet gedetecteerd, probeer het"],
 });

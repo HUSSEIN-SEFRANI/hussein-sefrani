@@ -1140,5 +1140,6 @@ window.I18N_DICT = {
 "اترك «وقت النوم» فارغاً لإيقافه": ["Leave «Bedtime» empty to turn it off", "Laissez «Heure du coucher» vide pour la désactiver", "Kapatmak için «Uyku saati»ni boş bırakın", "Laat «Bedtijd» leeg om het uit te zetten"],
 "شاشة": ["screen", "écran", "ekran", "scherm"],
 "أنهى": ["finished", "a terminé", "bitirdi", "is klaar met"],
-"افتح «العائلة» ← المهام للتأكيد": ["open «Family» → Tasks to confirm", "ouvrez «Famille» → Tâches pour confirmer", "onaylamak için «Aile» → Görevler'i açın", "open «Gezin» → Taken om te bevestigen"]
+"افتح «العائلة» ← المهام للتأكيد": ["open «Family» → Tasks to confirm", "ouvrez «Famille» → Tâches pour confirmer", "onaylamak için «Aile» → Görevler'i açın", "open «Gezin» → Taken om te bevestigen"],
+"غير مكتشف، جرّبه": ["not detected, try it", "non détecté, essayez-le", "algılanmadı, deneyin", "niet gedetecteerd, probeer het"]
 };

@@ -317,9 +317,9 @@ def audio_pick(pactl) -> dict:
     except (OSError, ValueError):
         pass
     target = None
-    if choice:
+    if choice:   # اختيار المدير يُحترم دائماً، حتى لو لم يُبلغ الجهاز أن التلفاز موصول
         c = next((c for c in cards if c.get("name") == choice.get("card")), None)
-        if c and (c.get("profiles") or {}).get(choice.get("profile"), {}).get("available", True) is not False:
+        if c and choice.get("profile") in (c.get("profiles") or {}):
             target = (c, choice["profile"])
     if not target:
         best = None
@@ -327,12 +327,15 @@ def audio_pick(pactl) -> dict:
             profs = c.get("profiles") or {}
             for pname, port in (c.get("ports") or {}).items():
                 is_hdmi = str(port.get("type", "")).upper() in ("HDMI", "DISPLAYPORT") or pname.startswith("hdmi-output")
-                if not is_hdmi or port.get("availability") != "available":
+                avail = port.get("availability")
+                if not is_hdmi or avail == "not available":
                     continue
                 for prof in port.get("profiles") or []:
-                    if not prof.startswith("output:hdmi") or profs.get(prof, {}).get("available") is False:
+                    if not prof.startswith("output:hdmi"):
                         continue
-                    rank = (0 if prof.startswith("output:hdmi-stereo") and "+input" not in prof else 1, -int(profs.get(prof, {}).get("priority") or 0))
+                    # الموصول المكتشف أولاً، ثم «غير المعروف» (أجهزة لا تُبلغ عن التلفاز)
+                    rank = (0 if avail == "available" else 1, 0 if prof.startswith("output:hdmi-stereo") and "+input" not in prof else 1,
+                            -int(profs.get(prof, {}).get("priority") or 0))
                     if best is None or rank < best[0]:
                         best = (rank, c, prof)
         if best:
@@ -447,10 +450,12 @@ def tv_audio_status():
         active = c.get("active_profile")
         ports = c.get("ports") or {}
         for name, prof in (c.get("profiles") or {}).items():
-            if not name.startswith("output:") or prof.get("available") is False:
+            if not name.startswith("output:"):
                 continue
+            # نعرض كل المخارج، حتى غير المكتشفة: بعض منافذ HDMI لا تُبلغ أن التلفاز موصول، فيختارها المدير ويجرّبها
             plugged = any(name in (pt.get("profiles") or []) and pt.get("availability") == "available" for pt in ports.values())
-            outs.append({"card": c["name"], "profile": name, "name": prof.get("description") or name, "active": name == active, "plugged": plugged})
+            outs.append({"card": c["name"], "profile": name, "name": prof.get("description") or name, "active": name == active,
+                         "plugged": plugged, "detected": prof.get("available") is not False})
     vol, muted = None, None
     sink = tv_pactl("get-default-sink").stdout.strip()
     if sink:
