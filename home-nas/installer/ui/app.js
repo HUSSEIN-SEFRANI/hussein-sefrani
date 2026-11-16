@@ -9,7 +9,7 @@
       w_h: "أهلاً بك في HOME ANAB", w_p: "سنحوّل هذا الكمبيوتر إلى خزنة منزلية لصورك وملفاتك، مع شاشة تلفاز للعائلة. التنصيب تلقائي ويأخذ من 5 إلى 15 دقيقة.",
       lang: "اختر لغة النظام", offline: "كل البرامج داخل الفلاشة: لا حاجة للإنترنت", next: "التالي", keys: "الأسهم و Enter، أو الفأرة",
       d_h: "أين نثبّت النظام؟", d_p: "هذه الأقراص الموجودة في الجهاز. الفلاشة التي تقلع منها مخفية حتى لا تُمسح.",
-      chosen: "مُختار", raid: "استخدم قرصين كمرآة (RAID 1): كل ملف يُحفظ على القرصين", raid2: "اختر القرص الثاني للمرآة",
+      chosen: "مُختار", raid: "استخدم قرصين كمرآة (RAID 1): كل ملف يُحفظ على القرصين", raid2: "اختر القرص الثاني للمرآة", ex_h: "قرص إضافي بدون مرآة (اختياري)", ex_tag: "قرص إضافي", ex_p: "مساحة إضافية لملفات كبيرة، تظهر كمجلد مشترك «قرص إضافي». يُمسح ما عليه.", also: "سيُمسح أيضاً:",
       warn: "سيُمسح كل ما على القرص المختار. تأكد أنه لا يحتوي ملفات تحتاجها.", go: "امسح القرص وابدأ التثبيت", sure: "اضغط مرة أخرى للتأكيد",
       back: "رجوع", nodisk: "لم يُعثر على قرص صالح (8 غيغابايت أو أكثر). تأكد من تركيب القرص.", ssd: "قرص SSD", hdd: "قرص صلب", nvme: "قرص NVMe", usb: "قرص USB",
       i_top: "يمكنك ترك الجهاز الآن، سيكمل وحده", did: "هل تعلم؟",
@@ -36,7 +36,7 @@
       w_h: "Welcome to HOME ANAB", w_p: "We will turn this computer into a home vault for your photos and files, with a TV screen for the family. Setup is automatic and takes 5 to 15 minutes.",
       lang: "Choose the system language", offline: "Everything is on the USB stick: no internet needed", next: "Next", keys: "Arrows and Enter, or the mouse",
       d_h: "Where should we install?", d_p: "These are the disks in this computer. The USB stick you booted from is hidden so it is not erased.",
-      chosen: "Selected", raid: "Use two disks as a mirror (RAID 1): every file is kept on both", raid2: "Choose the second disk for the mirror",
+      chosen: "Selected", raid: "Use two disks as a mirror (RAID 1): every file is kept on both", raid2: "Choose the second disk for the mirror", ex_h: "Extra disk without mirror (optional)", ex_tag: "Extra disk", ex_p: "Extra space for big files, shown as the shared folder «Extra disk». It will be erased.", also: "Also erased:",
       warn: "Everything on the selected disk will be erased. Make sure it holds nothing you need.", go: "Erase the disk and install", sure: "Press again to confirm",
       back: "Back", nodisk: "No suitable disk found (8 GB or more). Check that the disk is connected.", ssd: "SSD", hdd: "Hard disk", nvme: "NVMe disk", usb: "USB disk",
       i_top: "You can leave the computer now, it finishes by itself", did: "Did you know?",
@@ -63,7 +63,7 @@
       w_h: "Bienvenue dans HOME ANAB", w_p: "Cet ordinateur va devenir le coffre-fort de vos photos et fichiers, avec un écran TV pour la famille. L'installation est automatique et dure 5 à 15 minutes.",
       lang: "Choisissez la langue", offline: "Tout est sur la clé USB : pas besoin d'internet", next: "Suivant", keys: "Flèches et Entrée, ou la souris",
       d_h: "Où installer le système ?", d_p: "Voici les disques de cet ordinateur. La clé USB de démarrage est masquée pour ne pas être effacée.",
-      chosen: "Choisi", raid: "Utiliser deux disques en miroir (RAID 1) : chaque fichier est gardé sur les deux", raid2: "Choisissez le second disque du miroir",
+      chosen: "Choisi", raid: "Utiliser deux disques en miroir (RAID 1) : chaque fichier est gardé sur les deux", raid2: "Choisissez le second disque du miroir", ex_h: "Disque supplémentaire sans miroir (facultatif)", ex_tag: "Disque en plus", ex_p: "Espace en plus pour les gros fichiers, visible comme dossier partagé «Disque supplémentaire». Il sera effacé.", also: "Aussi effacé :",
       warn: "Tout le contenu du disque choisi sera effacé. Vérifiez qu'il ne contient rien d'important.", go: "Effacer le disque et installer", sure: "Appuyez encore pour confirmer",
       back: "Retour", nodisk: "Aucun disque adapté (8 Go ou plus). Vérifiez que le disque est branché.", ssd: "SSD", hdd: "Disque dur", nvme: "Disque NVMe", usb: "Disque USB",
       i_top: "Vous pouvez laisser l'ordinateur, il termine tout seul", did: "Le saviez-vous ?",
@@ -90,7 +90,7 @@
       w_h: "HOME ANAB'a hoş geldiniz", w_p: "Bu bilgisayarı fotoğraflarınız ve dosyalarınız için bir ev kasasına, aile için de bir TV ekranına dönüştüreceğiz. Kurulum otomatiktir ve 5 ila 15 dakika sürer.",
       lang: "Sistem dilini seçin", offline: "Her şey USB bellekte: internet gerekmez", next: "İleri", keys: "Ok tuşları ve Enter veya fare",
       d_h: "Sistem nereye kurulsun?", d_p: "Bu bilgisayarın diskleri bunlar. Silinmemesi için başlangıç USB belleği gizlendi.",
-      chosen: "Seçildi", raid: "İki diski ayna olarak kullan (RAID 1): her dosya ikisinde de saklanır", raid2: "Aynanın ikinci diskini seçin",
+      chosen: "Seçildi", raid: "İki diski ayna olarak kullan (RAID 1): her dosya ikisinde de saklanır", raid2: "Aynanın ikinci diskini seçin", ex_h: "Aynasız ek disk (isteğe bağlı)", ex_tag: "Ek disk", ex_p: "Büyük dosyalar için ek alan, «Ek disk» paylaşılan klasörü olarak görünür. Silinecek.", also: "Ayrıca silinecek:",
       warn: "Seçilen diskteki her şey silinecek. Önemli bir şey olmadığından emin olun.", go: "Diski sil ve kur", sure: "Onaylamak için tekrar basın",
       back: "Geri", nodisk: "Uygun disk yok (8 GB veya daha büyük). Diskin bağlı olduğundan emin olun.", ssd: "SSD", hdd: "Sabit disk", nvme: "NVMe disk", usb: "USB disk",
       i_top: "Bilgisayarı bırakabilirsiniz, kurulumu kendisi bitirir", did: "Biliyor musunuz?",
@@ -117,7 +117,7 @@
       w_h: "Welkom bij HOME ANAB", w_p: "We maken van deze computer een kluis voor uw foto's en bestanden, met een tv-scherm voor het gezin. De installatie is automatisch en duurt 5 tot 15 minuten.",
       lang: "Kies de taal van het systeem", offline: "Alles staat op de USB-stick: geen internet nodig", next: "Volgende", keys: "Pijltjestoetsen en Enter, of de muis",
       d_h: "Waar moet het systeem komen?", d_p: "Dit zijn de schijven van deze computer. De opstart-USB-stick is verborgen zodat hij niet gewist wordt.",
-      chosen: "Gekozen", raid: "Twee schijven als spiegel gebruiken (RAID 1): elk bestand staat op beide", raid2: "Kies de tweede schijf van de spiegel",
+      chosen: "Gekozen", raid: "Twee schijven als spiegel gebruiken (RAID 1): elk bestand staat op beide", raid2: "Kies de tweede schijf van de spiegel", ex_h: "Extra schijf zonder spiegel (optioneel)", ex_tag: "Extra schijf", ex_p: "Extra ruimte voor grote bestanden, zichtbaar als gedeelde map «Extra schijf». Wordt gewist.", also: "Ook gewist:",
       warn: "Alles op de gekozen schijf wordt gewist. Controleer dat er niets belangrijks op staat.", go: "Schijf wissen en installeren", sure: "Druk nogmaals om te bevestigen",
       back: "Terug", nodisk: "Geen geschikte schijf (8 GB of groter). Controleer of de schijf is aangesloten.", ssd: "SSD", hdd: "Harde schijf", nvme: "NVMe-schijf", usb: "USB-schijf",
       i_top: "U kunt de computer laten staan, hij maakt alles zelf af", did: "Wist u dat?",
@@ -176,6 +176,7 @@
   const $ = (s) => document.querySelector(s);
   const main = $("#main"), stageEl = $("#stage");
   let lang = "ar", view = "welcome", diskList = [], chosen = null, chosen2 = null, raid = false, confirmArm = false;
+  let extra = [];   // أقراص إضافية بلا مرآة (مسارات)
   // الشبكة: الحالة، الشبكات القريبة، الشبكة المختارة لكتابة كلمة المرور
   let net = { wired: {}, wifi: {} }, nets = null, scanning = false, pick = null, pwVal = "", showPw = true, wBusy = false, wErr = "", wOk = "", kb = "us";
   try { kb = localStorage.getItem("kb") || "us"; } catch (e) { /* */ }
@@ -235,13 +236,19 @@
         return `<button class="disk f ${on ? "on" : ""}" data-disk="${i}">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="${on ? "#fde68a" : "#bfd3f2"}" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M7 15h.01M11 15h6"/></svg>
           <span><b>${esc(kind)} · <bdi dir="ltr">${(d.size / 1e9).toFixed(0)} GB</bdi></b><span class="d" dir="ltr">${esc(d.model || d.name)} · ${esc(d.path)}</span></span>
-          <span class="tag">${t("chosen")}</span></button>`;
+          <span class="tag">${t("chosen")}</span>${extra.includes(d.path) ? `<span class="tag" style="display:inline-block;background:#bbf7d0;color:#14532d">${t("ex_tag")}</span>` : ""}</button>`;
       }).join("");
       main.innerHTML = `<h1>${t("d_h")}</h1><p>${t("d_p")}</p>
         <div style="display:flex;flex-direction:column;gap:10px">${items || `<div class="warn">${t("nodisk")}</div>`}</div>
         ${diskList.length >= 2 ? `<div class="check f ${raid ? "on" : ""}" data-raid="1"><span class="box">${raid ? "✓" : ""}</span>${t("raid")}</div>
           ${raid && !chosen2 ? `<div class="muted">${t("raid2")}</div>` : ""}` : ""}
-        ${diskList.length ? `<div class="warn">⚠ ${t("warn")}</div>` : ""}
+        ${(() => {   // أقراص إضافية: كل قرص غير مختار للنظام يمكن أن يصير مساحة إضافية بلا مرآة
+          const rest = diskList.map((d, i) => [d, i]).filter(([d]) => d.path !== chosen && !(raid && d.path === chosen2));
+          if (!chosen || !rest.length) return "";
+          return `<div class="muted" style="margin-top:6px"><b>${t("ex_h")}</b> · ${t("ex_p")}</div>` + rest.map(([d, i]) =>
+            `<div class="check f ${extra.includes(d.path) ? "on" : ""}" data-extra="${i}"><span class="box">${extra.includes(d.path) ? "✓" : ""}</span><bdi dir="ltr">${esc(d.model || d.name)} · ${(d.size / 1e9).toFixed(0)} GB · ${esc(d.path)}</bdi></div>`).join("");
+        })()}
+        ${diskList.length ? `<div class="warn">⚠ ${t("warn")}${extra.length ? ` ${t("also")} <bdi dir="ltr">${extra.map(esc).join(", ")}</bdi>` : ""}</div>` : ""}
         <div class="bottom"><button class="btn danger f" data-install="1" ${chosen && (!raid || chosen2) ? "" : "disabled"}>${confirmArm ? t("sure") : t("go")}</button>
           <button class="btn f" data-go="net">${t("back")}</button></div>`;
     } else if (view === "installing") {
@@ -388,14 +395,20 @@
       confirmArm = false;
       if (raid && chosen && d !== chosen) chosen2 = chosen2 === d ? null : d;
       else { chosen = d; if (chosen2 === d) chosen2 = null; }
+      extra = extra.filter((x) => x !== chosen && x !== chosen2);
       keepFocus = `[data-disk="${b.dataset.disk}"]`; render();
     });
+    main.querySelectorAll("[data-extra]").forEach((b) => b.onclick = () => {
+      const d = diskList[+b.dataset.extra].path;
+      extra = extra.includes(d) ? extra.filter((x) => x !== d) : [...extra, d];
+      confirmArm = false; keepFocus = `[data-extra="${b.dataset.extra}"]`; render();
+    });
     const r = main.querySelector("[data-raid]");
-    if (r) r.onclick = () => { raid = !raid; chosen2 = null; confirmArm = false; keepFocus = "[data-raid]"; render(); };
+    if (r) r.onclick = () => { raid = !raid; chosen2 = null; extra = extra.filter((x) => x !== chosen); confirmArm = false; keepFocus = "[data-raid]"; render(); };
     const ins = main.querySelector("[data-install]");
     if (ins) ins.onclick = async () => {
       if (!confirmArm) { confirmArm = true; keepFocus = "[data-install]"; render(); return; }
-      const res = await api("/api/install", { disk: chosen, disk2: raid ? chosen2 : null, raid });
+      const res = await api("/api/install", { disk: chosen, disk2: raid ? chosen2 : null, raid, extra });
       if (res.ok) { view = "installing"; render(); }
     };
     main.querySelectorAll("[data-net]").forEach((b) => b.onclick = () => {

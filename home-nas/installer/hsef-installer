@@ -104,7 +104,9 @@ def boot_disk() -> str | None:
 def disks() -> list:
     if FAKE:
         return [{"name": "sda", "path": "/dev/sda", "size": 500107862016, "model": "Samsung SSD 870 EVO", "tran": "sata", "rota": False},
-                {"name": "sdb", "path": "/dev/sdb", "size": 2000398934016, "model": "WDC WD20EZRZ", "tran": "sata", "rota": True}]
+                {"name": "sdb", "path": "/dev/sdb", "size": 2000398934016, "model": "WDC WD20EZRZ", "tran": "sata", "rota": True},
+                {"name": "sdc", "path": "/dev/sdc", "size": 2000398934016, "model": "WDC WD20EZRZ", "tran": "sata", "rota": True},
+                {"name": "sdd", "path": "/dev/sdd", "size": 4000787030016, "model": "Seagate IronWolf 4TB", "tran": "sata", "rota": True}]
     out = subprocess.run(["lsblk", "-J", "-b", "-d", "-o", "NAME,PATH,SIZE,MODEL,TYPE,TRAN,RM,ROTA,RO"], capture_output=True, text=True).stdout
     skip = boot_disk()
     res = []
@@ -409,9 +411,17 @@ def do_install(cfg):
              "mkpart", "BIOS", "1MiB", "3MiB", "set", "1", "bios_grub", "on",
              "mkpart", "EFI", "fat32", "3MiB", "515MiB", "set", "2", "esp", "on",
              "mkpart", "root", "ext4", "515MiB", "100%"])
-    run(["partprobe"] + targets, check=False)
+    # أقراص إضافية بلا مرآة: قسم واحد ext4 لكل قرص
+    extra = cfg.get("extra") or []
+    for d in extra:
+        run(["wipefs", "-a", d])
+        run(["sgdisk", "--zap-all", d], check=False)
+        run(["parted", "-s", d, "mklabel", "gpt", "mkpart", "data", "ext4", "1MiB", "100%"])
+    run(["partprobe"] + targets + extra, check=False)
     run(["udevadm", "settle"], check=False)
     time.sleep(1)
+    for n, d in enumerate(extra, 1):
+        run(["mkfs.ext4", "-q", "-F", "-L", f"hsef-disk{n}", "-m", "1", part(d, 1)])
     progress("prepare", 0.4, "تهيئة الأقسام")
     for d in targets:
         run(["mkfs.vfat", "-F", "32", "-n", "EFI", part(d, 2)])
@@ -460,6 +470,21 @@ def do_install(cfg):
             "# HOME ANAB\n"
             f"UUID={uuid(root_dev)}  /          ext4  errors=remount-ro  0 1\n"
             f"UUID={uuid(part(disk, 2))}  /boot/efi  vfat  umask=0077        0 1\n")
+        # الأقراص الإضافية: تُركَّب في /srv/homenas/disks/diskN وتظهر كمجلدات مشتركة عند أول تشغيل
+        if extra:
+            pw = (TARGET / "etc/passwd").read_text()
+            m = re.search(r"^homenas:[^:]*:(\d+):(\d+):", pw, re.M)
+            entries, lines = [], []
+            for n, d in enumerate(extra, 1):
+                mnt = f"/srv/homenas/disks/disk{n}"
+                (TARGET / mnt.lstrip("/")).mkdir(parents=True, exist_ok=True)
+                lines.append(f"UUID={uuid(part(d, 1))}  {mnt}  ext4  defaults,noatime,nofail  0 2\n")
+                if m:   # صاحب القرص: خدمة HOME ANAB
+                    run(["sh", "-c", f"mkdir -p /mnt/hsefx && mount {part(d, 1)} /mnt/hsefx && chown {m.group(1)}:{m.group(2)} /mnt/hsefx && umount /mnt/hsefx"], check=False)
+                entries.append({"name": "قرص إضافي" + (f" {n}" if len(extra) > 1 else ""), "path": mnt})
+            with open(TARGET / "etc/fstab", "a") as f:
+                f.writelines(lines)
+            (TARGET / "etc/homenas/extra-disks.json").write_text(json.dumps(entries, ensure_ascii=False))
         (TARGET / "etc/hostname").write_text("hsef\n")
         write_target_net()
         (TARGET / "etc/machine-id").write_text("")
@@ -556,7 +581,11 @@ class H(BaseHTTPRequestHandler):
             names = {x["path"] for x in disks()}
             if d.get("disk") not in names or (d.get("raid") and (d.get("disk2") not in names or d.get("disk2") == d.get("disk"))):
                 return self.send(400, {"error": "bad disk"})
-            cfg = {"disk": d["disk"], "disk2": d.get("disk2"), "raid": bool(d.get("raid")), "lang": state["lang"]}
+            used = {d.get("disk"), d.get("disk2") if d.get("raid") else None}
+            extra = [x for x in (d.get("extra") or []) if isinstance(x, str)]
+            if any(x not in names or x in used for x in extra) or len(set(extra)) != len(extra) or len(extra) > 6:
+                return self.send(400, {"error": "bad extra disk"})
+            cfg = {"disk": d["disk"], "disk2": d.get("disk2"), "raid": bool(d.get("raid")), "extra": extra, "lang": state["lang"]}
             log("install " + json.dumps(cfg))
             threading.Thread(target=install, args=(cfg,), daemon=True).start()
             return self.send(200, {"ok": True})

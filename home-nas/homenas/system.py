@@ -713,3 +713,24 @@ def api_update_apply_file():
         abort(400, out or "error")
     log_action("تحديث النظام من ملف")
     return jsonify(ok=True)
+
+
+def register_extra_disks(db) -> None:
+    """الأقراص الإضافية التي اختيرت أثناء التنصيب (بلا مرآة): تظهر كمجلدات مشتركة مرة واحدة."""
+    import json as _json
+    f = Path("/etc/homenas/extra-disks.json")
+    try:
+        entries = _json.loads(f.read_text())
+    except (OSError, ValueError):
+        return
+    for e in entries if isinstance(entries, list) else []:
+        path = Path(str(e.get("path") or ""))
+        if not path.is_dir() or db.execute("SELECT 1 FROM folders WHERE path=?", (str(path.resolve()),)).fetchone():
+            continue
+        name, n = str(e.get("name") or path.name)[:40], 2
+        while db.execute("SELECT 1 FROM folders WHERE name=?", (name,)).fetchone():
+            name = f"{str(e.get('name') or path.name)[:36]} {n}"
+            n += 1
+        db.execute("INSERT INTO folders(name, path, description, created_at) VALUES (?,?,?,?)",
+                   (name, str(path.resolve()), "قرص إضافي بدون مرآة (اختير أثناء التنصيب)", now_iso()))
+    db.commit()

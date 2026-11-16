@@ -44,6 +44,11 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
     _kids.migrate(_db)
     from . import activation as _act
     _act.ensure_trial(_db)   # التجربة المجانية تبدأ عند أول تشغيل
+    try:
+        from .system import register_extra_disks
+        register_extra_disks(_db)   # الأقراص الإضافية من التنصيب ← مجلدات مشتركة
+    except Exception as exc:  # pragma: no cover
+        print(f"[disks] {exc}")
     _db.close()
     app.extensions["nas_paths"] = data_paths
     app.extensions["nas_indexer"] = idx = Indexer(data_paths)
