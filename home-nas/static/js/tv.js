@@ -2155,11 +2155,31 @@ function padFire(name, gp) {
   if (name === okB) rumble(gp);
   if (map[name]) padKey(map[name]);
 }
+// ترتيب أزرار اليد: يد معروفة (standard) كما هي، ويد عامة بلا ماركة حسب «إعداد يد جديدة» المحفوظ لاسمها
+const PAD_ORDER = ["a", "b", "x", "y", "l1", "r1", "l2", "r2", "select", "start", "ls", "rs", "up", "down", "left", "right", "home"];
+function padNorm(g, maps) {
+  const m = maps && maps[g.id];
+  if (!m) return g;
+  const on = (c) => !!c && (c.t === "b" ? !!(g.buttons[c.i] && g.buttons[c.i].pressed) : (g.axes[c.i] || 0) * c.s > 0.6);
+  const used = new Set(Object.values(m).filter((c) => c && c.t === "a").map((c) => c.i));
+  const ax = (i) => (used.has(i) ? 0 : g.axes[i] || 0);
+  const buttons = PAD_ORDER.map((k) => { const p = on(m[k]); return { pressed: p, value: p ? 1 : 0, touched: p }; });
+  return { id: g.id, index: g.index, connected: g.connected, mapping: "standard", timestamp: g.timestamp, raw: g,
+    vibrationActuator: g.vibrationActuator, buttons, axes: [ax(0), ax(1), ax(2), ax(3)] };
+}
+let PADMAPS = {};
+try { PADMAPS = JSON.parse(localStorage.getItem("hsef-padmaps") || "{}"); } catch { /* */ }
+const loadPadMaps = async () => {
+  try { PADMAPS = (await api("/api/tv/padmaps")).maps || {}; localStorage.setItem("hsef-padmaps", JSON.stringify(PADMAPS)); } catch { /* */ }
+};
+loadPadMaps();
+let padCapture = false;   // أثناء «إعداد يد جديدة» لا تتحرك الواجهة مع الأزرار
 let padLoop = 0;
 function pollPads() {
   padLoop = 0;
-  const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter((g) => g && g.connected) : [];
+  const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter((g) => g && g.connected).map((g) => padNorm(g, PADMAPS)) : [];
   if (!pads.length) return;   // لا يد موصولة: نتوقف حتى يصل حدث gamepadconnected
+  if (padCapture) { padLoop = requestAnimationFrame(pollPads); return; }
   const now = performance.now();
   for (const gp of pads) {
     const b = (i) => !!(gp.buttons[i] && gp.buttons[i].pressed);
@@ -2179,7 +2199,12 @@ function pollPads() {
   padLoop = requestAnimationFrame(pollPads);
 }
 const startPads = () => { if (!padLoop) padLoop = requestAnimationFrame(pollPads); };
-addEventListener("gamepadconnected", (e) => { toast(`🎮 ${e.gamepad.id.replace(/\(.*\)/, "").trim() || "يد تحكم"}`, 2000); rumble(e.gamepad, 120); startPads(); });
+addEventListener("gamepadconnected", (e) => {
+  const g = e.gamepad, name = g.id.replace(/\(.*\)/, "").trim() || "يد تحكم";
+  if (g.mapping !== "standard" && !PADMAPS[g.id]) toast(`🎮 ${name}: يد جديدة. لتعمل أزرارها صحيحة: الإعدادات ← يد التحكم ← «إعداد يد جديدة»`, 9000);
+  else toast(`🎮 ${name}`, 2000);
+  rumble(g, 120); startPads();
+});
 startPads();
 
 // ============================================================== لوحة مفاتيح على الشاشة
@@ -2388,6 +2413,64 @@ async function soundSetScreen() {
   draw();
 }
 
+// ============================================================== إعداد يد جديدة (أي يد تحكم، حتى بلا ماركة)
+const PAD_STEPS = [["a", "اضغط زر الموافقة (✕ أو A)"], ["b", "اضغط زر الرجوع (○ أو B)"], ["up", "اضغط السهم ↑ أعلى"], ["down", "اضغط السهم ↓ أسفل"],
+  ["left", "اضغط السهم ← يسار"], ["right", "اضغط السهم → يمين"], ["home", "اضغط زر الخروج من اللعبة (PS أو Home أو Start)", true],
+  ["x", "اضغط الزر □ أو X", true], ["y", "اضغط الزر △ أو Y", true], ["l1", "اضغط L1 أو LB", true], ["r1", "اضغط R1 أو RB", true], ["start", "اضغط Options أو Start", true]];
+function padSetupScreen() {
+  const el = subScreen("إعداد يد جديدة", "pad"), body = el.querySelector(".set-body");
+  let step = 0, padId = null, rest = null, waitRelease = true, loop = 0;
+  const map = {};
+  const raw = () => (navigator.getGamepads ? [...navigator.getGamepads()].filter((g) => g && g.connected) : []);
+  const draw = () => {
+    const [k, msg, opt] = PAD_STEPS[step];
+    body.innerHTML = `<div class="set-status"><div>اليد: <b class="ltr">${esc(padId || "اضغط أي زر في اليد التي تريد إعدادها")}</b></div></div>
+      <p class="set-msg" style="font-size:30px;font-weight:800;color:#fde68a">${step + 1} / ${PAD_STEPS.length}: ${esc(msg)}</p>
+      ${opt ? `<p class="set-msg">اختياري: إن لم يكن في يدك هذا الزر، اضغط زر الرجوع الذي اخترته للتخطي.</p>` : ""}
+      <div class="pad-test ltr">${PAD_STEPS.map(([kk]) => `<span class="${map[kk] ? "on" : ""}">${kk.toUpperCase()}</span>`).join("")}</div>
+      <p class="set-msg">للإلغاء: زر «رجوع» في الريموت أو Esc.</p>`;
+    void k;
+  };
+  const save = async () => {
+    padCapture = false; cancelAnimationFrame(loop);
+    try { PADMAPS = (await api("/api/tv/padmaps", { json: { id: padId, map } })).maps || {}; localStorage.setItem("hsef-padmaps", JSON.stringify(PADMAPS)); }
+    catch (e) { toast(e.message, 6000); return; }
+    toast("✓ حُفظت اليد، وتعمل الآن في الواجهة وكل الألعاب", 5000);
+    pop(); padScreen();
+  };
+  const tick = () => {
+    loop = requestAnimationFrame(tick);
+    const pads = raw();
+    const g = padId ? pads.find((x) => x.id === padId) : null;
+    const cand = g ? [g] : pads;
+    for (const p of cand) {
+      if (!rest || rest.id !== p.id) { if (!padId) { rest = { id: p.id, axes: [...p.axes] }; } else if (p.id === padId && !rest) rest = { id: p.id, axes: [...p.axes] }; }
+      const r = rest && rest.id === p.id ? rest.axes : p.axes.map(() => 0);
+      const pressedB = p.buttons.findIndex((x) => x && x.pressed);
+      const movedA = p.axes.findIndex((v, i) => Math.abs(v - (r[i] || 0)) > 0.6);
+      if (waitRelease) { if (pressedB < 0 && movedA < 0) waitRelease = false; continue; }
+      let c = null;
+      if (pressedB >= 0) c = { t: "b", i: pressedB };
+      else if (movedA >= 0) c = { t: "a", i: movedA, s: p.axes[movedA] - (r[movedA] || 0) > 0 ? 1 : -1 };
+      if (!c) continue;
+      padId = p.id;
+      const [k, , opt] = PAD_STEPS[step];
+      const isBack = map.b && map.b.t === c.t && map.b.i === c.i && (c.t === "b" || map.b.s === c.s);
+      if (!(opt && isBack)) map[k] = c;
+      rumble(p, 60);
+      waitRelease = true;
+      step++;
+      if (step >= PAD_STEPS.length) { save(); return; }
+      draw();
+      return;
+    }
+  };
+  padCapture = true;
+  push({ el, destroy() { padCapture = false; cancelAnimationFrame(loop); } });
+  draw();
+  loop = requestAnimationFrame(tick);
+}
+
 function padScreen() {
   const el = subScreen("يد التحكم", "pad"), body = el.querySelector(".set-body");
   const BTN = [["cross", "✕"], ["circle", "○"], ["square", "□"], ["triangle", "△"], ["up", "↑"], ["down", "↓"], ["left", "←"], ["right", "→"],
@@ -2395,8 +2478,15 @@ function padScreen() {
   body.innerHTML = `<div class="set-status"><div>اليد: <b class="ltr js-pn">اضغط أي زر في اليد…</b></div></div>
     <div class="pad-test ltr">${BTN.map(([k, t]) => `<span data-b="${k}">${t}</span>`).join("")}</div>
     <div class="set-row"><button class="btn f js-swap"></button><button class="btn f js-rum"></button><button class="btn gold f js-diag">🩺 تشخيص اليد</button></div>
+    <div class="set-row"><button class="btn gold f js-setup">🎮 إعداد يد جديدة</button>${Object.keys(PADMAPS).length ? `<button class="btn f js-reset">مسح إعدادات الأيادي (${Object.keys(PADMAPS).length})</button>` : ""}</div>
+    <p class="set-msg">«إعداد يد جديدة»: لأي يد لا تعمل أزرارها صحيحة (يد عامة بلا ماركة): تضغط كل زر مرة عند السؤال، فتُحفظ لهذه اليد.</p>
     <p class="set-msg">✕ موافق · ○ رجوع · الأسهم أو العصا للتنقل · L1/R1 السابق/التالي · L2/R2 الصوت · Options تشغيل/إيقاف · PS الرئيسية (وفي الألعاب: الخروج)</p>`;
   el.querySelector(".js-diag").addEventListener("click", () => padDiagScreen());
+  el.querySelector(".js-setup").addEventListener("click", () => { pop(); padSetupScreen(); });
+  el.querySelector(".js-reset")?.addEventListener("click", async () => {
+    for (const id of Object.keys(PADMAPS)) { try { PADMAPS = (await api("/api/tv/padmaps", { json: { id, map: null } })).maps || {}; } catch { /* */ } }
+    localStorage.setItem("hsef-padmaps", JSON.stringify(PADMAPS)); toast("مُسحت إعدادات الأيادي", 3000); pop(); padScreen();
+  });
   const lab = () => {
     el.querySelector(".js-swap").textContent = padPrefs.swap ? "الموافقة بزر ○ (اضغط للتبديل)" : "الموافقة بزر ✕ (اضغط للتبديل)";
     el.querySelector(".js-rum").textContent = padPrefs.rumble ? "الاهتزاز: يعمل" : "الاهتزاز: متوقف";

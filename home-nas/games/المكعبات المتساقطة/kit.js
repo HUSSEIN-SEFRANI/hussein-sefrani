@@ -169,9 +169,23 @@
   // ترتيب الأيادي حسب أول ضغطة: يد موصولة لا يُضغط فيها شيء (مثل يد سلكية منسية) لا تأخذ مكان اللاعب الأول
   const padOrder = [];
   const padTouched = (g) => g.buttons.some((x) => x && x.pressed) || Math.abs(g.axes[0] || 0) > 0.5 || Math.abs(g.axes[1] || 0) > 0.5;
+  // ترتيب أزرار اليد: يد معروفة (standard) كما هي، ويد عامة بلا ماركة حسب «إعداد يد جديدة» المحفوظ لاسمها
+  const PAD_ORDER = ["a", "b", "x", "y", "l1", "r1", "l2", "r2", "select", "start", "ls", "rs", "up", "down", "left", "right", "home"];
+  function padNorm(g, maps) {
+    const m = maps && maps[g.id];
+    if (!m) return g;
+    const on = (c) => !!c && (c.t === "b" ? !!(g.buttons[c.i] && g.buttons[c.i].pressed) : (g.axes[c.i] || 0) * c.s > 0.6);
+    const used = new Set(Object.values(m).filter((c) => c && c.t === "a").map((c) => c.i));
+    const ax = (i) => (used.has(i) ? 0 : g.axes[i] || 0);
+    const buttons = PAD_ORDER.map((k) => { const p = on(m[k]); return { pressed: p, value: p ? 1 : 0, touched: p }; });
+    return { id: g.id, index: g.index, connected: g.connected, mapping: "standard", timestamp: g.timestamp, raw: g,
+      vibrationActuator: g.vibrationActuator, buttons, axes: [ax(0), ax(1), ax(2), ax(3)] };
+  }
+  let padMaps = {};
+  try { padMaps = JSON.parse(localStorage.getItem("hsef-padmaps") || "{}"); } catch {}
   K.pads = () => {
     const all = [];
-    try { for (const g of navigator.getGamepads ? navigator.getGamepads() : []) if (g && g.connected) all.push(g); } catch {}
+    try { for (const g of navigator.getGamepads ? navigator.getGamepads() : []) if (g && g.connected) all.push(padNorm(g, padMaps)); } catch {}
     for (const g of all) if (!padOrder.includes(g.index) && padTouched(g)) padOrder.push(g.index);
     return padOrder.map((i) => all.find((g) => g.index === i)).filter(Boolean);
   };

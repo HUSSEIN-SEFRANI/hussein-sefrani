@@ -878,6 +878,50 @@ def tv_lang() -> str:
     return v if v in TV_LANGS else "ar"
 
 
+PAD_KEYS = {"a", "b", "x", "y", "l1", "r1", "l2", "r2", "select", "start", "ls", "rs", "up", "down", "left", "right", "home"}
+
+
+@bp.get("/api/tv/padmaps")
+def api_tv_padmaps():
+    """ترتيب أزرار الأيادي العامة (بلا ماركة) كما ضبطه «إعداد يد جديدة»."""
+    tv_guard()
+    try:
+        maps = json.loads(get_setting("tv_padmaps") or "{}")
+    except ValueError:
+        maps = {}
+    return jsonify(maps=maps if isinstance(maps, dict) else {})
+
+
+@bp.post("/api/tv/padmaps")
+def api_tv_padmaps_set():
+    tv_guard()
+    d = body()
+    pid = str(d.get("id") or "").strip()[:200]
+    if not pid:
+        abort(400)
+    try:
+        maps = json.loads(get_setting("tv_padmaps") or "{}")
+    except ValueError:
+        maps = {}
+    m = d.get("map")
+    if m is None:
+        maps.pop(pid, None)
+    elif isinstance(m, dict):
+        clean = {}
+        for k, c in m.items():
+            if k in PAD_KEYS and isinstance(c, dict) and c.get("t") in ("b", "a"):
+                i = int(c.get("i") or 0)
+                if 0 <= i < 64:
+                    clean[k] = {"t": c["t"], "i": i} | ({"s": 1 if int(c.get("s") or 1) > 0 else -1} if c["t"] == "a" else {})
+        if not {"a", "b"} <= clean.keys():
+            abort(400, "ناقص: زر الموافقة وزر الرجوع")
+        maps[pid] = clean
+        while len(maps) > 30:
+            maps.pop(next(iter(maps)))
+    set_setting("tv_padmaps", json.dumps(maps))
+    return jsonify(maps=maps)
+
+
 @bp.get("/api/tv/settings")
 def api_tv_settings():
     """التلفاز يسأل كل دقيقة: إن تغيّرت الإعدادات من لوحة التحكم تُطبَّق بلا إعادة تحميل."""
