@@ -87,7 +87,7 @@ in_root apt-get install -y --no-install-recommends \
     ifupdown dhcpcd-base iproute2 iputils-ping netbase wpasupplicant iw bluez \
     firmware-linux-free firmware-misc-nonfree firmware-realtek firmware-iwlwifi firmware-atheros \
     firmware-mediatek firmware-brcm80211 firmware-libertas firmware-zd1211 usb-modeswitch usb-modeswitch-data firmware-sof-signed wireless-regdb \
-    firmware-intel-graphics firmware-amd-graphics firmware-intel-sound \
+    firmware-intel-graphics firmware-amd-graphics firmware-intel-sound amd64-microcode intel-microcode \
     cage chromium fonts-noto-core fonts-noto-color-emoji pipewire-audio wireplumber pulseaudio-utils wlr-randr \
     python3-opencv usbmuxd libimobiledevice-utils ifuse fuse3 less nano
 
