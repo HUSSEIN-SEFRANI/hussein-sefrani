@@ -436,7 +436,64 @@ def hw_diag():
     except Exception:
         pass
     out["sof_missing"] = any("sof" in l.lower() for l in out["firmware"]) and "no soundcards" in out["sound"]
+    out["missing"] = fw_missing()
     print(json.dumps(out, ensure_ascii=False))
+
+
+# مكتبة التعريفات: ملف التعريف الناقص (من سجل النظام) ← حزمة دبيان التي فيها
+FW_PKGS = [
+    (r"^(iwlwifi|intel/ibt)", "firmware-iwlwifi"), (r"^intel/sof|^intel/avs", "firmware-sof-signed"),
+    (r"^(i915|xe)/", "firmware-intel-graphics"), (r"^intel/(ipu|vpu|ish|ivsc)", "firmware-intel-misc"), (r"^intel/", "firmware-intel-sound"),
+    (r"^(amdgpu|radeon|amd)/", "firmware-amd-graphics"), (r"^nvidia/.*/gsp/", "firmware-nvidia-gsp"), (r"^(nvidia|nouveau)/", "firmware-nvidia-graphics"),
+    (r"^(rtw88|rtw89|rtlwifi|rtl_bt|rtl_nic|rtl8)", "firmware-realtek"), (r"^(mediatek|mt7)", "firmware-mediatek"),
+    (r"^(ath|qca|ar\d|htc_)", "firmware-atheros"), (r"^(brcm|cypress)/", "firmware-brcm80211"), (r"^BCM", "bluez-firmware"),
+    (r"^(mrvl|libertas)/", "firmware-libertas"), (r"^zd1211", "firmware-zd1211"), (r"^ti-connectivity", "firmware-ti-connectivity"),
+    (r"^cirrus/", "firmware-cirrus"), (r"^bnx2x?/", "firmware-bnx2x"), (r"^bnx2", "firmware-bnx2"), (r"^regulatory\.db", "wireless-regdb"),
+    (r"^(rt2|rt3|rt5|rt7)", "firmware-misc-nonfree"),
+]
+
+
+def fw_missing() -> list:
+    """التعريفات التي طلبها النظام ولم يجدها، والحزمة التي فيها (غير المثبتة فقط)."""
+    try:
+        log = subprocess.run(["journalctl", "-k", "-b", "--no-pager", "-o", "cat"], capture_output=True, text=True, timeout=20).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    files = set(_re.findall(r"failed to load (\S+?)\s*\(-2\)", log)) | set(_re.findall(r"Direct firmware load for (\S+) failed", log))
+    out, seen = [], set()
+    for f in sorted(files):
+        pkg = next((pk for rx, pk in FW_PKGS if _re.search(rx, f)), None)
+        if not pkg or pkg in seen:
+            continue
+        seen.add(pkg)
+        if subprocess.run(["dpkg", "-s", pkg], capture_output=True).returncode != 0:
+            out.append({"file": f, "pkg": pkg})
+    return out
+
+
+def fw_install():
+    """تثبيت التعريفات الناقصة لهذا الجهاز (يحتاج إنترنت)، ثم إعادة التشغيل لتعمل."""
+    if FAKE:
+        print(json.dumps({"installed": ["firmware-realtek"], "failed": [], "reboot": True}))
+        return
+    need = [x["pkg"] for x in fw_missing()]
+    # كرت NVIDIA بلا تعريفاته: نضيفها (كبيرة، فلا تُنزَّل إلا لمن عنده الكرت)
+    try:
+        if any((d / "vendor").read_text().strip() == "0x10de" and (d / "class").read_text().startswith("0x03")
+               for d in Path("/sys/bus/pci/devices").iterdir()):
+            for pk in ("firmware-nvidia-graphics", "firmware-nvidia-gsp"):
+                if subprocess.run(["dpkg", "-s", pk], capture_output=True).returncode != 0 and pk not in need:
+                    need.append(pk)
+    except OSError:
+        pass
+    done, failed = [], []
+    if need:
+        env = dict(os.environ, DEBIAN_FRONTEND="noninteractive")
+        subprocess.run(["apt-get", "update"], env=env, capture_output=True, timeout=900)
+        for pk in need:
+            ok = subprocess.run(["apt-get", "install", "-y", "--no-install-recommends", pk], env=env, capture_output=True, timeout=1800).returncode == 0
+            (done if ok else failed).append(pk)
+    print(json.dumps({"installed": done, "failed": failed, "reboot": bool(done)}))
 
 
 SOF_LEGACY = Path("/etc/modprobe.d/hsef-audio.conf")
@@ -1973,6 +2030,8 @@ def main():
         hw_diag()
     elif a == ["audio-fix"]:
         audio_fix()
+    elif a == ["fw-install"]:
+        fw_install()
     elif a in (["pad-generic", "on"], ["pad-generic", "off"]):
         pad_generic(a[1] == "on")
     elif a == ["device-id"]:

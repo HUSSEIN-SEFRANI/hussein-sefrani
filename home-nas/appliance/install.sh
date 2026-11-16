@@ -53,7 +53,8 @@ fi
 apt-get install -y --no-install-recommends wsdd2 >/dev/null 2>&1 || apt-get install -y --no-install-recommends wsdd >/dev/null 2>&1 || true
 # تعريفات إضافية لبطاقات الوايفاي (ومنها USB) إن توفّر الإنترنت
 if [ "$OFFLINE" -eq 0 ]; then
-  for p in firmware-mediatek firmware-brcm80211 firmware-libertas firmware-zd1211 usb-modeswitch usb-modeswitch-data firmware-sof-signed wireless-regdb firmware-amd-graphics firmware-realtek firmware-iwlwifi amd64-microcode intel-microcode; do
+  for p in firmware-mediatek firmware-brcm80211 firmware-libertas firmware-zd1211 usb-modeswitch usb-modeswitch-data firmware-sof-signed wireless-regdb firmware-amd-graphics firmware-realtek firmware-iwlwifi amd64-microcode intel-microcode \
+           firmware-intel-misc firmware-cirrus bluez-firmware alsa-ucm-conf alsa-topology-conf; do
     apt-get install -y --no-install-recommends "$p" >/dev/null 2>&1 || true
   done
 fi
@@ -169,6 +170,8 @@ install -m 755 "$APP/appliance/hsef-extras" /usr/local/sbin/hsef-extras
 /usr/local/sbin/hsef-extras iphone-rules >/dev/null 2>&1 || true
 # الشبكة: الوايفاي يعمل وحده عند فصل الكابل
 /usr/local/sbin/hsef-extras net-fixups >/dev/null 2>&1 || true
+# تعريفات ناقصة لهذا الجهاز بالذات (من سجل النظام): تُثبَّت إن توفّر الإنترنت
+/usr/local/sbin/hsef-extras fw-install >/dev/null 2>&1 || true
 # App Center: user choices written by the app, logs written by hsef-apps
 mkdir -p "$CONF_DIR/apps" /var/lib/homenas/apps /srv/homenas/apps
 chown homenas:homenas "$CONF_DIR/apps"

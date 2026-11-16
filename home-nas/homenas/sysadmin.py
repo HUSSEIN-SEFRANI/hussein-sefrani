@@ -53,6 +53,12 @@ def api_device():
     return jsonify(available=True, net=helper("net-status", as_json=True), sys=helper("sys-status", as_json=True))
 
 
+@bp.post("/api/admin/fw-install")
+@admin_required
+def api_fw_install():
+    return jsonify(helper("fw-install", timeout=3000, as_json=True))
+
+
 @bp.post("/api/admin/audio-fix")
 @admin_required
 def api_audio_fix():

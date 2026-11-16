@@ -48,8 +48,19 @@ function diagCard() {
       ${nodrv.length ? `<div>⚠️ ${nodrv.length} جهاز USB بلا تعريف</div>` : ''}
       ${r.firmware.length ? `<details open style="margin-top:6px"><summary>أخطاء التعريفات</summary>${r.firmware.map((l) => `<div class="ltr small" style="text-align:left">${esc(l)}</div>`).join('')}</details>` : ''}
       <pre class="small muted ltr" style="text-align:left;white-space:pre-wrap;margin-top:6px">${esc(r.sound)}</pre>
+      ${(r.missing || []).length ? `<div class="alert warn small" style="margin-top:8px">🧩 تعريفات ناقصة لهذا الجهاز: <span class="ltr">${r.missing.map((m) => esc(m.pkg)).join(', ')}</span>
+        <button class="btn primary sm" data-x="fwi">تثبيت التعريفات الناقصة (يحتاج إنترنت)</button></div>` : ''}
       ${r.sof_missing ? `<div class="alert warn small" style="margin-top:8px">🔇 لا توجد بطاقة صوت: تعريف الصوت في هذا الجهاز يحتاج ملفاً ناقصاً (SOF).
         <button class="btn primary sm" data-x="afix">إصلاح الصوت</button></div>` : ''}`;
+    const fwi = $('[data-x=fwi]', box);
+    if (fwi) fwi.onclick = async () => {
+      fwi.disabled = true; toast('جارٍ تثبيت التعريفات… قد يستغرق دقائق');
+      const x = await guard(() => api.post('/api/admin/fw-install', {})); fwi.disabled = false; if (!x) return;
+      if (x.failed.length) toast('لم تُثبَّت: ' + x.failed.join(', '), 'err');
+      if (x.reboot && await confirmBox('ثُبّتت التعريفات. يجب إعادة تشغيل الجهاز لتعمل. إعادة التشغيل الآن؟')) {
+        await guard(() => api.post('/api/admin/power', { action: 'reboot' })); toast('يعاد التشغيل… انتظر دقيقتين', 'ok');
+      }
+    };
     const af = $('[data-x=afix]', box);
     if (af) af.onclick = async () => {
       af.disabled = true; toast('جارٍ الإصلاح… قد يستغرق دقائق');
