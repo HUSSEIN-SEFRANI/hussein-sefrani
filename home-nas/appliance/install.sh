@@ -53,7 +53,7 @@ fi
 apt-get install -y --no-install-recommends wsdd2 >/dev/null 2>&1 || apt-get install -y --no-install-recommends wsdd >/dev/null 2>&1 || true
 # تعريفات إضافية لبطاقات الوايفاي (ومنها USB) إن توفّر الإنترنت
 if [ "$OFFLINE" -eq 0 ]; then
-  for p in firmware-mediatek firmware-brcm80211 firmware-libertas firmware-zd1211; do
+  for p in firmware-mediatek firmware-brcm80211 firmware-libertas firmware-zd1211 usb-modeswitch usb-modeswitch-data; do
     apt-get install -y --no-install-recommends "$p" >/dev/null 2>&1 || true
   done
 fi

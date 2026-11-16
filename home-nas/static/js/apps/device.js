@@ -15,6 +15,42 @@ export async function deviceSection(sc, section) {
   p.appendChild(wifiCard(d.net.wifi || {}, reload));
   p.appendChild(timeCard(d.sys, reload));
   p.appendChild(btCard());
+  p.appendChild(diagCard());
+}
+
+// ------------------------------------------------------------------ تشخيص الأجهزة
+// لماذا لا يعمل الوايفاي أو البلوتوث أو صوت التلفاز؟ صورة واحدة (لقطة شاشة) تكفي لمعرفة السبب
+function diagCard() {
+  const c = h(`<div class="card" style="max-width:640px;margin-top:14px"><h4>${icon('activity')} تشخيص الأجهزة</h4>
+    <p class="muted small" style="margin:0 0 8px">إن لم يعمل الوايفاي أو البلوتوث أو صوت التلفاز: اضغط «فحص»، ثم صوّر النتيجة وأرسلها.</p>
+    <button class="btn" data-x="run">${icon('search')} فحص</button> <button class="btn ghost hidden" data-x="copy">نسخ النتيجة</button>
+    <div class="dg" style="margin-top:10px;font-size:13px;line-height:1.7"></div></div>`);
+  const box = $('.dg', c);
+  let raw = '';
+  $('[data-x=run]', c).onclick = async () => {
+    box.innerHTML = '<p class="muted">جارٍ الفحص…</p>';
+    const r = await guard(() => api.get('/api/admin/hwdiag')); if (!r) { box.innerHTML = ''; return; }
+    raw = JSON.stringify(r, null, 1);
+    $('[data-x=copy]', c).classList.remove('hidden');
+    const ok = (b) => (b ? '✅' : '❌');
+    const wl = r.net.filter((n) => n.wireless);
+    const cd = r.usb.filter((u) => u.drivers.includes('usb-storage') && /^(0bda|0e8d|2357|148f|7392):/.test(u.id));
+    const nodrv = r.usb.filter((u) => !u.drivers.length);
+    const outs = (r.audio && r.audio.outputs) || [];
+    box.innerHTML = `
+      <div>${ok(wl.length)} <b>الوايفاي:</b> ${wl.length ? wl.map((n) => `<span class="ltr">${esc(n.name)}</span> (${esc(n.state)})`).join('، ') : 'لا توجد بطاقة'}</div>
+      <div>${ok(r.bt.length)} <b>البلوتوث:</b> ${r.bt.length ? esc(r.bt.join('، ')) : 'لا يوجد'}</div>
+      ${r.rfkill.filter((x) => x.soft || x.hard).map((x) => `<div>⚠️ ${esc(x.type)} <span class="ltr">${esc(x.name)}</span> مقفول ${x.hard ? '(بمفتاح في الجهاز)' : '(برمجياً)'}</div>`).join('')}
+      ${cd.length ? `<div>⚠️ <b>بطاقة USB تظهر كقرص تعريفات</b> (<span class="ltr">${cd.map((u) => esc(u.id)).join(', ')}</span>): ${r.modeswitch ? 'أخرجها وأدخلها مرة أخرى.' : 'تحتاج أداة التحويل: حدّث النظام ثم أعد إدخالها.'}</div>` : ''}
+      <div>${ok(r.monitors.length)} <b>الشاشة على منفذ الصوت (HDMI/DP):</b> ${r.monitors.length ? r.monitors.map((m) => `${esc(m.name || 'شاشة')} <span class="ltr">(${esc(m.card)} ${esc(m.pin)})</span>`).join('، ') : 'لم تُكتشف شاشة تدعم الصوت'}</div>
+      <div>${ok(outs.some((o) => o.active && o.plugged))} <b>مخرج الصوت:</b> ${outs.length ? outs.map((o) => `${o.active ? '🔊' : '🔈'} ${esc(o.name)}${o.plugged ? ' (موصول)' : ''}`).join('، ') : 'لا توجد مخارج (شاشة التلفاز غير مفعّلة أو الصوت لا يعمل)'}</div>
+      <details style="margin-top:6px"><summary>أجهزة USB (${r.usb.length})</summary>${r.usb.map((u) => `<div class="ltr" style="text-align:left">${esc(u.id)} ${esc(u.name)} → ${u.drivers.length ? esc(u.drivers.join(', ')) : '<b style="color:#dc2626">بلا تعريف</b>'}</div>`).join('')}</details>
+      ${nodrv.length ? `<div>⚠️ ${nodrv.length} جهاز USB بلا تعريف</div>` : ''}
+      ${r.firmware.length ? `<details open style="margin-top:6px"><summary>أخطاء التعريفات</summary>${r.firmware.map((l) => `<div class="ltr small" style="text-align:left">${esc(l)}</div>`).join('')}</details>` : ''}
+      <pre class="small muted ltr" style="text-align:left;white-space:pre-wrap;margin-top:6px">${esc(r.sound)}</pre>`;
+  };
+  $('[data-x=copy]', c).onclick = async () => { try { await navigator.clipboard.writeText(raw); toast('نُسخت النتيجة', 'ok'); } catch { toast('تعذّر النسخ، صوّر الشاشة بدلاً منه', 'err'); } };
+  return c;
 }
 
 // ------------------------------------------------------------------ عنوان IP

@@ -53,6 +53,12 @@ def api_device():
     return jsonify(available=True, net=helper("net-status", as_json=True), sys=helper("sys-status", as_json=True))
 
 
+@bp.get("/api/admin/hwdiag")
+@admin_required
+def api_hwdiag():
+    return jsonify(helper("hw-diag", timeout=60, as_json=True))
+
+
 IP = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$")
 
 

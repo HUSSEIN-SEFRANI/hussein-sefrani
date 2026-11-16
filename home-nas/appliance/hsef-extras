@@ -376,6 +376,65 @@ def audio_watch():
         _time.sleep(5 if tries < 24 else 30)
 
 
+def hw_diag():
+    """صورة واحدة لما يراه النظام: أجهزة USB وتعريفاتها، الوايفاي، البلوتوث، بطاقات الصوت وأي منفذ عليه شاشة، وأخطاء التعريفات."""
+    if FAKE:
+        print(json.dumps({"usb": [{"id": "0bda:1a2b", "name": "Realtek DISK", "drivers": ["usb-storage"]},
+                                  {"id": "0bda:c820", "name": "Realtek 802.11ac WLAN Adapter", "drivers": ["rtw88_8821cu", "btusb"]}],
+                          "net": [{"name": "enp0s31f6", "state": "UP", "wireless": False}], "bt": [], "rfkill": [],
+                          "sound": "0 [PCH]: HDA-Intel - HDA Intel PCH", "monitors": [{"card": 0, "pin": "eld#2.0", "name": "TV"}],
+                          "audio": None, "firmware": ["rtw88_8821cu: failed to request firmware"], "modeswitch": False}))
+        return
+    out = {"usb": [], "net": [], "bt": [], "rfkill": [], "sound": "", "monitors": [], "audio": None, "firmware": [],
+           "modeswitch": bool(shutil.which("usb_modeswitch"))}
+    for d in sorted(Path("/sys/bus/usb/devices").glob("*")):
+        try:
+            vid, pid = (d / "idVendor").read_text().strip(), (d / "idProduct").read_text().strip()
+        except OSError:
+            continue
+        if vid == "1d6b":   # موزّعات USB داخلية
+            continue
+        rd = lambda n: (d / n).read_text().strip() if (d / n).exists() else ""
+        drivers = sorted({(i / "driver").resolve().name for i in d.glob(d.name + ":*") if (i / "driver").exists()})
+        out["usb"].append({"id": f"{vid}:{pid}", "name": " ".join(x for x in (rd("manufacturer"), rd("product")) if x), "drivers": drivers})
+    out["net"] = [{"name": l.get("ifname"), "state": l.get("operstate"), "wireless": str(l.get("ifname", "")).startswith("wl")}
+                  for l in jrun(["ip", "-j", "link"]) if l.get("ifname") != "lo" and not str(l.get("ifname", "")).startswith(("docker", "veth", "br-"))]
+    try:
+        out["bt"] = sorted(x.name for x in Path("/sys/class/bluetooth").iterdir())
+    except OSError:
+        pass
+    for r in sorted(Path("/sys/class/rfkill").glob("rfkill*")):
+        try:
+            out["rfkill"].append({"type": (r / "type").read_text().strip(), "name": (r / "name").read_text().strip(),
+                                  "soft": (r / "soft").read_text().strip() == "1", "hard": (r / "hard").read_text().strip() == "1"})
+        except OSError:
+            pass
+    try:
+        out["sound"] = Path("/proc/asound/cards").read_text().strip()
+    except OSError:
+        pass
+    for eld in sorted(Path("/proc/asound").glob("card*/eld#*")):   # أي منفذ HDMI/DP عليه شاشة فعلاً
+        try:
+            txt = eld.read_text()
+        except OSError:
+            continue
+        if _re.search(r"monitor_present\s+1", txt):
+            name = (_re.search(r"monitor_name\s+(.*)", txt) or [None, ""])[1].strip()
+            out["monitors"].append({"card": eld.parent.name, "pin": eld.name, "name": name})
+    try:
+        r = subprocess.run([sys.argv[0], "tv-audio-status"], capture_output=True, text=True, timeout=20)
+        out["audio"] = json.loads(r.stdout) if r.returncode == 0 and r.stdout.strip() else None
+    except Exception:
+        pass
+    try:
+        log = subprocess.run(["journalctl", "-k", "-b", "--no-pager", "-o", "cat"], capture_output=True, text=True, timeout=20).stdout
+        out["firmware"] = [l for l in log.splitlines() if _re.search(r"firmware|bluetooth: hci|rtw|mt7|iwlwifi|ath|brcm", l, _re.I)
+                           and _re.search(r"fail|error|not found|direct firmware|unable|timeout", l, _re.I)][-15:]
+    except Exception:
+        pass
+    print(json.dumps(out, ensure_ascii=False))
+
+
 def tv_audio_status():
     if FAKE:
         print(json.dumps({"outputs": [{"card": "c0", "profile": "output:hdmi-stereo", "name": "HDMI (التلفاز)", "active": True, "plugged": True},
@@ -854,7 +913,7 @@ def net_confirm():
 
 # ----------------------------------------------------------------------------- الوايفاي
 WIFI_PKGS = ("wpasupplicant", "iw", "firmware-iwlwifi", "firmware-realtek", "firmware-atheros", "firmware-misc-nonfree",
-             "firmware-mediatek", "firmware-brcm80211", "firmware-libertas", "firmware-zd1211")
+             "firmware-mediatek", "firmware-brcm80211", "firmware-libertas", "firmware-zd1211", "usb-modeswitch", "usb-modeswitch-data")
 
 
 def wifi_install():
@@ -1793,6 +1852,8 @@ def main():
         bt_remove(a[1])
     elif a == ["pad-diag"]:
         pad_diag()
+    elif a == ["hw-diag"]:
+        hw_diag()
     elif a == ["device-id"]:
         device_id()
     elif a == ["media-list"]:
