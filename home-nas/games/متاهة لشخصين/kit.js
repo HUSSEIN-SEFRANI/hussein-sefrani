@@ -166,7 +166,15 @@
 
   // يد التحكم (بلايستيشن وغيرها)
   const pad = { dir: null, next: 0, a: false, b: false };
-  K.pads = () => { const out = []; try { for (const g of navigator.getGamepads ? navigator.getGamepads() : []) if (g && g.connected) out.push(g); } catch {} return out; };
+  // ترتيب الأيادي حسب أول ضغطة: يد موصولة لا يُضغط فيها شيء (مثل يد سلكية منسية) لا تأخذ مكان اللاعب الأول
+  const padOrder = [];
+  const padTouched = (g) => g.buttons.some((x) => x && x.pressed) || Math.abs(g.axes[0] || 0) > 0.5 || Math.abs(g.axes[1] || 0) > 0.5;
+  K.pads = () => {
+    const all = [];
+    try { for (const g of navigator.getGamepads ? navigator.getGamepads() : []) if (g && g.connected) all.push(g); } catch {}
+    for (const g of all) if (!padOrder.includes(g.index) && padTouched(g)) padOrder.push(g.index);
+    return padOrder.map((i) => all.find((g) => g.index === i)).filter(Boolean);
+  };
   function poll(ts) {
     const pads = K.pads();
     if (!(K.mode && K.mode.poll && K.mode.poll(pads, ts)) && pads.length) {

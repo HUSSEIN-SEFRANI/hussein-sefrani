@@ -1118,7 +1118,7 @@ function backToMenu() {
 }
 let padPrev = [];
 function pollPad() {
-  const gp = [...(navigator.getGamepads ? navigator.getGamepads() : [])].find(Boolean);
+  const gp = hsefPad();
   if (!gp) return { steer: 0, turbo: false, slow: false };
   const b = (i) => !!(gp.buttons[i] && gp.buttons[i].pressed);
   const edge = (i, key) => { if (b(i) && !padPrev[i]) press(key); };
@@ -1344,3 +1344,15 @@ applyQuality();
 buildWorld(set.map);
 buildMenu();
 tick();
+
+// يد التحكم: أول يد يُضغط فيها زر (لا أول يد موصولة؛ قد تكون هناك يد سلكية لا يستعملها أحد)
+const hsefPad = (() => {
+  const order = [];
+  const touched = (g) => g.buttons.some((x) => x && x.pressed) || Math.abs(g.axes[0] || 0) > 0.5 || Math.abs(g.axes[1] || 0) > 0.5;
+  return () => {
+    let all = [];
+    try { all = [...(navigator.getGamepads ? navigator.getGamepads() : [])].filter((g) => g && g.connected); } catch { /* */ }
+    for (const g of all) if (!order.includes(g.index) && touched(g)) order.push(g.index);
+    return order.map((i) => all.find((g) => g.index === i)).find(Boolean) || null;
+  };
+})();

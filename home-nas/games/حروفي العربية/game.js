@@ -151,9 +151,7 @@
   // يد التحكم (بلايستيشن وغيرها)
   const pad = { dir: null, next: 0, a: false, b: false };
   function poll(ts) {
-    const gps = navigator.getGamepads ? navigator.getGamepads() : [];
-    let g = null;
-    for (const x of gps) if (x && x.connected) { g = x; break; }
+    const g = hsefPad();
     if (g) {
       const b = (i) => !!(g.buttons[i] && g.buttons[i].pressed);
       const ax = g.axes[0] || 0, ay = g.axes[1] || 0;
@@ -343,4 +341,16 @@
   }
 
   show(homeScreen);
+})();
+
+// يد التحكم: أول يد يُضغط فيها زر (لا أول يد موصولة؛ قد تكون هناك يد سلكية لا يستعملها أحد)
+const hsefPad = (() => {
+  const order = [];
+  const touched = (g) => g.buttons.some((x) => x && x.pressed) || Math.abs(g.axes[0] || 0) > 0.5 || Math.abs(g.axes[1] || 0) > 0.5;
+  return () => {
+    let all = [];
+    try { all = [...(navigator.getGamepads ? navigator.getGamepads() : [])].filter((g) => g && g.connected); } catch { /* */ }
+    for (const g of all) if (!order.includes(g.index) && touched(g)) order.push(g.index);
+    return order.map((i) => all.find((g) => g.index === i)).find(Boolean) || null;
+  };
 })();
