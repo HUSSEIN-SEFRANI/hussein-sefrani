@@ -53,6 +53,12 @@ def api_device():
     return jsonify(available=True, net=helper("net-status", as_json=True), sys=helper("sys-status", as_json=True))
 
 
+@bp.post("/api/admin/audio-fix")
+@admin_required
+def api_audio_fix():
+    return jsonify(helper("audio-fix", timeout=2400, as_json=True))
+
+
 @bp.get("/api/admin/hwdiag")
 @admin_required
 def api_hwdiag():

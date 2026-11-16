@@ -1141,5 +1141,9 @@ window.I18N_DICT = {
 "شاشة": ["screen", "écran", "ekran", "scherm"],
 "أنهى": ["finished", "a terminé", "bitirdi", "is klaar met"],
 "افتح «العائلة» ← المهام للتأكيد": ["open «Family» → Tasks to confirm", "ouvrez «Famille» → Tâches pour confirmer", "onaylamak için «Aile» → Görevler'i açın", "open «Gezin» → Taken om te bevestigen"],
-"غير مكتشف، جرّبه": ["not detected, try it", "non détecté, essayez-le", "algılanmadı, deneyin", "niet gedetecteerd, probeer het"]
+"غير مكتشف، جرّبه": ["not detected, try it", "non détecté, essayez-le", "algılanmadı, deneyin", "niet gedetecteerd, probeer het"],
+"إظهار": ["Show", "Afficher", "Göster", "Tonen"],
+"أجهزة بلا اسم": ["unnamed devices", "appareils sans nom", "adsız cihaz", "apparaten zonder naam"],
+"لا توجد بطاقة صوت": ["No sound card", "Aucune carte son", "Ses kartı yok", "Geen geluidskaart"],
+"إصلاح الصوت": ["Fix sound", "Réparer le son", "Sesi onar", "Geluid herstellen"]
 };

@@ -47,7 +47,17 @@ function diagCard() {
       <details style="margin-top:6px"><summary>أجهزة USB (${r.usb.length})</summary>${r.usb.map((u) => `<div class="ltr" style="text-align:left">${esc(u.id)} ${esc(u.name)} → ${u.drivers.length ? esc(u.drivers.join(', ')) : '<b style="color:#dc2626">بلا تعريف</b>'}</div>`).join('')}</details>
       ${nodrv.length ? `<div>⚠️ ${nodrv.length} جهاز USB بلا تعريف</div>` : ''}
       ${r.firmware.length ? `<details open style="margin-top:6px"><summary>أخطاء التعريفات</summary>${r.firmware.map((l) => `<div class="ltr small" style="text-align:left">${esc(l)}</div>`).join('')}</details>` : ''}
-      <pre class="small muted ltr" style="text-align:left;white-space:pre-wrap;margin-top:6px">${esc(r.sound)}</pre>`;
+      <pre class="small muted ltr" style="text-align:left;white-space:pre-wrap;margin-top:6px">${esc(r.sound)}</pre>
+      ${r.sof_missing ? `<div class="alert warn small" style="margin-top:8px">🔇 لا توجد بطاقة صوت: تعريف الصوت في هذا الجهاز يحتاج ملفاً ناقصاً (SOF).
+        <button class="btn primary sm" data-x="afix">إصلاح الصوت</button></div>` : ''}`;
+    const af = $('[data-x=afix]', box);
+    if (af) af.onclick = async () => {
+      af.disabled = true; toast('جارٍ الإصلاح… قد يستغرق دقائق');
+      const x = await guard(() => api.post('/api/admin/audio-fix', {})); af.disabled = false; if (!x) return;
+      if (await confirmBox('تم. يجب إعادة تشغيل الجهاز ليعمل الصوت. إعادة التشغيل الآن؟')) {
+        await guard(() => api.post('/api/admin/power', { action: 'reboot' })); toast('يعاد التشغيل… انتظر دقيقتين', 'ok');
+      }
+    };
   };
   $('[data-x=copy]', c).onclick = async () => { try { await navigator.clipboard.writeText(raw); toast('نُسخت النتيجة', 'ok'); } catch { toast('تعذّر النسخ، صوّر الشاشة بدلاً منه', 'err'); } };
   return c;
@@ -180,9 +190,17 @@ function btCard() {
         <button class="btn ghost" data-x="diag">🩺 تشخيص يد التحكم</button>`;
       const box = $('.devs', b);
       if (!r.devices.length) box.innerHTML = '<p class="muted">لا توجد أجهزة بعد.</p>';
-      for (const dv of r.devices) {
+      // الأجهزة بلا اسم (عنوان MAC فقط) مطوية: غالباً هواتف وأجهزة الجيران
+      const nameless = r.devices.filter((dv) => dv.named === false && !dv.paired);
+      const shown = r.devices.filter((dv) => !(dv.named === false && !dv.paired));
+      if (nameless.length) {
+        const more = h(`<button class="btn ghost sm" style="margin-top:6px">إظهار ${nameless.length} أجهزة بلا اسم</button>`);
+        more.onclick = () => { more.remove(); draw({ ...r, devices: r.devices.map((dv) => ({ ...dv, named: true })) }); };
+        setTimeout(() => box.appendChild(more));
+      }
+      for (const dv of shown) {
         const row = h(`<div class="tv-tile"><span style="font-size:22px">${dv.icon === 'input-gaming' ? '🎮' : dv.icon && dv.icon.startsWith('audio') ? '🎧' : dv.icon === 'input-keyboard' ? '⌨️' : '🔵'}</span>
-          <div class="tv-tt"><b></b><div class="muted small ltr">${esc(dv.mac)}</div></div>
+          <div class="tv-tt"><b></b><div class="muted small ltr">${esc(dv.mac)}${dv.rssi != null ? ` · ${dv.rssi > -60 ? '▂▄▆█' : dv.rssi > -75 ? '▂▄▆' : '▂▄'}` : ''}</div></div>
           ${dv.connected ? '<span class="badge ok">متصل</span>' : dv.paired ? '<span class="badge">مقترن</span>' : ''}
           ${dv.paired ? '' : '<button class="btn primary sm" data-p="pair">ربط</button>'}
           ${dv.paired && !dv.connected ? '<button class="btn sm" data-p="pair">اتصال</button>' : ''}

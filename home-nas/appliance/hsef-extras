@@ -403,7 +403,7 @@ def hw_diag():
     out["net"] = [{"name": l.get("ifname"), "state": l.get("operstate"), "wireless": str(l.get("ifname", "")).startswith("wl")}
                   for l in jrun(["ip", "-j", "link"]) if l.get("ifname") != "lo" and not str(l.get("ifname", "")).startswith(("docker", "veth", "br-"))]
     try:
-        out["bt"] = sorted(x.name for x in Path("/sys/class/bluetooth").iterdir())
+        out["bt"] = sorted(x.name for x in Path("/sys/class/bluetooth").iterdir() if _re.match(r"^hci\d+$", x.name))
     except OSError:
         pass
     for r in sorted(Path("/sys/class/rfkill").glob("rfkill*")):
@@ -435,7 +435,51 @@ def hw_diag():
                            and _re.search(r"fail|error|not found|direct firmware|unable|timeout", l, _re.I)][-15:]
     except Exception:
         pass
+    out["sof_missing"] = any("sof" in l.lower() for l in out["firmware"]) and "no soundcards" in out["sound"]
     print(json.dumps(out, ensure_ascii=False))
+
+
+SOF_LEGACY = Path("/etc/modprobe.d/hsef-audio.conf")
+
+
+def sof_broken() -> bool:
+    """لا توجد بطاقة صوت لأن تعريف SOF لم يجد ملفه."""
+    try:
+        if "no soundcards" not in Path("/proc/asound/cards").read_text():
+            return False
+    except OSError:
+        return False
+    log = subprocess.run(["journalctl", "-k", "-b", "--no-pager", "-o", "cat"], capture_output=True, text=True, timeout=20).stdout
+    return bool(_re.search(r"sof-audio.*(failed to load|firmware and/or topology file not found)", log))
+
+
+def audio_fix():
+    """إصلاح «لا توجد بطاقة صوت»: نثبّت ملفات SOF (إن توفّر الإنترنت)، وإلا نستعمل تعريف HDA القديم. يحتاج إعادة تشغيل."""
+    if FAKE:
+        print(json.dumps({"firmware": True, "legacy": False, "reboot": True}))
+        return
+    env = dict(os.environ, DEBIAN_FRONTEND="noninteractive")
+    ok = subprocess.run(["dpkg", "-s", "firmware-sof-signed"], capture_output=True).returncode == 0
+    if not ok:
+        subprocess.run(["apt-get", "update"], env=env, capture_output=True, timeout=900)
+        ok = subprocess.run(["apt-get", "install", "-y", "--no-install-recommends", "firmware-sof-signed"],
+                            env=env, capture_output=True, timeout=1800).returncode == 0
+    legacy = False
+    if not ok or SOF_LEGACY.exists():
+        SOF_LEGACY.write_text("# HOME ANAB: تعريف الصوت القديم (HDA) لأن SOF لا يعمل على هذا الجهاز\noptions snd-intel-dspcfg dsp_driver=1\n")
+        legacy = True
+    print(json.dumps({"firmware": ok, "legacy": legacy, "reboot": True}))
+
+
+def audio_selfheal():
+    """عند الإقلاع: إن بقي SOF بلا ملف (حتى بعد تثبيته) نستعمل تعريف HDA القديم من الإقلاع القادم، ونعيد التشغيل مرة واحدة."""
+    try:
+        if not sof_broken() or SOF_LEGACY.exists():
+            return
+        SOF_LEGACY.write_text("# HOME ANAB: تعريف الصوت القديم (HDA) لأن SOF لا يعمل على هذا الجهاز\noptions snd-intel-dspcfg dsp_driver=1\n")
+        print("audio: SOF firmware missing, switching to legacy HDA after reboot", flush=True)
+    except Exception:
+        pass
 
 
 def tv_audio_status():
@@ -1091,16 +1135,24 @@ def bt_install():
 
 
 def bt_devices() -> list:
+    """الأجهزة القريبة: الاسم الحقيقي إن عُرف (وإلا «بلا اسم»)، يد الألعاب والأجهزة المقترنة أولاً ثم الأقوى إشارة."""
     out = subprocess.run(["bluetoothctl", "devices"], capture_output=True, text=True, timeout=20).stdout
     devs = []
     for line in out.splitlines():
-        m = _re.match(r"Device\s+([0-9A-F:]{17})\s+(.*)", line.strip())
+        m = _re.match(r"Device\s+([0-9A-F:]{17})\s*(.*)", line.strip())
         if not m:
             continue
-        info = subprocess.run(["bluetoothctl", "info", m.group(1)], capture_output=True, text=True, timeout=20).stdout
-        get = lambda k: (_re.search(rf"{k}:\s*(\S+)", info) or [None, ""])[1]
-        devs.append({"mac": m.group(1), "name": m.group(2), "paired": get("Paired") == "yes", "connected": get("Connected") == "yes",
-                     "icon": get("Icon")})
+        mac = m.group(1)
+        info = subprocess.run(["bluetoothctl", "info", mac], capture_output=True, text=True, timeout=20).stdout
+        get = lambda k: (_re.search(rf"^\s*{k}:\s*(.+)$", info, _re.M) or [None, ""])[1].strip()
+        name = get("Name") or ""
+        alias = get("Alias") or m.group(2)
+        if not name and alias and alias.replace("-", ":").upper() != mac:
+            name = alias
+        rssi = _re.search(r"RSSI:.*?\((-?\d+)\)", info) or _re.search(r"RSSI:\s*(-?\d+)", info)
+        devs.append({"mac": mac, "name": name or mac, "named": bool(name), "paired": get("Paired") == "yes",
+                     "connected": get("Connected") == "yes", "icon": get("Icon"), "rssi": int(rssi.group(1)) if rssi else None})
+    devs.sort(key=lambda d: (not d["connected"], not d["paired"], d["icon"] != "input-gaming", not d["named"], -(d["rssi"] or -999)))
     return devs
 
 
@@ -1879,6 +1931,8 @@ def main():
         pad_diag()
     elif a == ["hw-diag"]:
         hw_diag()
+    elif a == ["audio-fix"]:
+        audio_fix()
     elif a == ["device-id"]:
         device_id()
     elif a == ["media-list"]:
@@ -1904,6 +1958,7 @@ def main():
     elif a == ["tv-wait"]:
         import time
         import urllib.request
+        audio_selfheal()
         wait_url = f"http://127.0.0.1:{hsef_port()}/tv"
         try:
             if "hsef_installer" in Path("/proc/cmdline").read_text().split():

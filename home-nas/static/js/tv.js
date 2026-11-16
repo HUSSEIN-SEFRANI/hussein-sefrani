@@ -2332,6 +2332,7 @@ function btError(m) {
 async function btScreen() {
   const el = subScreen("البلوتوث", "bt"), body = el.querySelector(".set-body");
   push({ el });
+  let showAllBt = false;   // الأجهزة بلا اسم (عنوان MAC فقط) مطوية
   const draw = (r) => {
     if (!r.available) { body.innerHTML = `<p class="set-msg">متاح على جهاز HOME ANAB المخصص فقط.</p>`; return; }
     let html = "";
@@ -2340,12 +2341,14 @@ async function btScreen() {
     else {
       html = `<p class="set-msg">يد بلايستيشن 5: اضغط معاً <b>Create</b> و <b>PS</b> حتى يومض الضوء بسرعة، ثم «البحث»، ثم «ربط» مباشرة. بعدها تكفي ضغطة على <b>PS</b> لتتصل.</p>
         <div class="set-row"><button class="btn gold f" data-a="scan">البحث عن أجهزة</button></div>
-        <div class="set-list">${r.devices.map((d) => `<div class="set-item"><span>${d.icon === "input-gaming" ? "🎮" : "🔵"}</span><b>${esc(d.name)}</b>
+        <div class="set-list">${r.devices.filter((d) => showAllBt || d.named !== false || d.paired).map((d) => `<div class="set-item"><span>${d.icon === "input-gaming" ? "🎮" : d.icon && d.icon.startsWith("audio") ? "🎧" : d.icon === "input-keyboard" ? "⌨️" : d.icon === "phone" ? "📱" : "🔵"}</span><b>${esc(d.name)}</b>
           ${d.connected ? `<span class="ok">متصل</span>` : d.paired ? `<span>مقترن</span>` : ""}
           ${!d.connected ? `<button class="btn f" data-p="pair" data-m="${d.mac}">${d.paired ? "اتصال" : "ربط"}</button>` : ""}
-          ${d.paired ? `<button class="btn f" data-p="remove" data-m="${d.mac}">إزالة</button>` : ""}</div>`).join("") || `<p class="set-msg">لا توجد أجهزة بعد.</p>`}</div>`;
+          ${d.paired ? `<button class="btn f" data-p="remove" data-m="${d.mac}">إزالة</button>` : ""}</div>`).join("") || `<p class="set-msg">لا توجد أجهزة بعد.</p>`}</div>
+        ${!showAllBt && r.devices.some((d) => d.named === false && !d.paired) ? `<div class="set-row"><button class="btn f js-allbt">إظهار ${r.devices.filter((d) => d.named === false && !d.paired).length} أجهزة بلا اسم</button></div>` : ""}`;
     }
     body.innerHTML = html;
+    body.querySelector(".js-allbt")?.addEventListener("click", () => { showAllBt = true; draw(r); });
     body.querySelectorAll("[data-a]").forEach((b) => b.addEventListener("click", () => act(b.dataset.a)));
     body.querySelectorAll("[data-p]").forEach((b) => b.addEventListener("click", () => act(b.dataset.p, b.dataset.m)));
     setFocus(body.querySelector(".f") || el.querySelector(".js-back"));
