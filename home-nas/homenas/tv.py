@@ -1376,6 +1376,16 @@ def api_tv_admin_pad_diag():
     return jsonify(available=True, **helper("pad-diag", timeout=60, as_json=True))
 
 
+@bp.post("/api/tv/admin/pad/generic")
+def api_tv_admin_pad_generic():
+    """التعريف العام لأيادي سويتش غير الأصلية (من شاشة «تشخيص اليد»)."""
+    tv_admin()
+    from .sysadmin import available, helper
+    if not available():
+        abort(400, "متاح على جهاز HOME ANAB المخصص فقط")
+    return jsonify(helper("pad-generic", "on" if body().get("on") else "off", timeout=60, as_json=True))
+
+
 @bp.post("/api/tv/admin/bt/<action>")
 def api_tv_admin_bt_action(action):
     u = tv_admin()

@@ -2519,6 +2519,7 @@ function padDiagHtml(d, pads) {
     <div>${ok(pads.length)} المتصفح يرى: <span class="ltr">${esc(pads.join(" | ") || "لا شيء (اضغط زراً في اليد ثم أعد التشخيص)")}</span></div>
     <div>🔵 البلوتوث: <span class="ltr">${esc(bt.adapter || "لا يوجد")}</span></div>
     ${(bt.devices || []).map((x) => `<div class="ltr sm">${esc(x.name || x.mac)} — paired:${esc(x.paired)} bonded:${esc(x.bonded || "?")} trusted:${esc(x.trusted)} connected:${esc(x.connected)}</div>`).join("")}
+    ${d.nintendo_failed || d.generic ? `<div>${d.generic ? "🔧 أيادي سويتش غير الأصلية تعمل بالتعريف العام" : "⚠️ تعريف نينتندو رفض يداً (غالباً غير أصلية)"}</div>` : ""}
     ${(d.log || []).length ? `<pre class="ltr">${esc(d.log.slice(-8).join("\n"))}</pre>` : ""}
   </div>`;
 }
@@ -2529,7 +2530,15 @@ async function padDiagScreen() {
   try {
     const d = await api("/api/tv/admin/pad/diag");
     body.innerHTML = d.available === false ? `<p class="set-msg">متاح على جهاز HOME ANAB المخصص فقط.</p>`
-      : `${padDiagHtml(d, browserPads())}<p class="set-msg">صوّر هذه الشاشة وأرسلها إن لم تعمل اليد.</p>`;
+      : `${padDiagHtml(d, browserPads())}
+        <div class="set-row"><button class="btn f js-generic">${d.generic ? "↩️ إرجاع تعريف نينتندو الأصلي" : "🔧 يد سويتش غير أصلية: استعمل التعريف العام"}</button></div>
+        <p class="set-msg">لأيادي «مناسبة لسويتش» التي تتصل ولا تعمل أزرارها: اضغط الزر، ثم افصل اليد وأعد ربطها، ثم «إعداد يد جديدة».</p>
+        <p class="set-msg">صوّر هذه الشاشة وأرسلها إن لم تعمل اليد.</p>`;
+    body.querySelector(".js-generic")?.addEventListener("click", async () => {
+      try { await api("/api/tv/admin/pad/generic", { json: { on: !d.generic } }); } catch (e) { toast(e.message, 6000); return; }
+      toast(d.generic ? "عاد تعريف نينتندو الأصلي" : "✓ تم. افصل اليد وأعد ربطها، ثم «إعداد يد جديدة»", 8000);
+      pop(); padDiagScreen();
+    });
   } catch (e) { body.innerHTML = `<p class="set-msg">${esc(e.message)}</p>`; }
 }
 

@@ -1322,6 +1322,44 @@ def bt_pair(mac: str):
     die("pairing failed: " + " ".join(out.split()[-25:]))
 
 
+PAD_GENERIC = Path("/etc/modprobe.d/hsef-pads.conf")
+
+
+def nintendo_failed() -> bool:
+    """تعريف نينتندو رفض يداً (غالباً غير أصلية): رسائل فشل في سجل النظام."""
+    try:
+        log = subprocess.run(["journalctl", "-k", "-b", "--no-pager", "-o", "cat"], capture_output=True, text=True, timeout=20).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return bool(_re.search(r"nintendo.*(fail|error|timed? ?out|unable)", log, _re.I))
+
+
+def pad_generic(on: bool, quiet: bool = False):
+    """التعريف العام لأيادي سويتش: نوقف تعريف نينتندو (hid_nintendo) فيتولاها التعريف العام (hid-generic)."""
+    if FAKE:
+        if not quiet:
+            print(json.dumps({"generic": on}))
+        return
+    if on:
+        PAD_GENERIC.write_text("# HOME ANAB: أيادي سويتش غير الأصلية بالتعريف العام (ثم «إعداد يد جديدة» على التلفاز)\nblacklist hid_nintendo\n")
+        subprocess.run(["modprobe", "-r", "hid_nintendo"], capture_output=True, timeout=30)
+    else:
+        PAD_GENERIC.unlink(missing_ok=True)
+        subprocess.run(["modprobe", "hid_nintendo"], capture_output=True, timeout=30)
+    if not quiet:
+        print(json.dumps({"generic": PAD_GENERIC.exists()}))
+
+
+def pad_selfheal():
+    """عند تشغيل شاشة التلفاز: إن رفض تعريف نينتندو يداً، نتحول للتعريف العام (مرة واحدة)."""
+    try:
+        if not PAD_GENERIC.exists() and nintendo_failed():
+            pad_generic(True, quiet=True)
+            print("pads: hid_nintendo failed, using hid-generic", flush=True)
+    except Exception:
+        pass
+
+
 def pad_diag():
     """تقرير مختصر عن يد التحكم: هل يراها النظام، والبلوتوث، والصلاحيات، وآخر رسائل."""
     if FAKE:
@@ -1338,7 +1376,7 @@ def pad_diag():
             name = (_re.search(r'^N: Name="(.*)"', block, _re.M) or [None, ""])[1]
             handlers = (_re.search(r"^H: Handlers=(.*)$", block, _re.M) or [None, ""])[1].strip()
             bus = (_re.search(r"^I: Bus=(\w+)", block, _re.M) or [None, ""])[1]
-            if _re.search(r"DualSense|DualShock|Wireless Controller|Sony|Gamepad|Xbox|Controller", name, _re.I) or "js" in handlers:
+            if _re.search(r"DualSense|DualShock|Wireless Controller|Sony|Gamepad|Xbox|Controller|Nintendo|Joy-Con|Switch|Joystick", name, _re.I) or "js" in handlers:
                 kernel.append({"name": name, "bus": {"0005": "bluetooth", "0003": "usb"}.get(bus, bus), "handlers": handlers})
     except OSError:
         pass
@@ -1351,7 +1389,8 @@ def pad_diag():
     except (OSError, subprocess.TimeoutExpired):
         groups = ""
     mods = Path("/proc/modules").read_text() if Path("/proc/modules").exists() else ""
-    modules = {m: bool(_re.search(rf"^{m} ", mods, _re.M)) or Path(f"/sys/module/{m}").exists() for m in ("joydev", "hid_playstation", "hidp", "uhid")}
+    modules = {m: bool(_re.search(rf"^{m} ", mods, _re.M)) or Path(f"/sys/module/{m}").exists()
+               for m in ("joydev", "hid_playstation", "hid_nintendo", "xpad", "hidp", "uhid")}
     bt = {"adapter": "", "devices": []}
     if shutil.which("bluetoothctl") and any(Path("/sys/class/bluetooth").glob("hci*")):
         try:
@@ -1368,10 +1407,11 @@ def pad_diag():
         j = subprocess.run(["journalctl", "-b", "--no-pager", "-o", "cat", "-n", "400", "-u", "bluetooth"], capture_output=True, text=True, timeout=15).stdout
         k = subprocess.run(["journalctl", "-k", "-b", "--no-pager", "-o", "cat", "-n", "800"], capture_output=True, text=True, timeout=15).stdout
         log = [l for l in (j + "\n" + k).splitlines()
-               if _re.search(r"playstation|dualsense|hidp|uhid|input:.*Controller|Rejected|bonded|Authoriz|refused|hci\d|error", l, _re.I)][-18:]
+               if _re.search(r"playstation|dualsense|nintendo|hidp|uhid|input:.*Controller|Rejected|bonded|Authoriz|refused|hci\d|error", l, _re.I)][-18:]
     except (OSError, subprocess.TimeoutExpired):
         pass
-    print(json.dumps({"kernel": kernel, "js": js, "tv_groups": groups, "modules": modules, "bt": bt, "log": log}))
+    print(json.dumps({"kernel": kernel, "js": js, "tv_groups": groups, "modules": modules, "bt": bt, "log": log,
+                      "generic": PAD_GENERIC.exists(), "nintendo_failed": nintendo_failed()}))
 
 
 def bt_remove(mac: str):
@@ -1933,6 +1973,8 @@ def main():
         hw_diag()
     elif a == ["audio-fix"]:
         audio_fix()
+    elif a in (["pad-generic", "on"], ["pad-generic", "off"]):
+        pad_generic(a[1] == "on")
     elif a == ["device-id"]:
         device_id()
     elif a == ["media-list"]:
@@ -1959,6 +2001,7 @@ def main():
         import time
         import urllib.request
         audio_selfheal()
+        pad_selfheal()
         wait_url = f"http://127.0.0.1:{hsef_port()}/tv"
         try:
             if "hsef_installer" in Path("/proc/cmdline").read_text().split():
