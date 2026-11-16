@@ -1,6 +1,32 @@
 // سباق كريم — لعبة سباق ثلاثية الأبعاد للأطفال (تعمل بدون إنترنت).
 // التحكم: ← → توجيه، ↑ توربو، ↓ تمهّل، موافق/مسافة = بوق. يد التحكم (Gamepad) مدعومة.
 import * as THREE from "./three.module.min.js";
+// يد التحكم: أول يد يُضغط فيها زر (لا أول يد موصولة؛ قد تكون هناك يد سلكية لا يستعملها أحد)
+const hsefPad = (() => {
+  const order = [];
+  const touched = (g) => g.buttons.some((x) => x && x.pressed) || Math.abs(g.axes[0] || 0) > 0.5 || Math.abs(g.axes[1] || 0) > 0.5;
+  return () => {
+    let all = [];
+    let maps = {};
+    try { maps = JSON.parse(localStorage.getItem("hsef-padmaps") || "{}"); } catch { /* */ }
+    try { all = [...(navigator.getGamepads ? navigator.getGamepads() : [])].filter((g) => g && g.connected).map((g) => hsefPadNorm(g, maps)); } catch { /* */ }
+    for (const g of all) if (!order.includes(g.index) && touched(g)) order.push(g.index);
+    return order.map((i) => all.find((g) => g.index === i)).find(Boolean) || null;
+  };
+})();
+// ترتيب أزرار اليد: يد معروفة (standard) كما هي، ويد عامة بلا ماركة حسب «إعداد يد جديدة» المحفوظ لاسمها
+const HSEF_PAD_ORDER = ["a", "b", "x", "y", "l1", "r1", "l2", "r2", "select", "start", "ls", "rs", "up", "down", "left", "right", "home"];
+function hsefPadNorm(g, maps) {
+  const m = maps && maps[g.id];
+  if (!m) return g;
+  const on = (c) => !!c && (c.t === "b" ? !!(g.buttons[c.i] && g.buttons[c.i].pressed) : (g.axes[c.i] || 0) * c.s > 0.6);
+  const used = new Set(Object.values(m).filter((c) => c && c.t === "a").map((c) => c.i));
+  const ax = (i) => (used.has(i) ? 0 : g.axes[i] || 0);
+  const buttons = HSEF_PAD_ORDER.map((k) => { const p = on(m[k]); return { pressed: p, value: p ? 1 : 0, touched: p }; });
+  return { id: g.id, index: g.index, connected: g.connected, mapping: "standard", timestamp: g.timestamp, raw: g,
+    vibrationActuator: g.vibrationActuator, buttons, axes: [ax(0), ax(1), ax(2), ax(3)] };
+}
+
 
 // ------------------------------------------------------------------ الإعدادات
 const LAPS = 2;
@@ -1344,29 +1370,3 @@ applyQuality();
 buildWorld(set.map);
 buildMenu();
 tick();
-
-// يد التحكم: أول يد يُضغط فيها زر (لا أول يد موصولة؛ قد تكون هناك يد سلكية لا يستعملها أحد)
-const hsefPad = (() => {
-  const order = [];
-  const touched = (g) => g.buttons.some((x) => x && x.pressed) || Math.abs(g.axes[0] || 0) > 0.5 || Math.abs(g.axes[1] || 0) > 0.5;
-  return () => {
-    let all = [];
-    let maps = {};
-    try { maps = JSON.parse(localStorage.getItem("hsef-padmaps") || "{}"); } catch { /* */ }
-    try { all = [...(navigator.getGamepads ? navigator.getGamepads() : [])].filter((g) => g && g.connected).map((g) => hsefPadNorm(g, maps)); } catch { /* */ }
-    for (const g of all) if (!order.includes(g.index) && touched(g)) order.push(g.index);
-    return order.map((i) => all.find((g) => g.index === i)).find(Boolean) || null;
-  };
-})();
-// ترتيب أزرار اليد: يد معروفة (standard) كما هي، ويد عامة بلا ماركة حسب «إعداد يد جديدة» المحفوظ لاسمها
-const HSEF_PAD_ORDER = ["a", "b", "x", "y", "l1", "r1", "l2", "r2", "select", "start", "ls", "rs", "up", "down", "left", "right", "home"];
-function hsefPadNorm(g, maps) {
-  const m = maps && maps[g.id];
-  if (!m) return g;
-  const on = (c) => !!c && (c.t === "b" ? !!(g.buttons[c.i] && g.buttons[c.i].pressed) : (g.axes[c.i] || 0) * c.s > 0.6);
-  const used = new Set(Object.values(m).filter((c) => c && c.t === "a").map((c) => c.i));
-  const ax = (i) => (used.has(i) ? 0 : g.axes[i] || 0);
-  const buttons = HSEF_PAD_ORDER.map((k) => { const p = on(m[k]); return { pressed: p, value: p ? 1 : 0, touched: p }; });
-  return { id: g.id, index: g.index, connected: g.connected, mapping: "standard", timestamp: g.timestamp, raw: g,
-    vibrationActuator: g.vibrationActuator, buttons, axes: [ax(0), ax(1), ax(2), ax(3)] };
-}
