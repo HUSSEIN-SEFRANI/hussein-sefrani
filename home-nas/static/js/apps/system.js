@@ -3,7 +3,7 @@
 // ====================================================================
 import {
   ME, $, $$, h, esc, icon, api, guard, toast, modal, form, confirmBox, registerApp, openApp, linkBox, copyText,
-  fmtSize, fmtDateTime, fmtDuration,
+  fmtSize, fmtDateTime, fmtDuration, download,
 } from '../core.js';
 import { tvSection } from './tvadmin.js';
 import { deviceSection } from './device.js';
@@ -184,6 +184,7 @@ const SECTIONS = [
   { id: 'remote', group: 'device', label: 'من خارج البيت', icon: 'shield', admin: true, keys: 'إنترنت وصول بعيد tailscale' },
   { id: 'general', group: 'system', label: 'عام والتحديث', icon: 'sliders', admin: true, keys: 'اسم السيرفر المنطقة الزمنية تحديث إصدار بدون إنترنت' },
   { id: 'activation', group: 'system', label: 'التفعيل', icon: 'key', admin: true, keys: 'كود رقم الجهاز تجربة' },
+  { id: 'transfer', group: 'system', label: 'تصدير واستيراد وإعادة ضبط', icon: 'download', admin: true, keys: 'نقل جهاز جديد نسخة ملف anab إعادة ضبط المصنع مسح بداية جديدة' },
   { id: 'logs', group: 'system', label: 'سجل النشاط', icon: 'clock', admin: true, keys: 'سجل من فعل ماذا' },
 ];
 
@@ -327,6 +328,92 @@ const CP = {
       : ac.state === 'expired' ? '<span class="badge err">منتهٍ</span>' : '<span class="badge">—</span>'}</p>`));
     box.innerHTML = cards.join('') || '<p class="muted">تعذر الاتصال بالسيرفر</p>';
     $$('[data-go]', box).forEach(b => { if (b.dataset.go === 'overview') b.disabled = true; else b.onclick = () => go(b.dataset.go); });
+  },
+
+  // البند 6 و15: تصدير النظام واستيراده، وإعادة ضبط المصنع
+  async transfer(sc) {
+    const st = await guard(() => api.get('/api/admin/transfer')); if (!st) return;
+    const p = section(sc, 'تصدير واستيراد وإعادة ضبط',
+      'انقل كل إعدادات العائلة إلى جهاز HOME ANAB آخر، أو ابدأ هذا الجهاز من جديد. تفعيل هذا الجهاز وإعدادات الوايفاي تبقى كما هي في كل الحالات.');
+    if (!st.openssl) p.appendChild(h('<div class="alert warn">برنامج openssl غير موجود على هذا الجهاز، فالتصدير والاستيراد غير متاحين.</div>'));
+    if (st.pending_import || st.pending_reset) {
+      const w = h(`<div class="alert warn"><b>${st.pending_reset ? 'إعادة ضبط المصنع' : 'استيراد نظام'} ينتظر إعادة التشغيل.</b>
+        ${st.appliance ? 'يُطبَّق خلال لحظات.' : 'أعد تشغيل البرنامج ليُطبَّق.'} <button class="btn sm" data-x="cancel">إلغاء</button></div>`);
+      $('[data-x=cancel]', w).onclick = async () => { if (await guard(() => api.del(st.pending_reset ? '/api/admin/transfer/reset' : '/api/admin/transfer/import'))) { toast('أُلغي', 'ok'); CP.transfer(sc.replaceChildren() || sc); } };
+      p.appendChild(w);
+    }
+    // ---- التصدير
+    const ex = h(`<div class="card" style="max-width:720px"><h4>${icon('download')} تصدير النظام</h4>
+      <p class="muted small" style="margin:0 0 10px">ملف واحد ‎.anab مشفّر بكلمة سر: المستخدمون وكلمات السر ورموز الدخول، ونجوم الأطفال وسجلها،
+        ومربعات التلفاز وإعداداته (الأذان، المواقيت، الخلفيات)، والكاميرات، والمجلدات المشتركة.</p>
+      <label class="check"><input type="radio" name="what" value="0" checked> الإعدادات والبيانات فقط (ملف صغير)</label>
+      <label class="check"><input type="radio" name="what" value="1"> كل شيء مع الملفات والصور (ملف كبير، يحتاج مساحة فارغة بحجمه)</label>
+      <div class="tv-grid" style="margin-top:10px"><label>كلمة سر الملف<input class="field" type="password" name="pw" autocomplete="new-password"></label>
+        <label>أعد كتابتها<input class="field" type="password" name="pw2" autocomplete="new-password"></label></div>
+      <p class="alert warn small" style="margin:8px 0">احفظ كلمة السر: بدونها لا يمكن فتح الملف أبداً.</p>
+      <button class="btn primary" data-x="export">${icon('download')} تجهيز ملف التصدير</button> <span class="muted small ex-st"></span></div>`);
+    $('[data-x=export]', ex).onclick = async (e) => {
+      const pw = $('[name=pw]', ex).value;
+      if (pw.length < 6) return toast('كلمة السر 6 أحرف على الأقل', 'err');
+      if (pw !== $('[name=pw2]', ex).value) return toast('كلمتا السر غير متطابقتين', 'err');
+      e.target.disabled = true; $('.ex-st', ex).textContent = 'جارٍ التجهيز… قد يأخذ دقائق إن اخترت كل الملفات';
+      const r = await guard(() => api.post('/api/admin/transfer/export', { password: pw, files: $('[name=what]:checked', ex).value === '1' }));
+      e.target.disabled = false; $('.ex-st', ex).textContent = '';
+      if (!r) return;
+      $$('input[type=password]', ex).forEach((i) => (i.value = ''));
+      download(`${r.url}?name=${encodeURIComponent(r.name)}`);
+      toast(`جاهز: ${r.name} (${fmtSize(r.size)})`, 'ok');
+    };
+    p.appendChild(ex);
+    // ---- الاستيراد
+    const im = h(`<div class="card" style="max-width:720px;margin-top:14px"><h4>${icon('upload')} استيراد نظام</h4>
+      <p class="muted small" style="margin:0 0 10px">يستبدل كل إعدادات هذا الجهاز ومستخدميه بما في الملف. النسخة الحالية تُحفظ بجانبه ولا تُحذف.
+        بعد الاستيراد يُعاد تشغيل البرنامج، ثم تدخل بحساب وكلمة سر من الجهاز القديم.</p>
+      <input class="field" type="file" name="f" accept=".anab">
+      <label class="lbl">كلمة سر الملف</label><input class="field" type="password" name="ipw" style="max-width:320px" autocomplete="off">
+      <div style="margin-top:12px"><button class="btn" data-x="import">${icon('upload')} استيراد</button> <span class="muted small im-st"></span></div></div>`);
+    $('[data-x=import]', im).onclick = async (e) => {
+      const f = $('[name=f]', im).files[0], pw = $('[name=ipw]', im).value;
+      if (!f || !pw) return toast('اختر الملف واكتب كلمة سره', 'err');
+      if (!await confirmBox('سيُستبدل كل ما في هذا الجهاز من مستخدمين وإعدادات بما في الملف، ثم يُعاد تشغيل البرنامج. متابعة؟', { ok: 'استيراد', danger: true })) return;
+      const fd = new FormData(); fd.append('file', f); fd.append('password', pw);
+      e.target.disabled = true; $('.im-st', im).textContent = 'جارٍ الرفع والفحص…';
+      try {
+        const r = await fetch('/api/admin/transfer/import', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'fetch' } });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || `خطأ ${r.status}`);
+        const m = j.manifest;
+        $('.im-st', im).textContent = '';
+        await modal({ title: '✅ الملف سليم', body: h(`<div><p>من «<b translate="no">${esc(m.server_name || '')}</b>»، بتاريخ <bdi>${esc(fmtDateTime(m.created))}</bdi> (الإصدار <span translate="no">${esc(m.version)}</span>).</p>
+          <p>${m.users} مستخدم${m.files ? '، مع الملفات والصور' : '، بلا الملفات والصور'}.</p>
+          <p class="muted">${j.restart ? 'يُعاد تشغيل البرنامج الآن ويُطبَّق الاستيراد. انتظر نصف دقيقة ثم حدّث الصفحة.' : 'أعد تشغيل البرنامج ليُطبَّق الاستيراد.'}</p></div>`), buttons: [{ label: 'حسناً', cls: 'primary', value: true }] });
+        if (j.restart) setTimeout(() => location.reload(), 30000);
+      } catch (err) { $('.im-st', im).textContent = ''; toast(err.message, 'err'); }
+      e.target.disabled = false;
+    };
+    p.appendChild(im);
+    // ---- إعادة ضبط المصنع
+    const rs = h(`<div class="card" style="max-width:720px;margin-top:14px;border-color:var(--err)"><h4 style="color:var(--err)">${icon('refresh')} إعادة ضبط المصنع</h4>
+      <p class="small" style="margin:0 0 6px">يرجع الجهاز كما كان بعد التنصيب: تُحذف كل الحسابات وكلمات السر والنجوم ومربعات التلفاز والإعدادات، وتظهر شاشة الإعداد الأول.</p>
+      <p class="muted small" style="margin:0 0 10px">يبقى: تفعيل هذا الجهاز، وإعدادات الوايفاي والشبكة، والبرنامج نفسه. <b>صدّر النظام أولاً</b> إن أردت الرجوع إلى ما عندك الآن.</p>
+      <label class="check"><input type="radio" name="wipe" value="0" checked> الإعدادات فقط: الملفات والصور تبقى على القرص</label>
+      <label class="check"><input type="radio" name="wipe" value="1"> <b>كل شيء</b>: تُحذف أيضاً كل الملفات والصور نهائياً (لا يمكن التراجع)</label>
+      <div class="tv-grid" style="margin-top:10px"><label>كلمة مرور حسابك<input class="field" type="password" name="apw" autocomplete="current-password"></label>
+        <label>اكتب «${esc(st.confirm_word)}» للتأكيد<input class="field" name="cw" autocomplete="off"></label></div>
+      <button class="btn danger" data-x="reset" style="margin-top:6px">${icon('refresh')} إعادة ضبط المصنع</button></div>`);
+    $('[data-x=reset]', rs).onclick = async (e) => {
+      const wipe = $('[name=wipe]:checked', rs).value === '1';
+      if ($('[name=cw]', rs).value.trim() !== st.confirm_word) return toast(`اكتب «${st.confirm_word}» للتأكيد`, 'err');
+      if (!await confirmBox(wipe ? 'سيُحذف كل شيء نهائياً: الحسابات والإعدادات وكل الملفات والصور. لا يمكن التراجع. متأكد؟'
+        : 'ستُحذف كل الحسابات والإعدادات، وتبقى الملفات والصور على القرص. متأكد؟', { ok: 'إعادة ضبط', danger: true })) return;
+      e.target.disabled = true;
+      const r = await guard(() => api.post('/api/admin/transfer/reset', { password: $('[name=apw]', rs).value, confirm: $('[name=cw]', rs).value, wipe_files: wipe }));
+      e.target.disabled = false;
+      if (!r) return;
+      await modal({ title: 'إعادة ضبط المصنع', body: h(`<p>${r.restart ? 'يُعاد تشغيل البرنامج الآن. بعد نصف دقيقة تظهر شاشة الإعداد الأول.' : 'أعد تشغيل البرنامج لتُطبَّق إعادة الضبط.'}</p>`), buttons: [{ label: 'حسناً', cls: 'primary', value: true }] });
+      if (r.restart) setTimeout(() => location.reload(), 30000);
+    };
+    p.appendChild(rs);
   },
 
   tv(sc) { return tvSection(sc, section); },

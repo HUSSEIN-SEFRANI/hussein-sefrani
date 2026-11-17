@@ -29,6 +29,8 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
         MAX_FORM_MEMORY_SIZE=8 * 1024 * 1024,
     )
     data_paths = Paths(cfg["data_dir"])
+    from .transfer import apply_pending   # استيراد نظام أو إعادة ضبط مصنع طُلبت قبل إعادة التشغيل
+    applied = apply_pending(data_paths)
     init_db(data_paths.db)
     from .core import connect as _connect
     _db = _connect(data_paths.db)
@@ -52,6 +54,13 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
         print(f"[disks] {exc}")
     _db.close()
     app.extensions["nas_paths"] = data_paths
+    if applied:   # يُسجَّل في سجل النشاط ما طُبّق عند هذا التشغيل
+        _db = _connect(data_paths.db)
+        from .core import now_iso
+        _db.execute("INSERT INTO logs(ts, username, action, detail) VALUES (?, ?, ?, ?)",
+                    (now_iso(), "system", "إعادة ضبط المصنع: تمت" if applied == "reset" else "استيراد النظام: تم", ""))
+        _db.commit()
+        _db.close()
     app.extensions["nas_indexer"] = idx = Indexer(data_paths)
     app.extensions["nas_backup"] = bk = Backup(data_paths)
     app.extensions["nas_net"] = nw = Network(data_paths)
@@ -75,9 +84,9 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
         start_tv_prep(data_paths)   # تجهيز الفيديو للتلفاز في الخلفية
 
     from . import (activation, appstore, backup, cameras, faces, files, health, iphone, links, media_cards, network, photos, profile, remote,
-                   kids, stars, sysadmin, system, tv, welcome)
+                   kids, stars, sysadmin, system, transfer, tv, welcome)
     for mod in (system, files, photos, links, backup, health, network, appstore, faces, remote, tv, profile, sysadmin, iphone, stars, welcome,
-                cameras, media_cards, activation, kids):
+                cameras, media_cards, activation, kids, transfer):
         app.register_blueprint(mod.bp)
 
     @app.teardown_appcontext
