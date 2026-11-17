@@ -1365,8 +1365,27 @@ function blockedScreen(t, c) {
   push({ el, initial: () => el.querySelector(".kcard") || el.querySelector(".js-back") });
 }
 
+// v1.9.7: تقدّم الطفل محفوظ في المتصفح باسم فيه رقم المربع (/tv/game/<رقم>/<اللعبة>/). إذا نُقلت اللعبة إلى مربع
+// آخر (مثل «الألعاب» ← «التعليم») يتغير الرقم: ننسخ التقدّم القديم إلى الاسم الجديد قبل فتحها، لكل الألعاب
+function carryProgress(tid, path) {
+  try {
+    const norm = (x) => { let d = x; try { d = decodeURIComponent(x); } catch { /* */ } return d.replace(/(\/index\.html)?\/?$/, ""); };
+    const want = norm(path || "");
+    const re = /^(.*?:)\/tv\/game\/(\d+)\/(.*)$/;
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
+    for (const k of keys) {
+      const m = k && k.match(re);
+      if (!m || m[2] === String(tid) || norm(m[3]) !== want) continue;
+      const nk = `${m[1]}/tv/game/${tid}/${m[3]}`;
+      if (localStorage.getItem(nk) === null) localStorage.setItem(nk, localStorage.getItem(k));
+    }
+  } catch { /* */ }
+}
+
 async function gameScreen(t, path) {
   const gname = gameName(t, path);
+  carryProgress(t.id, path);
   if (isKid()) {
     let c = null;
     try { c = await api(`/api/tv/play/check?game=${encodeURIComponent(gname)}`); } catch { /* السيرفر القديم: نفتح */ }
