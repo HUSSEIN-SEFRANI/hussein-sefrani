@@ -499,12 +499,69 @@ def local_ips() -> list[str]:
     return sorted(ips) or ["127.0.0.1"]
 
 
+_mdns_cache = {"t": 0.0, "name": None}
+
+
+def mdns_name() -> str:
+    """الاسم الفعلي على الشبكة (بدون .local). إن وُجد جهاز آخر بالاسم نفسه تغيّر avahi اسمنا وحده (مثل hsef-2):
+    نقرؤه منها مباشرة (D-Bus)، فلا نعرض عنواناً يفتح الجهاز الآخر."""
+    if time.time() - _mdns_cache["t"] < 30 and _mdns_cache["name"]:
+        return _mdns_cache["name"]
+    name = socket.gethostname()
+    if shutil.which("busctl"):
+        try:
+            import subprocess
+            r = subprocess.run(["busctl", "call", "org.freedesktop.Avahi", "/", "org.freedesktop.Avahi.Server", "GetHostName"],
+                               capture_output=True, text=True, timeout=5)
+            m = re.match(r'^s "([^"]+)"', r.stdout.strip())
+            if r.returncode == 0 and m:
+                name = m.group(1)
+        except Exception:
+            pass
+    _mdns_cache.update(t=time.time(), name=name)
+    return name
+
+
 def server_urls(port) -> list[str]:
     suffix = "" if int(port) == 80 else f":{port}"
     urls = [f"http://{ip}{suffix}" for ip in local_ips()]
     if shutil.which("avahi-daemon"):  # mDNS: يعمل على الآيفون والماك وأغلب الأجهزة
-        urls.append(f"http://{socket.gethostname()}.local{suffix}")
+        urls.append(f"http://{mdns_name()}.local{suffix}")
     return urls
+
+
+HOST_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
+
+
+def suggest_hostname(text: str) -> str:
+    """اسم شبكة صالح من اسم العرض (العربي يُترك، والباقي حروف صغيرة وشرطات)."""
+    s = re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")[:40].strip("-")
+    return s if HOST_RE.match(s or "") else "home-anab"
+
+
+@bp.get("/api/admin/hostname")
+@admin_required
+def api_hostname():
+    host, mdns = socket.gethostname(), mdns_name()
+    return jsonify(hostname=host, mdns=mdns, conflict=mdns != host, appliance=APPLIANCE,
+                   urls=server_urls(current_app.config["NAS_CFG"].get("port", 80)), suggest=suggest_hostname(server_name()))
+
+
+@bp.post("/api/admin/hostname")
+@admin_required
+def api_hostname_set():
+    name = str(body().get("name") or "").strip().lower()
+    if not HOST_RE.match(name):
+        abort(400, "اسم الشبكة بحروف إنجليزية صغيرة وأرقام وشرطة (-) فقط، مثل beit-ahmad")
+    if not APPLIANCE:
+        abort(400, "تغيير اسم الجهاز على الشبكة متاح على جهاز HOME ANAB المثبّت من ملف ISO")
+    ok, out = _extras("host-set", name, timeout=60)
+    if not ok:
+        abort(500, out[-200:] or "فشل")
+    _mdns_cache.update(t=0, name=None)
+    log_action("اسم الجهاز على الشبكة", name)
+    time.sleep(2)   # حتى تعيد avahi نشر الاسم
+    return api_hostname()
 
 
 APPLIANCE = os.environ.get("HOMENAS_APPLIANCE") == "1"

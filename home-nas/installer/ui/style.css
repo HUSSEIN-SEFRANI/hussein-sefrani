@@ -118,3 +118,10 @@ p.sm { font-size: 17px; line-height: 1.7; }
 .warn + .bottom, .ok-line + .bottom { margin-top: auto; }
 .ss { color: #fde68a; }
 .ok-line .ss { color: #fff; font-weight: 700; }
+/* v1.9.7: اسم الجهاز على الشبكة */
+.hnrow { margin: 18px 0 6px; }
+.hnrow label { display: block; font-size: 20px; margin-bottom: 8px; color: #fde68a; }
+.hnin { display: flex; align-items: center; gap: 10px; max-width: 620px; }
+.hn-suf { font-size: 24px; opacity: .75; }
+.hn-p { font-size: 15px; margin-top: 6px; max-width: 900px; }
+.warn-t { color: #fca5a5; font-weight: 700; }

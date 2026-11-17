@@ -47,6 +47,18 @@ if user_count() == 0:
 
 suffix = "" if port == 80 else f":{port}"
 host = socket.gethostname()
+try:   # الاسم الفعلي على الشبكة: avahi تغيّره وحدها (مثل hsef-2) إن وُجد جهاز آخر بالاسم نفسه
+    import re as _re, subprocess as _sp, time as _time
+    for _ in range(10):   # عند الإقلاع قد تتأخر avahi ثوانٍ
+        _r = _sp.run(["busctl", "call", "org.freedesktop.Avahi", "/", "org.freedesktop.Avahi.Server", "GetHostName"],
+                     capture_output=True, text=True, timeout=5)
+        _m = _re.match(r'^s "([^"]+)"', _r.stdout.strip())
+        if _r.returncode == 0 and _m:
+            host = _m.group(1)
+            break
+        _time.sleep(1)
+except Exception:
+    pass
 lines = [
     r"\S{PRETTY_NAME}  -  \l",
     "",

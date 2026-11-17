@@ -106,7 +106,7 @@ function netCard(n, reload) {
     const target = mode === 'static' ? data.ip : null;
     if (!await confirmBox(mode === 'static'
       ? `سيصبح عنوان السيرفر ${target}. سينقطع الاتصال لحظات، ثم افتح http://${target} واضغط «تأكيد العنوان» خلال 3 دقائق.`
-      : 'سيأخذ السيرفر عنوانه من الراوتر تلقائياً. قد يتغير العنوان، واستخدم hsef.local للوصول إليه.', { ok: 'تطبيق' })) return;
+      : 'سيأخذ السيرفر عنوانه من الراوتر تلقائياً. قد يتغير العنوان، فاستخدم اسم الجهاز (مثل home-anab.local) للوصول إليه.', { ok: 'تطبيق' })) return;
     if (!await guard(() => api.post('/api/admin/net', data))) return;
     toast('جارٍ تطبيق الإعداد…', 'ok');
     if (target) setTimeout(() => { location.href = `http://${target}${location.port ? ':' + location.port : ''}/`; }, 6000);

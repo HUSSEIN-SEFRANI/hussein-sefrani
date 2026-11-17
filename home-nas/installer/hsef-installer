@@ -381,6 +381,29 @@ def explain(e: Exception) -> tuple[str, str | None]:
     return s, None
 
 
+HOST_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
+
+
+def name_taken(name: str) -> bool:
+    """هل في الشبكة جهاز آخر بهذا الاسم؟ (name.local عبر mDNS)"""
+    if os.environ.get("HSEF_INSTALLER_FAKE_TAKEN"):
+        return name in os.environ["HSEF_INSTALLER_FAKE_TAKEN"].split(",")
+    try:
+        r = subprocess.run(["getent", "hosts", f"{name}.local"], capture_output=True, text=True, timeout=4)
+        return r.returncode == 0 and bool(r.stdout.strip())
+    except Exception:
+        return False
+
+
+def free_name(base: str = "home-anab") -> str:
+    """أول اسم غير مستعمل في الشبكة: home-anab، ثم home-anab-2، …"""
+    for i in range(1, 10):
+        n = base if i == 1 else f"{base}-{i}"
+        if not name_taken(n):
+            return n
+    return base
+
+
 def install(cfg):
     try:
         set_state(stage="installing", started=time.time(), error=None, hint=None)
@@ -485,7 +508,15 @@ def do_install(cfg):
             with open(TARGET / "etc/fstab", "a") as f:
                 f.writelines(lines)
             (TARGET / "etc/homenas/extra-disks.json").write_text(json.dumps(entries, ensure_ascii=False))
-        (TARGET / "etc/hostname").write_text("hsef\n")
+        host = cfg.get("hostname") or "home-anab"   # v1.9.7: اسم الجهاز على الشبكة يختاره المستخدم (host.local)
+        (TARGET / "etc/hostname").write_text(host + "\n")
+        hosts = TARGET / "etc/hosts"
+        try:
+            hl = [ln for ln in hosts.read_text().splitlines() if not ln.startswith("127.0.1.1")]
+        except OSError:
+            hl = ["127.0.0.1\tlocalhost"]
+        hl.insert(1 if hl else 0, f"127.0.1.1\t{host}")
+        hosts.write_text("\n".join(hl) + "\n")
         write_target_net()
         (TARGET / "etc/machine-id").write_text("")
         Path(TARGET / "var/lib/dbus/machine-id").unlink(missing_ok=True)
@@ -556,6 +587,8 @@ class H(BaseHTTPRequestHandler):
                 return self.send(200, dict(state))
         if path == "/api/disks":
             return self.send(200, {"disks": disks(), "efi": Path("/sys/firmware/efi").exists()})
+        if path == "/api/name":
+            return self.send(200, {"name": free_name()})
         if path == "/api/net":
             return self.send(200, net_info())
         rel = "index.html" if path in ("/", "") else path.lstrip("/")
@@ -585,7 +618,11 @@ class H(BaseHTTPRequestHandler):
             extra = [x for x in (d.get("extra") or []) if isinstance(x, str)]
             if any(x not in names or x in used for x in extra) or len(set(extra)) != len(extra) or len(extra) > 6:
                 return self.send(400, {"error": "bad extra disk"})
-            cfg = {"disk": d["disk"], "disk2": d.get("disk2"), "raid": bool(d.get("raid")), "extra": extra, "lang": state["lang"]}
+            host = str(d.get("hostname") or "home-anab").strip().lower()
+            if not HOST_RE.match(host):
+                return self.send(400, {"error": "bad name"})
+            cfg = {"disk": d["disk"], "disk2": d.get("disk2"), "raid": bool(d.get("raid")), "extra": extra, "lang": state["lang"],
+                   "hostname": host}
             log("install " + json.dumps(cfg))
             threading.Thread(target=install, args=(cfg,), daemon=True).start()
             return self.send(200, {"ok": True})
