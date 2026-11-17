@@ -17,6 +17,7 @@
     hsef-extras update-rollback          go back to the previous version (kept in /opt/homenas/app.prev)
     hsef-extras update-verify            after an update: go back automatically if the app does not start
     hsef-extras device-id                this device's number for activation (from board UUID + network card) as JSON
+    hsef-extras tv-screen-set NAME|auto [SECONDS]   choose the TV screen (or try it for a few seconds)
     hsef-extras disk-info                all disks with their partitions, mounts and role (system/raid/data/backup/new) as JSON
     hsef-extras disk-run OP DEV [DEV|NAME]   run homenas-disk OP in the background (add, backup-disk, mirror, replace)
     hsef-extras disk-status              progress of disk-run as JSON
@@ -1629,49 +1630,124 @@ def tv_env():
     return uid, dict(os.environ, XDG_RUNTIME_DIR=f"/run/user/{uid}", WAYLAND_DISPLAY="wayland-0")
 
 
+TV_SCREEN = Path("/etc/homenas/tv-screen")          # الشاشة المختارة (اسم المنفذ، مثل HDMI-A-2)، أو لا ملف = تلقائي
+TV_SCREEN_TRY = Path("/run/homenas-tv-screen-try")  # تجربة شاشة لمدة قصيرة: {"name", "until"}
+TV_MODES = Path("/etc/homenas/tv-modes.json")       # الدقة لكل شاشة {"HDMI-A-1": "1920x1080"}
+
+
+def _modes_saved() -> dict:
+    try:
+        d = json.loads(TV_MODES.read_text())
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _screen_pref() -> str:
+    """الشاشة المفضلة الآن: التجربة المؤقتة إن لم تنتهِ، وإلا المحفوظة، وإلا "" (تلقائي)."""
+    import time as _t
+    try:
+        t = json.loads(TV_SCREEN_TRY.read_text())
+        if t.get("until", 0) > _t.time():
+            return t.get("name") or ""
+        TV_SCREEN_TRY.unlink(missing_ok=True)
+    except (OSError, ValueError):
+        pass
+    try:
+        return TV_SCREEN.read_text().strip()
+    except OSError:
+        return ""
+
+
+def _outputs() -> list:
+    uid, env = tv_env()
+    r = subprocess.run(["runuser", "-u", TV_USER, "--", "env", f"XDG_RUNTIME_DIR={env['XDG_RUNTIME_DIR']}", "WAYLAND_DISPLAY=wayland-0",
+                        "wlr-randr", "--json"], capture_output=True, text=True, timeout=20)
+    return [o for o in json.loads(r.stdout or "[]") if o.get("name")]
+
+
 def tv_modes():
+    """كل الشاشات الموصولة: الاسم، والماركة، والدقات، والحالية، والمختارة. (الحقول القديمة current/saved/modes للشاشة المعروضة)"""
+    saved_all = _modes_saved()
+    legacy = TV_MODE.read_text().strip() if TV_MODE.exists() else ""
+    pref = TV_SCREEN.read_text().strip() if TV_SCREEN.exists() else ""
     if FAKE:
-        print(json.dumps({"available": True, "current": "1920x1080", "saved": "", "modes": ["3840x2160", "1920x1080", "1280x720"]}))
+        screens = [{"name": "HDMI-A-1", "make": "Samsung Electric Company", "model": "SAMSUNG", "enabled": True, "current": "1920x1080",
+                    "modes": ["3840x2160", "1920x1080", "1280x720"], "saved": saved_all.get("HDMI-A-1", legacy)},
+                   {"name": "HDMI-A-2", "make": "LG Electronics", "model": "LG TV", "enabled": False, "current": None,
+                    "modes": ["1920x1080", "1280x720"], "saved": saved_all.get("HDMI-A-2", "")},
+                   {"name": "eDP-1", "make": "BOE", "model": "", "enabled": False, "internal": True, "current": None, "modes": ["1366x768"], "saved": ""}]
+        main = next((x for x in screens if x["enabled"]), screens[0])
+        print(json.dumps({"available": True, "screens": screens, "preferred": pref, "shown": main["name"],
+                          "current": main["current"], "saved": main["saved"], "modes": main["modes"]}))
         return
-    saved = TV_MODE.read_text().strip() if TV_MODE.exists() else ""
     if not shutil.which("wlr-randr"):
-        print(json.dumps({"available": False, "saved": saved}))
+        print(json.dumps({"available": False, "saved": legacy, "screens": [], "preferred": pref}))
         return
     try:
-        uid, env = tv_env()
-        r = subprocess.run(["runuser", "-u", TV_USER, "--", "env", f"XDG_RUNTIME_DIR={env['XDG_RUNTIME_DIR']}", "WAYLAND_DISPLAY=wayland-0",
-                            "wlr-randr", "--json"], capture_output=True, text=True, timeout=20)
-        outs = json.loads(r.stdout or "[]")
+        outs = _outputs()
     except Exception:
         outs = []
-    modes, cur = [], None
+    screens = []
     for o in outs:
-        if not o.get("enabled", True):
-            continue
+        modes, cur = [], None
         for m in o.get("modes", []):
             res = f"{m['width']}x{m['height']}"
             if res not in modes:
                 modes.append(res)
             if m.get("current"):
                 cur = res
-        break
-    print(json.dumps({"available": True, "current": cur, "saved": saved, "modes": modes}))
+        screens.append({"name": o["name"], "make": o.get("make") or "", "model": o.get("model") or "", "enabled": o.get("enabled", True),
+                        "internal": o["name"].startswith(INTERNAL_PANELS), "current": cur if o.get("enabled", True) else None,
+                        "modes": modes, "saved": saved_all.get(o["name"], legacy)})
+    main = next((x for x in screens if x["enabled"]), screens[0] if screens else None)
+    print(json.dumps({"available": True, "screens": screens, "preferred": pref, "shown": main["name"] if main else None,
+                      "current": main["current"] if main else None, "saved": main["saved"] if main else legacy,
+                      "modes": main["modes"] if main else []}))
 
 
-def tv_mode_set(mode: str):
+def tv_mode_set(mode: str, name: str = ""):
+    """الدقة: لشاشة معيّنة (name) أو للكل (القديم). فارغ = تلقائي."""
     if mode and not _re.match(r"^\d{3,4}x\d{3,4}$", mode):
         die("invalid resolution")
+    if name and not _re.match(r"^[A-Za-z0-9_.-]{1,40}$", name):
+        die("invalid screen")
     if FAKE:
+        d = _modes_saved() if TV_MODES.parent.exists() else {}
         return
-    if mode:
-        if not shutil.which("wlr-randr"):
-            apt_install("wlr-randr")
+    if mode and not shutil.which("wlr-randr"):
+        apt_install("wlr-randr")
+    if name:
+        d = _modes_saved()
+        if mode:
+            d[name] = mode
+        else:
+            d.pop(name, None)
+        TV_MODES.write_text(json.dumps(d))
+    elif mode:
         TV_MODE.write_text(mode + "\n")
     else:
         TV_MODE.unlink(missing_ok=True)
     if TV_UNIT.exists():
         tv_write()
         subprocess.run(["systemctl", "try-restart", "hsef-tv.service"], capture_output=True)
+
+
+def tv_screen_set(name: str, try_sec: int = 0):
+    """اختيار الشاشة: "auto" للتلقائي، أو اسم المنفذ. try_sec > 0: تجربة مؤقتة ترجع بعدها وحدها."""
+    import time as _t
+    if name != "auto" and not _re.match(r"^[A-Za-z0-9_.-]{1,40}$", name):
+        die("invalid screen")
+    if FAKE:
+        return
+    if try_sec:
+        TV_SCREEN_TRY.write_text(json.dumps({"name": "" if name == "auto" else name, "until": _t.time() + min(60, try_sec)}))
+        return
+    TV_SCREEN_TRY.unlink(missing_ok=True)
+    if name == "auto":
+        TV_SCREEN.unlink(missing_ok=True)
+    else:
+        TV_SCREEN.write_text(name + "\n")
 
 
 INTERNAL_PANELS = ("eDP", "LVDS", "DSI")   # شاشة اللابتوب نفسها
@@ -1684,40 +1760,43 @@ def screen_rank(name: str) -> int:
     return 0 if name.startswith("HDMI") else 1 if name.startswith("DP") else 2
 
 
-def screen_plan(outs: list, mode: str = "", tried: set | None = None) -> list[list[str]]:
-    """وضع التلفاز على شاشة واحدة فقط: اللابتوب الموصول بتلفاز يعرض على التلفاز وحده (لا تتوزع الصورة
-    على الشاشتين)، وعند فصل التلفاز يعود إلى شاشة اللابتوب. يرجع أوامر wlr-randr المطلوبة (فارغة إن لا تغيير)."""
+def screen_plan(outs: list, mode: str = "", tried: set | None = None, prefer: str = "", modes: dict | None = None) -> list[list[str]]:
+    """وضع التلفاز على شاشة واحدة فقط: الشاشة التي اختارها المدير إن كانت موصولة، وإلا التلقائي
+    (HDMI، ثم DisplayPort، ثم شاشة اللابتوب). إذا فُصلت المختارة يُعرض مؤقتاً على غيرها، ويرجع إليها عند توصيلها.
+    الدقة: المحفوظة لهذه الشاشة (modes)، وإلا العامة (mode). يرجع أوامر wlr-randr المطلوبة (فارغة إن لا تغيير)."""
     outs = [o for o in outs if o.get("name")]
     if not outs:
         return []
-    main = min(outs, key=lambda o: (screen_rank(o["name"]), o["name"]))
+    main = next((o for o in outs if prefer and o["name"] == prefer), None) or min(outs, key=lambda o: (screen_rank(o["name"]), o["name"]))
     cmds = []
     if not main.get("enabled", True):
         cmds.append(["--output", main["name"], "--on", "--pos", "0,0"])
     for o in outs:   # نطفئ الباقي بعد تشغيل الشاشة المختارة، حتى لا تبقى الجلسة بلا شاشة
         if o is not main and o.get("enabled", True):
             cmds.append(["--output", o["name"], "--off"])
-    if mode and tried is not None and (main["name"], mode) not in tried:
-        modes = {f"{m.get('width')}x{m.get('height')}": m for m in main.get("modes", [])}
-        cur = next((k for k, m in modes.items() if m.get("current")), None)
-        if mode in modes and cur != mode:
-            cmds.append(["--output", main["name"], "--mode", mode])
-        tried.add((main["name"], mode))
+    want = (modes or {}).get(main["name"]) or mode
+    if want and tried is not None and (main["name"], want) not in tried:
+        avail = {f"{m.get('width')}x{m.get('height')}": m for m in main.get("modes", [])}
+        cur = next((k for k, m in avail.items() if m.get("current")), None)
+        if want in avail and cur != want:
+            cmds.append(["--output", main["name"], "--mode", want])
+        tried.add((main["name"], want))
     return cmds
 
 
 def screen_watch():
-    """يعمل في الخلفية داخل جلسة الشاشة: يتابع توصيل التلفاز وفصله كل 3 ثوانٍ."""
-    mode = TV_MODE.read_text().strip() if TV_MODE.exists() else ""
+    """يعمل في الخلفية داخل جلسة الشاشة: يتابع توصيل الشاشات وفصلها، واختيار المدير، كل 3 ثوانٍ."""
     tried, last = set(), None
     while True:
         try:
+            mode = TV_MODE.read_text().strip() if TV_MODE.exists() else ""
+            modes, prefer = _modes_saved(), _screen_pref()
             outs = json.loads(subprocess.run(["wlr-randr", "--json"], capture_output=True, text=True, timeout=10).stdout or "[]")
-            names = tuple(sorted(o.get("name", "") for o in outs))
-            if names != last:   # شاشة وُصلت أو فُصلت: نعيد ضبط الدقة المحفوظة على الشاشة المختارة
+            sig = (tuple(sorted(o.get("name", "") for o in outs)), prefer, json.dumps(modes, sort_keys=True), mode)
+            if sig != last:   # شاشة وُصلت أو فُصلت أو تغيّر الاختيار: نعيد ضبط الدقة على الشاشة المختارة
                 tried.clear()
-                last = names
-            for c in screen_plan(outs, mode, tried):
+                last = sig
+            for c in screen_plan(outs, mode, tried, prefer, modes):
                 subprocess.run(["wlr-randr", *c], capture_output=True, timeout=10)
         except Exception:
             pass
@@ -2159,8 +2238,10 @@ def main():
         media_eject(a[1])
     elif a == ["tv-modes"]:
         tv_modes()
-    elif len(a) in (1, 2) and a[0] == "tv-mode-set":
-        tv_mode_set(a[1] if len(a) == 2 else "")
+    elif len(a) in (1, 2, 3) and a[0] == "tv-mode-set":
+        tv_mode_set(a[1] if len(a) >= 2 else "", a[2] if len(a) == 3 else "")
+    elif len(a) in (2, 3) and a[0] == "tv-screen-set":
+        tv_screen_set(a[1], int(a[2]) if len(a) == 3 and a[2].isdigit() else 0)
     elif a == ["iphone-attach"]:
         iphone_attach()
     elif a == ["iphone-detach"]:

@@ -870,12 +870,32 @@ def api_admin_tv_display():
 @bp.post("/api/admin/tv/display")
 @admin_required
 def api_admin_tv_display_set():
-    mode = str(body().get("mode") or "")
+    d = body()
+    mode, screen = str(d.get("mode") or ""), str(d.get("screen") or "")
     if mode and not re.fullmatch(r"\d{3,4}x\d{3,4}", mode):
         abort(400)
-    ok, out = kiosk_helper("tv-mode-set", *( [mode] if mode else [] ), timeout=900)
+    if screen and not re.fullmatch(r"[A-Za-z0-9_.-]{1,40}", screen):
+        abort(400)
+    ok, out = kiosk_helper("tv-mode-set", mode, screen, timeout=900) if screen else \
+        kiosk_helper("tv-mode-set", *([mode] if mode else []), timeout=900)
     if not ok:
         abort(400, out or "error")
+    return jsonify(ok=True)
+
+
+@bp.post("/api/admin/tv/screen")
+@admin_required
+def api_admin_tv_screen():
+    """v1.9.7: اختيار الشاشة التي يظهر عليها وضع التلفاز. {name: "HDMI-A-2" | "auto", try: true} — التجربة 20 ثانية."""
+    d = body()
+    name = str(d.get("name") or "auto")
+    if name != "auto" and not re.fullmatch(r"[A-Za-z0-9_.-]{1,40}", name):
+        abort(400)
+    ok, out = kiosk_helper("tv-screen-set", name, *(["20"] if d.get("try") else []), timeout=30)
+    if not ok:
+        abort(400, out or "error")
+    if not d.get("try"):
+        log_action("شاشة التلفاز", "تلقائي" if name == "auto" else name)
     return jsonify(ok=True)
 
 
