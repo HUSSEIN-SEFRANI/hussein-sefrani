@@ -59,6 +59,8 @@ confirm_erase() {
     lsblk -o NAME,SIZE,MODEL,FSTYPE,LABEL "$@"
     echo
     echo "ALL DATA ON $* WILL BE ERASED."
+    # من لوحة التحكم: التأكيد تم هناك (كلمة مرور المدير + كتابة «مسح») ثم hsef-extras disk-run
+    if [ "${HOMENAS_DISK_CONFIRMED:-}" = "ERASE" ]; then echo "(confirmed in the web panel)"; return; fi
     read -r -p "Type ERASE to continue: " ans
     [ "$ans" = "ERASE" ] || die "cancelled"
 }
