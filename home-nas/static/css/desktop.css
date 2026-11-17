@@ -214,6 +214,11 @@ label.lbl { display: block; font-size: 13px; color: var(--muted); margin: 10px 0
 .ov-list li.err { border-inline-start-color: var(--err); }
 .ov-list li span { color: var(--muted); font-size: 12px; }
 .ov-sub { margin: 14px 0 0; font-size: 13px; color: var(--muted); }
+.cpu-big { font-size: 40px; font-weight: 700; line-height: 1.1; margin-bottom: 6px; text-align: right; }
+.cpu-spark { width: 100%; height: 62px; display: block; margin-top: 8px; background: var(--surface-3); border-radius: 6px; }
+.cpu-cores { display: flex; gap: 3px; height: 44px; align-items: flex-end; }
+.cpu-cores > div { flex: 1; height: 100%; background: var(--surface-3); border-radius: 3px; display: flex; align-items: flex-end; overflow: hidden; }
+.cpu-cores i { display: block; width: 100%; background: var(--accent); }
 .ov-log { background: var(--surface-3); border-radius: 8px; padding: 8px 10px; font-size: 12px; max-height: 180px; overflow: auto; white-space: pre-wrap; margin: 0; text-align: left; }
 .side-item {
   display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer;
