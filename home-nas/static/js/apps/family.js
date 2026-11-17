@@ -47,7 +47,7 @@ async function report(box) {
         <div><b class="small">أكثر ما استعمله</b><ul class="fam-list">${k.games.map((g) => `<li><span translate="no">${esc(g.game)}</span><span class="badge ${g.kind === 'learn' ? 'ok' : ''}">${g.kind === 'learn' ? 'تعلّم' : 'لعب'}</span><span class="muted">${mins(g.minutes)}</span></li>`).join('') || '<li class="muted">—</li>'}</ul></div>
         <div><b class="small">يحتاج مساعدة في</b><ul class="fam-list">${k.mistakes.map((m) => `<li><span translate="no">${esc(m.topic)}</span><span class="muted small" translate="no">${esc(m.game)}</span><span class="badge err">${m.wrong} / ${m.total}</span></li>`).join('') || '<li class="muted small">لا أخطاء متكررة 👏</li>'}</ul></div>
       </div>`}</div>`;
-  }).join('') + `<p class="muted small">آخر 7 أيام. الألعاب التعليمية تُختار من «تعلّم ثم العب».</p>`;
+  }).join('') + `<p class="muted small">آخر 7 أيام. التطبيقات التعليمية هي ما في مجلد «التعليم» (أو اختيارها من «تعلّم ثم العب»).</p>`;
 }
 
 // ------------------------------------------------------------------------- مهام الأطفال
@@ -160,9 +160,9 @@ async function rules(box) {
         <label class="small">حتى الصباح <input class="field" type="time" data-x="wake" value="${esc(k.wake || '07:00')}"></label>
         <span class="muted small">اليوم: شاشة ${Math.round((k.today.screen || 0) / 60)} د · تعلّم ${Math.round(k.today.learn / 60)} د · لعب ${Math.round(k.today.play / 60)} د</span></div>`).join('') || '<p class="muted">لا يوجد أطفال على التلفاز بعد.</p>'}
       <p class="muted small" style="margin:10px 0 0">عند انتهاء وقت الشاشة أو في وقت النوم يُقفل حساب الطفل على التلفاز، مع تنبيه قبل 5 دقائق. «وقت إضافي»: الأب أو الأم يكتب رمزه على التلفاز فيضيف 15 دقيقة. اترك «وقت النوم» فارغاً لإيقافه.</p></div>
-    <div class="card" style="margin-top:14px"><h4>📚 الألعاب التعليمية</h4>
-      <p class="muted small" style="margin:0 0 8px">الألعاب المعلَّمة هنا تُحسب «تعلّماً»، والباقي «لعباً».</p>
-      <div class="fam-games">${d.games.map((g) => `<label class="check" style="margin:0"><input type="checkbox" value="${esc(g.name)}" ${g.learn ? 'checked' : ''}> <span translate="no">${esc(g.name)}</span></label>`).join('') || '<p class="muted small">لا توجد ألعاب في مجلد «الألعاب» بعد.</p>'}</div></div>
+    <div class="card" style="margin-top:14px"><h4>📚 التطبيقات التعليمية</h4>
+      <p class="muted small" style="margin:0 0 8px">المعلَّم هنا تطبيق تعليمي: يُحسب «تعلّماً»، ويعطي نجمة عند إنهاء الدرس، ومكانه مجلد «التعليم». غير المعلَّم لعبة: «لعب» بلا نجوم، ومكانه مجلد «الألعاب». تغيير الاختيار ينقل التطبيق بين المجلدين، وتقدّم الأطفال يبقى.</p>
+      <div class="fam-games">${d.games.map((g) => `<label class="check" style="margin:0"><input type="checkbox" value="${esc(g.name)}" ${g.learn ? 'checked' : ''}> <span translate="no">${esc(g.name)}</span></label>`).join('') || '<p class="muted small">لا توجد تطبيقات في مجلدي «الألعاب» و«التعليم» بعد.</p>'}</div></div>
     <div style="margin-top:14px"><button class="btn primary fam-save">حفظ</button></div>`;
   $('.fam-save', box).onclick = async () => {
     const rulesObj = {};

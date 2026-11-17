@@ -6,7 +6,8 @@
 - يخدم مجلدات الألعاب كما يخدمها التلفاز (/tv/game/1/...)، والخطوط من /static.
 - /api/tv/tile/1/list?sub=<مجلد>: قائمة ملفات مجلد داخل games (مثل صور اللعبة).
 - /api/tv/wallpaper و /api/tv/photo/<n>/view: «صور الطفل» من مجلد tools/photos إن وُجد.
-- POST /api/tv/stars/earn: يحاكي إضافة النجوم (رصيد يبدأ بـ 10، وحد يومي 20)، انظر _kit/API.txt.
+- POST /api/tv/stars/earn: يحاكي نجمة إنهاء الدرس (رصيد يبدأ بـ 10، وحد يومي 20): نجمة واحدة إن كان app.json
+  في مجلد التطبيق يقول education، ولا شيء للألعاب. انظر _kit/API.txt.
 - /api/tv/family/people و /api/tv/face/<n> و /api/tv/face/<n>/photo: «صور العائلة» من tools/faces/<الاسم>/*.jpg
   إن وُجد، وإلا وجوه مرسومة لأربعة أشخاص (بابا، ماما، جدّو، تيتا).
 - POST /api/tv/learn/result: يطبع النتيجة فقط (لتقرير الأهل)، انظر _kit/API.txt.
@@ -126,12 +127,20 @@ class H(http.server.BaseHTTPRequestHandler):
             return self.send(400, json.dumps({"error": "amount غير صالح"}).encode())
         if not 1 <= amount <= 10 or not str(d.get("game") or "").strip():
             return self.send(400, json.dumps({"error": "amount من 1 إلى 10، و game مطلوب"}).encode())
-        added = max(0, min(amount, STARS["limit"] - STARS["today"]))
+        # مثل السيرفر (v1.9.6): التطبيق التعليمي (app.json: education) يأخذ نجمة واحدة، واللعبة لا شيء
+        ref = urllib.parse.unquote(urllib.parse.urlparse(self.headers.get("Referer") or "").path)
+        app = ref[len("/tv/game/1/"):].split("/")[0] if ref.startswith("/tv/game/1/") else ""
+        try:
+            kind = json.load(open(os.path.join(GAMES, app, "app.json"), encoding="utf-8")).get("type") if app else None
+        except (OSError, ValueError):
+            kind = None
+        learn = kind == "education"
+        added = max(0, min(1, STARS["limit"] - STARS["today"])) if learn else 0
         STARS["balance"] += added
         STARS["today"] += added
-        print(f"⭐ +{added} ({d.get('game')}: {d.get('reason')}) → {STARS['balance']}", flush=True)
+        print(f"{'📚' if learn else '🎮'} +{added} ({d.get('game')}: {d.get('reason')}) → {STARS['balance']}", flush=True)
         self.send(200, json.dumps({"ok": True, "added": added, "balance": STARS["balance"], "today": STARS["today"],
-                                   "limit": STARS["limit"], "capped": added < amount}).encode())
+                                   "limit": STARS["limit"], "capped": learn and added < 1, "learn": learn}).encode())
 
 
 if __name__ == "__main__":

@@ -36,6 +36,7 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
     from . import tv as _tv
     _tv.migrate(_db)
     _tv.games_migrate(_db, data_paths)
+    _tv.learn_migrate(_db, data_paths)   # v1.9.6: مجلد «التعليم» المشترك
     from . import stars as _stars
     _stars.migrate(_db)
     from . import cameras as _cams

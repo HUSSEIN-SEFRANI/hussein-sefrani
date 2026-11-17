@@ -5,7 +5,7 @@ import { $, $$, h, esc, icon, api, guard, toast, modal, confirmBox, openApp, pic
 import * as A from '../tv-art.js';
 
 const ROLE_LABEL = { none: 'لا يظهر على التلفاز', adult: 'بالغ', kid: 'طفل', little: 'طفل صغير (أقل من 6 سنوات)' };
-const KIND_LABEL = { media: 'وسائط (فيديو، صوت، صور، كتب)', games: 'ألعاب', photos: 'مكتبة صوري', cameras: 'الكاميرات (مشاهدة مباشرة وتسجيلات)' };
+const KIND_LABEL = { media: 'وسائط (فيديو، صوت، صور، كتب)', games: 'ألعاب (بلا نجوم)', learn: 'تعليم (نجمة عند إنهاء الدرس)', photos: 'مكتبة صوري', cameras: 'الكاميرات (مشاهدة مباشرة وتسجيلات)' };
 
 const tileIcon = (t, size = 40) => `<span class="tv-ic" style="width:${size}px;height:${size}px;background:${A.gradient(t.color)}">${A.icon(t.icon)}</span>`;
 const adminPath = (u, p) => (p && (p === '/home' || p.startsWith('/home/')) ? `/homes/${u.username}${p.slice(5)}` : p);
@@ -23,8 +23,36 @@ export async function tvSection(sc, section) {
   p.appendChild(prepCard());
   p.appendChild(h('<h3 class="tv-h">الأشخاص على التلفاز</h3>'));
   for (const u of d.users) p.appendChild(userCard(u, d, reload));
+  p.appendChild(h('<h3 class="tv-h">الألعاب والتعليم</h3>'));
+  p.appendChild(appsCard());
   p.appendChild(h('<h3 class="tv-h">الشاشة والمواقيت</h3>'));
   p.appendChild(settingsCard(d, reload));
+}
+
+// --------------------------------------------------------------------- الألعاب والتعليم
+// كل تطبيق إما في «الألعاب» (بلا نجوم) أو في «التعليم» (نجمة عند إنهاء الدرس). النقل لا يمس تقدّم الأطفال.
+function appsCard() {
+  const c = h(`<div class="card"><p class="muted small" style="margin:0 0 10px">مجلدان مشتركان لكل العائلة: 🎮 «الألعاب» للمتعة بلا نجوم،
+    و📚 «التعليم» يعطي نجمة واحدة عند إنهاء كل درس (ضمن الحد اليومي في «نجوم العائلة»). لإضافة تطبيق جديد ضع مجلده في أحدهما
+    من «الملفات» أو من الكمبيوتر: المجلد الذي تختاره هو نوعه. وإن كان في التطبيق ملف app.json بنوع مختلف يظهر هنا تنبيه.</p>
+    <div class="tv-apps muted">جارٍ القراءة…</div></div>`);
+  const box = $('.tv-apps', c);
+  const col = (kind, title, list, other) => `<div class="tv-appcol"><b>${title} <span class="muted" translate="no">(${list.filter((x) => x.app).length})</span></b>
+    ${list.length ? `<ul>${list.map((x) => `<li><span translate="no">${esc(x.name)}</span>
+      ${!x.app ? '<span class="badge">مجلد</span>' : ''}
+      ${x.declared && x.declared !== (kind === 'learn' ? 'education' : 'game') ? `<span class="badge warn" title="app.json">يقول إنه ${x.declared === 'education' ? 'تعليمي' : 'لعبة'}</span>` : ''}
+      ${x.app ? `<button class="btn ghost sm" data-mv="${esc(x.name)}" data-to="${other}">نقل إلى ${other === 'learn' ? '📚 التعليم' : '🎮 الألعاب'}</button>` : ''}</li>`).join('')}</ul>`
+      : '<p class="muted small">فارغ</p>'}</div>`;
+  const draw = (d) => {
+    box.classList.remove('muted');
+    box.innerHTML = `<div class="tv-appcols">${col('games', '🎮 الألعاب', d.games, 'learn')}${col('learn', '📚 التعليم', d.learn, 'games')}</div>`;
+    $$('[data-mv]', box).forEach((b) => (b.onclick = async () => {
+      const r = await guard(() => api.post('/api/admin/tv/apps/move', { name: b.dataset.mv, to: b.dataset.to }));
+      if (r) { toast(`نُقل «${b.dataset.mv}»`, 'ok'); draw(r); }
+    }));
+  };
+  guard(() => api.get('/api/admin/tv/apps')).then((d) => d && draw(d));
+  return c;
 }
 
 // --------------------------------------------------------------------- تجهيز الفيديو للتلفاز
@@ -286,13 +314,14 @@ async function editTile(u, t, d, reload) {
     $$('.tv-colors button', body).forEach(b => b.classList.toggle('on', b.dataset.c === cur.color));
     $b('.fold').style.display = ['photos', 'cameras'].includes(cur.kind) ? 'none' : '';
     $b('.fp').textContent = folder || (t ? '' : `${u.username}/التلفاز/${cur.title || '…'} (جديد)`);
-    $b('.kindhelp').textContent = cur.kind === 'games' ? 'الألعاب في المجلد المشترك «الألعاب» وتظهر لكل أفراد العائلة. ضع كل لعبة في مجلد خاص بها داخله (فيه index.html)، ويمكن إضافة صورة cover.jpg كغلاف. اترك المجلد تلقائياً ليستعمل المجلد المشترك.'
+    $b('.kindhelp').textContent = cur.kind === 'games' ? 'الألعاب في المجلد المشترك «الألعاب» وتظهر لكل أفراد العائلة، ولا تعطي نجوماً. ضع كل لعبة في مجلد خاص بها داخله (فيه index.html)، ويمكن إضافة صورة cover.jpg كغلاف. اترك المجلد تلقائياً ليستعمل المجلد المشترك.'
+      : cur.kind === 'learn' ? 'التطبيقات التعليمية في المجلد المشترك «التعليم» وتظهر لكل أفراد العائلة. إنهاء الدرس يعطي نجمة واحدة (ضمن الحد اليومي). ضع كل تطبيق في مجلد خاص به داخله. اترك المجلد تلقائياً ليستعمل المجلد المشترك.'
       : cur.kind === 'photos' ? 'يعرض صور الشخص وفيديوهاته من تطبيق «الصور» (المرفوعة من الهاتف) مع عرض الشرائح.'
       : cur.kind === 'cameras' ? 'يعرض كاميرات المراقبة (البث المباشر والتسجيلات) لمن تضيف له هذا المربع فقط. أضف الكاميرات من تطبيق «الكاميرات».'
       : 'يعرض الفيديو (mp4) والصوت (mp3) والصور وملفات PDF (مثل المصحف أو القصص) والمجلدات الفرعية.';
   };
   $b('[name=title]').oninput = draw;
-  $b('[name=kind]').onchange = () => { if (cur.kind !== $b('[name=kind]').value && ['star', 'photos', 'games', 'camera'].includes(cur.icon)) cur.icon = { photos: 'photos', games: 'games', cameras: 'camera' }[$b('[name=kind]').value] || 'star'; draw(); };
+  $b('[name=kind]').onchange = () => { if (cur.kind !== $b('[name=kind]').value && ['star', 'photos', 'games', 'letters', 'camera'].includes(cur.icon)) cur.icon = { photos: 'photos', games: 'games', learn: 'letters', cameras: 'camera' }[$b('[name=kind]').value] || 'star'; draw(); };
   $$('.tv-icons button', body).forEach(b => b.onclick = () => { cur.icon = b.dataset.i; draw(); });
   $$('.tv-colors button', body).forEach(b => b.onclick = () => { cur.color = b.dataset.c; draw(); });
   $b('[data-f=pick]').onclick = async () => {

@@ -470,6 +470,10 @@ pre.applog.big { max-height: 60vh; font-size: 12px; }
 
 /* ---------------------------------------------------------------- وضع التلفاز (لوحة التحكم) */
 .tv-h { margin: 22px 0 10px; font-size: 16px; }
+.tv-appcols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.tv-appcol ul { list-style: none; margin: 8px 0 0; padding: 0; max-height: 360px; overflow: auto; }
+.tv-appcol li { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); }
+.tv-appcol li > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tv-ic { display: inline-flex; align-items: center; justify-content: center; border-radius: 26%; flex: none; }
 .tv-ic svg { width: 64%; height: 64%; }
 .tv-user { margin-bottom: 12px; }

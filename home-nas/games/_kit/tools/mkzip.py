@@ -1,7 +1,7 @@
 """يصنع الملفات المضغوطة للألعاب (أسماء عربية بترميز UTF-8، ومع المجلدات الفارغة مثل sounds و صور).
 
     python3 games/_kit/tools/mkzip.py "<اسم اللعبة>"   ← games/<اسم اللعبة>.zip (لعبة واحدة)
-    python3 games/_kit/tools/mkzip.py --all            ← «ألعاب الأطفال.zip» (كل الألعاب) و«تطبيقات التعلم.zip»
+    python3 games/_kit/tools/mkzip.py --all            ← «ألعاب الأطفال.zip» (الألعاب) و«تطبيقات التعلم.zip» (التعليم)
 """
 import os
 import sys
@@ -10,7 +10,15 @@ import zipfile
 
 GAMES = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 RAW = "https://github.com/HUSSEIN-SEFRANI/hussein-sefrani/raw/claude/eager-wright-ytkzo1/home-nas/games/"
-LEARN = ["الجمع والطرح", "موسوعة الحيوانات", "حديقتي", "جملة", "جغرافيا"]
+
+
+def app_type(g):
+    """النوع من app.json في مجلد التطبيق: "education" أو "game" (v1.9.6)."""
+    try:
+        import json
+        return json.load(open(os.path.join(GAMES, g, "app.json"), encoding="utf-8")).get("type") or "game"
+    except (OSError, ValueError):
+        return "game"
 
 
 def all_games():
@@ -40,8 +48,9 @@ if __name__ == "__main__":
     if not args:
         sys.exit(__doc__)
     if args == ["--all"]:
-        build("ألعاب الأطفال.zip", all_games(), "ألعاب الأطفال", readme=True)
-        build("تطبيقات التعلم.zip", LEARN, "تطبيقات التعلم", readme=True)
+        # الألعاب لمجلد «الألعاب» على السيرفر، والتطبيقات التعليمية لمجلد «التعليم»
+        build("ألعاب الأطفال.zip", [g for g in all_games() if app_type(g) != "education"], "ألعاب الأطفال", readme=True)
+        build("تطبيقات التعلم.zip", [g for g in all_games() if app_type(g) == "education"], "تطبيقات التعلم", readme=True)
     else:
         for g in args:
             if g not in all_games():

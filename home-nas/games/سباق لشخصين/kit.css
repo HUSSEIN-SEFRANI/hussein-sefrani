@@ -72,6 +72,7 @@ h2 { margin: 0; font-size: 6vh; color: #1e3a8a; }
 
 /* النتيجة */
 .stars { font-size: 15vh; letter-spacing: 2vh; line-height: 1.2; }
+.lesson-star { color: #c2410c; font-weight: 700; font-size: 4vh; margin-top: -1vh; animation: pop .5s ease both; }
 .off { filter: grayscale(1); opacity: .35; }
 .st { font-size: 3vh; letter-spacing: .3vh; }
 .won { display: flex; align-items: center; gap: 2vw; background: #fff; border-radius: 4vh; padding: 1vh 4vw; font-size: 4vh; box-shadow: 0 1vh 2vh rgba(30,58,138,.2); }

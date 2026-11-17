@@ -17,8 +17,22 @@
   K.options = (right, pool, n, same = (a, b) => a === b) => K.shuffle([right, ...K.shuffle(pool.filter((x) => !same(x, right))).filter((x, i, arr) => arr.findIndex((y) => same(x, y)) === i).slice(0, n - 1)]);
 
   // ---------------------------------------------------------------- الحفظ (لكل طفل حسب مسار اللعبة)
+  // إذا نُقلت اللعبة إلى مربع آخر (مثلاً من «الألعاب» إلى «التعليم») يتغير رقم المربع في العنوان:
+  // نأخذ التقدّم المحفوظ تحت الرقم القديم حتى لا يضيع
+  K.carry = (key) => {
+    try {
+      if (localStorage.getItem(key) !== null) return;
+      const m = key.match(/^(.*:)\/tv\/game\/\d+\/(.+)$/);
+      if (!m) return;
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i), o = k && k.match(/^(.*:)\/tv\/game\/\d+\/(.+)$/);
+        if (o && o[1] === m[1] && o[2] === m[2]) { localStorage.setItem(key, localStorage.getItem(k)); return; }
+      }
+    } catch {}
+  };
   K.store = (name, def) => {
     const key = name + ":" + location.pathname;
+    K.carry(key);
     let data = def;
     try { data = Object.assign(def, JSON.parse(localStorage.getItem(key) || "{}")); } catch {}
     data.save = () => { try { const { save, ...rest } = data; localStorage.setItem(key, JSON.stringify(rest)); } catch {} };
@@ -253,6 +267,23 @@
     try { return c.toDataURL("image/jpeg", 0.9); } catch { return null; }
   };
 
+  // ---------------------------------------------------------------- نجمة إنهاء الدرس
+  // تُستدعى مرة واحدة عند نهاية الدرس أو الجولة. السيرفر يقرر: التطبيق التعليمي (في مجلد «التعليم») يأخذ
+  // نجمة واحدة ضمن الحد اليومي، واللعبة لا تأخذ شيئاً. يرجع عدد ما أُضيف فعلاً (0 أو 1)، وأي خطأ يُتجاهل.
+  K.lessonDone = (reason = "") => {
+    if (!K.gameInfo()) return Promise.resolve(0);
+    return fetch("/api/tv/stars/earn", {
+      method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount: 1, game: document.title || "تطبيق", reason: String(reason).replace(/<[^>]+>/g, "").slice(0, 80) }),
+    }).then((r) => (r.ok ? r.json() : null)).then((d) => (d && d.added > 0 ? d.added : 0)).catch(() => 0);
+  };
+  // شارة «+1 ⭐ في رصيدك» داخل الشاشة الحالية (إن أُضيفت النجمة فعلاً)
+  K.lessonBadge = (n, where = ".stars") => {
+    if (!n) return;
+    const el = app.querySelector(where);
+    if (el) el.insertAdjacentHTML("afterend", `<div class="sub lesson-star">+${n} ⭐ في رصيدك</div>`);
+  };
+
   // ---------------------------------------------------------------- محرك الأسئلة
   // o = { make: () => [{ prompt, opts:[html], answer, say?, sayOk?, reveal?(app) }], optsCls, title, done(score, stars, total) -> html? , next?: {label, fn} }
   const GOOD = ["أحسنت! 👏", "رائع! 🌟", "ممتاز! 🎉", "بطل! 🏆", "شاطر! 💪", "صحيح! ✅"];
@@ -303,7 +334,7 @@
     }
   };
 
-  // r = { s, score, total, extra, again, next: {label, fn}, title, msg }
+  // r = { s, score, total, extra, again, next: {label, fn}, title, msg, learn? }
   K.resultScreen = (r) => {
     K.begin();
     const msg = r.msg || (r.s === 3 ? "ممتاز! أنت بطل 🏆" : r.s === 2 ? "أحسنت! 👏" : "جيد! لنحاول مرة أخرى 💪");
@@ -320,5 +351,11 @@
       </div>
       ${K.HELP}`, r.next && r.s >= 2 ? "next" : "again");
     K.sfx.win(); K.confetti(r.s * 16);
+    // نهاية درس: نجمة واحدة إن كان التطبيق تعليمياً (r.learn === false لإيقافها في شاشة نتيجة ليست نهاية درس)
+    if (r.learn !== false && !r.earned) {   // مرة واحدة حتى لو أُعيد رسم الشاشة (رجوع إليها)
+      r.earned = true;
+      const shown = K.top();
+      K.lessonDone(r.title || r.msg || "").then((n) => { if (K.top() === shown) K.lessonBadge(n); });
+    }
   };
 })();
