@@ -181,6 +181,7 @@ const SECTIONS = [
   { id: 'network', group: 'files', label: 'قرص الشبكة والتلفاز الذكي', icon: 'wifi', keys: 'SMB DLNA ويندوز سامبا الشبكة' },
   { id: 'tv', group: 'tv', label: 'وضع التلفاز', icon: 'video', admin: true, keys: 'شاشة مربعات ألعاب تعليم أذان مواقيت الصلاة خلفية شاشة التوقف' },
   { id: 'storage', group: 'device', label: 'إدارة التخزين', icon: 'hdd', admin: true, keys: 'قرص اقراص هارد RAID مرآة مساحة ممتلئ SMART صحة حرارة نسخ احتياطي' },
+  { id: 'cpu', group: 'device', label: 'المعالج', icon: 'cpu', admin: true, keys: 'معالج حرارة ساخن مروحة بطء استهلاك intel amd' },
   { id: 'device', group: 'device', label: 'الشبكة والأجهزة', icon: 'server', admin: true, keys: 'وايفاي wifi بلوتوث قبضة يد تحكم سماعة تعريفات عتاد صوت IP' },
   { id: 'remote', group: 'device', label: 'من خارج البيت', icon: 'shield', admin: true, keys: 'إنترنت وصول بعيد tailscale' },
   { id: 'general', group: 'system', label: 'عام والتحديث', icon: 'sliders', admin: true, keys: 'اسم السيرفر المنطقة الزمنية تحديث إصدار بدون إنترنت' },
@@ -309,7 +310,7 @@ const CP = {
           <span class="muted small" translate="no" dir="ltr">${fmtSize(v.used)} / ${fmtSize(v.total)}</span></div>${bar(pct, pct > 90)}</div>`; }).join('');
       const raid = he && he.arrays && he.arrays.length ? `<p class="small" style="margin:8px 0 0">RAID: ${he.arrays.map(a => `<span class="badge ${a.healthy ? 'ok' : 'err'}" translate="no">${esc(a.name)} ${a.healthy ? 'سليم' : 'متدهور'}</span>`).join(' ')}</p>` : '';
       cards.push(card('storage', 'hdd', 'التخزين', (vols || '<p class="muted small">لا توجد معلومات</p>') + raid));
-      cards.push(card('device', 'server', 'الجهاز', `
+      cards.push(card('cpu', 'cpu', 'الجهاز', `
         ${st.cpu != null ? `<div class="ov-row"><span>المعالج</span><span translate="no" dir="ltr">${Math.round(st.cpu)}%</span></div>${bar(st.cpu, st.cpu > 85)}` : ''}
         ${st.mem ? `<div class="ov-row"><span>الذاكرة</span><span translate="no" dir="ltr">${Math.round(st.mem.percent)}%</span></div>${bar(st.mem.percent, st.mem.percent > 90)}` : ''}
         <p class="muted small" style="margin:8px 0 0">${st.uptime ? `يعمل منذ ${esc(fmtDuration(st.uptime))} · ` : ''}الإصدار <span translate="no">${esc(st.version)}</span></p>`));
@@ -513,6 +514,48 @@ const CP = {
       } }] });
       if (ok) toast('بدأت العملية', 'ok');
     }
+  },
+
+  // البند 9: المعالج
+  async cpu(sc) {
+    const p = section(sc, 'المعالج', 'نوع المعالج وحرارته واستعماله، وماذا يستهلكه الآن. يُحدَّث كل 5 ثوانٍ.');
+    const box = h('<div class="ov-grid cpu-grid"><div class="muted">جارٍ القراءة…</div></div>');
+    p.appendChild(box);
+    const LV = { ok: ['طبيعي', 'ok', '🟢'], warm: ['دافئ: تأكد من التهوية', 'warn', '🟡'], hot: ['ساخن جداً', 'err', '🔴'] };
+    const spark = (hist, key, max, color) => {
+      const pts = hist.filter((x) => x[key] != null);
+      if (pts.length < 2) return '<p class="muted small">يظهر الرسم بعد دقائق من تشغيل الجهاز.</p>';
+      const t0 = pts[0].t, t1 = pts[pts.length - 1].t || t0 + 1;
+      const xy = pts.map((x) => `${(300 * (x.t - t0) / Math.max(1, t1 - t0)).toFixed(1)},${(60 - 58 * Math.min(1, x[key] / max)).toFixed(1)}`).join(' ');
+      return `<svg viewBox="0 0 300 62" class="cpu-spark" preserveAspectRatio="none"><polyline points="${xy}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
+    };
+    let timer = 0;
+    const draw = async () => {
+      if (!box.isConnected) return;
+      const d = await api.get('/api/admin/cpu').catch(() => null);
+      if (!d) { box.innerHTML = '<p class="muted">تعذر الاتصال بالسيرفر</p>'; return; }
+      const lv = LV[d.level];
+      box.innerHTML = `
+        <div class="card"><div class="ov-h">${icon('cpu')} النوع</div>
+          <p style="margin:0 0 6px"><b translate="no" dir="ltr">${esc(d.model || '—')}</b></p>
+          <div class="ov-row small"><span>الأنوية</span><span translate="no">${d.cores || '—'} (${d.threads || '—'} مسار)</span></div>
+          ${d.freq ? `<div class="ov-row small"><span>السرعة الآن</span><span translate="no" dir="ltr">${(d.freq.current / 1000).toFixed(2)} GHz${d.freq.max ? ` / ${(d.freq.max / 1000).toFixed(2)}` : ''}</span></div>` : ''}
+          ${d.load ? `<div class="ov-row small"><span>الحِمل (1، 5، 15 دقيقة)</span><span translate="no" dir="ltr">${d.load.join(' · ')}</span></div>` : ''}</div>
+        <div class="card ${lv ? lv[1] : ''}"><div class="ov-h">🌡️ الحرارة</div>
+          ${d.temp ? `<div class="cpu-big" dir="ltr">${Math.round(d.temp.current)}°</div><p style="margin:0">${lv[2]} ${lv[0]}</p>
+            <p class="muted small" style="margin:6px 0 0">تنبيه عند ${d.warn_c}°، وخطر عند ${d.hot_c}°.</p>`
+            : '<p class="muted">الحرارة غير متوفرة في هذا الجهاز (لا يعطي المعالج قراءة).</p>'}
+          ${spark(d.history, 'temp', 100, '#e5484d')}</div>
+        <div class="card"><div class="ov-h">${icon('activity')} الاستعمال</div>
+          <div class="cpu-big" dir="ltr">${Math.round(d.usage)}%</div>
+          <div class="cpu-cores">${d.per_core.map((c, i) => `<div title="النواة ${i + 1}: ${Math.round(c)}%"><i style="height:${Math.max(3, c)}%"></i></div>`).join('')}</div>
+          ${spark(d.history, 'cpu', 100, 'var(--accent)')}<p class="muted small" style="margin:4px 0 0">آخر ساعة</p></div>
+        <div class="card"><div class="ov-h">${icon('list')} ماذا يستهلك المعالج الآن؟</div>
+          ${d.top.length ? d.top.map((x) => `<div class="ov-row small"><span>${esc(x.name)}</span><span translate="no" dir="ltr">${x.cpu}%</span></div>
+            <div class="ov-bar"><i style="width:${Math.max(1, Math.min(100, x.cpu))}%"></i></div>`).join('') : '<p class="muted small">لا شيء ثقيل الآن.</p>'}</div>`;
+      clearTimeout(timer); timer = setTimeout(draw, 5000);
+    };
+    draw();
   },
 
   tv(sc) { return tvSection(sc, section); },
