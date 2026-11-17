@@ -349,7 +349,7 @@ function ago(ts) {
 function starsLine(x) {
   const n = `<b class="sv">⭐ ${x.amount}</b>`;
   const what = x.kind === "transfer" ? `${nm(esc(x.from || "?"))} ← ${nm(esc(x.to || "?"))} ${n}` : x.kind === "give" ? `${nm(esc(x.by || "?"))} أعطى ${nm(esc(x.to || "?"))} ${n}`
-    : x.kind === "game" ? `🎮 ${nm(esc(x.to || "?"))} ربح ${n}` : `${nm(esc(x.by || "?"))} خصم من ${nm(esc(x.to || "?"))} ${n}`;
+    : x.kind === "learn" ? `📚 ${nm(esc(x.to || "?"))} أنهى درساً ${n}` : x.kind === "game" ? `🎮 ${nm(esc(x.to || "?"))} ربح ${n}` : `${nm(esc(x.by || "?"))} خصم من ${nm(esc(x.to || "?"))} ${n}`;
   return `<div class="sl ${x.kind}"><span>${what}</span><i>${esc(x.reason)}</i><small>${ago(x.ts)}</small></div>`;
 }
 async function starsScreen() {
@@ -1359,7 +1359,9 @@ function blockedScreen(t, c) {
     ${learn.length ? `<div class="kgrid">${learn.map((g, i) => `<button class="kcard f" data-i="${i}"><span class="ic">${A.icon("letters")}</span><b>${esc(g)}</b></button>`).join("")}</div>` : ""}
     ${hints([["موافق", "تعلّم"], ["رجوع", "رجوع"]])}</div>`);
   el.querySelector(".js-back").addEventListener("click", pop);
-  el.querySelectorAll(".kcard").forEach((b) => b.addEventListener("click", () => { pop(); gameScreen(t, learn[+b.dataset.i]); }));
+  // التطبيقات التعليمية في مربع «التعليم» (مجلده المشترك)، لا في مربع الألعاب
+  const lt = c.learn_tile ? { ...t, id: c.learn_tile, kind: "learn" } : t;
+  el.querySelectorAll(".kcard").forEach((b) => b.addEventListener("click", () => { pop(); gameScreen(lt, learn[+b.dataset.i]); }));
   push({ el, initial: () => el.querySelector(".kcard") || el.querySelector(".js-back") });
 }
 

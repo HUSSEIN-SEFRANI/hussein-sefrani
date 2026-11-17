@@ -17,7 +17,7 @@ registerApp({
     const line = (x) => {
       const n = (v) => `<bdi translate="no">${esc(v || '?')}</bdi>`;
       const who = x.kind === 'transfer' ? `${n(x.from)} ← ${n(x.to)}` : x.kind === 'give' ? `${n(x.by)} <span>أعطى</span> ${n(x.to)}`
-        : x.kind === 'game' ? `🎮 ${n(x.to)} <span>ربح من لعبة</span>` : `${n(x.by)} <span>خصم من</span> ${n(x.to)}`;
+        : x.kind === 'learn' ? `📚 ${n(x.to)} <span>أنهى درساً</span>` : x.kind === 'game' ? `🎮 ${n(x.to)} <span>ربح من لعبة</span>` : `${n(x.by)} <span>خصم من</span> ${n(x.to)}`;
       return `<tr><td>${who}</td><td class="${x.kind === 'take' ? 'bad' : 'good'}" translate="no">${x.kind === 'take' ? '−' : '+'}${x.amount} ⭐</td><td translate="no">${esc(x.reason)}</td><td class="muted small">${fmtDateTime(x.ts)}</td></tr>`;
     };
     const draw = () => {
@@ -31,15 +31,15 @@ registerApp({
           ${d.my_balance != null ? `<button class="btn ${d.can_manage ? '' : 'primary'}" data-a="transfer">🎁 أهدِ من رصيدي (<span translate="no">${d.my_balance}</span>)</button>` : ''}
         </div>
         ${d.can_manage ? '<p class="muted small" style="margin:6px 0 0">«أعطِ نجوماً» لا ينقص من رصيدك. «أهدِ من رصيدي» ينقل من رصيدك أنت.</p>' : ''}
-        ${d.can_manage ? `<div class="st-game muted small">🎮 الألعاب على التلفاز تضيف نجوماً لمن يلعب: ${d.game_daily ? `حتى <b translate="no">${d.game_daily}</b> نجمة في اليوم لكل شخص` : '<b>متوقفة</b>'}
+        ${d.can_manage ? `<div class="st-game muted small">📚 التطبيقات التعليمية تعطي نجمة واحدة عند إنهاء كل درس (الألعاب بلا نجوم): ${d.game_daily ? `حتى <b translate="no">${d.game_daily}</b> نجمة في اليوم لكل شخص` : '<b>متوقفة</b>'}
           <button class="btn sm" data-x="gd">تغيير</button></div>` : ''}
         <h4 style="margin:18px 0 8px">${icon('list')} آخر الحركات</h4>
         ${d.log.length ? `<table class="tbl"><tbody>${d.log.map(line).join('')}</tbody></table>` : `<p class="muted">لا توجد حركات بعد. كل شخص يبدأ بـ <span translate="no">${d.start}</span> نجوم ⭐</p>`}`;
       box.querySelectorAll('[data-a]').forEach((b) => (b.onclick = () => act(b.dataset.a)));
       const gd = box.querySelector('[data-x=gd]');
       if (gd) gd.onclick = async () => {
-        const v = await form('نجوم الألعاب', [
-          { name: 'n', label: 'أكثر عدد من النجوم يربحه كل شخص من الألعاب في اليوم (0 = لا نجوم من الألعاب)', type: 'number', value: d.game_daily },
+        const v = await form('نجوم التعليم', [
+          { name: 'n', label: 'أكثر عدد من النجوم يربحه كل شخص من التطبيقات التعليمية في اليوم (0 = لا نجوم)', type: 'number', value: d.game_daily },
         ], { ok: 'حفظ' });
         if (!v) return;
         const r = await guard(() => api.post('/api/stars/settings', { game_daily: +v.n || 0 }));

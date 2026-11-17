@@ -212,19 +212,13 @@ def grant_stars(db, uid: int, amount: int, kind: str, reason: str, by_id: int | 
 
 
 # ============================================================================= «تعلّم ثم العب» ووقت اللعب
-DEFAULT_LEARN = ["حروفي العربية", "حفظ القرآن", "الرياضيات بالأشياء", "الفرنسية", "عالم الحيوان", "سارة والتفكير",
-                 "الكلمة المفقودة", "الجمع والطرح", "موسوعة الحيوانات", "حديقتي", "جملة", "جغرافيا", "من هذا",
-                 "الساعة والتقويم", "جدول الضرب", "الوضوء والصلاة", "قصص الأنبياء", "روبوت البرمجة",
-                 "الحروف المتساقطة", "الهولندية", "الإسبانية", "التركية", "السويدية", "الألمانية"]
+# v1.9.6: قائمة DEFAULT_LEARN اليدوية حُذفت: التعليمي هو ما في مجلد «التعليم» (انظر tv.EDU_APPS للنقل الأول)
 BEAT = 30   # ثانية بين كل نبضة من التلفاز أثناء اللعب
 
 
 def learn_games() -> set[str]:
-    try:
-        v = json.loads(get_setting("kids_learn_games") or "null")
-    except ValueError:
-        v = None
-    return set(v if isinstance(v, list) else DEFAULT_LEARN)
+    """التطبيقات التعليمية = ما في المجلد المشترك «التعليم» (v1.9.6). قبله كانت قائمة يدوية (kids_learn_games)."""
+    return set(_apps("learn"))
 
 
 def rules() -> dict:
@@ -247,17 +241,23 @@ def rule_for(uid: int) -> dict:
             "bed": _hm(r.get("bed")), "wake": _hm(r.get("wake"), "07:00")}   # وقت النوم: يُقفل الحساب حتى الاستيقاظ
 
 
-def installed_games() -> list[str]:
-    from .tv import games_share_dir
-    d = games_share_dir(get_db(), paths())
+def _apps(kind: str) -> list[str]:
+    from .tv import _only_sub, share_dir
+    d = share_dir(get_db(), paths(), kind)
     out = []
     try:
         for x in sorted(d.iterdir()):
-            if x.is_dir() and not x.name.startswith((".", "_", "#")) and (x / "index.html").is_file():
+            if x.is_dir() and not x.name.startswith((".", "_", "#")) and (
+                    (x / "index.html").is_file() or any((s / "index.html").is_file() for s in _only_sub(x))):
                 out.append(x.name)
     except OSError:
         pass
     return out
+
+
+def installed_games() -> list[str]:
+    """كل التطبيقات على التلفاز: «الألعاب» و«التعليم» معاً."""
+    return sorted(set(_apps("games")) | set(_apps("learn")))
 
 
 def usage_today(db, uid: int) -> dict:
@@ -282,8 +282,10 @@ def _check(u, game: str) -> dict:
         elif r["learn"] and used["learn"] < r["learn"] * 60:
             out.update(allowed=False, reason="learn_first", learn_need=math.ceil((r["learn"] * 60 - used["learn"]) / 60))
     if not out["allowed"]:
-        have = set(installed_games())
-        out["learn_games"] = [g for g in sorted(learn_games()) if g in have]
+        out["learn_games"] = sorted(learn_games())
+        lt = get_db().execute("SELECT id FROM tv_tiles WHERE user_id=? AND kind='learn' AND enabled=1 ORDER BY position LIMIT 1",
+                              (u["id"],)).fetchone()
+        out["learn_tile"] = lt["id"] if lt else None   # التطبيقات التعليمية تُفتح من مربع «التعليم»
     return out
 
 
@@ -441,7 +443,17 @@ def api_kids_settings_set():
     u = _parent()
     d = body()
     if isinstance(d.get("learn_games"), list):
-        set_setting("kids_learn_games", json.dumps([str(x)[:80] for x in d["learn_games"]][:300], ensure_ascii=False))
+        # v1.9.6: «تعليمي» = في مجلد «التعليم». تغيير الاختيار هنا ينقل التطبيق بين المجلدين
+        from .tv import share_dir, set_app_type
+        want = {str(x)[:80] for x in d["learn_games"]}
+        db = get_db()
+        for name in set(_apps("games")) | set(_apps("learn")):
+            to = "learn" if name in want else "games"
+            src = share_dir(db, paths(), "games" if to == "learn" else "learn") / name
+            dst = share_dir(db, paths(), to) / name
+            if src.is_dir() and not dst.exists():
+                src.rename(dst)
+                set_app_type(dst, "education" if to == "learn" else "game")
     if isinstance(d.get("rules"), dict):
         cur = rules()
         for k, v in d["rules"].items():

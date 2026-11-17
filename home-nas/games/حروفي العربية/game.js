@@ -33,6 +33,19 @@ function hsefPadNorm(g, maps) {
 
   // ------------------------------------------------------------ الحفظ (لكل طفل حسب مسار اللعبة)
   const KEY = "hurufi:" + location.pathname;
+  // إن نُقل التطبيق إلى مربع آخر (من «الألعاب» إلى «التعليم») يتغير رقم المربع: نأخذ التقدّم القديم
+  (() => {
+    try {
+      if (localStorage.getItem(KEY) !== null) return;
+      const tail = location.pathname.replace(/^\/tv\/game\/\d+\//, "");
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && /^hurufi:\/tv\/game\/\d+\//.test(k) && k.replace(/^hurufi:\/tv\/game\/\d+\//, "") === tail) {
+          localStorage.setItem(KEY, localStorage.getItem(k)); return;
+        }
+      }
+    } catch {}
+  })();
   const save = (() => {
     const d = { stars: {}, seen: {}, stickers: [] };
     try { return Object.assign(d, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch { return d; }
@@ -350,6 +363,13 @@ function hsefPadNorm(g, maps) {
       </div>
       ${HELP}`, nextG !== null && s >= 2 ? "nextg" : "again");
     sfx.win(); confetti(s * 16);
+    // نهاية درس: نجمة واحدة لرصيد الطفل (السيرفر يعطيها للتطبيقات التعليمية فقط، ضمن الحد اليومي)
+    fetch("/api/tv/stars/earn", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount: 1, game: "حروفي العربية", reason: MODES[mi].title }) })
+      .then((r) => (r.ok ? r.json() : null)).then((d) => {
+        const st = app.querySelector(".stars");
+        if (d && d.added > 0 && st && st.isConnected) st.insertAdjacentHTML("afterend", `<div class="sub" style="color:#c2410c;font-weight:700">+${d.added} ⭐ في رصيدك</div>`);
+      }).catch(() => {});
   }
 
   // ------------------------------------------------------------ الملصقات

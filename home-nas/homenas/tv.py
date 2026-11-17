@@ -33,8 +33,9 @@ TV_VIDEO_EXT = VIDEO_EXT | {".rmvb", ".rm", ".asf", ".wmv", ".vob", ".flv", ".f4
                             ".divx", ".ogv"}
 BOOK_EXT = {".pdf"}
 ROLES = ("none", "adult", "kid", "little")
-KINDS = ("media", "games", "photos", "cameras")
+KINDS = ("media", "games", "learn", "photos", "cameras")
 NOFOLDER = ("photos", "cameras")   # مربعات بلا مجلد
+APP_KINDS = ("games", "learn")     # مربعات مجلدها مجلد مشترك لكل العائلة
 TV_DIR = "التلفاز"
 HELPER = "/usr/local/sbin/hsef-extras"
 APPLIANCE = os.environ.get("HOMENAS_APPLIANCE") == "1"
@@ -44,17 +45,31 @@ ICONS = ["cartoon", "music", "animals", "math", "games", "photos", "video", "qur
 COLORS = ["#a855f7,#ec4899", "#f97316,#ef4444", "#22c55e,#15803d", "#06b6d4,#2563eb", "#8b5cf6,#06b6d4",
           "#f59e0b,#f97316", "#10b981,#0ea5e9", "#0f766e,#14532d", "#64748b,#1e293b", "#e11d48,#7f1d1d"]
 
-GAMES_SHARE = "الألعاب"      # مجلد مشترك واحد لكل ألعاب التلفاز
+GAMES_SHARE = "الألعاب"      # مجلد مشترك واحد لكل ألعاب التلفاز (بلا نجوم)
 GAMES_PATH = "/" + GAMES_SHARE
+EDU_SHARE = "التعليم"        # مجلد مشترك للتطبيقات التعليمية (إنهاء الدرس = نجمة)
+EDU_PATH = "/" + EDU_SHARE
+SHARES = {   # نوع المربع ← (اسم المجلد المشترك، وصفه)
+    "games": (GAMES_SHARE, "ألعاب التلفاز لكل العائلة: ضع كل لعبة في مجلد خاص بها. الألعاب لا تعطي نجوماً"),
+    "learn": (EDU_SHARE, "التطبيقات التعليمية لكل العائلة: كل تطبيق في مجلد خاص به. إنهاء الدرس يعطي نجمة واحدة"),
+}
+SHARE_PATH = {k: "/" + v[0] for k, v in SHARES.items()}
+
+# التطبيقات التعليمية التي كانت في مجلد «الألعاب» قبل v1.9.6 (تُنقل إلى «التعليم» مرة واحدة)
+EDU_APPS = ("حروفي العربية", "الكلمة المفقودة", "جملة", "الجمع والطرح", "جدول الضرب", "الرياضيات بالأشياء",
+            "الساعة والتقويم", "جغرافيا", "روبوت البرمجة", "الفرنسية", "الألمانية", "الإسبانية", "الهولندية",
+            "التركية", "السويدية", "حفظ القرآن", "الوضوء والصلاة", "قصص الأنبياء", "موسوعة الحيوانات",
+            "عالم الحيوان", "سارة والتفكير")
 
 DEFAULT_TILES = {
     "kid": [("رسوم متحركة", "media", "cartoon", 0), ("أناشيد", "media", "music", 1), ("عالم الحيوان", "media", "animals", 2),
-            ("عالم الرياضيات", "media", "math", 3), ("ألعاب", "games", "games", 4), ("صوري", "photos", "photos", 5),
-            ("فيديوهاتي", "media", "video", 6), ("القرآن الكريم", "media", "quran", 7)],
-    "little": [("ألعاب", "games", "games", 4), ("رسوم متحركة", "media", "cartoon", 0), ("أناشيد", "media", "music", 1),
-               ("عالم الحيوان", "media", "animals", 2)],
+            ("عالم الرياضيات", "media", "math", 3), ("ألعاب", "games", "games", 4), ("التعليم", "learn", "letters", 2),
+            ("صوري", "photos", "photos", 5), ("فيديوهاتي", "media", "video", 6), ("القرآن الكريم", "media", "quran", 7)],
+    "little": [("ألعاب", "games", "games", 4), ("التعليم", "learn", "letters", 2), ("رسوم متحركة", "media", "cartoon", 0),
+               ("أناشيد", "media", "music", 1), ("عالم الحيوان", "media", "animals", 2)],
     "adult": [("صوري", "photos", "photos", 5), ("الفيديو", "media", "video", 3), ("الأفلام", "media", "film", 9),
-              ("الصوتيات", "media", "music", 2), ("القرآن الكريم", "media", "quran", 7), ("ألعاب", "games", "games", 4)],
+              ("الصوتيات", "media", "music", 2), ("القرآن الكريم", "media", "quran", 7), ("ألعاب", "games", "games", 4),
+              ("التعليم", "learn", "letters", 2)],
 }
 
 
@@ -92,18 +107,125 @@ def migrate(db):
     db.commit()
 
 
-def games_share_dir(db, data_paths) -> Path:
-    """مجلد «الألعاب» المشترك (يُنشأ إن لم يوجد). المدير يضيف الألعاب إليه من «الملفات» أو من الكمبيوتر."""
-    row = db.execute("SELECT path FROM folders WHERE name=?", (GAMES_SHARE,)).fetchone()
+def share_dir(db, data_paths, kind: str = "games") -> Path:
+    """المجلد المشترك «الألعاب» أو «التعليم» (يُنشأ إن لم يوجد). المدير يضيف إليه من «الملفات» أو من الكمبيوتر."""
+    name, desc = SHARES[kind]
+    row = db.execute("SELECT path FROM folders WHERE name=?", (name,)).fetchone()
     if row:
         d = Path(row["path"])
     else:
-        d = data_paths.shares / GAMES_SHARE
+        d = data_paths.shares / name
         db.execute("INSERT INTO folders(name, path, description, created_at) VALUES (?,?,?,?)",
-                   (GAMES_SHARE, str(d.resolve()), "ألعاب التلفاز لكل العائلة: ضع كل لعبة في مجلد خاص بها", now_iso()))
+                   (name, str(d.resolve()), desc, now_iso()))
         db.commit()
     d.mkdir(parents=True, exist_ok=True)
     return d
+
+
+def games_share_dir(db, data_paths) -> Path:
+    return share_dir(db, data_paths, "games")
+
+
+def app_type(d: Path) -> str | None:
+    """النوع المكتوب في app.json داخل مجلد التطبيق: "game" أو "education" (أو None إن لم يوجد)."""
+    for f in (d / "app.json", *(x / "app.json" for x in _only_sub(d))):
+        try:
+            t = json.loads(f.read_text(encoding="utf-8")).get("type")
+        except (OSError, ValueError, AttributeError):
+            continue
+        if t in ("game", "education"):
+            return t
+    return None
+
+
+def _only_sub(d: Path) -> list[Path]:
+    """مجلد وحيد داخل مجلد التطبيق (بعد فك ضغط ZIP يكون التطبيق داخله)."""
+    try:
+        subs = [x for x in d.iterdir() if x.is_dir() and not x.name.startswith((".", "@", "#"))]
+    except OSError:
+        return []
+    return subs if len(subs) == 1 else []
+
+
+def set_app_type(d: Path, t: str):
+    """يكتب النوع في app.json (يحافظ على باقي الحقول)."""
+    f = d / "app.json"
+    try:
+        data = json.loads(f.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            data = {}
+    except (OSError, ValueError):
+        data = {}
+    data.setdefault("name", d.name)
+    data["type"] = t
+    try:
+        f.write_text(json.dumps(data, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    except OSError:
+        pass
+
+
+def app_category(app_dir: Path, db, data_paths) -> str:
+    """«learn» إن كان التطبيق تعليمياً (يعطي نجمة عند إنهاء الدرس)، وإلا «games» (بلا نجوم).
+    المجلد يقرر أولاً: ما في «التعليم» تعليمي، وما في «الألعاب» لعبة. خارجهما يقرر app.json."""
+    p = app_dir.resolve()
+    for kind in ("learn", "games"):
+        try:
+            p.relative_to(share_dir(db, data_paths, kind).resolve())
+            return kind
+        except ValueError:
+            pass
+    d = p
+    while d != d.parent:   # أقرب app.json فوق الملف
+        t = app_type(d)
+        if t:
+            return "learn" if t == "education" else "games"
+        if (d / "index.html").is_file():
+            break
+        d = d.parent
+    return "games"
+
+
+def learn_migrate(db, data_paths):
+    """v1.9.6: مجلد مشترك «التعليم». التطبيقات التعليمية تُنقل إليه من «الألعاب» (مرة واحدة)،
+    ولكل ملف على التلفاز مربع «التعليم»."""
+    if db.execute("SELECT 1 FROM settings WHERE key='learn_shared_v1'").fetchone():
+        return
+    games, edu = share_dir(db, data_paths, "games"), share_dir(db, data_paths, "learn")
+    moved = 0
+
+    def children(d: Path) -> list[Path]:
+        try:
+            return sorted(x for x in d.iterdir() if x.is_dir() and not x.name.startswith((".", "#", "@")))
+        except OSError:
+            return []
+    items = []
+    for x in children(games):   # التطبيقات مباشرة، أو داخل مجلد فُكّ فيه ملف ZIP (مثل «ألعاب الأطفال»)
+        is_app = (x / "index.html").is_file() or any((s / "index.html").is_file() for s in _only_sub(x))
+        items += [x] if is_app or x.name in EDU_APPS else children(x)
+    for item in items:
+        if not item.is_dir() or item.name.startswith((".", "#", "@")):
+            continue
+        if item.name in EDU_APPS or app_type(item) == "education":
+            if (edu / item.name).exists():
+                continue   # تطبيق بالاسم نفسه موجود: نترك النسخة القديمة مكانها
+            try:
+                item.rename(edu / item.name)
+                moved += 1
+            except OSError:
+                pass
+    for u in db.execute("SELECT id FROM users WHERE disabled=0 AND tv_role IN ('adult','kid','little')").fetchall():
+        if not db.execute("SELECT 1 FROM tv_tiles WHERE user_id=? AND kind='learn'", (u["id"],)).fetchone():
+            g = db.execute("SELECT position FROM tv_tiles WHERE user_id=? AND kind='games' ORDER BY position LIMIT 1",
+                           (u["id"],)).fetchone()
+            if g:   # بجانب «ألعاب» مباشرة
+                db.execute("UPDATE tv_tiles SET position=position+1 WHERE user_id=? AND position>?", (u["id"], g["position"]))
+                pos = g["position"] + 1
+            else:
+                pos = db.execute("SELECT COALESCE(MAX(position),-1)+1 FROM tv_tiles WHERE user_id=?", (u["id"],)).fetchone()[0]
+            db.execute("INSERT INTO tv_tiles(user_id, title, kind, path, icon, color, position, created_at) VALUES (?,?,?,?,?,?,?,?)",
+                       (u["id"], "التعليم", "learn", EDU_PATH, "letters", COLORS[2], pos, now_iso()))
+    db.execute("INSERT INTO settings(key,value) VALUES('learn_shared_v1', ?)", (str(moved),))
+    db.commit()
 
 
 def games_migrate(db, data_paths):
@@ -290,10 +412,11 @@ def tile_folder(owner, tile) -> Path | None:
     from .vfs import resolve
     if not tile["path"]:
         return None
-    if tile["kind"] == "games" and (tile["path"] == GAMES_PATH or tile["path"].startswith(GAMES_PATH + "/")):
+    sp = SHARE_PATH.get(tile["kind"])
+    if sp and (tile["path"] == sp or tile["path"].startswith(sp + "/")):
         from .core import paths
-        base = games_share_dir(get_db(), paths())
-        sub = tile["path"][len(GAMES_PATH):].strip("/")
+        base = share_dir(get_db(), paths(), tile["kind"])
+        sub = tile["path"][len(sp):].strip("/")
         p = (base / sub).resolve() if sub else base
         return p if str(p).startswith(str(base.resolve())) else None
     try:
@@ -590,8 +713,8 @@ def api_admin_tile_create(uid):
     if not title or kind not in KINDS:
         abort(400, "اكتب اسماً للمربع")
     raw = (d.get("path") or "").strip()
-    if kind == "games" and (not raw or raw == GAMES_PATH):
-        path = GAMES_PATH   # المجلد المشترك لكل العائلة
+    if kind in APP_KINDS and (not raw or raw in (SHARE_PATH[kind], "/shares" + SHARE_PATH[kind])):
+        path = SHARE_PATH[kind]   # المجلد المشترك لكل العائلة
     else:
         path = norm_tile_path(u, raw) if kind not in NOFOLDER else None
     if kind not in NOFOLDER and not path:
@@ -599,7 +722,7 @@ def api_admin_tile_create(uid):
     db = get_db()
     pos = db.execute("SELECT COALESCE(MAX(position),-1)+1 FROM tv_tiles WHERE user_id=?", (uid,)).fetchone()[0]
     cur = db.execute("INSERT INTO tv_tiles(user_id, title, kind, path, icon, color, position, created_at) VALUES (?,?,?,?,?,?,?,?)",
-                     (uid, title, kind, path, d.get("icon") or {"photos": "photos", "cameras": "camera"}.get(kind, "star"),
+                     (uid, title, kind, path, d.get("icon") or {"photos": "photos", "cameras": "camera", "learn": "letters"}.get(kind, "star"),
                       d.get("color") or COLORS[pos % len(COLORS)], pos, now_iso()))
     db.commit()
     log_action("إضافة مربع للتلفاز", f"{display_name(u)}: {title}")
@@ -622,7 +745,7 @@ def api_admin_tile_defaults(uid):
     for title, kind, icon, color in DEFAULT_TILES[role]:
         if title in have:
             continue
-        path = None if kind in NOFOLDER else GAMES_PATH if kind == "games" else make_tile_folder(u, title)
+        path = None if kind in NOFOLDER else SHARE_PATH[kind] if kind in APP_KINDS else make_tile_folder(u, title)
         db.execute("INSERT INTO tv_tiles(user_id, title, kind, path, icon, color, position, created_at) VALUES (?,?,?,?,?,?,?,?)",
                    (uid, title, kind, path, icon, COLORS[color % len(COLORS)], pos, now_iso()))
         pos += 1
@@ -646,8 +769,8 @@ def api_admin_tile_update(tid):
             db.execute(f"UPDATE tv_tiles SET {k}=? WHERE id=?", ((d[k] or "").strip() or None, tid))
     if "path" in d and t["kind"] not in NOFOLDER:
         owner = user_row(t["user_id"])
-        if t["kind"] == "games" and (d["path"] or "").strip() in ("", GAMES_PATH):
-            path = GAMES_PATH
+        if t["kind"] in APP_KINDS and (d["path"] or "").strip() in ("", SHARE_PATH[t["kind"]], "/shares" + SHARE_PATH[t["kind"]]):
+            path = SHARE_PATH[t["kind"]]
         else:
             path = norm_tile_path(owner, d["path"]) or make_tile_folder(owner, d.get("title") or t["title"])
         db.execute("UPDATE tv_tiles SET path=? WHERE id=?", (path, tid))
@@ -673,6 +796,53 @@ def api_admin_tile_delete(tid):
     db.execute("DELETE FROM tv_tiles WHERE id=?", (tid,))
     db.commit()
     return jsonify(ok=True)
+
+
+# ----------------------------------------------------------------------------- الألعاب والتعليم
+def _apps_in(d: Path) -> list[dict]:
+    out = []
+    try:
+        entries = sorted(d.iterdir(), key=lambda x: x.name.casefold())
+    except OSError:
+        return out
+    for x in entries:
+        if not x.is_dir() or x.name.startswith((".", "#", "@")) or x.name == RECYCLE:
+            continue
+        sub = _only_sub(x)
+        is_app = (x / "index.html").is_file() or bool(sub and (sub[0] / "index.html").is_file())
+        out.append({"name": x.name, "app": is_app, "declared": app_type(x)})
+    return out
+
+
+@bp.get("/api/admin/tv/apps")
+@admin_required
+def api_admin_apps():
+    """محتوى المجلدين «الألعاب» و«التعليم»، مع النوع المكتوب في app.json لكل تطبيق (إن وُجد)."""
+    db = get_db()
+    return jsonify(games=_apps_in(share_dir(db, paths(), "games")), learn=_apps_in(share_dir(db, paths(), "learn")),
+                   names={k: v[0] for k, v in SHARES.items()})
+
+
+@bp.post("/api/admin/tv/apps/move")
+@admin_required
+def api_admin_apps_move():
+    """نقل تطبيق بين «الألعاب» و«التعليم» (ويُكتب نوعه في app.json). تقدّم الأطفال يبقى كما هو."""
+    d = body()
+    name, to = str(d.get("name") or ""), d.get("to")
+    if to not in SHARES or not name or "/" in name or "\\" in name or name in (".", "..") or name.startswith("."):
+        abort(400)
+    db = get_db()
+    src_kind = "games" if to == "learn" else "learn"
+    src = share_dir(db, paths(), src_kind) / name
+    dst = share_dir(db, paths(), to) / name
+    if not src.is_dir():
+        abort(404, "التطبيق غير موجود")
+    if dst.exists():
+        abort(400, f"يوجد تطبيق بالاسم نفسه في «{SHARES[to][0]}»")
+    src.rename(dst)
+    set_app_type(dst, "education" if to == "learn" else "game")
+    log_action("نقل تطبيق", f"{name} → {SHARES[to][0]}")
+    return api_admin_apps()
 
 
 @bp.post("/api/admin/tv/kiosk")
