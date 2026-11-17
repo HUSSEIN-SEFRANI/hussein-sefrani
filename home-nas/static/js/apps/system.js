@@ -180,6 +180,7 @@ const SECTIONS = [
   { id: 'phone', group: 'files', label: 'ربط الآيفون', icon: 'phone', keys: 'هاتف صور آيفون مزامنة' },
   { id: 'network', group: 'files', label: 'قرص الشبكة والتلفاز الذكي', icon: 'wifi', keys: 'SMB DLNA ويندوز سامبا الشبكة' },
   { id: 'tv', group: 'tv', label: 'وضع التلفاز', icon: 'video', admin: true, keys: 'شاشة مربعات ألعاب تعليم أذان مواقيت الصلاة خلفية شاشة التوقف' },
+  { id: 'storage', group: 'device', label: 'إدارة التخزين', icon: 'hdd', admin: true, keys: 'قرص اقراص هارد RAID مرآة مساحة ممتلئ SMART صحة حرارة نسخ احتياطي' },
   { id: 'device', group: 'device', label: 'الشبكة والأجهزة', icon: 'server', admin: true, keys: 'وايفاي wifi بلوتوث قبضة يد تحكم سماعة تعريفات عتاد صوت IP' },
   { id: 'remote', group: 'device', label: 'من خارج البيت', icon: 'shield', admin: true, keys: 'إنترنت وصول بعيد tailscale' },
   { id: 'general', group: 'system', label: 'عام والتحديث', icon: 'sliders', admin: true, keys: 'اسم السيرفر المنطقة الزمنية تحديث إصدار بدون إنترنت' },
@@ -307,7 +308,7 @@ const CP = {
         return `<div class="ov-vol"><div class="ov-row"><span translate="no">${esc(v.labels.slice(0, 3).join('، '))}${v.labels.length > 3 ? '…' : ''}</span>
           <span class="muted small" translate="no" dir="ltr">${fmtSize(v.used)} / ${fmtSize(v.total)}</span></div>${bar(pct, pct > 90)}</div>`; }).join('');
       const raid = he && he.arrays && he.arrays.length ? `<p class="small" style="margin:8px 0 0">RAID: ${he.arrays.map(a => `<span class="badge ${a.healthy ? 'ok' : 'err'}" translate="no">${esc(a.name)} ${a.healthy ? 'سليم' : 'متدهور'}</span>`).join(' ')}</p>` : '';
-      cards.push(card('folders', 'hdd', 'التخزين', (vols || '<p class="muted small">لا توجد معلومات</p>') + raid));
+      cards.push(card('storage', 'hdd', 'التخزين', (vols || '<p class="muted small">لا توجد معلومات</p>') + raid));
       cards.push(card('device', 'server', 'الجهاز', `
         ${st.cpu != null ? `<div class="ov-row"><span>المعالج</span><span translate="no" dir="ltr">${Math.round(st.cpu)}%</span></div>${bar(st.cpu, st.cpu > 85)}` : ''}
         ${st.mem ? `<div class="ov-row"><span>الذاكرة</span><span translate="no" dir="ltr">${Math.round(st.mem.percent)}%</span></div>${bar(st.mem.percent, st.mem.percent > 90)}` : ''}
@@ -414,6 +415,104 @@ const CP = {
       if (r.restart) setTimeout(() => location.reload(), 30000);
     };
     p.appendChild(rs);
+  },
+
+  // البند 7: إدارة التخزين
+  async storage(sc, go) {
+    const d = await guard(() => api.get('/api/admin/storage')); if (!d) return;
+    const p = section(sc, 'إدارة التخزين', 'أقراص الجهاز وصحتها، ومن يشغل المساحة، واستعمال الأقراص الجديدة.',
+      `<button class="btn ghost sm" data-x="reload">${icon('refresh')} تحديث</button>`);
+    $('[data-x=reload]', sc).onclick = () => { sc.innerHTML = ''; CP.storage(sc, go); };
+    const ROLE = { system: ['النظام', 'accent'], raid: ['مرآة RAID', 'ok'], data: ['بيانات', ''], backup: ['نسخ احتياطي', ''], new: ['جديد غير مستعمل', 'warn'] };
+    const HEALTH = { ok: ['سليم', 'ok'], warn: ['علامات تلف', 'warn'], bad: ['يوشك على التعطّل', 'err'] };
+    const bar = (pct) => `<div class="ov-bar"><i style="width:${Math.min(100, Math.max(1, pct))}%" class="${pct > 90 ? 'warn' : ''}"></i></div>`;
+    if (!d.available) p.appendChild(h('<div class="alert warn small">استعمال الأقراص الجديدة وتفاصيلها متاح على جهاز HOME ANAB المثبّت من ملف ISO. هنا تظهر المساحة فقط.</div>'));
+    // ---- عملية جارية
+    let poll = 0;
+    const opBox = h('<div></div>'); p.appendChild(opBox);
+    const drawOp = (op) => {
+      if (!op) { opBox.innerHTML = ''; return; }
+      const run = !op.done;
+      opBox.innerHTML = `<div class="card" style="margin-bottom:14px;border-color:${run ? 'var(--accent)' : op.rc === 0 ? 'var(--ok)' : 'var(--err)'}">
+        <h4>${run ? '⏳' : op.rc === 0 ? '✅' : '❌'} ${esc(op.label)} <span class="muted small" translate="no" dir="ltr">${esc((op.args || []).join(' '))}</span></h4>
+        <p class="small" style="margin:0 0 8px">${run ? 'تعمل الآن في الخلفية. قد تأخذ وقتاً طويلاً إن كانت تنسخ البيانات. لا تفصل الأقراص ولا تطفئ الجهاز.' : op.rc === 0 ? 'انتهت بنجاح.' : 'لم تكتمل. انظر التفاصيل.'}</p>
+        <pre class="ov-log" dir="ltr">${esc((op.log || '').split('\n').slice(-12).join('\n'))}</pre></div>`;
+      clearTimeout(poll);
+      if (run) poll = setTimeout(async () => { if (!sc.isConnected) return; const r = await api.get('/api/admin/storage/op').catch(() => null); if (r) drawOp(r.op); }, 5000);
+    };
+    drawOp(d.op);
+    // ---- الأقراص
+    const news = d.disks.filter((x) => x.role === 'new');
+    const degraded = d.arrays.some((a) => !a.healthy);
+    const dc = h(`<div class="card"><h4>${icon('hdd')} الأقراص</h4>
+      ${d.disks.length ? `<table class="tbl"><thead><tr><th>القرص</th><th>الحجم</th><th>الدور</th><th>الصحة</th><th>الحرارة</th><th></th></tr></thead><tbody>
+      ${d.disks.map((x) => `<tr><td><b translate="no">${esc(x.model || x.name)}</b><div class="muted small" translate="no">${esc(x.name)} · ${x.tran === 'usb' ? 'USB' : x.tran === 'nvme' ? 'NVMe' : x.rota ? 'HDD' : 'SSD'}</div></td>
+        <td translate="no" dir="ltr">${x.size ? fmtSize(x.size) : '—'}</td>
+        <td>${ROLE[x.role] ? `<span class="badge ${ROLE[x.role][1]}">${ROLE[x.role][0]}</span>` : '—'}${x.raid ? ` <span class="muted small" translate="no">${esc(x.raid)}</span>` : ''}</td>
+        <td>${HEALTH[x.health] ? `<span class="badge ${HEALTH[x.health][1]}">${HEALTH[x.health][0]}</span>` : '<span class="muted small">—</span>'}</td>
+        <td translate="no" dir="ltr">${x.temp != null ? x.temp + '°' : '—'}</td>
+        <td>${x.role === 'new' && d.available ? `<button class="btn sm primary" data-use="${esc(x.name)}">استعمال القرص</button>` : ''}</td></tr>`).join('')}</tbody></table>`
+      : '<p class="muted">لا توجد معلومات عن الأقراص على هذا الجهاز.</p>'}
+      ${d.arrays.map((a) => `<div style="margin-top:12px"><div class="ov-row"><b translate="no">RAID ${esc(a.name)} (${esc(a.level)})</b>
+        <span class="badge ${a.healthy ? 'ok' : 'err'}">${a.healthy ? 'سليم' : 'متدهور: قرص معطّل'}</span></div>
+        ${a.action ? `<div class="ov-row small"><span>${a.action === 'recovery' ? 'إعادة البناء' : 'مزامنة'}</span><span dir="ltr">${a.progress}% · ${esc(a.finish || '')}</span></div>${bar(a.progress)}` : ''}</div>`).join('')}</div>`);
+    p.appendChild(dc);
+    $$('[data-use]', dc).forEach((b) => (b.onclick = () => useDisk(b.dataset.use)));
+    // ---- المساحة
+    p.appendChild(h(`<div class="card" style="margin-top:14px"><h4>${icon('chart')} المساحة</h4>${d.volumes.map((v) => { const pct = v.total ? 100 * v.used / v.total : 0;
+      return `<div class="ov-vol"><div class="ov-row"><span translate="no">${esc(v.labels.join('، '))}</span><span class="muted small" dir="ltr" translate="no">${fmtSize(v.used)} / ${fmtSize(v.total)} · ${Math.round(pct)}%</span></div>${bar(pct)}</div>`; }).join('')}</div>`));
+    // ---- ماذا يشغل المساحة؟
+    const uc = h(`<div class="card" style="margin-top:14px"><div class="ov-row"><h4 style="margin:0">${icon('grid')} ماذا يشغل المساحة؟</h4>
+      <button class="btn ghost sm" data-x="usage">${icon('refresh')} احسب الآن</button></div><div class="ub"></div></div>`);
+    p.appendChild(uc);
+    const drawUsage = (u, running) => {
+      const ub = $('.ub', uc);
+      if (!u) { ub.innerHTML = `<p class="muted small">${running ? 'يُحسب الآن في الخلفية… قد يأخذ دقائق على الأقراص الكبيرة.' : 'لم يُحسب بعد.'}</p>`; return; }
+      const all = [...u.people.map((x) => x.total), ...u.shares.map((x) => x.total), ...u.other.map((x) => x.total)];
+      const max = Math.max(1, ...all);
+      const rows = (list, sub) => list.map((x) => `<div class="ov-row small" style="margin-top:8px"><span translate="no">${esc(x.name)}</span><span class="muted" dir="ltr" translate="no">${fmtSize(x.total)}</span></div>
+        <div class="ov-bar"><i style="width:${Math.max(1, 100 * x.total / max)}%"></i></div>${sub && x.photos ? `<div class="muted small" style="margin-top:-2px">منها الصور والفيديو: <span dir="ltr" translate="no">${fmtSize(x.photos)}</span></div>` : ''}`).join('');
+      ub.innerHTML = `${u.people.length ? `<h5 class="ov-sub">أفراد العائلة</h5>${rows(u.people, true)}` : ''}
+        ${u.shares.length ? `<h5 class="ov-sub">المجلدات المشتركة</h5>${rows(u.shares)}` : ''}
+        ${u.other.length ? `<h5 class="ov-sub">النظام</h5>${rows(u.other)}` : ''}
+        <p class="muted small" style="margin:10px 0 0">آخر حساب: <bdi>${esc(fmtDateTime(new Date(u.t * 1000).toISOString()))}</bdi>${running ? ' · يُعاد الحساب الآن…' : ''}</p>`;
+    };
+    drawUsage(d.usage, d.usage_running);
+    let up = 0;
+    const pollUsage = () => { clearTimeout(up); up = setTimeout(async () => { if (!uc.isConnected) return; const r = await api.get('/api/admin/storage').catch(() => null); if (!r) return; drawUsage(r.usage, r.usage_running); if (r.usage_running) pollUsage(); }, 4000); };
+    if (d.usage_running) pollUsage();
+    $('[data-x=usage]', uc).onclick = async () => { if (await guard(() => api.post('/api/admin/storage/usage'))) { drawUsage(d.usage, true); pollUsage(); } };
+
+    // ---- استعمال قرص جديد
+    async function useDisk(dev) {
+      const x = d.disks.find((k) => k.name === dev);
+      const others = news.filter((k) => k.name !== dev);
+      const body = h(`<div>
+        <p>القرص <b translate="no">${esc(x.model || x.name)}</b> (<span dir="ltr" translate="no">${fmtSize(x.size || 0)}</span>). اختر كيف تستعمله:</p>
+        <label class="check"><input type="radio" name="op" value="add" checked> <b>قرص منفصل</b>: مساحة إضافية بلا حماية. يظهر كمجلد يمكن مشاركته.</label>
+        <div class="op-add" style="margin:4px 26px 8px"><input class="field" name="nm" placeholder="اسم القرص بالإنجليزية، مثل extra1" dir="ltr" style="max-width:260px"></div>
+        <label class="check"><input type="radio" name="op" value="backup-disk"> <b>قرص النسخ الاحتياطي</b>: تُحفظ عليه نسخة من كل الملفات (مناسب لقرص USB).</label>
+        <label class="check"><input type="radio" name="op" value="mirror" ${others.length ? '' : 'disabled'}> <b>مرآة RAID 1 مع قرص آخر</b>: نسختان متطابقتان، فلا تضيع البيانات إذا تعطّل أحدهما.
+          ${others.length ? '' : '<span class="muted small">(يحتاج قرصاً جديداً ثانياً)</span>'}</label>
+        <div class="op-mirror" style="margin:4px 26px 8px" hidden><select class="field" name="second" style="max-width:320px">${others.map((k) => `<option value="${esc(k.name)}">${esc(k.model || k.name)} (${fmtSize(k.size || 0)})</option>`).join('')}</select>
+          <p class="muted small" style="margin:6px 0 0">تصبح المرآة هي التخزين الرئيسي، وتُنقل إليها كل البيانات الحالية. المساحة = أصغر القرصين.</p></div>
+        <label class="check"><input type="radio" name="op" value="replace" ${degraded ? '' : 'disabled'}> <b>استبدال القرص المعطّل في المرآة</b>
+          ${degraded ? '' : '<span class="muted small">(لا توجد مرآة متدهورة)</span>'}</label>
+        <div class="alert warn small" style="margin:12px 0 8px">⚠️ سيُمسح كل ما على القرص المختار نهائياً.</div>
+        <div class="tv-grid"><label>كلمة مرور حسابك<input class="field" type="password" name="pw" autocomplete="current-password"></label>
+          <label>اكتب «${esc(d.confirm_word)}» للتأكيد<input class="field" name="cw" autocomplete="off"></label></div></div>`);
+      const sync = () => { const op = $('[name=op]:checked', body).value; $('.op-add', body).hidden = op !== 'add'; $('.op-mirror', body).hidden = op !== 'mirror'; };
+      $$('[name=op]', body).forEach((r) => (r.onchange = sync)); sync();
+      const ok = await modal({ title: 'استعمال قرص جديد', body, wide: true, buttons: [{ label: 'إلغاء', value: null }, { label: 'ابدأ', cls: 'danger', value: true, validate: async () => {
+        const op = $('[name=op]:checked', body).value;
+        const devs = op === 'mirror' ? [dev, $('[name=second]', body).value] : [dev];
+        if ($('[name=cw]', body).value.trim() !== d.confirm_word) { toast(`اكتب «${d.confirm_word}» للتأكيد`, 'err'); return false; }
+        const r = await guard(() => api.post('/api/admin/storage/run', { op, devs, name: $('[name=nm]', body).value.trim(), password: $('[name=pw]', body).value, confirm: $('[name=cw]', body).value }));
+        if (r) drawOp(r.op);
+        return !!r;
+      } }] });
+      if (ok) toast('بدأت العملية', 'ok');
+    }
   },
 
   tv(sc) { return tvSection(sc, section); },

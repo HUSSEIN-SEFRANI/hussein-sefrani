@@ -84,9 +84,9 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
         start_tv_prep(data_paths)   # تجهيز الفيديو للتلفاز في الخلفية
 
     from . import (activation, appstore, backup, cameras, faces, files, health, iphone, links, media_cards, network, photos, profile, remote,
-                   kids, stars, sysadmin, system, transfer, tv, welcome)
+                   kids, stars, storage, sysadmin, system, transfer, tv, welcome)
     for mod in (system, files, photos, links, backup, health, network, appstore, faces, remote, tv, profile, sysadmin, iphone, stars, welcome,
-                cameras, media_cards, activation, kids, transfer):
+                cameras, media_cards, activation, kids, transfer, storage):
         app.register_blueprint(mod.bp)
 
     @app.teardown_appcontext

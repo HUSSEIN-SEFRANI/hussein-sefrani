@@ -17,6 +17,9 @@
     hsef-extras update-rollback          go back to the previous version (kept in /opt/homenas/app.prev)
     hsef-extras update-verify            after an update: go back automatically if the app does not start
     hsef-extras device-id                this device's number for activation (from board UUID + network card) as JSON
+    hsef-extras disk-info                all disks with their partitions, mounts and role (system/raid/data/backup/new) as JSON
+    hsef-extras disk-run OP DEV [DEV|NAME]   run homenas-disk OP in the background (add, backup-disk, mirror, replace)
+    hsef-extras disk-status              progress of disk-run as JSON
 """
 import json
 import os
@@ -1953,6 +1956,112 @@ def _write_device_cache(data: dict):
         pass
 
 
+# ----------------------------------------------------------------------------- إدارة الأقراص (لوحة التحكم ← التخزين)
+DISK_OP = Path("/var/lib/homenas/disk-op.json")
+DISK_LOG = Path("/var/lib/homenas/disk-op.log")
+DISK_OPS = {"add": 2, "backup-disk": 1, "mirror": 2, "replace": 1}   # العملية ← عدد الوسائط بعد الاسم
+
+
+def _system_disks() -> set:
+    try:
+        src = subprocess.run(["findmnt", "-no", "SOURCE", "/"], capture_output=True, text=True, timeout=10).stdout.strip()
+        out = subprocess.run(["lsblk", "-nso", "NAME,TYPE", src], capture_output=True, text=True, timeout=10).stdout
+        return {_re.sub(r"[^a-zA-Z0-9]", "", ln.split()[0]) for ln in out.splitlines() if ln.split()[1:2] == ["disk"]}
+    except Exception:
+        return set()
+
+
+def disk_info():
+    """كل الأقراص مع دور كل قرص: system (فيه النظام)، raid (عضو مرآة)، data (مُركّب)، backup، new (فارغ/غير مستعمل)."""
+    if FAKE:
+        print(json.dumps({"disks": [
+            {"name": "sda", "size": 500107862016, "model": "Samsung SSD 870", "tran": "sata", "rota": False, "role": "system", "mounts": ["/"], "fstypes": ["ext4"]},
+            {"name": "sdb", "size": 2000398934016, "model": "WDC WD20EFRX", "tran": "sata", "rota": True, "role": "raid", "mounts": [], "fstypes": ["linux_raid_member"], "raid": "md0"},
+            {"name": "sdc", "size": 2000398934016, "model": "WDC WD20EFRX", "tran": "sata", "rota": True, "role": "raid", "mounts": [], "fstypes": ["linux_raid_member"], "raid": "md0"},
+            {"name": "sdd", "size": 1000204886016, "model": "Seagate Expansion", "tran": "usb", "rota": True, "role": "new", "mounts": [], "fstypes": []},
+        ]}))
+        return
+    sysd = _system_disks()
+    out = subprocess.run(["lsblk", "-J", "-b", "-o", "NAME,SIZE,MODEL,TYPE,TRAN,ROTA,FSTYPE,MOUNTPOINT,LABEL"],
+                         capture_output=True, text=True, timeout=15).stdout
+    disks = []
+    for d in json.loads(out or "{}").get("blockdevices", []):
+        if d.get("type") != "disk" or d["name"].startswith(("zram", "loop", "sr", "fd", "mmcblk0boot")):
+            continue
+        mounts, fstypes, raid, labels = [], [], None, []
+
+        def walk(n):
+            nonlocal raid
+            if n.get("mountpoint"):
+                mounts.append(n["mountpoint"])
+            if n.get("fstype"):
+                fstypes.append(n["fstype"])
+            if n.get("label"):
+                labels.append(n["label"])
+            if str(n.get("type", "")).startswith("raid"):
+                raid = n["name"]
+            for c in n.get("children") or []:
+                walk(c)
+        walk(d)
+        role = ("system" if d["name"] in sysd else "raid" if raid or "linux_raid_member" in fstypes
+                else "backup" if "HOMENAS-BKP" in labels or "/srv/homenas/backup" in mounts
+                else "data" if mounts else "new")
+        disks.append({"name": d["name"], "size": d.get("size"), "model": (d.get("model") or "").strip(), "tran": d.get("tran"),
+                      "rota": bool(d.get("rota")), "role": role, "mounts": mounts, "fstypes": sorted(set(fstypes)), "raid": raid})
+    print(json.dumps({"disks": disks}))
+
+
+def disk_run(op: str, args: list[str]):
+    """يشغّل homenas-disk في الخلفية (قد يأخذ ساعات مع نسخ البيانات) ويكتب التقدّم في disk-op.json/log."""
+    if op not in DISK_OPS or len(args) != DISK_OPS[op]:
+        die("bad disk operation")
+    for x in args:
+        if x.startswith("/dev/") and not _re.match(r"^/dev/[a-zA-Z0-9]+$", x):
+            die("bad device")
+    if op == "add" and not _re.match(r"^[A-Za-z0-9_-]{1,24}$", args[1]):
+        die("bad name")
+    try:
+        cur = json.loads(DISK_OP.read_text())
+        if not cur.get("done") and cur.get("pid") and Path(f"/proc/{cur['pid']}").exists():
+            die("another disk operation is running")
+    except (OSError, ValueError):
+        pass
+    import time as _t
+    state = {"op": op, "args": args, "started": int(_t.time()), "done": False, "rc": None, "pid": None}
+    DISK_LOG.parent.mkdir(parents=True, exist_ok=True)
+    if FAKE:
+        state.update(done=True, rc=0)
+        DISK_OP.write_text(json.dumps(state))
+        DISK_LOG.write_text(f"(fake) homenas-disk {op} {' '.join(args)}\nDone.\n")
+        print(json.dumps(state))
+        return
+    script = (f"homenas-disk {op} {' '.join(args)} > {DISK_LOG} 2>&1; rc=$?; "
+              f"python3 -c 'import json,sys; p=\"{DISK_OP}\"; d=json.load(open(p)); d.update(done=True, rc=int(sys.argv[1])); "
+              f"json.dump(d, open(p, \"w\"))' $rc")
+    env = dict(os.environ, HOMENAS_DISK_CONFIRMED="ERASE", PATH="/usr/local/sbin:/usr/sbin:/sbin:/usr/local/bin:/usr/bin:/bin")
+    DISK_OP.write_text(json.dumps(state))
+    p = subprocess.Popen(["setsid", "bash", "-c", script], env=env, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    state["pid"] = p.pid
+    DISK_OP.write_text(json.dumps(state))
+    print(json.dumps(state))
+
+
+def disk_status():
+    try:
+        st = json.loads(DISK_OP.read_text())
+    except (OSError, ValueError):
+        print(json.dumps({"op": None}))
+        return
+    if not st.get("done") and st.get("pid") and not Path(f"/proc/{st['pid']}").exists():
+        st.update(done=True, rc=st.get("rc") if st.get("rc") is not None else -1)
+    try:
+        st["log"] = DISK_LOG.read_text(errors="replace")[-3000:]
+    except OSError:
+        st["log"] = ""
+    print(json.dumps(st))
+
+
 def main():
     if sys.argv[1:2] == ["tv-session"]:  # يعمل بصلاحية مستخدم الشاشة
         tv_session(sys.argv[2] if len(sys.argv) > 2 else "")
@@ -2028,6 +2137,12 @@ def main():
         pad_diag()
     elif a == ["hw-diag"]:
         hw_diag()
+    elif a == ["disk-info"]:
+        disk_info()
+    elif len(a) >= 3 and a[0] == "disk-run":
+        disk_run(a[1], a[2:])
+    elif a == ["disk-status"]:
+        disk_status()
     elif a == ["audio-fix"]:
         audio_fix()
     elif a == ["fw-install"]:
