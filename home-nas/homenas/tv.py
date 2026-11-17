@@ -1351,7 +1351,28 @@ def tv_game_file(tid, sub):
         p = p / "index.html"
     if not p.is_file():
         abort(404)
+    newer = shared_kit(p)
+    if newer:   # v1.9.7: مكتبة الألعاب المشتركة تأتي من السيرفر (تتحدّث مع التحديث، لأن مجلدات الألعاب لا تتحدّث)
+        return send_file(newer, conditional=True, max_age=0)
     return send_file(p, conditional=True)
+
+
+KIT_DIR = Path(__file__).resolve().parent.parent / "static" / "kit"
+KIT_MARK = {"kit.js": b"// kit.js \xe2\x80\x94", "kit.css": b"/* kit.css \xe2\x80\x94"}   # «// kit.js —» و«/* kit.css —»
+
+
+def shared_kit(p: Path) -> Path | None:
+    """إن كان الملف نسخة من kit.js أو kit.css المشتركة (تُعرف من سطرها الأول) نعطي أحدث نسخة مع السيرفر.
+    لعبة عدّلت نسختها وغيّرت سطرها الأول تبقى على نسختها."""
+    mark = KIT_MARK.get(p.name)
+    if not mark or not (KIT_DIR / p.name).is_file():
+        return None
+    try:
+        with open(p, "rb") as f:
+            head = f.read(len(mark))
+    except OSError:
+        return None
+    return KIT_DIR / p.name if head == mark else None
 
 
 @bp.get("/api/tv/photos")
