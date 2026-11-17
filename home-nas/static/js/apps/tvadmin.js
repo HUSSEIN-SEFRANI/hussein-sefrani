@@ -142,21 +142,48 @@ function kioskCard(d, reload) {
 }
 
 function displayBox() {
-  const box = h(`<div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px"><h4 style="margin-top:0">${icon('video')} دقة الشاشة</h4>
+  const box = h(`<div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px"><h4 style="margin-top:0">${icon('video')} الشاشة والدقة</h4>
     <div class="db muted small">جارٍ القراءة…</div></div>`);
   const db = $('.db', box);
-  api.get('/api/admin/tv/display').then((r) => {
+  const label = (x) => {
+    const brand = (x.make || '').split(' ')[0], model = x.model || '';
+    const name = model && brand && model.toLowerCase().includes(brand.toLowerCase()) ? model : [brand, model].filter(Boolean).join(' ');
+    return `${x.internal || /^(eDP|LVDS|DSI)/.test(x.name) ? 'شاشة اللابتوب' : x.name.replace(/-A-/, ' ').replace(/-/g, ' ')}${name ? ` — ${name}` : ''}`;
+  };
+  const load = () => api.get('/api/admin/tv/display').then((r) => {
     if (r.error) { db.textContent = 'تعذرت قراءة الشاشة.'; return; }
     db.classList.remove('muted', 'small');
-    const opts = (r.modes || []).map(m => `<option ${m === r.saved ? 'selected' : ''}>${m}</option>`).join('');
-    db.innerHTML = `<select class="field" style="max-width:240px" dir="ltr"><option value="">تلقائي (أفضل دقة للتلفاز)</option>${opts}</select>
-      <button class="btn sm" data-a="set">تطبيق</button>
-      <p class="muted small">الحالية: <span class="ltr">${esc(r.current || '—')}</span>. ${r.available ? '' : 'اختيار الدقة يثبّت أداة صغيرة (يحتاج إنترنت مرة واحدة).'}
-      للفيديو الأنعم على تلفاز 4K اختر <span class="ltr">1920x1080</span>.</p>`;
-    $('[data-a=set]', db).onclick = async () => {
-      if (await guard(() => api.post('/api/admin/tv/display', { mode: $('select', db).value }))) toast('تم — تُعاد تشغيل الشاشة', 'ok');
+    const screens = r.screens || [];
+    const many = screens.length > 1;
+    let sel = r.preferred && screens.some((x) => x.name === r.preferred) ? r.preferred : (r.shown || (screens[0] && screens[0].name) || '');
+    const draw = () => {
+      const cur = screens.find((x) => x.name === sel) || { modes: r.modes || [], saved: r.saved, current: r.current };
+      db.innerHTML = `${many ? `<p class="small" style="margin:0 0 6px">موصول ${screens.length} شاشات. وضع التلفاز يظهر على واحدة فقط:</p>
+        <div class="scr-list">
+          <label class="check"><input type="radio" name="scr" value="auto" ${!r.preferred ? 'checked' : ''}> <b>تلقائي</b> <span class="muted small">(HDMI أولاً، ثم DisplayPort، ثم شاشة اللابتوب)</span></label>
+          ${screens.map((x) => `<label class="check"><input type="radio" name="scr" value="${esc(x.name)}" ${r.preferred === x.name ? 'checked' : ''}>
+            <span translate="no">${esc(label(x))}</span> ${x.name === r.shown ? '<span class="badge ok">معروضة الآن</span>' : ''}</label>`).join('')}
+        </div>
+        <div class="row" style="gap:8px;margin:6px 0 12px;flex-wrap:wrap"><button class="btn sm" data-a="try">👁️ جرّب الشاشة المختارة 20 ثانية</button>
+          <button class="btn sm primary" data-a="save-scr">حفظ الشاشة</button></div>` : ''}
+        <label class="lbl">الدقة${many ? ` لـ <span translate="no">${esc(label(screens.find((x) => x.name === sel) || {name: sel, make: '', model: ''}))}</span>` : ''}</label>
+        <select class="field" style="max-width:240px" dir="ltr" name="mode"><option value="">تلقائي (أفضل دقة)</option>${(cur.modes || []).map((m) => `<option ${m === cur.saved ? 'selected' : ''}>${m}</option>`).join('')}</select>
+        <button class="btn sm" data-a="set">تطبيق</button>
+        <p class="muted small">الحالية: <span class="ltr">${esc(cur.current || '—')}</span>. ${r.available ? '' : 'اختيار الدقة يثبّت أداة صغيرة (يحتاج إنترنت مرة واحدة).'}
+        للفيديو الأنعم على تلفاز 4K اختر <span class="ltr">1920x1080</span>.${many ? ' كل شاشة تحفظ دقتها.' : ''}</p>`;
+      $$('[name=scr]', db).forEach((x) => (x.onchange = () => { if (x.value !== 'auto') { sel = x.value; draw(); $$('[name=scr]', db).forEach((y) => (y.checked = y.value === sel)); } }));
+      const pick = () => ($('[name=scr]:checked', db) || {}).value || 'auto';
+      const tr = $('[data-a=try]', db);
+      if (tr) tr.onclick = async () => { if (await guard(() => api.post('/api/admin/tv/screen', { name: pick(), try: true }))) toast('انظر إلى الشاشات: وضع التلفاز يظهر على المختارة لمدة 20 ثانية، ثم يرجع', 'ok', 8000); };
+      const sv = $('[data-a=save-scr]', db);
+      if (sv) sv.onclick = async () => { if (await guard(() => api.post('/api/admin/tv/screen', { name: pick() }))) { toast('حُفظت الشاشة', 'ok'); setTimeout(load, 4000); } };
+      $('[data-a=set]', db).onclick = async () => {
+        if (await guard(() => api.post('/api/admin/tv/display', { mode: $('[name=mode]', db).value, ...(many ? { screen: sel } : {}) }))) toast('تم — تُعاد تشغيل الشاشة', 'ok');
+      };
     };
+    draw();
   }).catch(e => { db.textContent = e.message; });
+  load();
   return box;
 }
 
