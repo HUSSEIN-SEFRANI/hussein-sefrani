@@ -192,6 +192,27 @@ label.lbl { display: block; font-size: 13px; color: var(--muted); margin: 10px 0
   padding: 10px 8px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px;
 }
 .app-side .sect { font-size: 12px; color: var(--muted); padding: 12px 10px 4px; }
+.side-search { padding: 4px 4px 6px; }
+.side-search .field { height: 34px; font-size: 13px; }
+/* نظرة عامة (لوحة التحكم) */
+.ov-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+.ov-card { text-align: start; font: inherit; color: inherit; cursor: pointer; display: block; width: 100%; transition: transform .12s, box-shadow .12s; }
+.ov-card:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.08); }
+.ov-card:disabled { cursor: default; }
+.ov-card.ok { border-color: color-mix(in srgb, var(--ok) 40%, var(--border)); }
+.ov-card.warn { border-color: color-mix(in srgb, var(--warn) 55%, var(--border)); }
+.ov-card.err { border-color: color-mix(in srgb, var(--err) 60%, var(--border)); }
+.ov-h { display: flex; align-items: center; gap: 8px; font-weight: 700; margin-bottom: 10px; }
+.ov-h svg { width: 20px; height: 20px; }
+.ov-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; margin: 4px 0; }
+.ov-bar { height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; margin-bottom: 6px; }
+.ov-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.ov-bar i.warn { background: var(--warn); }
+.ov-vol { margin-bottom: 6px; }
+.ov-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ov-list li { display: grid; gap: 2px; font-size: 13px; padding-inline-start: 8px; border-inline-start: 3px solid var(--warn); }
+.ov-list li.err { border-inline-start-color: var(--err); }
+.ov-list li span { color: var(--muted); font-size: 12px; }
 .side-item {
   display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer;
   border: 0; background: transparent; text-align: start; width: 100%;
