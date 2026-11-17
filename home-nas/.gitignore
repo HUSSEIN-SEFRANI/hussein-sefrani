@@ -7,3 +7,4 @@ __pycache__/
 iso/build/
 *.iso
 installer/build/
+network.json
