@@ -18,6 +18,7 @@
     hsef-extras update-verify            after an update: go back automatically if the app does not start
     hsef-extras device-id                this device's number for activation (from board UUID + network card) as JSON
     hsef-extras tv-screen-set NAME|auto [SECONDS]   choose the TV screen (or try it for a few seconds)
+    hsef-extras cec-set on|off           TV remote over HDMI-CEC
     hsef-extras host-set NAME            the device's name on the network (NAME.local)
     hsef-extras disk-info                all disks with their partitions, mounts and role (system/raid/data/backup/new) as JSON
     hsef-extras disk-run OP DEV [DEV|NAME]   run homenas-disk OP in the background (add, backup-disk, mirror, replace)
@@ -2168,6 +2169,18 @@ def host_set(name: str):
     print(json.dumps({"ok": True, "hostname": name}))
 
 
+# ----------------------------------------------------------------------------- ريموت التلفاز HDMI-CEC (v1.9.7)
+CEC_CONF = Path("/etc/homenas/cec.json")
+
+
+def cec_set(on: bool):
+    CEC_CONF.parent.mkdir(parents=True, exist_ok=True)
+    CEC_CONF.write_text(json.dumps({"enabled": on}))
+    if not FAKE:
+        subprocess.run(["systemctl", "restart", "hsef-cec.service"], capture_output=True, timeout=30)
+    print(json.dumps({"ok": True, "enabled": on}))
+
+
 def main():
     if sys.argv[1:2] == ["tv-session"]:  # يعمل بصلاحية مستخدم الشاشة
         tv_session(sys.argv[2] if len(sys.argv) > 2 else "")
@@ -2243,6 +2256,8 @@ def main():
         pad_diag()
     elif a == ["hw-diag"]:
         hw_diag()
+    elif len(a) == 2 and a[0] == "cec-set" and a[1] in ("on", "off"):
+        cec_set(a[1] == "on")
     elif len(a) == 2 and a[0] == "host-set":
         host_set(a[1])
     elif a == ["disk-info"]:

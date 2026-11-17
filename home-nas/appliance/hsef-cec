@@ -1,0 +1,218 @@
+#!/usr/bin/env python3
+"""HOME ANAB — ريموت التلفاز عبر HDMI-CEC (v1.9.7، البند 5).
+
+يعمل كخدمة (hsef-cec.service) بصلاحيات root:
+- يفحص هل في الجهاز منفذ CEC (محوّل Pulse-Eight USB، أو /dev/cec* في الأجهزة التي تدعمه).
+  أغلب كروت الشاشة في الكمبيوتر لا توصل سلك CEC، فيكتب «لا يدعم» ويعيد الفحص كل دقيقة (لو وُصل محوّل).
+- يشغّل cec-client ويحوّل أزرار ريموت التلفاز إلى أزرار لوحة مفاتيح افتراضية (uinput) يفهمها وضع التلفاز.
+- أوامر الإطفاء من التلفاز (Standby وزر Power) تُتجاهل دائماً: لا توقف النظام ولا تطفئه.
+- الحالة في /run/homenas/cec.json (يقرؤها السيرفر).
+"""
+from __future__ import annotations
+
+import fcntl
+import json
+import os
+import re
+import shutil
+import struct
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+STATUS = Path("/run/homenas/cec.json")
+CONF = Path("/etc/homenas/cec.json")          # {"enabled": false} لإيقاف الريموت
+OSD_NAME = "HOME ANAB"
+
+# ------------------------------------------------------------------ أكواد CEC (User Control) ← أزرار لينكس
+# https://www.kernel.org/doc/html/latest/userspace-api/media/cec/cec-ioc-receive.html
+KEY_ENTER, KEY_ESC, KEY_HOME, KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT = 28, 1, 102, 103, 108, 105, 106
+KEY_BACKSPACE, KEY_COMPOSE, KEY_PLAYPAUSE, KEY_STOPCD = 14, 127, 164, 166
+KEY_NEXTSONG, KEY_PREVIOUSSONG, KEY_REWIND, KEY_FASTFORWARD = 163, 165, 168, 208
+KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_BACK = 59, 60, 61, 62, 158
+DIGITS = [11, 2, 3, 4, 5, 6, 7, 8, 9, 10]      # KEY_0 … KEY_9
+
+CEC_KEYS = {
+    0x00: KEY_ENTER, 0x01: KEY_UP, 0x02: KEY_DOWN, 0x03: KEY_LEFT, 0x04: KEY_RIGHT,
+    0x09: KEY_HOME,          # Root Menu / Home
+    0x0A: KEY_COMPOSE,       # Setup Menu → قائمة الخيارات
+    0x0D: KEY_ESC,           # Exit / Back / Return
+    0x91: KEY_ESC,           # بعض التلفزيونات ترسل «رجوع» بهذا الكود
+    0x35: KEY_COMPOSE,       # Display Info
+    0x44: KEY_PLAYPAUSE, 0x46: KEY_PLAYPAUSE, 0x61: KEY_PLAYPAUSE, 0x45: KEY_STOPCD,
+    0x4B: KEY_NEXTSONG, 0x4C: KEY_PREVIOUSSONG, 0x48: KEY_REWIND, 0x49: KEY_FASTFORWARD,
+    0x71: KEY_F1, 0x72: KEY_F2, 0x73: KEY_F3, 0x74: KEY_F4,   # الأزرق، الأحمر، الأخضر، الأصفر
+    **{0x20 + i: DIGITS[i] for i in range(10)},
+}
+POWER_CODES = {0x40, 0x6B, 0x6C, 0x6D}         # Power / Toggle / Off / On ← تُتجاهل دائماً
+
+
+def map_key(code: int) -> int | None:
+    """كود CEC ← زر لينكس، أو None (ومنه أزرار الإطفاء)."""
+    if code in POWER_CODES:
+        return None
+    return CEC_KEYS.get(code)
+
+
+# ------------------------------------------------------------------ قراءة أسطر cec-client
+KEY_RE = re.compile(r"key pressed: .*?\(([0-9a-fA-F]+)\)")
+STANDBY_RE = re.compile(r">> [0-9a-fA-F]{2}:36\b")           # رسالة Standby من التلفاز
+POWER_REL_RE = re.compile(r">> [0-9a-fA-F]{2}:44:(40|6[bBcCdD])\b")
+OSD_RE = re.compile(r"osd string:\s*(.+)$")
+CONNECTED_RE = re.compile(r"(connection opened|CEC client registered)", re.I)
+
+
+def parse_line(line: str) -> tuple[str, object] | None:
+    """('key', code) أو ('standby', None) أو ('power', None) أو ('tv', name) أو ('connected', None)."""
+    if STANDBY_RE.search(line):
+        return ("standby", None)
+    if POWER_REL_RE.search(line):
+        return ("power", None)
+    m = KEY_RE.search(line)
+    if m:
+        code = int(m.group(1), 16)
+        return ("power", None) if code in POWER_CODES else ("key", code)
+    m = OSD_RE.search(line)
+    if m:
+        return ("tv", m.group(1).strip())
+    if CONNECTED_RE.search(line):
+        return ("connected", None)
+    return None
+
+
+# ------------------------------------------------------------------ لوحة مفاتيح افتراضية (uinput بلا مكتبات إضافية)
+UI_SET_EVBIT, UI_SET_KEYBIT, UI_DEV_CREATE = 0x40045564, 0x40045565, 0x5501
+EV_SYN, EV_KEY = 0, 1
+
+
+class VirtualKeys:
+    def __init__(self):
+        self.fd = os.open("/dev/uinput", os.O_WRONLY | os.O_NONBLOCK)
+        fcntl.ioctl(self.fd, UI_SET_EVBIT, EV_KEY)
+        for k in set(CEC_KEYS.values()) | {KEY_BACK, KEY_BACKSPACE}:
+            fcntl.ioctl(self.fd, UI_SET_KEYBIT, k)
+        name = b"HOME ANAB CEC remote"
+        # struct uinput_user_dev: name[80], input_id(4×u16), ff_effects_max(u32), absmax/min/fuzz/flat[64] كلها i32
+        dev = name.ljust(80, b"\0") + struct.pack("<HHHHI", 0x06, 0x1209, 0xCEC0, 1, 0) + b"\0" * (4 * 64 * 4)
+        os.write(self.fd, dev)
+        fcntl.ioctl(self.fd, UI_DEV_CREATE)
+        time.sleep(0.3)
+
+    def _ev(self, t, c, v):
+        now = time.time()
+        os.write(self.fd, struct.pack("llHHi", int(now), int((now % 1) * 1e6), t, c, v))
+
+    def tap(self, key: int):
+        self._ev(EV_KEY, key, 1); self._ev(EV_SYN, 0, 0)
+        self._ev(EV_KEY, key, 0); self._ev(EV_SYN, 0, 0)
+
+
+# ------------------------------------------------------------------ الحالة
+state = {"supported": False, "enabled": True, "adapter": "", "connected": False, "tv": "",
+         "last_key": None, "last_at": None, "power_ignored": 0, "reason": "", "updated": None}
+
+
+def save():
+    state["updated"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+    try:
+        STATUS.parent.mkdir(parents=True, exist_ok=True)
+        tmp = STATUS.with_suffix(".tmp")
+        tmp.write_text(json.dumps(state, ensure_ascii=False))
+        tmp.chmod(0o644)
+        tmp.replace(STATUS)
+    except OSError:
+        pass
+
+
+def enabled() -> bool:
+    try:
+        return json.loads(CONF.read_text()).get("enabled", True) is not False
+    except (OSError, ValueError):
+        return True
+
+
+def find_adapter() -> tuple[str, str]:
+    """(المنفذ، الوصف) أو ('', السبب)."""
+    if not shutil.which("cec-client"):
+        return "", "no-tool"
+    try:
+        out = subprocess.run(["cec-client", "-l"], capture_output=True, text=True, timeout=20).stdout
+    except Exception:
+        out = ""
+    ports = re.findall(r"com port:\s*(\S+)", out)
+    if ports:
+        vendor = re.search(r"vendor:\s*(.+)", out)
+        return ports[0], (vendor.group(1).strip() if vendor else ports[0])
+    cec_devs = sorted(Path("/dev").glob("cec[0-9]*"))
+    if cec_devs:
+        return str(cec_devs[0]), "Linux CEC"
+    return "", "no-adapter"
+
+
+def run_client(port: str, keys: VirtualKeys | None):
+    cmd = ["cec-client", "-t", "p", "-o", OSD_NAME, "-d", "8"]
+    if port and not port.startswith("/dev/cec"):
+        cmd.append(port)
+    p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+    asked = False
+    for line in p.stdout:
+        ev = parse_line(line)
+        if not ev:
+            continue
+        kind, val = ev
+        if kind == "connected":
+            state["connected"] = True; save()
+            if not asked:
+                asked = True
+                try:
+                    p.stdin.write("osd 0\n"); p.stdin.flush()   # اسم التلفاز
+                except OSError:
+                    pass
+        elif kind == "tv" and not state["tv"]:
+            state["tv"] = str(val)[:40]; save()
+        elif kind in ("standby", "power"):
+            state["power_ignored"] += 1; save()      # لا شيء آخر: النظام يبقى يعمل
+        elif kind == "key":
+            k = map_key(int(val))
+            if k is not None and keys:
+                try:
+                    keys.tap(k)
+                except OSError:
+                    pass
+            state["last_key"] = f"{int(val):02x}"; state["last_at"] = time.strftime("%H:%M:%S"); save()
+        if not enabled():
+            break
+    try:
+        p.terminate(); p.wait(timeout=5)
+    except Exception:
+        p.kill()
+
+
+def main():
+    keys = None
+    while True:
+        state["enabled"] = enabled()
+        if not state["enabled"]:
+            state.update(connected=False, reason="off"); save(); time.sleep(30); continue
+        port, desc = find_adapter()
+        if not port:
+            state.update(supported=False, connected=False, adapter="", reason=desc); save()
+            time.sleep(60)
+            continue
+        state.update(supported=True, adapter=desc, reason=""); save()
+        if keys is None:
+            try:
+                keys = VirtualKeys()
+            except OSError as e:
+                state["reason"] = f"uinput: {e}"; save()
+        run_client(port, keys)
+        state["connected"] = False; save()
+        time.sleep(5)
+
+
+if __name__ == "__main__":
+    if sys.argv[1:] == ["--check"]:
+        print(json.dumps(dict(zip(("port", "info"), find_adapter()))))
+    else:
+        main()

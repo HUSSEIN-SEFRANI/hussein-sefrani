@@ -568,13 +568,13 @@ const CP = {
       <div class="cpu-big" dir="ltr" style="font-size:28px;text-align:left" translate="no">${esc(d.mdns)}.local</div>
       ${d.conflict ? `<div class="alert warn small">يوجد جهاز آخر في الشبكة اسمه <b dir="ltr">${esc(d.hostname)}</b>، فصار اسم هذا الجهاز <b dir="ltr">${esc(d.mdns)}</b> وحده. أعطه اسماً خاصاً به حتى لا يختلط الجهازان.</div>` : ''}
       <label class="lbl">الاسم الجديد</label>
-      <div class="row" style="gap:8px;align-items:center"><input class="field" name="hn" dir="ltr" maxlength="40" style="max-width:300px" autocomplete="off" placeholder="${esc(d.suggest)}" value="${esc(d.hostname)}"><span dir="ltr" class="muted">.local</span></div>
+      <div class="row" dir="ltr" style="gap:8px;align-items:center;justify-content:flex-end"><input class="field" name="hn" dir="ltr" maxlength="40" style="max-width:300px" autocomplete="off" placeholder="${esc(d.suggest)}" value="${esc(d.hostname)}"><span dir="ltr" class="muted">.local</span></div>
       <p class="muted small">حروف إنجليزية صغيرة وأرقام وشرطة (-) فقط. اسم العرض العربي للجهاز (مثل «منزل أحمد») يبقى كما هو في «عام والتحديث».</p>
       <button class="btn primary" data-x="save">حفظ الاسم</button>
       ${d.appliance ? '' : '<p class="alert warn small" style="margin-top:10px">متاح على جهاز HOME ANAB المثبّت من ملف ISO.</p>'}
       <p class="muted small" style="margin:12px 0 0">يمكنك دائماً الفتح بعنوان IP أيضاً: <span dir="ltr" translate="no">${d.urls.filter((u) => !u.endsWith('.local') && !/\.local[:/]/.test(u)).map(esc).join(' · ')}</span></p></div>`);
     const inp = $('[name=hn]', c);
-    inp.oninput = () => { const v = inp.value.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 40); if (v !== inp.value) inp.value = v; };
+    inp.oninput = () => { const v = inp.value.toLowerCase().replace(/[\s_.]+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/--+/g, '-').slice(0, 40); if (v !== inp.value) inp.value = v; };
     $('[data-x=save]', c).onclick = async (e) => {
       const name = inp.value.replace(/^-+|-+$/g, '');
       if (!name) return toast('اكتب اسماً', 'err');

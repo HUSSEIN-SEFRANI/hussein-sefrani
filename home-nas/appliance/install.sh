@@ -54,7 +54,7 @@ apt-get install -y --no-install-recommends wsdd2 >/dev/null 2>&1 || apt-get inst
 # تعريفات إضافية لبطاقات الوايفاي (ومنها USB) إن توفّر الإنترنت
 if [ "$OFFLINE" -eq 0 ]; then
   for p in firmware-mediatek firmware-brcm80211 firmware-libertas firmware-zd1211 usb-modeswitch usb-modeswitch-data firmware-sof-signed wireless-regdb firmware-amd-graphics firmware-realtek firmware-iwlwifi amd64-microcode intel-microcode \
-           firmware-intel-misc firmware-cirrus bluez-firmware alsa-ucm-conf alsa-topology-conf; do
+           firmware-intel-misc firmware-cirrus bluez-firmware alsa-ucm-conf alsa-topology-conf cec-utils; do
     apt-get install -y --no-install-recommends "$p" >/dev/null 2>&1 || true
   done
 fi
@@ -166,6 +166,7 @@ install -m 755 "$APP/appliance/homenas-disk" /usr/local/sbin/homenas-disk
 install -m 755 "$APP/appliance/hsef-net" /usr/local/sbin/hsef-net
 install -m 755 "$APP/appliance/hsef-apps" /usr/local/sbin/hsef-apps
 install -m 755 "$APP/appliance/hsef-extras" /usr/local/sbin/hsef-extras
+install -m 755 "$APP/appliance/hsef-cec" /usr/local/sbin/hsef-cec
 # الآيفون بالكابل: تبدأ خدمة النسخ عند توصيله
 /usr/local/sbin/hsef-extras iphone-rules >/dev/null 2>&1 || true
 # الشبكة: الوايفاي يعمل وحده عند فصل الكابل
@@ -260,6 +261,31 @@ WantedBy=multi-user.target
 EOF
 systemctl daemon-reload 2>/dev/null || true
 systemctl enable hsef-update-verify.service >/dev/null 2>&1 || true
+
+if [ "$APPLIANCE" -eq 1 ]; then
+    # v1.9.7 (البند 5): ريموت التلفاز عبر HDMI-CEC. زر الإطفاء في ريموت التلفاز لا يوقف النظام أبداً:
+    # أجهزة الإدخال القادمة من CEC لا تُعدّ «زر تشغيل» عند systemd-logind.
+    cat > /etc/udev/rules.d/71-homenas-cec-power.rules <<'EOF'
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="*[Cc][Ee][Cc]*", TAG-="power-switch"
+EOF
+    udevadm control --reload >/dev/null 2>&1 || true
+    cat > /etc/systemd/system/hsef-cec.service <<'EOF'
+[Unit]
+Description=HOME ANAB: TV remote over HDMI-CEC
+After=systemd-udevd.service
+
+[Service]
+ExecStart=/usr/local/sbin/hsef-cec
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemctl daemon-reload 2>/dev/null || true
+    systemctl enable hsef-cec.service >/dev/null 2>&1 || true
+    [ -d /run/systemd/system ] && systemctl restart hsef-cec.service >/dev/null 2>&1 || true
+fi
 
 health() {  # هل يجيب البرنامج خلال $1 ثانية؟
     python3 - "$PORT" "$1" <<'PY'

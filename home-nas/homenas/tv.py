@@ -883,6 +883,36 @@ def api_admin_tv_display_set():
     return jsonify(ok=True)
 
 
+CEC_STATUS = Path("/run/homenas/cec.json")
+
+
+@bp.get("/api/admin/tv/cec")
+@admin_required
+def api_admin_tv_cec():
+    """v1.9.7 (البند 5): حالة ريموت التلفاز عبر HDMI-CEC، كما تكتبها خدمة hsef-cec."""
+    if os.environ.get("HSEF_EXTRAS_FAKE") == "1" and not CEC_STATUS.exists():
+        return jsonify(supported=os.environ.get("FAKE_CEC", "0") == "1", enabled=True, adapter="Pulse-Eight USB-CEC Adapter",
+                       connected=os.environ.get("FAKE_CEC", "0") == "1", tv="LG TV", last_key="01", last_at="20:15:02",
+                       power_ignored=2, reason="" if os.environ.get("FAKE_CEC") == "1" else "no-adapter", service=True)
+    try:
+        d = json.loads(CEC_STATUS.read_text())
+        d["service"] = True
+    except (OSError, ValueError):
+        d = {"supported": False, "service": False, "reason": "no-service"}
+    return jsonify(d)
+
+
+@bp.post("/api/admin/tv/cec")
+@admin_required
+def api_admin_tv_cec_set():
+    on = bool(body().get("enabled"))
+    ok, out = kiosk_helper("cec-set", "on" if on else "off", timeout=40)
+    if not ok:
+        abort(400, out or "error")
+    log_action("ريموت التلفاز (HDMI-CEC)", "تشغيل" if on else "إيقاف")
+    return jsonify(ok=True)
+
+
 @bp.post("/api/admin/tv/screen")
 @admin_required
 def api_admin_tv_screen():
