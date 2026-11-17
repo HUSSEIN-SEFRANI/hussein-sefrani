@@ -256,7 +256,7 @@
             `<div class="check f ${extra.includes(d.path) ? "on" : ""}" data-extra="${i}"><span class="box">${extra.includes(d.path) ? "✓" : ""}</span><bdi dir="ltr">${esc(d.model || d.name)} · ${(d.size / 1e9).toFixed(0)} GB · ${esc(d.path)}</bdi></div>`).join("");
         })()}
         ${diskList.length ? `<div class="warn">⚠ ${t("warn")}${extra.length ? ` ${t("also")} <bdi dir="ltr">${extra.map(esc).join(", ")}</bdi>` : ""}</div>` : ""}
-        <div class="hnrow"><label for="hn">${t("hn")}</label><div class="hnin"><input id="hn" class="f inp" dir="ltr" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(hname)}"><span class="hn-suf" dir="ltr">.local</span></div>
+        <div class="hnrow"><label for="hn">${t("hn")}</label><div class="hnin" dir="ltr"><input id="hn" class="f inp" dir="ltr" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(hname)}"><span class="hn-suf" dir="ltr">.local</span></div>
           <div class="muted hn-p">${hnErr ? `<span class="warn-t">⚠ ${t("hn_bad")}</span> ` : ""}${t("hn_p")}</div></div>
         <div class="bottom"><button class="btn danger f" data-install="1" ${chosen && (!raid || chosen2) ? "" : "disabled"}>${confirmArm ? t("sure") : t("go")}</button>
           <button class="btn f" data-go="net">${t("back")}</button></div>`;
@@ -414,7 +414,7 @@
     });
     const hn = main.querySelector("#hn");
     if (hn) hn.oninput = () => {   // حروف إنجليزية صغيرة وأرقام وشرطة فقط
-      const v = hn.value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 40);
+      const v = hn.value.toLowerCase().replace(/[\s_.]+/g, "-").replace(/[^a-z0-9-]/g, "").replace(/--+/g, "-").slice(0, 40);
       if (v !== hn.value) hn.value = v;
       hname = v.replace(/^-+/, ""); confirmArm = false; hnErr = false;
     };

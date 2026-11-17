@@ -137,7 +137,7 @@ function kioskCard(d, reload) {
     b.disabled = false;
   });
   if (k.installing) setTimeout(() => { if (document.body.contains(c)) reload(); }, 5000);
-  if (k.installed && k.active) { c.appendChild(displayBox()); c.appendChild(audioBox()); }
+  if (k.installed && k.active) { c.appendChild(displayBox()); c.appendChild(audioBox()); c.appendChild(cecBox()); }
   return c;
 }
 
@@ -183,6 +183,43 @@ function displayBox() {
     };
     draw();
   }).catch(e => { db.textContent = e.message; });
+  load();
+  return box;
+}
+
+// البند 5: ريموت التلفاز عبر HDMI-CEC
+function cecBox() {
+  const box = h(`<div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px"><h4 style="margin-top:0">${icon('tv')} ريموت التلفاز (HDMI-CEC)</h4>
+    <div class="cb muted small">جارٍ الفحص…</div></div>`);
+  const cb = $('.cb', box);
+  const why = {
+    'no-adapter': 'منفذ HDMI في هذا الجهاز لا يوصل إشارة ريموت التلفاز (CEC). هذا طبيعي في أغلب أجهزة الكمبيوتر واللابتوب.',
+    'no-tool': 'أداة CEC غير مثبّتة بعد. تُثبَّت مع التحديث القادم عند توفر الإنترنت.',
+    'no-service': 'خدمة ريموت التلفاز لا تعمل على هذا الجهاز (تعمل على جهاز HOME ANAB المثبّت من ملف ISO).',
+  };
+  const load = async () => {
+    const r = await api.get('/api/admin/tv/cec').catch((e) => ({ error: e.message }));
+    if (r.error) { cb.textContent = r.error; return; }
+    cb.classList.remove('muted', 'small');
+    const off = r.enabled === false;
+    if (!r.supported && !off) {
+      cb.innerHTML = `<div class="alert warn small" style="margin:0"><b>هذا الجهاز لا يدعم ريموت التلفاز.</b> ${why[r.reason] || esc(r.reason || '')}</div>
+        <p class="muted small" style="margin:8px 0 0">الحل: محوّل <span translate="no">USB-CEC</span> صغير (مثل <span translate="no">Pulse-Eight</span>) بين الجهاز والتلفاز. عند توصيله يكتشفه HOME ANAB وحده خلال دقيقة. ويبقى ريموت أو يد ألعاب أو لوحة مفاتيح بديلاً.</p>`;
+      return;
+    }
+    cb.innerHTML = `<p style="margin:0 0 6px">${off ? '<span class="badge">موقوف</span>' : r.connected ? '<span class="badge ok">يعمل</span>' : '<span class="badge warn">يبحث عن التلفاز…</span>'}
+        ${r.tv ? ` التلفاز: <b translate="no">${esc(r.tv)}</b>` : ''} ${r.adapter ? `<span class="muted small" translate="no">(${esc(r.adapter)})</span>` : ''}</p>
+      <p class="muted small" style="margin:0 0 8px">استعمل أسهم ريموت التلفاز و«موافق» و«رجوع» و«الرئيسية» في وضع التلفاز. <b>زر الإطفاء في ريموت التلفاز يطفئ التلفاز فقط، ولا يوقف HOME ANAB أبداً.</b>
+        ${r.power_ignored ? ` (تجاهلنا أمر الإطفاء ${r.power_ignored} مرة.)` : ''}</p>
+      ${r.last_key && !off ? `<p class="small" style="margin:0 0 8px">آخر زر وصل: <span class="ltr" translate="no">0x${esc(r.last_key)}</span> <span class="muted ltr">${esc(r.last_at || '')}</span> — اضغط زراً في ريموت التلفاز ثم «تحديث» لتتأكد.</p>` : ''}
+      <button class="btn sm" data-a="toggle">${off ? 'تشغيل الريموت' : 'إيقاف الريموت'}</button> <button class="btn sm" data-a="re">تحديث</button>`;
+    $('[data-a=re]', cb).onclick = load;
+    $('[data-a=toggle]', cb).onclick = async (e) => {
+      e.target.disabled = true;
+      if (await guard(() => api.post('/api/admin/tv/cec', { enabled: off }))) { toast('تم', 'ok'); setTimeout(load, 3000); }
+      e.target.disabled = false;
+    };
+  };
   load();
   return box;
 }
