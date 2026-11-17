@@ -162,20 +162,29 @@ function logTable(rows) {
 }
 
 // --------------------------------------------------------------------- لوحة التحكم
+// v1.9.7: الأقسام في مجموعات حسب موضوعها، و«نظرة عامة» تفتح أولاً للمدير، ومربع بحث (keys: كلمات إضافية للبحث)
+const GROUPS = [
+  { id: 'family', label: 'العائلة', icon: 'users' },
+  { id: 'files', label: 'الملفات والصور', icon: 'image' },
+  { id: 'tv', label: 'التلفاز', icon: 'video' },
+  { id: 'device', label: 'الجهاز', icon: 'server' },
+  { id: 'system', label: 'النظام', icon: 'sliders' },
+];
 const SECTIONS = [
-  { id: 'account', label: 'حسابي', icon: 'user' },
-  { id: 'phone', label: 'ربط الآيفون', icon: 'phone' },
-  { id: 'network', label: 'الشبكة والتلفاز', icon: 'wifi' },
-  { id: 'device', label: 'الجهاز والاتصال', icon: 'server', admin: true },
-  { id: 'remote', label: 'من خارج البيت', icon: 'shield', admin: true },
-  { id: 'users', label: 'المستخدمون', icon: 'users', admin: true },
-  { id: 'folders', label: 'المجلدات المشتركة', icon: 'hdd', admin: true },
-  { id: 'backup', label: 'النسخ الاحتياطي', icon: 'save', admin: true },
-  { id: 'photos', label: 'إعدادات الصور', icon: 'image', admin: true },
-  { id: 'tv', label: 'وضع التلفاز', icon: 'video', admin: true },
-  { id: 'general', label: 'عام', icon: 'sliders', admin: true },
-  { id: 'activation', label: 'التفعيل', icon: 'key', admin: true },
-  { id: 'logs', label: 'سجل النشاط', icon: 'clock', admin: true },
+  { id: 'overview', label: 'نظرة عامة', icon: 'grid', admin: true, keys: 'الحالة ملخص تنبيهات' },
+  { id: 'account', group: 'family', label: 'حسابي', icon: 'user', keys: 'كلمة المرور الخلفية الصورة اللغة خروج' },
+  { id: 'users', group: 'family', label: 'المستخدمون', icon: 'users', admin: true, keys: 'حساب مستخدم جديد صلاحيات أطفال' },
+  { id: 'folders', group: 'files', label: 'المجلدات المشتركة', icon: 'hdd', admin: true, keys: 'مشاركة صلاحيات الألعاب التعليم' },
+  { id: 'photos', group: 'files', label: 'إعدادات الصور', icon: 'image', admin: true, keys: 'الوجوه الأشخاص تمييز فهرسة' },
+  { id: 'backup', group: 'files', label: 'النسخ الاحتياطي', icon: 'save', admin: true, keys: 'قرص خارجي نسخة استعادة' },
+  { id: 'phone', group: 'files', label: 'ربط الآيفون', icon: 'phone', keys: 'هاتف صور آيفون مزامنة' },
+  { id: 'network', group: 'files', label: 'قرص الشبكة والتلفاز الذكي', icon: 'wifi', keys: 'SMB DLNA ويندوز سامبا الشبكة' },
+  { id: 'tv', group: 'tv', label: 'وضع التلفاز', icon: 'video', admin: true, keys: 'شاشة مربعات ألعاب تعليم أذان مواقيت الصلاة خلفية شاشة التوقف' },
+  { id: 'device', group: 'device', label: 'الشبكة والأجهزة', icon: 'server', admin: true, keys: 'وايفاي wifi بلوتوث قبضة يد تحكم سماعة تعريفات عتاد صوت IP' },
+  { id: 'remote', group: 'device', label: 'من خارج البيت', icon: 'shield', admin: true, keys: 'إنترنت وصول بعيد tailscale' },
+  { id: 'general', group: 'system', label: 'عام والتحديث', icon: 'sliders', admin: true, keys: 'اسم السيرفر المنطقة الزمنية تحديث إصدار بدون إنترنت' },
+  { id: 'activation', group: 'system', label: 'التفعيل', icon: 'key', admin: true, keys: 'كود رقم الجهاز تجربة' },
+  { id: 'logs', group: 'system', label: 'سجل النشاط', icon: 'clock', admin: true, keys: 'سجل من فعل ماذا' },
 ];
 
 // رموز QR محلية (بدون إنترنت): تُحمَّل عند الحاجة فقط
@@ -240,19 +249,34 @@ registerApp({
     const side = $('.app-side', win.body), sc = $('.scroll', win.body);
     $('.side-toggle', win.body).onclick = () => side.classList.toggle('open');
     if (matchMedia('(max-width:760px)').matches) $('.side-toggle-bar', win.body).style.display = '';
+    const mine = SECTIONS.filter(s => !s.admin || ME.is_admin);
     const show = (id) => {
-      const s = SECTIONS.find(x => x.id === id) || SECTIONS[0];
+      const s = mine.find(x => x.id === id) || mine[0];
       $$('.side-item', side).forEach(b => b.classList.toggle('active', b.dataset.s === s.id));
       $('.st', win.body).textContent = s.label; side.classList.remove('open');
-      sc.innerHTML = ''; sc.scrollTop = 0; CP[s.id](sc);
+      sc.innerHTML = ''; sc.scrollTop = 0; CP[s.id](sc, show);
     };
-    for (const s of SECTIONS.filter(s => !s.admin || ME.is_admin)) {
-      if (s.id === 'users') side.appendChild(h('<div class="sect">الإدارة</div>'));
-      const b = h(`<button class="side-item" data-s="${s.id}">${icon(s.icon)}<span>${s.label}</span></button>`);
-      b.onclick = () => show(s.id); side.appendChild(b);
+    // مربع البحث: يُظهر الأقسام التي في اسمها أو كلماتها ما كُتب، و Enter يفتح أولها
+    const search = h(`<div class="side-search"><input class="field" type="search" placeholder="بحث في الإعدادات…" aria-label="بحث في الإعدادات"></div>`);
+    side.appendChild(search);
+    const norm = (t) => String(t).toLowerCase().replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
+    const top = mine.filter(s => !s.group), byGroup = GROUPS.map(g => ({ ...g, items: mine.filter(s => s.group === g.id) })).filter(g => g.items.length);
+    const item = (s) => { const b = h(`<button class="side-item" data-s="${s.id}" data-q="${esc(norm(s.label + ' ' + (s.keys || '')))}">${icon(s.icon)}<span>${s.label}</span></button>`); b.onclick = () => show(s.id); return b; };
+    for (const s of top) side.appendChild(item(s));
+    for (const g of byGroup) {
+      const sect = h(`<div class="sect" data-g="${g.id}">${esc(g.label)}</div>`);
+      side.appendChild(sect);
+      for (const s of g.items) side.appendChild(item(s));
     }
+    const inp = $('input', search);
+    inp.oninput = () => {
+      const q = norm(inp.value.trim());
+      $$('.side-item', side).forEach(b => b.hidden = !!q && !b.dataset.q.includes(q));
+      $$('.sect', side).forEach(t => { let n = t.nextElementSibling, any = false; while (n && n.classList.contains('side-item')) { any = any || !n.hidden; n = n.nextElementSibling; } t.hidden = !any; });
+    };
+    inp.onkeydown = (e) => { if (e.key === 'Enter') { const b = $$('.side-item', side).find(x => !x.hidden); if (b) { show(b.dataset.s); inp.value = ''; inp.oninput(); } } };
     win.reopen = (o) => o.section && show(o.section);
-    show(opts.section || 'account');
+    show(opts.section || (ME.is_admin ? 'overview' : 'account'));
   },
 });
 
@@ -262,6 +286,49 @@ function section(sc, title, desc, actions = '') {
 }
 
 const CP = {
+  // نظرة عامة: حالة كل شيء بنظرة واحدة، وكل بطاقة تفتح قسمها
+  async overview(sc, go) {
+    const p = section(sc, 'نظرة عامة', 'حالة الجهاز بنظرة واحدة. اضغط أي بطاقة لتفتح قسمها.');
+    const box = h('<div class="ov-grid"><div class="muted">جارٍ القراءة…</div></div>');
+    p.appendChild(box);
+    const [st, he, ac] = await Promise.all([api.get('/api/system/status').catch(() => null),
+      api.get('/api/system/health').catch(() => null), api.get('/api/activation').catch(() => null)]);
+    const card = (to, ic, title, body, cls = '') => `<button class="card ov-card ${cls}" data-go="${to}"><div class="ov-h">${icon(ic)} ${title}</div>${body}</button>`;
+    const bar = (pct, warn) => `<div class="ov-bar"><i style="width:${Math.min(100, Math.max(1, pct))}%" class="${warn ? 'warn' : ''}"></i></div>`;
+    const alerts = he ? he.alerts || [] : [];
+    const cards = [];
+    cards.push(card(alerts.length ? (alerts.some(a => a.level === 'err') ? 'backup' : 'device') : 'overview', alerts.length ? 'info' : 'check',
+      alerts.length ? `تنبيهات (${alerts.length})` : 'كل شيء سليم',
+      alerts.length ? `<ul class="ov-list">${alerts.slice(0, 4).map(a => `<li class="${a.level === 'err' ? 'err' : 'warn'}"><b>${esc(a.title)}</b><span>${esc(a.text)}</span></li>`).join('')}</ul>`
+        : '<p class="muted small">لا توجد مشاكل في الأقراص أو المساحة أو النسخ الاحتياطي.</p>', alerts.some(a => a.level === 'err') ? 'err' : alerts.length ? 'warn' : 'ok'));
+    if (st) {
+      const vols = (st.volumes || []).map(v => { const pct = v.total ? (100 * v.used) / v.total : 0;
+        return `<div class="ov-vol"><div class="ov-row"><span translate="no">${esc(v.labels.slice(0, 3).join('، '))}${v.labels.length > 3 ? '…' : ''}</span>
+          <span class="muted small" translate="no" dir="ltr">${fmtSize(v.used)} / ${fmtSize(v.total)}</span></div>${bar(pct, pct > 90)}</div>`; }).join('');
+      const raid = he && he.arrays && he.arrays.length ? `<p class="small" style="margin:8px 0 0">RAID: ${he.arrays.map(a => `<span class="badge ${a.healthy ? 'ok' : 'err'}" translate="no">${esc(a.name)} ${a.healthy ? 'سليم' : 'متدهور'}</span>`).join(' ')}</p>` : '';
+      cards.push(card('folders', 'hdd', 'التخزين', (vols || '<p class="muted small">لا توجد معلومات</p>') + raid));
+      cards.push(card('device', 'server', 'الجهاز', `
+        ${st.cpu != null ? `<div class="ov-row"><span>المعالج</span><span translate="no" dir="ltr">${Math.round(st.cpu)}%</span></div>${bar(st.cpu, st.cpu > 85)}` : ''}
+        ${st.mem ? `<div class="ov-row"><span>الذاكرة</span><span translate="no" dir="ltr">${Math.round(st.mem.percent)}%</span></div>${bar(st.mem.percent, st.mem.percent > 90)}` : ''}
+        <p class="muted small" style="margin:8px 0 0">${st.uptime ? `يعمل منذ ${esc(fmtDuration(st.uptime))} · ` : ''}الإصدار <span translate="no">${esc(st.version)}</span></p>`));
+    }
+    if (he && he.backup) {
+      const b = he.backup;
+      cards.push(card('backup', 'save', 'النسخ الاحتياطي', !b.enabled ? '<p class="small"><span class="badge warn">متوقف</span></p><p class="muted small">فعّله لتحفظ نسخة من ملفاتك على قرص خارجي.</p>'
+        : `<p class="small" style="margin:0 0 6px">${b.running ? '<span class="badge accent">يعمل الآن</span>' : b.connected ? '<span class="badge ok">القرص موصول</span>' : '<span class="badge warn">قرص النسخ غير موصول</span>'}</p>
+           <p class="muted small" style="margin:0">آخر نسخة ناجحة: ${b.last_success ? `<bdi>${esc(fmtDateTime(b.last_success))}</bdi>` : 'لا توجد بعد'}</p>`));
+    }
+    if (st) cards.push(card('users', 'users', 'العائلة والملفات', `<div class="ov-row"><span>المستخدمون</span><b translate="no">${st.users}</b></div>
+      <div class="ov-row"><span>الصور والفيديو</span><b translate="no">${(st.media_count || 0).toLocaleString('en')}</b></div>
+      <div class="ov-row"><span>روابط المشاركة</span><b translate="no">${st.links || 0}</b></div>`));
+    if (ac) cards.push(card('activation', 'key', 'التفعيل', `<p class="small" style="margin:0">${ac.state === 'free' ? '<span class="badge ok">مفعّل</span>'
+      : ac.state === 'active' ? `<span class="badge ${ac.warn ? 'warn' : 'ok'}">مفعّل · باقي ${ac.days_left} يوماً</span>`
+      : ac.state === 'trial' ? `<span class="badge warn">تجربة: باقي ${ac.days_left} يوماً</span>`
+      : ac.state === 'expired' ? '<span class="badge err">منتهٍ</span>' : '<span class="badge">—</span>'}</p>`));
+    box.innerHTML = cards.join('') || '<p class="muted">تعذر الاتصال بالسيرفر</p>';
+    $$('[data-go]', box).forEach(b => { if (b.dataset.go === 'overview') b.disabled = true; else b.onclick = () => go(b.dataset.go); });
+  },
+
   tv(sc) { return tvSection(sc, section); },
   device(sc) { return deviceSection(sc, section); },
   activation(sc) { return activationSection(sc); },
@@ -292,7 +359,7 @@ const CP = {
   async network(sc) {
     const n = await guard(() => api.get('/api/network')); if (!n) return;
     const host = n.host, ip = n.ips[0];
-    const p = section(sc, 'الشبكة والتلفاز', 'افتح ملفات HOME ANAB كقرص شبكة من الكمبيوتر وتطبيق «الملفات» في الآيفون، واعرض الصور والفيديو على التلفاز الذكي.');
+    const p = section(sc, 'قرص الشبكة والتلفاز الذكي', 'افتح ملفات HOME ANAB كقرص شبكة من الكمبيوتر وتطبيق «الملفات» في الآيفون، واعرض الصور والفيديو على التلفاز الذكي.');
     if (!n.available) {
       p.appendChild(h(`<div class="card"><p>${icon('info')} قرص الشبكة (SMB) وخادم التلفاز (DLNA) متاحان على جهاز HOME ANAB المخصص (المثبّت من ملف ISO).</p>
         <p class="muted">على ويندوز يمكنك بدلاً من ذلك مشاركة مجلد البيانات من خصائص المجلد ← مشاركة.</p></div>`));
@@ -637,7 +704,7 @@ const CP = {
 
   async general(sc) {
     const s = await guard(() => api.get('/api/admin/settings')); if (!s) return;
-    const p = section(sc, 'عام', '');
+    const p = section(sc, 'عام والتحديث', '');
     p.appendChild(aboutCard());
     const card = h(`<div class="card" style="max-width:560px"><h4>${icon('server')} اسم السيرفر</h4>
       <input class="field" maxlength="40"><div style="margin-top:14px"><button class="btn primary">حفظ</button></div></div>`);

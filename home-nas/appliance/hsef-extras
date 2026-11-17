@@ -926,7 +926,7 @@ def wifi_hotplug(name: str):
         return
     rfkill_unblock()
     if not WIFI_CONF.exists():
-        return   # لا شبكة محفوظة: تظهر البطاقة في لوحة التحكم ← الجهاز والاتصال ليختار المدير شبكته
+        return   # لا شبكة محفوظة: تظهر البطاقة في لوحة التحكم ← الجهاز ← الشبكة والأجهزة ليختار المدير شبكته
     cfg = configured_wifi_iface()
     if cfg == name or (cfg and cfg in wifi_ifaces()):
         return   # نفس البطاقة (يتولاها allow-hotplug)، أو البطاقة المحفوظة ما زالت موصولة
