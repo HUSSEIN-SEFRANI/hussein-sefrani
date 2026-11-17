@@ -3,6 +3,7 @@
   "use strict";
   const T = {
     ar: {
+      hn: "اسم الجهاز على الشبكة", hn_p: "تفتحه من الهاتف بهذا الاسم. حروف إنجليزية صغيرة وأرقام وشرطة (-) فقط. إن كان في البيت جهاز HOME ANAB آخر فاختر اسماً مختلفاً.", hn_bad: "هذا الاسم مستعمل في الشبكة. اختر غيره.",
       setup: "تنصيب النظام", overall: "التقدم الكلي", eta: "الوقت المتبقي: حوالي {n} دقائق", eta1: "أقل من دقيقة",
       steps: ["الترحيب واللغة", "الشبكة والوايفاي", "اختيار القرص", "تجهيز القرص", "نسخ النظام", "تثبيت إعدادات HOME ANAB", "محمّل الإقلاع"],
       now: "جارٍ الآن…", stopped: "توقف هنا",
@@ -30,6 +31,7 @@
       e_noadapter: "لا توجد بطاقة وايفاي.", e_psk: "كلمة المرور من 8 أحرف على الأقل.", ip_or: "أو بالعنوان", same_net: "هاتفك يجب أن يكون على شبكة البيت نفسها",
     },
     en: {
+      hn: "Device name on the network", hn_p: "You open it from your phone with this name. Lowercase letters, digits and - only. If another HOME ANAB is in the house, pick a different name.", hn_bad: "This name is already used on the network. Choose another.",
       setup: "System setup", overall: "Overall progress", eta: "Time left: about {n} minutes", eta1: "Less than a minute",
       steps: ["Welcome & language", "Network & Wi-Fi", "Choose disk", "Prepare disk", "Copy system", "Configure HOME ANAB", "Boot loader"],
       now: "In progress…", stopped: "Stopped here",
@@ -57,6 +59,7 @@
       e_noadapter: "No Wi-Fi card.", e_psk: "The password has at least 8 characters.", ip_or: "or by address", same_net: "Your phone must be on the same home network",
     },
     fr: {
+      hn: "Nom de l'appareil sur le réseau", hn_p: "Vous l'ouvrez depuis le téléphone avec ce nom. Lettres minuscules, chiffres et - uniquement. S'il y a un autre HOME ANAB à la maison, choisissez un autre nom.", hn_bad: "Ce nom est déjà utilisé sur le réseau. Choisissez-en un autre.",
       setup: "Installation du système", overall: "Progression", eta: "Temps restant : environ {n} minutes", eta1: "Moins d'une minute",
       steps: ["Bienvenue et langue", "Réseau et Wi-Fi", "Choix du disque", "Préparation du disque", "Copie du système", "Configuration de HOME ANAB", "Démarrage"],
       now: "En cours…", stopped: "Arrêté ici",
@@ -84,6 +87,7 @@
       e_noadapter: "Pas de carte Wi-Fi.", e_psk: "Le mot de passe a au moins 8 caractères.", ip_or: "ou par l'adresse", same_net: "Le téléphone doit être sur le même réseau de la maison",
     },
     tr: {
+      hn: "Ağdaki cihaz adı", hn_p: "Telefondan bu adla açarsınız. Yalnızca küçük harf, rakam ve -. Evde başka bir HOME ANAB varsa farklı bir ad seçin.", hn_bad: "Bu ad ağda zaten kullanılıyor. Başka bir ad seçin.",
       setup: "Sistem kurulumu", overall: "Genel ilerleme", eta: "Kalan süre: yaklaşık {n} dakika", eta1: "Bir dakikadan az",
       steps: ["Hoş geldiniz ve dil", "Ağ ve Wi-Fi", "Disk seçimi", "Diskin hazırlanması", "Sistemin kopyalanması", "HOME ANAB ayarları", "Önyükleyici"],
       now: "Devam ediyor…", stopped: "Burada durdu",
@@ -111,6 +115,7 @@
       e_noadapter: "Wi-Fi kartı yok.", e_psk: "Parola en az 8 karakterdir.", ip_or: "veya şu adresle", same_net: "Telefon aynı ev ağında olmalı",
     },
     nl: {
+      hn: "Apparaatnaam op het netwerk", hn_p: "U opent het vanaf uw telefoon met deze naam. Alleen kleine letters, cijfers en -. Staat er nog een HOME ANAB in huis, kies dan een andere naam.", hn_bad: "Deze naam wordt al gebruikt op het netwerk. Kies een andere.",
       setup: "Systeeminstallatie", overall: "Totale voortgang", eta: "Resterende tijd: ongeveer {n} minuten", eta1: "Minder dan een minuut",
       steps: ["Welkom en taal", "Netwerk en wifi", "Schijf kiezen", "Schijf voorbereiden", "Systeem kopiëren", "HOME ANAB instellen", "Opstartlader"],
       now: "Bezig…", stopped: "Hier gestopt",
@@ -181,6 +186,8 @@
   let net = { wired: {}, wifi: {} }, nets = null, scanning = false, pick = null, pwVal = "", showPw = true, wBusy = false, wErr = "", wOk = "", kb = "us";
   try { kb = localStorage.getItem("kb") || "us"; } catch (e) { /* */ }
   let st = { stage: "welcome", step: 0, percent: 0 };
+  let hname = "home-anab", hnErr = false;   // اسم الجهاز على الشبكة (يقترح المثبّت اسماً غير مستعمل)
+  fetch("/api/name").then((r) => r.json()).then((d) => { if (d && d.name) hname = d.name; }).catch(() => {});
   const tr = (k) => (T[lang] || T.ar)[k];
   const t = (k, n) => String((T[lang] || T.ar)[k] ?? k).replace("{n}", n);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -249,6 +256,8 @@
             `<div class="check f ${extra.includes(d.path) ? "on" : ""}" data-extra="${i}"><span class="box">${extra.includes(d.path) ? "✓" : ""}</span><bdi dir="ltr">${esc(d.model || d.name)} · ${(d.size / 1e9).toFixed(0)} GB · ${esc(d.path)}</bdi></div>`).join("");
         })()}
         ${diskList.length ? `<div class="warn">⚠ ${t("warn")}${extra.length ? ` ${t("also")} <bdi dir="ltr">${extra.map(esc).join(", ")}</bdi>` : ""}</div>` : ""}
+        <div class="hnrow"><label for="hn">${t("hn")}</label><div class="hnin"><input id="hn" class="f inp" dir="ltr" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(hname)}"><span class="hn-suf" dir="ltr">.local</span></div>
+          <div class="muted hn-p">${hnErr ? `<span class="warn-t">⚠ ${t("hn_bad")}</span> ` : ""}${t("hn_p")}</div></div>
         <div class="bottom"><button class="btn danger f" data-install="1" ${chosen && (!raid || chosen2) ? "" : "disabled"}>${confirmArm ? t("sure") : t("go")}</button>
           <button class="btn f" data-go="net">${t("back")}</button></div>`;
     } else if (view === "installing") {
@@ -263,7 +272,7 @@
     } else if (view === "done") {
       main.innerHTML = `<div class="badge-ok">${CHECK.replace(/18/g, "54")}</div><h1>${t("done_h")}</h1><p>${t("done_p", countdown)}</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-          <div class="card"><div class="muted">${t("open")}</div><div class="big" dir="ltr">hsef.local</div>
+          <div class="card"><div class="muted">${t("open")}</div><div class="big" dir="ltr">${esc(hname || "home-anab")}.local</div>
             ${myIp() ? `<div class="ipline">${t("ip_or")} <bdi dir="ltr">${esc(myIp())}</bdi></div>` : ""}<div class="muted" style="font-size:13px;margin-top:4px">${t("same_net")}</div></div>
           <div class="card gold" style="display:flex;gap:14px;align-items:center"><img class="qr" src="whatsapp-qr.png" alt="">
             <div><div style="color:#fde68a;font-size:15px">${t("code")}</div><div style="font-weight:700;font-size:18px">${t("code2")}</div><div dir="ltr" style="color:#bfd3f2">+32 494 49 94 30</div></div></div>
@@ -403,13 +412,20 @@
       extra = extra.includes(d) ? extra.filter((x) => x !== d) : [...extra, d];
       confirmArm = false; keepFocus = `[data-extra="${b.dataset.extra}"]`; render();
     });
+    const hn = main.querySelector("#hn");
+    if (hn) hn.oninput = () => {   // حروف إنجليزية صغيرة وأرقام وشرطة فقط
+      const v = hn.value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 40);
+      if (v !== hn.value) hn.value = v;
+      hname = v.replace(/^-+/, ""); confirmArm = false; hnErr = false;
+    };
     const r = main.querySelector("[data-raid]");
     if (r) r.onclick = () => { raid = !raid; chosen2 = null; extra = extra.filter((x) => x !== chosen); confirmArm = false; keepFocus = "[data-raid]"; render(); };
     const ins = main.querySelector("[data-install]");
     if (ins) ins.onclick = async () => {
       if (!confirmArm) { confirmArm = true; keepFocus = "[data-install]"; render(); return; }
-      const res = await api("/api/install", { disk: chosen, disk2: raid ? chosen2 : null, raid, extra });
+      const res = await api("/api/install", { disk: chosen, disk2: raid ? chosen2 : null, raid, extra, hostname: hname });
       if (res.ok) { view = "installing"; render(); }
+      else if (res.error === "bad name") { confirmArm = false; hnErr = true; keepFocus = "#hn"; render(); }
     };
     main.querySelectorAll("[data-net]").forEach((b) => b.onclick = () => {
       const n = nets[+b.dataset.net];

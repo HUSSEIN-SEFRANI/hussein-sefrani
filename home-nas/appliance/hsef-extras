@@ -18,6 +18,7 @@
     hsef-extras update-verify            after an update: go back automatically if the app does not start
     hsef-extras device-id                this device's number for activation (from board UUID + network card) as JSON
     hsef-extras tv-screen-set NAME|auto [SECONDS]   choose the TV screen (or try it for a few seconds)
+    hsef-extras host-set NAME            the device's name on the network (NAME.local)
     hsef-extras disk-info                all disks with their partitions, mounts and role (system/raid/data/backup/new) as JSON
     hsef-extras disk-run OP DEV [DEV|NAME]   run homenas-disk OP in the background (add, backup-disk, mirror, replace)
     hsef-extras disk-status              progress of disk-run as JSON
@@ -30,7 +31,7 @@ import sys
 from pathlib import Path
 
 FAKE = os.environ.get("HSEF_EXTRAS_FAKE") == "1"   # tests only
-HOSTNAME = "hsef"
+HOSTNAME = "hsef"   # القديم؛ الآن اسم الجهاز يختاره المستخدم (host-set) ويُقرأ من النظام
 LOG = Path("/var/lib/homenas/extras.log")
 
 
@@ -134,7 +135,7 @@ def ts_login():
     # 'tailscale up' waits until the user signs in; run it detached and read the link from ts-status
     LOG.parent.mkdir(parents=True, exist_ok=True)
     with open(LOG, "a") as log:
-        subprocess.Popen(["tailscale", "up", f"--hostname={HOSTNAME}", "--accept-dns=false", "--timeout=15m"],
+        subprocess.Popen(["tailscale", "up", f"--hostname={__import__('socket').gethostname() or HOSTNAME}", "--accept-dns=false", "--timeout=15m"],
                          stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
 
 
@@ -2141,6 +2142,32 @@ def disk_status():
     print(json.dumps(st))
 
 
+# ----------------------------------------------------------------------------- اسم الجهاز على الشبكة (v1.9.7)
+HOST_RE = _re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
+
+
+def host_set(name: str):
+    """يغيّر اسم الجهاز على الشبكة (name.local): /etc/hostname و /etc/hosts، ثم يعيد تشغيل avahi."""
+    name = name.strip().lower()
+    if not HOST_RE.match(name):
+        die("invalid name: a-z 0-9 and - only")
+    if FAKE:
+        print(json.dumps({"ok": True, "hostname": name}))
+        return
+    Path("/etc/hostname").write_text(name + "\n")
+    subprocess.run(["hostname", name], capture_output=True)
+    hosts = Path("/etc/hosts")
+    try:
+        lines = hosts.read_text().splitlines()
+    except OSError:
+        lines = ["127.0.0.1\tlocalhost"]
+    lines = [ln for ln in lines if not ln.startswith("127.0.1.1")]
+    lines.insert(1 if lines else 0, f"127.0.1.1\t{name}")
+    hosts.write_text("\n".join(lines) + "\n")
+    subprocess.run(["systemctl", "try-restart", "avahi-daemon"], capture_output=True, timeout=30)
+    print(json.dumps({"ok": True, "hostname": name}))
+
+
 def main():
     if sys.argv[1:2] == ["tv-session"]:  # يعمل بصلاحية مستخدم الشاشة
         tv_session(sys.argv[2] if len(sys.argv) > 2 else "")
@@ -2216,6 +2243,8 @@ def main():
         pad_diag()
     elif a == ["hw-diag"]:
         hw_diag()
+    elif len(a) == 2 and a[0] == "host-set":
+        host_set(a[1])
     elif a == ["disk-info"]:
         disk_info()
     elif len(a) >= 3 and a[0] == "disk-run":

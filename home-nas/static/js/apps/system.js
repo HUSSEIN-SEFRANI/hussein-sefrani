@@ -181,6 +181,7 @@ const SECTIONS = [
   { id: 'network', group: 'files', label: 'قرص الشبكة والتلفاز الذكي', icon: 'wifi', keys: 'SMB DLNA ويندوز سامبا الشبكة' },
   { id: 'tv', group: 'tv', label: 'وضع التلفاز', icon: 'video', admin: true, keys: 'شاشة مربعات ألعاب تعليم أذان مواقيت الصلاة خلفية شاشة التوقف' },
   { id: 'storage', group: 'device', label: 'إدارة التخزين', icon: 'hdd', admin: true, keys: 'قرص اقراص هارد RAID مرآة مساحة ممتلئ SMART صحة حرارة نسخ احتياطي' },
+  { id: 'hostname', group: 'device', label: 'اسم الجهاز على الشبكة', icon: 'wifi', admin: true, keys: 'hsef local اسم الشبكة عنوان جهازين' },
   { id: 'cpu', group: 'device', label: 'المعالج', icon: 'cpu', admin: true, keys: 'معالج حرارة ساخن مروحة بطء استهلاك intel amd' },
   { id: 'device', group: 'device', label: 'الشبكة والأجهزة', icon: 'server', admin: true, keys: 'وايفاي wifi بلوتوث قبضة يد تحكم سماعة تعريفات عتاد صوت IP' },
   { id: 'remote', group: 'device', label: 'من خارج البيت', icon: 'shield', admin: true, keys: 'إنترنت وصول بعيد tailscale' },
@@ -556,6 +557,36 @@ const CP = {
       clearTimeout(timer); timer = setTimeout(draw, 5000);
     };
     draw();
+  },
+
+  // البند 10: اسم الجهاز على الشبكة
+  async hostname(sc) {
+    const d = await guard(() => api.get('/api/admin/hostname')); if (!d) return;
+    const p = section(sc, 'اسم الجهاز على الشبكة', 'الاسم الذي تفتح به HOME ANAB من الهاتف أو الكمبيوتر في البيت، مثل <span dir="ltr">beit-ahmad.local</span>. إن كان في البيت أكثر من جهاز HOME ANAB فأعطِ كل واحد اسماً مختلفاً.');
+    const c = h(`<div class="card" style="max-width:640px">
+      <p style="margin:0 0 4px" class="muted small">العنوان الآن</p>
+      <div class="cpu-big" dir="ltr" style="font-size:28px;text-align:left" translate="no">${esc(d.mdns)}.local</div>
+      ${d.conflict ? `<div class="alert warn small">يوجد جهاز آخر في الشبكة اسمه <b dir="ltr">${esc(d.hostname)}</b>، فصار اسم هذا الجهاز <b dir="ltr">${esc(d.mdns)}</b> وحده. أعطه اسماً خاصاً به حتى لا يختلط الجهازان.</div>` : ''}
+      <label class="lbl">الاسم الجديد</label>
+      <div class="row" style="gap:8px;align-items:center"><input class="field" name="hn" dir="ltr" maxlength="40" style="max-width:300px" autocomplete="off" placeholder="${esc(d.suggest)}" value="${esc(d.hostname)}"><span dir="ltr" class="muted">.local</span></div>
+      <p class="muted small">حروف إنجليزية صغيرة وأرقام وشرطة (-) فقط. اسم العرض العربي للجهاز (مثل «منزل أحمد») يبقى كما هو في «عام والتحديث».</p>
+      <button class="btn primary" data-x="save">حفظ الاسم</button>
+      ${d.appliance ? '' : '<p class="alert warn small" style="margin-top:10px">متاح على جهاز HOME ANAB المثبّت من ملف ISO.</p>'}
+      <p class="muted small" style="margin:12px 0 0">يمكنك دائماً الفتح بعنوان IP أيضاً: <span dir="ltr" translate="no">${d.urls.filter((u) => !u.endsWith('.local') && !/\.local[:/]/.test(u)).map(esc).join(' · ')}</span></p></div>`);
+    const inp = $('[name=hn]', c);
+    inp.oninput = () => { const v = inp.value.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 40); if (v !== inp.value) inp.value = v; };
+    $('[data-x=save]', c).onclick = async (e) => {
+      const name = inp.value.replace(/^-+|-+$/g, '');
+      if (!name) return toast('اكتب اسماً', 'err');
+      e.target.disabled = true;
+      const r = await guard(() => api.post('/api/admin/hostname', { name }));
+      e.target.disabled = false;
+      if (!r) return;
+      toast(`صار الاسم ${r.mdns}.local`, 'ok');
+      if (location.hostname.endsWith('.local') && location.hostname !== `${r.mdns}.local`) setTimeout(() => { location.href = `${location.protocol}//${r.mdns}.local${location.port ? ':' + location.port : ''}/`; }, 3000);
+      else { sc.innerHTML = ''; CP.hostname(sc); }
+    };
+    p.appendChild(c);
   },
 
   tv(sc) { return tvSection(sc, section); },
