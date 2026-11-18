@@ -31,6 +31,7 @@ CATALOG = Path(os.environ["HSEF_APPS_CATALOG"]) if TEST else Path("/opt/homenas/
 OPTIONS_DIR = Path(os.environ.get("HSEF_APPS_OPTIONS", "/etc/homenas/apps")) if TEST else Path("/etc/homenas/apps")
 APPS_DIR = Path(os.environ.get("HSEF_APPS_DIR", "/srv/homenas/apps")) if TEST else Path("/srv/homenas/apps")
 LOG_DIR = Path(os.environ.get("HSEF_APPS_LOGS", "/var/lib/homenas/apps")) if TEST else Path("/var/lib/homenas/apps")
+CUSTOM_DIR = Path(os.environ.get("HSEF_APPS_CUSTOM", "/etc/homenas/apps-custom")) if TEST else Path("/etc/homenas/apps-custom")
 SERVICE_USER = "homenas"
 ALLOWED_ROOTS = ("/srv/", "/mnt/", "/media/")
 FORBIDDEN = ("/@system",)
@@ -43,8 +44,133 @@ def die(msg):
     sys.exit(1)
 
 
-def catalog() -> dict:
+def builtin_catalog() -> dict:
     return {a["id"]: a for a in json.loads(CATALOG.read_text())["apps"]}
+
+
+def catalog() -> dict:
+    """تطبيقات المركز + تطبيقات صاحب الجهاز (البند 42). التطبيق المرفوع لا يغطي تطبيقاً أصلياً بنفس الرقم."""
+    apps = builtin_catalog()
+    for f in sorted(CUSTOM_DIR.glob("*.json")) if CUSTOM_DIR.is_dir() else []:
+        try:
+            a = json.loads(f.read_text())
+        except (OSError, ValueError):
+            continue
+        if isinstance(a, dict) and ID_RE.match(str(a.get("id", ""))) and a["id"] not in apps and f.stem == a["id"]:
+            apps[a["id"]] = {**a, "custom": True}
+    return apps
+
+
+# ----------------------------------------------------------------------------- البند 42: تطبيقات من صنع صاحب الجهاز
+CUSTOM_MAX = 64 * 1024
+CUSTOM_PLACEHOLDERS = {"uid", "gid", "port", "tz", "data"}
+# ما يعطي الحاوية سيطرة على الجهاز نفسه: ممنوع في التطبيقات المرفوعة
+CUSTOM_FORBIDDEN = [
+    (r"privileged\s*:\s*['\"]?true", "privileged"),
+    (r"(network_mode|pid|ipc|uts|userns_mode)\s*:\s*['\"]?host", "host namespaces"),
+    (r"docker\.sock", "docker.sock"),
+    (r"^\s*(cap_add|devices|device_cgroup_rules|security_opt|cgroup_parent|sysctls)\s*:", "extra privileges"),
+    (r"^\s*build\s*:", "build (use a ready image)"),
+    (r"^\s*-\s*['\"]?(/|~|\.\.)", "host path (use {{data}} or {{folder:…}})"),
+    (r"^\s*source\s*:\s*['\"]?(/|~|\.\.)", "host path (use {{data}} or {{folder:…}})"),
+    (r"^\s*(env_file|configs|secrets|extends|include)\s*:", "files from the host"),
+]
+
+
+def _text(v, limit=300) -> dict:
+    if isinstance(v, str):
+        v = {"ar": v}
+    if not isinstance(v, dict):
+        return {}
+    return {k: str(t)[:limit] for k, t in v.items() if k in ("ar", "en", "fr", "tr", "nl") and str(t).strip()}
+
+
+def validate_custom(d) -> dict:
+    """يرجع تعريف التطبيق نظيفاً، أو يتوقف برسالة السبب."""
+    if not isinstance(d, dict):
+        die("custom: app.json must be an object")
+    app_id = str(d.get("id", "")).strip().lower()
+    if not ID_RE.match(app_id):
+        die("custom: id must be 2-32 lowercase letters/digits (a-z 0-9)")
+    if app_id in builtin_catalog():
+        die("custom: id already used by a built-in app")
+    name = str(d.get("name", "")).strip()[:40]
+    if not name:
+        die("custom: name is required")
+    try:
+        port = int(d.get("port"))
+    except (TypeError, ValueError):
+        die("custom: port is required")
+    if not (1024 <= port <= 65535) or port in RESERVED_PORTS:
+        die("custom: port must be 1024-65535")
+    folders = []
+    for f in (d.get("folders") or [])[:5]:
+        key = str((f or {}).get("key", ""))
+        if not re.fullmatch(r"[a-z][a-z0-9_]{0,20}", key):
+            die("custom: bad folder key")
+        folders.append({"key": key, "write": bool(f.get("write")), "label": _text(f.get("label") or key, 60) or {"ar": key}})
+    comp = d.get("compose")
+    if not isinstance(comp, str) or "services:" not in comp or len(comp.encode()) > CUSTOM_MAX:
+        die("custom: compose.yaml with services: is required (max 64 KB)")
+    for pat, why in CUSTOM_FORBIDDEN:
+        if re.search(pat, comp, re.I | re.M):
+            die(f"custom: not allowed in compose: {why}")
+    allowed = CUSTOM_PLACEHOLDERS | {f"folder:{f['key']}" for f in folders}
+    for ph in re.findall(r"\{\{([^}]*)\}\}", comp):
+        if ph not in allowed:
+            die(f"custom: unknown placeholder {{{{{ph}}}}}")
+    if "{{port}}" not in comp:
+        die("custom: compose must publish {{port}}")
+    try:
+        ram = max(64, min(int(d.get("ram_mb") or 256), 65536))
+    except (TypeError, ValueError):
+        ram = 256
+    path = str(d.get("path") or "/")
+    if not re.fullmatch(r"/[A-Za-z0-9_./\-]{0,100}", path):
+        path = "/"
+    color = str(d.get("color") or "linear-gradient(135deg,#7c3aed,#db2777)")
+    if not re.fullmatch(r"[a-z0-9#(),.% \-]{3,120}", color, re.I):
+        color = "linear-gradient(135deg,#7c3aed,#db2777)"
+    icon = str(d.get("icon") or "box")
+    if not re.fullmatch(r"[a-z\-]{2,24}", icon):
+        icon = "box"
+    return {"id": app_id, "name": name, "category": "custom", "icon": icon, "color": color, "ram_mb": ram,
+            "port": port, "path": path, "scheme": "https" if d.get("scheme") == "https" else "http",
+            "summary": _text(d.get("summary") or name) or {"ar": name}, "notes": _text(d.get("notes"), 600),
+            "folders": folders, "compose": comp, "custom": True}
+
+
+def cmd_custom_add(src):
+    """يقرأ ملف JSON كتبه الخادم، ويتحقق منه، ويحفظه في مجلد التطبيقات المرفوعة (root فقط يكتب فيه)."""
+    p = Path(src)
+    try:
+        if p.stat().st_size > 2 * CUSTOM_MAX:
+            die("custom: file too large")
+        d = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        die("custom: cannot read app definition")
+    app = validate_custom(d)
+    old = CUSTOM_DIR / f"{app['id']}.json"
+    if old.exists() and (APPS_DIR / app["id"] / "compose.yaml").exists():
+        die("custom: app is installed; remove it first, then upload the new version")
+    CUSTOM_DIR.mkdir(parents=True, exist_ok=True)
+    os.chmod(CUSTOM_DIR, 0o755)
+    tmp = CUSTOM_DIR / f".{app['id']}.tmp"
+    tmp.write_text(json.dumps(app, ensure_ascii=False, indent=1))
+    os.chmod(tmp, 0o644)
+    tmp.replace(old)
+    print(json.dumps({"id": app["id"], "name": app["name"]}, ensure_ascii=False))
+
+
+def cmd_custom_remove(app_id):
+    if not ID_RE.match(app_id or ""):
+        die("bad app id")
+    f = CUSTOM_DIR / f"{app_id}.json"
+    if not f.exists():
+        die("custom: not an uploaded app")
+    if (APPS_DIR / app_id / "compose.yaml").exists():
+        die("custom: app is installed; remove it first")
+    f.unlink()
 
 
 def app_def(app_id):
@@ -362,6 +488,10 @@ def main():
         cmd_remove(a[1], a[2:] == ["--purge"])
     elif len(a) == 2 and a[0] == "logs":
         cmd_logs(a[1])
+    elif len(a) == 2 and a[0] == "custom-add":
+        cmd_custom_add(a[1])
+    elif len(a) == 2 and a[0] == "custom-remove":
+        cmd_custom_remove(a[1])
     else:
         die("usage: hsef-apps check|setup|status|install ID|start ID|stop ID|restart ID|update ID|remove ID [--purge]|logs ID")
 

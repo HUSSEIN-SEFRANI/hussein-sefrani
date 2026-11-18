@@ -32,8 +32,21 @@ def available() -> bool:
     return APPLIANCE and os.path.exists(HELPER)
 
 
+CUSTOM_DIR = Path(os.environ.get("HSEF_APPS_CUSTOM", "/etc/homenas/apps-custom"))   # البند 42 (يكتبه hsef-apps فقط)
+APP_ID_RE = re.compile(r"^[a-z0-9]{2,32}$")
+
+
 def load_catalog() -> dict:
-    return {a["id"]: a for a in json.loads(CATALOG_FILE.read_text(encoding="utf-8"))["apps"]}
+    apps = {a["id"]: a for a in json.loads(CATALOG_FILE.read_text(encoding="utf-8"))["apps"]}
+    # البند 42: التطبيقات التي رفعها صاحب الجهاز (تحقق منها hsef-apps قبل حفظها)
+    for f in sorted(CUSTOM_DIR.glob("*.json")) if CUSTOM_DIR.is_dir() else []:
+        try:
+            a = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(a, dict) and APP_ID_RE.match(str(a.get("id", ""))) and a["id"] not in apps and f.stem == a["id"]:
+            apps[a["id"]] = {**a, "custom": True}
+    return apps
 
 
 def helper(*args, timeout=3600) -> tuple[bool, str]:
@@ -132,7 +145,7 @@ def api_store():
     apps = []
     for app_id, a in cat.items():
         item = {k: a.get(k) for k in ("id", "name", "category", "icon", "color", "ram_mb", "port", "path",
-                                      "summary", "notes", "folders", "fixed_port", "uses_dns", "scheme")}
+                                      "summary", "notes", "folders", "fixed_port", "uses_dns", "scheme", "custom")}
         inst = rows.get(app_id)
         if inst:
             opts = json.loads(inst["options"] or "{}")
@@ -181,6 +194,97 @@ def api_engine():
         installed = False
     store().run("_engine", ["start-engine"] if installed else ["setup"])
     log_action("تشغيل محرك التطبيقات" if installed else "تثبيت محرك التطبيقات")
+    return jsonify(ok=True)
+
+
+# ----------------------------------------------------------------------------- البند 42: رفع تطبيق من صنعك
+CUSTOM_ERR = {
+    "id must be": "رقم التطبيق (id) يجب أن يكون من 2 إلى 32 حرفاً إنجليزياً صغيراً أو رقماً، بلا مسافات أو شرطات.",
+    "id already used": "هذا الرقم (id) مستعمل لتطبيق من تطبيقات المركز. اختر رقماً آخر.",
+    "name is required": "اسم التطبيق (name) مطلوب.",
+    "port": "المنفذ (port) مطلوب، وبين 1024 و65535.",
+    "compose.yaml": "ملف compose.yaml مطلوب وفيه services (حتى 64 KB).",
+    "not allowed in compose": "في compose.yaml ما يعطي التطبيق سيطرة على الجهاز",
+    "unknown placeholder": "في compose.yaml متغير غير معروف",
+    "must publish": "يجب أن يفتح compose.yaml المنفذ {{port}}.",
+    "app is installed": "التطبيق مثبت. احذفه أولاً ثم ارفع النسخة الجديدة.",
+    "bad folder key": "مفتاح مجلد غير صالح في folders.",
+}
+
+
+def custom_from_upload(f) -> dict:
+    """ملف ZIP (فيه app.json وcompose.yaml، في الجذر أو داخل مجلد واحد) أو ملف app.json وحده."""
+    import io, zipfile
+    raw = f.read(2 * 1024 * 1024 + 1)
+    if len(raw) > 2 * 1024 * 1024:
+        abort(400, "الملف أكبر من 2 MB. ملف التطبيق فيه app.json وcompose.yaml فقط (الصور من الإنترنت عند التثبيت).")
+    name = (f.filename or "").lower()
+    if name.endswith(".json"):
+        try:
+            return json.loads(raw.decode("utf-8-sig"))
+        except (UnicodeDecodeError, ValueError):
+            abort(400, "app.json غير صالح (JSON)")
+    try:
+        z = zipfile.ZipFile(io.BytesIO(raw))
+    except zipfile.BadZipFile:
+        abort(400, "اختر ملف ZIP أو app.json")
+    names = {Path(n).name.lower(): n for n in z.namelist() if not n.endswith("/") and n.count("/") <= 1}
+    if "app.json" not in names:
+        abort(400, "لا يوجد app.json داخل الملف")
+    try:
+        d = json.loads(z.read(names["app.json"]).decode("utf-8-sig"))
+    except (UnicodeDecodeError, ValueError, KeyError):
+        abort(400, "app.json غير صالح (JSON)")
+    if not isinstance(d, dict):
+        abort(400, "app.json غير صالح")
+    for n in ("compose.yaml", "compose.yml", "docker-compose.yml", "docker-compose.yaml"):
+        if n in names and not d.get("compose"):
+            d["compose"] = z.read(names[n]).decode("utf-8-sig", "replace")
+    return d
+
+
+@bp.post("/api/appstore/custom")
+@admin_required
+def api_custom_add():
+    from werkzeug.security import check_password_hash
+    if not available():
+        abort(400, "هذه الميزة متاحة على جهاز HOME ANAB المخصص فقط")
+    u = current_user()
+    if not check_password_hash(u["password_hash"], str(request.form.get("password") or "")):
+        abort(403, "كلمة المرور غير صحيحة")
+    f = request.files.get("file")
+    if not f:
+        abort(400, "اختر ملف التطبيق")
+    d = custom_from_upload(f)
+    tmp_dir = store().paths.system / "tmp"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    tmp = tmp_dir / f"custom-app-{secrets.token_hex(6)}.json"
+    tmp.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+    try:
+        ok, out = helper("custom-add", str(tmp), timeout=60)
+    finally:
+        tmp.unlink(missing_ok=True)
+    if not ok:
+        msg = out.replace("hsef-apps: ", "").replace("custom: ", "")
+        key = next((k for k in CUSTOM_ERR if k in msg), None)
+        detail = msg.split(":", 1)[1].strip() if key in ("not allowed in compose", "unknown placeholder") else ""
+        abort(400, (CUSTOM_ERR[key] + (f": {detail}" if detail else "")) if key else msg)
+    info = json.loads(out)
+    log_action("إضافة تطبيق من صنع المدير", info.get("name", ""))
+    return jsonify(ok=True, **info)
+
+
+@bp.delete("/api/appstore/custom/<app_id>")
+@admin_required
+def api_custom_remove(app_id):
+    if not APP_ID_RE.match(app_id):
+        abort(404)
+    if app_id in installed_rows(get_db()):
+        abort(400, "التطبيق مثبت. احذفه أولاً")
+    ok, out = helper("custom-remove", app_id, timeout=30)
+    if not ok:
+        abort(400, out.replace("hsef-apps: ", ""))
+    log_action("حذف تطبيق من صنع المدير", app_id)
     return jsonify(ok=True)
 
 

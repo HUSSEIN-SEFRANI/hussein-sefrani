@@ -1,0 +1,10 @@
+services:
+  app:
+    image: nginx:alpine
+    ports:
+      - "{{port}}:80"
+    volumes:
+      - "{{folder:site}}:/usr/share/nginx/html:ro"
+    environment:
+      TZ: "{{tz}}"
+    restart: unless-stopped
