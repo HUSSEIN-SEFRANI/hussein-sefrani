@@ -16,6 +16,7 @@ window.I18N_DICT = {
 "اسم الجهاز على الشبكة": ["Network name", "Nom sur le réseau", "Ağ adı", "Netwerknaam"],
 "اسم الجهاز": ["Device name", "Nom de l'appareil", "Cihaz adı", "Apparaatnaam"],
 "أندرويد: افتح السيرفر من Chrome": ["Android: open the server in Chrome", "Android : ouvrez le serveur dans Chrome", "Android: sunucuyu Chrome'da açın", "Android: open de server in Chrome"],
+"اكتب «123» للتأكيد": ["Type “123” to confirm", "Tapez « 123 » pour confirmer", "Onaylamak için “123” yazın", "Typ “123” om te bevestigen"],
 "بحث في الإعدادات…": ["Search settings…", "Rechercher dans les réglages…", "Ayarlarda ara…", "Instellingen zoeken…"],
 "العائلة والملفات": ["Family & files", "Famille et fichiers", "Aile ve dosyalar", "Gezin en bestanden"],
 "الصور والفيديو": ["Photos & videos", "Photos et vidéos", "Fotoğraflar ve videolar", "Foto's en video's"],

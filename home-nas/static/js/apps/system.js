@@ -429,11 +429,12 @@ const CP = {
       <label class="check"><input type="radio" name="wipe" value="0" checked> الإعدادات فقط: الملفات والصور تبقى على القرص</label>
       <label class="check"><input type="radio" name="wipe" value="1"> <b>كل شيء</b>: تُحذف أيضاً كل الملفات والصور نهائياً (لا يمكن التراجع)</label>
       <div class="tv-grid" style="margin-top:10px"><label>كلمة مرور حسابك<input class="field" type="password" name="apw" autocomplete="current-password"></label>
-        <label>اكتب «${esc(st.confirm_word)}» للتأكيد<input class="field" name="cw" autocomplete="off"></label></div>
+        <label>اكتب «${esc(st.confirm_word)}» للتأكيد<input class="field" name="cw" autocomplete="off" inputmode="numeric" dir="ltr" maxlength="6"></label></div>
       <button class="btn danger" data-x="reset" style="margin-top:6px">${icon('refresh')} إعادة ضبط المصنع</button></div>`);
     $('[data-x=reset]', rs).onclick = async (e) => {
       const wipe = $('[name=wipe]:checked', rs).value === '1';
-      if ($('[name=cw]', rs).value.trim() !== st.confirm_word) return toast(`اكتب «${st.confirm_word}» للتأكيد`, 'err');
+      const cw = $('[name=cw]', rs).value.replace(/\s/g, '').replace(/[٠-٩]/g, (c) => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[۰-۹]/g, (c) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c));
+      if (cw !== st.confirm_word) return toast(`اكتب «${st.confirm_word}» للتأكيد`, 'err');
       if (!await confirmBox(wipe ? 'سيُحذف كل شيء نهائياً: الحسابات والإعدادات وكل الملفات والصور. لا يمكن التراجع. متأكد؟'
         : 'ستُحذف كل الحسابات والإعدادات، وتبقى الملفات والصور على القرص. متأكد؟', { ok: 'إعادة ضبط', danger: true })) return;
       e.target.disabled = true;
