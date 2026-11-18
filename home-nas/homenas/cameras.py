@@ -53,7 +53,87 @@ CREATE TABLE IF NOT EXISTS cameras (
 
 def migrate(db):
     db.executescript(SCHEMA)
+    cols = {r[1] for r in db.execute("PRAGMA table_info(cameras)")}
+    if "rec_name" not in cols:   # v1.9.8: اسم مجلد التسجيلات داخل المجلد المشترك «الكاميرات»
+        db.execute("ALTER TABLE cameras ADD COLUMN rec_name TEXT")
     db.commit()
+
+
+# ============================================================================ المجلد المشترك «الكاميرات» (البند 23)
+# التسجيلات في مجلد مشترك عادي: «الكاميرات/<اسم الكاميرا>/2026-11-18_03-15-00.mp4»، فيراها من يشاهد الكاميرات
+# في «الملفات» وعلى التلفاز وقرص الشبكة (قراءة فقط، والمدير قراءة وكتابة). كانت قبل 1.9.8 في ‎@system/cameras/<رقم>.
+CAM_SHARE = "الكاميرات"
+BAD_CHARS = set('\\/:*?"<>|')
+
+
+def folder_name(name: str, taken: set) -> str:
+    base = "".join("_" if ch in BAD_CHARS or ord(ch) < 32 else ch for ch in (name or "").strip())[:60].strip(" .") or "كاميرا"
+    n, i = base, 2
+    while n.lower() in taken:
+        n, i = f"{base} ({i})", i + 1
+    return n
+
+
+def share_path(db, data_paths) -> Path:
+    row = db.execute("SELECT path FROM folders WHERE name=?", (CAM_SHARE,)).fetchone()
+    if row:
+        d = Path(row["path"])
+    else:
+        d = data_paths.shares / CAM_SHARE
+        db.execute("INSERT INTO folders(name, path, description, created_at) VALUES (?,?,?,?)",
+                   (CAM_SHARE, str(d.resolve()), "تسجيلات كاميرات المراقبة", now_iso()))
+        db.commit()
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def viewer_ids(db) -> set[int]:
+    """من يشاهد الكاميرات: من اختارهم المدير، ومن له مربع «الكاميرات» على التلفاز."""
+    try:
+        ids = {int(x) for x in json.loads((db.execute("SELECT value FROM settings WHERE key='cam_viewers'").fetchone() or {"value": "[]"})["value"] or "[]")}
+    except (ValueError, TypeError):
+        ids = set()
+    ids |= {r["user_id"] for r in db.execute("SELECT DISTINCT user_id FROM tv_tiles WHERE kind='cameras' AND enabled=1")}
+    return ids
+
+
+def sync_share(db, data_paths) -> bool:
+    """ينشئ المجلد، ويعطي من يشاهد الكاميرات «قراءة فقط»، وينقل التسجيلات القديمة. يرجع True إن تغيّرت الصلاحيات."""
+    root = share_path(db, data_paths)
+    fid = db.execute("SELECT id FROM folders WHERE name=?", (CAM_SHARE,)).fetchone()["id"]
+    changed = False
+    want = {u for u in viewer_ids(db) if db.execute("SELECT 1 FROM users WHERE id=? AND is_admin=0 AND disabled=0", (u,)).fetchone()}
+    have = {r["user_id"]: r["perm"] for r in db.execute("SELECT user_id, perm FROM folder_perms WHERE folder_id=?", (fid,))}
+    for u in want - set(have):
+        db.execute("INSERT INTO folder_perms(folder_id, user_id, perm) VALUES (?,?,'ro')", (fid, u))
+        changed = True
+    for u, perm in have.items():
+        if u not in want and perm == "ro":     # لم يعد يشاهد الكاميرات («قراءة وكتابة» يضعها المدير بيده فتبقى)
+            db.execute("DELETE FROM folder_perms WHERE folder_id=? AND user_id=?", (fid, u))
+            changed = True
+    taken = {r["rec_name"].lower() for r in db.execute("SELECT rec_name FROM cameras WHERE rec_name IS NOT NULL")}
+    old_root = data_paths.system / "cameras"
+    for c in db.execute("SELECT id, name, rec_name FROM cameras ORDER BY id").fetchall():
+        name = c["rec_name"]
+        if not name:
+            name = folder_name(c["name"], taken)
+            taken.add(name.lower())
+            db.execute("UPDATE cameras SET rec_name=? WHERE id=?", (name, c["id"]))
+        dest = root / name
+        dest.mkdir(parents=True, exist_ok=True)
+        old = old_root / str(c["id"])
+        if old.is_dir():
+            for f in old.iterdir():
+                try:
+                    shutil.move(str(f), str(dest / f.name))
+                except OSError:
+                    pass
+            try:
+                old.rmdir()
+            except OSError:
+                pass
+    db.commit()
+    return changed
 
 
 # ============================================================================ الروابط
@@ -316,6 +396,8 @@ class CameraManager:
         shm = Path("/dev/shm")
         self.live_root = (shm / f"hsef-cams-{os.getuid()}") if shm.is_dir() and os.access(shm, os.W_OK) else data_paths.tmp / "cams"
         self.procs: dict[int, dict] = {}
+        self.names: dict[int, str] = {}       # رقم الكاميرا ← مجلد تسجيلاتها في «الكاميرات»
+        self.share: Path | None = None
         self.wake = threading.Event()
         self.lock = threading.Lock()
         self.thread = threading.Thread(target=self.loop, daemon=True, name="cameras")
@@ -326,18 +408,49 @@ class CameraManager:
             self.thread.start()
 
     def rec_dir(self, cid: int) -> Path:
-        return self.rec_root / str(cid)
+        if cid not in self.names or self.share is None:
+            self.refresh_names()
+        if self.share is not None and self.names.get(cid):
+            return self.share / self.names[cid]
+        return self.rec_root / str(cid)        # قبل نقلها إلى المجلد المشترك
+
+    def refresh_names(self):
+        db = connect(self.paths.db)
+        try:
+            row = db.execute("SELECT path FROM folders WHERE name=?", (CAM_SHARE,)).fetchone()
+            self.share = Path(row["path"]) if row else None
+            self.names = {r["id"]: r["rec_name"] for r in db.execute("SELECT id, rec_name FROM cameras") if r["rec_name"]}
+        finally:
+            db.close()
+
+    def sync_share(self):
+        db = connect(self.paths.db)
+        try:
+            if sync_share(db, self.paths):
+                try:
+                    from .network import on_change
+                    on_change()
+                except Exception:  # noqa: BLE001
+                    pass
+        finally:
+            db.close()
+        self.refresh_names()
 
     def live_dir(self, cid: int) -> Path:
         return self.live_root / str(cid)
 
     # ------------------------------------------------------------ الحلقة
     def loop(self):
+        try:
+            self.sync_share()
+        except Exception as e:  # noqa: BLE001
+            print("cameras share:", e, flush=True)
         while True:
             try:
                 self.sync()
                 if time.time() - self.last_clean > 300:
                     self.last_clean = time.time()
+                    self.sync_share()
                     self.cleanup()
             except Exception as e:  # noqa: BLE001
                 print("cameras:", e, flush=True)
@@ -394,7 +507,9 @@ class CameraManager:
                       else ["-c:v", "copy", *tag])
             cmd += ["-map", "0:v:0", *vcodec, *aud,
                     "-f", "segment", "-segment_time", str(SEG_SECONDS), "-segment_atclocktime", "1", "-reset_timestamps", "1",
-                    "-strftime", "1", "-segment_format", "mp4", "-segment_format_options", "movflags=+faststart",
+                    "-strftime", "1", "-segment_format", "mp4",
+                    # MP4 مجزّأ: المقطع يُشغَّل وهو يُسجَّل، ولا يتلف إن انقطع الاتصال أو الكهرباء
+                    "-segment_format_options", "movflags=+frag_keyframe+empty_moov+default_base_moof",
                     str(rec / "%Y-%m-%d_%H-%M-%S.mp4")]
         if not mjpeg:  # البث المباشر بالنسخ (MJPEG يُشاهد بالصور)
             cmd += ["-map", "0:v:0", "-c:v", "copy", *tag, *aud,
@@ -483,12 +598,11 @@ class CameraManager:
             ids = [r["id"] for r in db.execute("SELECT id FROM cameras")]
         finally:
             db.close()
-        if not self.rec_root.is_dir():
-            return
-        # كاميرات محذوفة
-        for d in self.rec_root.iterdir():
-            if d.is_dir() and d.name.isdigit() and int(d.name) not in ids:
-                shutil.rmtree(d, ignore_errors=True)
+        # كاميرات محذوفة (المكان القديم قبل 1.9.8)
+        if self.rec_root.is_dir():
+            for d in self.rec_root.iterdir():
+                if d.is_dir() and d.name.isdigit() and int(d.name) not in ids:
+                    shutil.rmtree(d, ignore_errors=True)
         cutoff = (date.today() - timedelta(days=keep)).isoformat()
         files = []
         for cid in ids:
@@ -502,7 +616,7 @@ class CameraManager:
         total = sum(f.stat().st_size for f in files if f.exists())
 
         def low_disk():
-            du = shutil.disk_usage(self.rec_root)
+            du = shutil.disk_usage(self.share or self.paths.data)
             return du.free / du.total * 100 < MIN_FREE_PCT
         while files and ((max_gb and total > max_gb * 1024 ** 3) or low_disk()):
             f = files.pop(0)
@@ -513,9 +627,8 @@ class CameraManager:
                 pass
 
     def usage(self) -> dict:
-        size = sum(f.stat().st_size for f in self.rec_root.rglob("*.mp4")) if self.rec_root.is_dir() else 0
-        self.rec_root.mkdir(parents=True, exist_ok=True)
-        du = shutil.disk_usage(self.rec_root)
+        size = sum(sum(f.stat().st_size for f in self.segments(cid)) for cid in list(self.names))
+        du = shutil.disk_usage(self.share or self.paths.data)
         return {"bytes": size, "disk_free": du.free, "disk_total": du.total}
 
 
@@ -574,7 +687,7 @@ def cam_row(cid: int):
 
 def cam_public(c: dict, admin: bool) -> dict:
     out = {"id": c["id"], "name": c["name"], "record": bool(c["record"]), "enabled": bool(c["enabled"]),
-           "codec": c["codec"], "width": c["width"], "height": c["height"], **mgr().status(c)}
+           "codec": c["codec"], "width": c["width"], "height": c["height"], "audio": bool(c["audio"]), **mgr().status(c)}
     if admin:
         out.update(url=strip_auth(c["url"]), username=c["username"] or "", has_password=bool(c["password"]))
     else:
@@ -613,6 +726,26 @@ def api_discover():
     require_admin()
     have = {urllib.parse.urlsplit(r["url"]).hostname for r in get_db().execute("SELECT url FROM cameras")}
     return jsonify(found=[dict(x, added=x["ip"] in have) for x in discover()])
+
+
+@bp.post("/api/cameras/preview")
+def api_preview():
+    """البند 23: صورة من الكاميرا قبل إضافتها، لتتأكد أنها الكاميرا الصحيحة."""
+    require_admin()
+    d = body()
+    url = _check_url(str(d.get("url") or ""))
+    if not FFMPEG:
+        abort(400, "ffmpeg غير موجود")
+    full = with_auth(url, str(d.get("username") or ""), str(d.get("password") or ""))
+    try:
+        r = subprocess.run([FFMPEG, "-hide_banner", "-loglevel", "error", "-nostdin", *input_args(url), "-i", full,
+                            "-frames:v", "1", "-vf", "scale='min(640,iw)':-2", "-f", "image2", "-c:v", "mjpeg", "-q:v", "6", "pipe:1"],
+                           capture_output=True, timeout=20)
+    except subprocess.TimeoutExpired:
+        abort(400, "لم تصل صورة من الكاميرا خلال 20 ثانية")
+    if r.returncode != 0 or not r.stdout:
+        abort(400, "لم تصل صورة من الكاميرا")
+    return jsonify(image="data:image/jpeg;base64," + base64.b64encode(r.stdout).decode())
 
 
 @bp.post("/api/cameras/detect")
@@ -659,6 +792,7 @@ def api_add():
                       1 if d.get("record", True) else 0, 1, pos, now_iso()))
     db.commit()
     log_action("إضافة كاميرا", name, u["username"])
+    mgr().sync_share()          # مجلد تسجيلاتها في «الكاميرات» قبل أن يبدأ التسجيل
     mgr().wake.set()
     return jsonify(camera=cam_public(cam_row(cur.lastrowid), True))
 
@@ -670,7 +804,22 @@ def api_update(cid):
     d = body()
     db = get_db()
     if "name" in d:
-        db.execute("UPDATE cameras SET name=? WHERE id=?", (str(d["name"]).strip()[:60] or c["name"], cid))
+        new = str(d["name"]).strip()[:60] or c["name"]
+        db.execute("UPDATE cameras SET name=? WHERE id=?", (new, cid))
+        if new != c["name"] and c.get("rec_name"):   # مجلد التسجيلات يتبع اسم الكاميرا
+            m = mgr()
+            taken = {r["rec_name"].lower() for r in db.execute("SELECT rec_name FROM cameras WHERE id<>? AND rec_name IS NOT NULL", (cid,))}
+            fn = folder_name(new, taken)
+            old_dir = m.rec_dir(cid)
+            try:
+                if old_dir.is_dir() and not (old_dir.parent / fn).exists():
+                    with m.lock:
+                        m.stop(cid)
+                    old_dir.rename(old_dir.parent / fn)
+                db.execute("UPDATE cameras SET rec_name=? WHERE id=?", (fn, cid))
+                m.names[cid] = fn
+            except OSError:
+                pass
     for k in ("record", "enabled"):
         if k in d:
             db.execute(f"UPDATE cameras SET {k}=? WHERE id=?", (1 if d[k] else 0, cid))
@@ -708,6 +857,7 @@ def api_delete(cid):
         m.stop(cid)
     if request.args.get("purge") == "1":
         shutil.rmtree(m.rec_dir(cid), ignore_errors=True)
+    m.names.pop(cid, None)
     log_action("حذف كاميرا", c["name"], u["username"])
     return jsonify(ok=True)
 
@@ -722,6 +872,7 @@ def api_settings():
         set_setting("cam_max_gb", max(0.0, min(100000.0, float(d["max_gb"] or 0))))
     if "viewers" in d:
         set_setting("cam_viewers", json.dumps([int(x) for x in d["viewers"] if str(x).isdigit()]))
+        mgr().sync_share()
     log_action("إعدادات الكاميرات", "", u["username"])
     m = mgr()
     m.last_clean = 0
@@ -786,6 +937,30 @@ def api_rec(cid):
         busy = i == len(segs) - 1 and time.time() - st.st_mtime < 30
         out.append({"name": f.name, "time": f"{m.group(2)}:{m.group(3)}", "bytes": st.st_size, "busy": busy})
     return jsonify(day=day, items=out)
+
+
+def _rec_path(cid: int, name: str) -> Path:
+    require_viewer()
+    cam_row(cid)
+    if not SEG_RE.match(name):
+        abort(404)
+    f = mgr().rec_dir(cid) / name
+    if not f.is_file():
+        abort(404)
+    return f
+
+
+@bp.get("/api/cameras/<int:cid>/rec/<name>/vinfo")
+def api_rec_vinfo(cid, name):
+    """البند 23: تسجيل H.265 لا يشغّله المتصفح: يُجهَّز مرة واحدة (مثل فيديو التلفاز) ثم يُشغَّل."""
+    from .tv import _vinfo
+    return _vinfo(_rec_path(cid, name), f"/api/cameras/{cid}/rec/{urllib.parse.quote(name)}/tvvideo")
+
+
+@bp.get("/api/cameras/<int:cid>/rec/<name>/tvvideo")
+def api_rec_ready(cid, name):
+    from .tv import _send_ready
+    return _send_ready(_rec_path(cid, name))
 
 
 @bp.get("/api/cameras/<int:cid>/rec/<name>")

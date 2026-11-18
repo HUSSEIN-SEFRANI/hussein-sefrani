@@ -148,6 +148,7 @@ class CamerasApp {
     const mj = (c.codec || '').startsWith('mjpeg');
     if (c.live && !mj) {
       stage.innerHTML = '<video class="cam-video" muted autoplay playsinline controls></video>';
+      if (c.audio) below.innerHTML = '<p class="muted small">🔊 هذه الكاميرا ترسل صوتاً: اضغط زر الصوت في المشغّل لتسمعه.</p>';
       try { this.stopLive = await playLive($('video', stage), `/api/cameras/${c.id}/live/live.m3u8`); return; } catch { /* نكمل بالصور */ }
     }
     stage.innerHTML = `<img class="cam-video" src="/api/cameras/${c.id}/snap?t=${Date.now()}" alt="">`;
@@ -167,19 +168,30 @@ class CamerasApp {
       const hours = {};
       for (const it of r.items) (hours[it.time.slice(0, 2)] = hours[it.time.slice(0, 2)] || []).push(it);
       $('.rec-list', below).innerHTML = Object.keys(hours).sort().reverse().map((hh) => `<div class="rec-hour"><b translate="no">${hh}:00</b>
-        <div>${hours[hh].map((it) => `<button class="btn sm rec-it" data-n="${esc(it.name)}" ${it.busy ? 'disabled title="قيد التسجيل الآن"' : ''} translate="no">${it.time}${it.busy ? ' ●' : ''}</button>`).join('')}</div></div>`).join('');
-      $$('.rec-it', below).forEach((b) => (b.onclick = () => {
+        <div>${hours[hh].map((it) => `<button class="btn sm rec-it" data-n="${esc(it.name)}" ${it.busy ? 'title="يُسجَّل الآن"' : ''} translate="no">${it.time}${it.busy ? ' ●' : ''}</button>`).join('')}</div></div>`).join('');
+      $$('.rec-it', below).forEach((b) => (b.onclick = async () => {
         $$('.rec-it.on', below).forEach((x) => x.classList.remove('on')); b.classList.add('on');
-        video.src = `/api/cameras/${c.id}/rec/${encodeURIComponent(b.dataset.n)}`; video.play().catch(() => {});
-        $('.rec-dl', below).href = `${video.src}?dl=1`; $('.rec-dl', below).hidden = false;
+        const src = `/api/cameras/${c.id}/rec/${encodeURIComponent(b.dataset.n)}`;
+        const tok = (this.recTok = (this.recTok || 0) + 1);
+        $('.rec-dl', below).href = `${src}?dl=1`; $('.rec-dl', below).hidden = false;
+        // تسجيل H.265 لا يشغّله المتصفح: يُجهَّز مرة واحدة ثم يُشغَّل
+        for (;;) {
+          const v = await api.get(`${src}/vinfo`).catch(() => ({ mode: 'direct' }));
+          if (tok !== this.recTok || !document.body.contains(video)) return;
+          if (v.mode === 'preparing') { $('.rec-st', below).textContent = `⏳ يُجهَّز للتشغيل في المتصفح… ${v.progress || 0}%`; await new Promise((r) => setTimeout(r, 2000)); continue; }
+          $('.rec-st', below).textContent = v.mode === 'error' ? 'تعذّر تجهيز المقطع. نزّله وشغّله ببرنامج VLC.' : '';
+          video.src = v.mode === 'ready' ? v.url : src; video.play().catch(() => {});
+          return;
+        }
       }));
       $$('.day', below).forEach((x) => x.classList.toggle('primary', x.dataset.d === day));
     };
     const fmtDay = (s) => { try { return new Date(s + 'T12:00').toLocaleDateString('ar-SY-u-nu-latn', { weekday: 'long', day: 'numeric', month: 'long' }); } catch { return s; } };
     below.innerHTML = `<div class="days">${dd.days.map((x) => `<button class="btn sm day" data-d="${x.day}">${fmtDay(x.day)} <span class="muted" translate="no">${fmtSize(x.bytes)}</span></button>`).join('')}
-      <span style="flex:1"></span><a class="btn sm rec-dl" hidden download>${icon('download')} تنزيل المقطع</a></div><div class="rec-list"></div>`;
+      <span style="flex:1"></span><a class="btn sm rec-dl" hidden download>${icon('download')} تنزيل المقطع</a></div><div class="muted small rec-st"></div><div class="rec-list"></div>
+      <p class="muted small">التسجيلات موجودة أيضاً في المجلد المشترك «الكاميرات» (تطبيق «الملفات»، وقرص الشبكة)، لمن يشاهد الكاميرات.</p>`;
     $$('.day', below).forEach((b) => (b.onclick = () => showDay(b.dataset.d)));
-    video.onerror = () => toast('لا يستطيع هذا المتصفح تشغيل المقطع (ربما H.265). نزّله وشغّله ببرنامج VLC.', 'err');
+    video.onerror = () => { if (video.getAttribute('src')) toast('لا يستطيع هذا المتصفح تشغيل المقطع. نزّله وشغّله ببرنامج VLC.', 'err'); };
     showDay(dd.days[0].day);
   }
 
@@ -193,7 +205,28 @@ class CamerasApp {
         <div><label class="lbl">كلمة المرور</label><input class="field" name="password" type="password" dir="ltr" autocomplete="new-password"></div></div>
       <details><summary class="muted small">أعرف رابط البث (متقدم)</summary><input class="field" name="url" dir="ltr" placeholder="rtsp://192.168.1.50:554/..."></details>
       <label class="check"><input type="checkbox" name="record" checked> تسجيل مستمر (يمكن إيقافه لاحقاً)</label>
-      <div class="det muted small">اضغط «فحص» ليجد النظام رابط البث. قد يأخذ حتى نصف دقيقة.</div></div>`);
+      <div class="det muted small">اضغط «فحص» ليجد النظام رابط البث. قد يأخذ حتى نصف دقيقة.</div>
+      <img class="cam-prev" alt="" hidden style="max-width:100%;border-radius:10px;margin-top:8px"></div>`);
+    // البند 23: الكاميرات التي في شبكة البيت تظهر فوراً، فتختار واحدة بدل كتابة عنوانها
+    if (!pre.ip) {
+      const nb = h('<div class="cam-near muted small" style="margin-bottom:10px"><span class="spin"></span> نبحث عن الكاميرات في شبكة البيت…</div>');
+      body.prepend(nb);
+      api.post('/api/cameras/discover', {}).then((r) => {
+        const list = (r.found || []).filter((x) => !x.added);
+        if (!document.body.contains(nb)) return;
+        if (!list.length) { nb.textContent = 'لم نجد كاميرات جديدة في الشبكة. اكتب عنوانها بنفسك.'; return; }
+        nb.classList.remove('muted');
+        nb.innerHTML = `<div class="small" style="margin-bottom:6px">في شبكة البيت، اختر الكاميرا:</div>${list.map((x, i) => `<button class="btn sm" data-ip="${i}" style="margin:0 0 6px 6px"><span translate="no" dir="ltr">${esc(x.ip)}</span>${x.name ? ` · <span translate="no">${esc(x.name)}</span>` : ''}</button>`).join('')}`;
+        $$('[data-ip]', nb).forEach((b) => (b.onclick = () => {
+          const x = list[+b.dataset.ip];
+          $$('[data-ip]', nb).forEach((y) => y.classList.toggle('primary', y === b));
+          $('[name=host]', body).value = x.ip;
+          const br = BRANDS.find(([k, n]) => k && new RegExp(k, 'i').test(x.name || ''));
+          if (br) $('[name=brand]', body).value = br[0];
+          if (!$('[name=name]', body).value) $('[name=name]', body).focus(); else $('[name=password]', body).focus();
+        }));
+      }).catch(() => { nb.textContent = ''; });
+    }
     let found = null;
     const val = (b, n) => $(`[name=${n}]`, b);
     const check = async (b) => {
@@ -204,7 +237,11 @@ class CamerasApp {
       const r = await api.post('/api/cameras/detect', { host: val(b, 'host').value, username: val(b, 'username').value, password: val(b, 'password').value, brand: val(b, 'brand').value }).catch((e) => ({ ok: false, why: 'x', msg: e.message }));
       if (r.ok) {
         found = r;
-        det.innerHTML = `✅ وجدنا البث: <span translate="no" dir="ltr">${esc(r.codec || '')} ${r.width ? `${r.width}×${r.height}` : ''}</span><div class="ltr small" translate="no">${esc(r.url)}</div>`;
+        det.innerHTML = `✅ وجدنا البث: <span translate="no" dir="ltr">${esc(r.codec || '')} ${r.width ? `${r.width}×${r.height}` : ''}</span>${r.audio ? ' · 🔊 مع الصوت' : ' · 🔇 بلا صوت'}<div class="ltr small" translate="no">${esc(r.url)}</div><div class="small pv-st">جارٍ أخذ صورة من الكاميرا…</div>`;
+        const im = $('.cam-prev', b);
+        api.post('/api/cameras/preview', { url: r.url, username: val(b, 'username').value, password: val(b, 'password').value })
+          .then((x) => { im.src = x.image; im.hidden = false; $('.pv-st', det).textContent = 'هل هذه الكاميرا الصحيحة؟ إن نعم اضغط «إضافة».'; })
+          .catch(() => { $('.pv-st', det).textContent = ''; });
         return true;
       }
       found = null;
