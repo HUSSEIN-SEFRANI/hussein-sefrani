@@ -262,7 +262,13 @@ def api_import_cancel():
 
 
 # ----------------------------------------------------------------------------- إعادة ضبط المصنع
-CONFIRM_WORD = "إعادة ضبط"
+# البند 35: أرقام لا كلمة عربية، حتى تُكتب بأي لغة للواجهة. ونقبل الأرقام العربية (١٢٣) والفارسية أيضاً
+CONFIRM_WORD = "123"
+_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890123456789")
+
+
+def confirm_ok(text) -> bool:
+    return "".join(str(text or "").split()).translate(_DIGITS) == CONFIRM_WORD
 
 
 @bp.post("/api/admin/transfer/reset")
@@ -272,7 +278,7 @@ def api_reset():
     u = current_user()
     if not check_password_hash(u["password_hash"], str(d.get("password") or "")):
         abort(403, "كلمة مرور حسابك غير صحيحة")
-    if " ".join(str(d.get("confirm") or "").split()) != CONFIRM_WORD:
+    if not confirm_ok(d.get("confirm")):
         abort(400, f"اكتب «{CONFIRM_WORD}» للتأكيد")
     wipe = bool(d.get("wipe_files"))
     (paths().system / RESET_FLAG).write_text(json.dumps({"wipe_files": wipe, "by": u["username"],
