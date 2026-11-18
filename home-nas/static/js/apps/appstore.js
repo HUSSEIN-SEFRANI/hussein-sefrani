@@ -3,7 +3,7 @@
 // ====================================================================
 import { ME, I18N, $, $$, h, esc, icon, api, guard, toast, modal, confirmBox, menuAt, registerApp } from '../core.js';
 
-const CATS = [['all', 'الكل'], ['media', 'الوسائط'], ['home', 'المنزل الذكي'], ['network', 'الشبكة'], ['files', 'الملفات'], ['tools', 'أدوات']];
+const CATS = [['all', 'الكل'], ['media', 'الوسائط'], ['home', 'المنزل الذكي'], ['network', 'الشبكة'], ['files', 'الملفات'], ['tools', 'أدوات'], ['custom', 'من صنعي']];
 const tr = (o) => (o && (o[I18N.lang] || (I18N.lang !== 'ar' && o.en) || o.ar)) || '';   // تركي/هولندي: الإنجليزية إن لم توجد
 // بعض التطبيقات (مثل Frigate) تعمل عبر https فقط
 export const appUrl = (port, path, scheme) => `${scheme ? scheme + ':' : location.protocol}//${location.hostname}:${port}${path || '/'}`;
@@ -17,6 +17,7 @@ class AppStore {
   constructor(win) {
     this.win = win; this.cat = 'all';
     win.body.innerHTML = `<div class="toolbar"><div class="chips"></div><span class="grow"></span>
+      <button class="btn sm" data-a="add" title="ارفع ملف تطبيق صنعته (ZIP فيه app.json وcompose.yaml)">${icon('upload')} أضف تطبيقك</button>
       <button class="btn ghost icon" data-a="r" title="تحديث">${icon('refresh')}</button></div><div class="scroll"><div class="pad store"></div></div>`;
     this.box = $('.store', win.body);
     const chips = $('.chips', win.body);
@@ -26,6 +27,7 @@ class AppStore {
       chips.appendChild(b);
     }
     $('[data-a=r]', win.body).onclick = () => this.load();
+    $('[data-a=add]', win.body).onclick = () => this.upload();
     this.load();
     this.timer = setInterval(() => { if (this.data && (this.data.apps.some(a => a.op && a.op.running) || (this.data.engine_op && this.data.engine_op.running))) this.load(true); }, 2500);
     win.onClose(() => clearInterval(this.timer));
@@ -84,7 +86,7 @@ class AppStore {
       : !inst ? '' : a.state === 'running' ? '<span class="badge ok">يعمل</span>' : a.state ? '<span class="badge warn">متوقف</span>' : '<span class="badge">مثبت</span>';
     const c = h(`<div class="appcard">
       <div class="top"><div class="app-tile" style="background:${a.color}">${icon(a.icon)}</div>
-        <div class="meta"><b translate="no">${esc(a.name)}</b><div>${state}</div></div></div>
+        <div class="meta"><b translate="no">${esc(a.name)}</b><div>${state}${a.custom ? ' <span class="badge">من صنعك</span>' : ''}</div></div></div>
       <p class="sum" translate="no">${esc(tr(a.summary))}</p>
       <div class="muted small">${icon('memory')} <span translate="no" dir="ltr">${a.ram_mb >= 1024 ? a.ram_mb / 1024 + ' GB' : a.ram_mb + ' MB'} RAM</span>
         ${inst ? ` · <span translate="no">:${inst.port}</span>` : ''}${lowRam ? ' · <span class="warn-t">قد يكون ثقيلاً على هذا الجهاز</span>' : ''}</div>
@@ -93,7 +95,11 @@ class AppStore {
       <div class="acts"></div></div>`);
     const acts = $('.acts', c);
     const btn = (label, ic, cls, fn) => { const b = h(`<button class="btn ${cls}">${ic ? icon(ic) : ''} ${esc(label)}</button>`); b.onclick = fn; b.disabled = running || !ready; if (!ready) b.title = 'شغّل محرك التطبيقات أولاً (أعلى الصفحة)'; acts.appendChild(b); return b; };
-    if (!inst) btn('تثبيت', 'download', 'primary', () => this.install(a));
+    if (!inst) {
+      btn('تثبيت', 'download', 'primary', () => this.install(a));
+      // البند 42: التطبيق المرفوع يُحذف من المركز (إن لم يكن مثبتاً)
+      if (a.custom) { const del = btn('', 'trash', 'ghost icon', () => this.removeCustom(a)); del.disabled = running; del.title = 'حذف من مركز التطبيقات'; }
+    }
     else {
       const open = btn('فتح', 'external', 'primary', () => window.open(appUrl(inst.port, a.path, a.scheme), '_blank'));
       open.disabled = running || a.state !== 'running';
@@ -110,6 +116,47 @@ class AppStore {
     }
     if (running) this.tailLog(a.id, $('.applog', c));
     return c;
+  }
+
+  // البند 42: رفع تطبيق من صنعك (ZIP فيه app.json وcompose.yaml، أو app.json فيه compose)
+  async upload() {
+    const body = h(`<div>
+      <p style="margin-top:0">ارفع ملف تطبيق صنعته: <b>ZIP</b> فيه <span class="code">app.json</span> و<span class="code">compose.yaml</span>. يظهر بعدها في المركز مثل باقي التطبيقات، فتثبّته وتشغّله منه.</p>
+      <details class="small" style="margin-bottom:10px"><summary>شكل الملف</summary>
+        <pre class="applog" dir="ltr" translate="no" style="white-space:pre-wrap">app.json:
+{ "id": "mynotes", "name": "ملاحظاتي", "port": 8099,
+  "summary": "وصف قصير", "ram_mb": 256,
+  "folders": [{ "key": "docs", "label": "مجلد المستندات", "write": true }] }
+
+compose.yaml:
+services:
+  app:
+    image: nginx:alpine
+    ports: ["{{port}}:80"]
+    volumes:
+      - "{{data}}:/usr/share/nginx/html"
+      - "{{folder:docs}}:/docs"
+    restart: unless-stopped</pre>
+        المتغيرات: <span class="code">{{port}}</span> <span class="code">{{data}}</span> <span class="code">{{folder:…}}</span> <span class="code">{{uid}}</span> <span class="code">{{gid}}</span> <span class="code">{{tz}}</span>.
+        للحماية لا يُقبل ما يعطي التطبيق سيطرة على الجهاز (privileged، شبكة الجهاز، docker.sock، مسارات من الجهاز مباشرة).</details>
+      <label class="lbl">ملف التطبيق</label><input class="field" type="file" name="f" accept=".zip,.json">
+      <label class="lbl">كلمة مرور حسابك</label><input class="field" type="password" name="pw" autocomplete="current-password"></div>`);
+    const ok = await modal({ title: 'أضف تطبيقك', body, wide: true, buttons: [{ label: 'إلغاء', value: null }, {
+      label: 'رفع', cls: 'primary', value: true, validate: async (b) => {
+        const f = $('[name=f]', b).files[0];
+        if (!f) { toast('اختر ملف التطبيق', 'err'); return false; }
+        const fd = new FormData(); fd.append('file', f); fd.append('password', $('[name=pw]', b).value);
+        const r = await fetch('/api/appstore/custom', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'fetch' } });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) { toast(j.error || j.message || 'تعذر رفع التطبيق', 'err', 9000); return false; }
+        toast(`أُضيف «${j.name}» إلى مركز التطبيقات`, 'ok'); return true;
+      } }] });
+    if (ok) { this.cat = 'all'; this.load(); }
+  }
+
+  async removeCustom(a) {
+    if (!await confirmBox(`يُحذف «${a.name}» من المركز. يمكنك رفعه مرة أخرى متى شئت.`, { title: 'حذف من مركز التطبيقات', ok: 'حذف', danger: true })) return;
+    if (await guard(() => api.del(`/api/appstore/custom/${a.id}`))) { toast('حُذف', 'ok'); this.load(); }
   }
 
   async tailLog(id, pre) {

@@ -1,0 +1,18 @@
+{
+  "id": "familysite",
+  "name": "موقع العائلة",
+  "port": 8099,
+  "ram_mb": 64,
+  "icon": "globe",
+  "summary": {
+    "ar": "موقع بسيط يعرض صفحات HTML من مجلد مشترك تختاره",
+    "en": "A simple website that serves HTML pages from a shared folder you choose"
+  },
+  "notes": {
+    "ar": "ضع ملف index.html في المجلد الذي اخترته، ثم افتح التطبيق",
+    "en": "Put an index.html file in the folder you chose, then open the app"
+  },
+  "folders": [
+    { "key": "site", "label": { "ar": "مجلد الموقع", "en": "Website folder" }, "write": false }
+  ]
+}
