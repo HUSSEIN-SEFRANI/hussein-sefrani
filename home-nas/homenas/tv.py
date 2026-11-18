@@ -846,6 +846,95 @@ def api_admin_apps_move():
     return api_admin_apps()
 
 
+# ----------------------------------------------------------------------------- البند 28: إضافة تطبيق من الكمبيوتر
+APP_BAD = set('\\:*?"<>|')
+
+
+def _safe_rel(name: str) -> Path | None:
+    """مسار نسبي آمن داخل التطبيق (لا .. ولا مسار مطلق ولا ملفات مخفية للنظام)."""
+    name = name.replace("\\", "/").lstrip("/")
+    parts = [x for x in name.split("/") if x not in ("", ".")]
+    if not parts or any(x == ".." or any(c in APP_BAD for c in x) or x.startswith("__MACOSX") for x in parts):
+        return None
+    return Path(*parts)
+
+
+def _app_root(d: Path) -> Path | None:
+    """المجلد الذي فيه index.html (التطبيق نفسه أو مجلد وحيد داخله)."""
+    if (d / "index.html").is_file():
+        return d
+    subs = _only_sub(d)
+    if subs and (subs[0] / "index.html").is_file():
+        return subs[0]
+    return None
+
+
+@bp.post("/api/admin/tv/apps/upload")
+@admin_required
+def api_admin_apps_upload():
+    """يرفع تطبيقاً (لعبة أو درساً) إلى «الألعاب» أو «التعليم»: ملف ZIP، أو مجلد كامل من الكمبيوتر.
+    التطبيق صفحة ويب تعمل بلا إنترنت: مجلد فيه index.html."""
+    import tempfile
+    import zipfile
+    to = request.form.get("to")
+    if to not in SHARES:
+        abort(400)
+    files = request.files.getlist("files")
+    rels = request.form.getlist("paths")
+    if not files:
+        abort(400, "اختر ملف ZIP أو مجلد التطبيق")
+    db = get_db()
+    dest_root = share_dir(db, paths(), to)
+    work = Path(tempfile.mkdtemp(dir=paths().tmp))
+    try:
+        name = (request.form.get("name") or "").strip()
+        if len(files) == 1 and files[0].filename.lower().endswith(".zip"):
+            z = work / "app.zip"
+            files[0].save(z)
+            name = name or Path(files[0].filename).stem
+            try:
+                with zipfile.ZipFile(z) as zf:
+                    total = 0
+                    for info in zf.infolist():
+                        rel = _safe_rel(info.filename)
+                        if rel is None or info.is_dir():
+                            continue
+                        total += info.file_size
+                        if total > 4 * 1024 ** 3:
+                            abort(400, "التطبيق أكبر من 4 GB")
+                        out = work / "x" / rel
+                        out.parent.mkdir(parents=True, exist_ok=True)
+                        with zf.open(info) as src, open(out, "wb") as dst:
+                            shutil.copyfileobj(src, dst)
+            except zipfile.BadZipFile:
+                abort(400, "ملف ZIP تالف")
+        else:   # مجلد كامل (المتصفح يرسل كل ملف مع مساره)
+            for i, f in enumerate(files):
+                rel = _safe_rel(rels[i] if i < len(rels) else f.filename)
+                if rel is None:
+                    continue
+                if not name and len(rel.parts) > 1:
+                    name = rel.parts[0]
+                out = work / "x" / rel
+                out.parent.mkdir(parents=True, exist_ok=True)
+                f.save(out)
+        app = _app_root(work / "x") if (work / "x").is_dir() else None
+        if app is None:
+            abort(400, "لم نجد index.html في التطبيق. التطبيق المتوافق صفحة ويب: مجلد فيه index.html يعمل بلا إنترنت.")
+        name = "".join("_" if c in APP_BAD or c == "/" else c for c in (name or app.name)).strip(" .")[:60] or "تطبيق"
+        dst = dest_root / name
+        if dst.exists():
+            if request.form.get("replace") != "1":
+                abort(409, f"يوجد تطبيق باسم «{name}». اختر «استبدال» أو غيّر الاسم.")
+            shutil.rmtree(dst)
+        shutil.move(str(app), str(dst))
+        set_app_type(dst, "education" if to == "learn" else "game")
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    log_action("إضافة تطبيق", f"{name} → {SHARES[to][0]}")
+    return api_admin_apps()
+
+
 @bp.post("/api/admin/tv/kiosk")
 @admin_required
 def api_admin_kiosk():
