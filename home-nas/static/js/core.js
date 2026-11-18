@@ -388,6 +388,78 @@ export function openApp(id, opts = {}) {
   return win;
 }
 
+// ---------------------------------------------------------------- البند 30: النسخ والنقل والحذف على السيرفر
+// العملية تعمل على السيرفر نفسه، فلا تتوقف إن أُغلق المتصفح. هذه اللوحة تعرض التقدّم، وتظهر من جديد
+// عند فتح المتصفح (أو من جهاز آخر) ما دامت عملية تعمل أو انتهت قبل قليل.
+export const fileOps = (() => {
+  let panel = null, timer = 0;
+  const seen = new Set();   // عمليات أعلنّا انتهاءها (رسالة واحدة لكل عملية)
+  const VERB = { copy: 'نسخ', move: 'نقل', delete: 'حذف' };
+  const bytes = (b) => fmtSize(b);
+  function ensure() {
+    if (panel) return;
+    panel = h(`<div id="fileops"><div class="uh">${icon('copy')}<span class="t"></span>
+      <button class="btn ghost icon sm x" title="إخفاء">${icon('x')}</button></div><div class="bar"><div></div></div><ul></ul></div>`);
+    $('.uh', panel).onclick = (e) => { if (!e.target.closest('.x')) panel.classList.toggle('collapsed'); };
+    $('.x', panel).onclick = () => { panel.remove(); panel = null; };   // الإخفاء لا يوقف شيئاً
+    document.body.appendChild(panel);
+  }
+  function line(j) {
+    const v = VERB[j.kind] || '';
+    const what = /^\d+$/.test(j.label) ? `${j.label} عنصر` : j.label;
+    if (j.state === 'running') {
+      // السطر الثاني HTML: الأرقام والأسماء داخل bdi حتى لا ينقلب ترتيبها في العربية
+      const n = (x) => `<bdi dir="ltr">${esc(x)}</bdi>`;
+      const p = j.total_bytes ? `${n(bytes(j.done_bytes))} من ${n(bytes(j.total_bytes))}` : j.total_files ? `${n(j.done_files)} من ${n(j.total_files)}` : '';
+      return [`${j.cancelling ? 'جارٍ الإيقاف…' : `جارٍ ال${v}`}: ${what}`, p + (j.current ? ` · <bdi>${esc(j.current)}</bdi>` : ''), 'muted'];
+    }
+    if (j.state === 'done') return [`تم ال${v}: ${what}`, j.dest ? `إلى <bdi>${esc(j.dest)}</bdi>` : '', 'ok'];
+    if (j.state === 'cancelled') return [`أُوقف ال${v}: ${what}`, 'الأصل باقٍ كما هو', 'muted'];
+    return [`فشل ال${v}: ${what}`, esc(j.error || ''), 'err'];
+  }
+  function draw(jobs) {
+    if (!jobs.length) { if (panel) { panel.remove(); panel = null; } return; }
+    ensure();
+    const run = jobs.filter((j) => j.state === 'running');
+    const tb = run.reduce((a, j) => a + (j.total_bytes || j.total_files), 0), db = run.reduce((a, j) => a + (j.total_bytes ? j.done_bytes : j.done_files), 0);
+    $('.t', panel).textContent = run.length ? `${run.length} عملية تعمل على السيرفر` : 'انتهت العمليات';
+    $('.bar div', panel).style.width = (run.length ? (tb ? db / tb * 100 : 0) : 100) + '%';
+    $('ul', panel).innerHTML = jobs.slice(-6).map((j) => {
+      const [a, b, cls] = line(j);
+      return `<li data-j="${esc(j.id)}"><div style="flex:1;min-width:0"><div>${esc(a)}</div><div class="s ${cls}" style="overflow:hidden;text-overflow:ellipsis" translate="no">${b}</div></div>
+        ${j.state === 'running' && !j.cancelling ? `<button class="btn ghost sm" data-c="${esc(j.id)}">إيقاف</button>`
+          : j.state !== 'running' ? `<button class="btn ghost icon sm" data-f="${esc(j.id)}" title="إخفاء">${icon('x')}</button>` : ''}</li>`;
+    }).join('');
+    $$('[data-c]', panel).forEach((b) => (b.onclick = async () => { b.disabled = true; await api.post(`/api/files/jobs/${b.dataset.c}/cancel`, {}).catch(() => { }); poll(); }));
+    $$('[data-f]', panel).forEach((b) => (b.onclick = async () => { await api.del(`/api/files/jobs/${b.dataset.f}`).catch(() => { }); poll(); }));
+  }
+  async function poll() {
+    clearTimeout(timer);
+    const r = await api.get('/api/files/jobs').catch(() => null);
+    if (!r) { timer = setTimeout(poll, 5000); return; }
+    for (const j of r.jobs) {
+      if (j.state !== 'running' && !seen.has(j.id)) {
+        seen.add(j.id);
+        if (Date.now() / 1000 - (j.finished || 0) < 30) {
+          const [a, b, cls] = line(j);
+          toast(j.error ? `${a}: ${j.error}` : a, cls === 'err' ? 'err' : 'ok');
+          dispatchEvent(new CustomEvent('nas-files-changed'));
+        }
+      }
+    }
+    draw(r.jobs);
+    if (r.jobs.some((j) => j.state === 'running')) timer = setTimeout(poll, 1000);
+  }
+  // عند فتح الواجهة: أظهر ما يعمل الآن فقط (لا القديم المنتهي)
+  async function resume() {
+    const r = await api.get('/api/files/jobs').catch(() => null);
+    if (!r) return;
+    r.jobs.filter((j) => j.state !== 'running').forEach((j) => seen.add(j.id));
+    if (r.jobs.some((j) => j.state === 'running')) poll();
+  }
+  return { watch: poll, resume };
+})();
+
 // ---------------------------------------------------------------- قائمة الرفع
 export const uploads = (() => {
   const CONC = 3, RETRIES = 2;

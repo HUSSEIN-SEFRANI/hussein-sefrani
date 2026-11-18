@@ -1,11 +1,14 @@
 """مدير الملفات: تصفّح، رفع، تنزيل، نسخ، نقل، إعادة تسمية، حذف، بحث، تحرير نصوص."""
 from __future__ import annotations
 
+import errno
 import hashlib
 import mimetypes
 import os
 import shutil
+import threading
 import time
+import uuid
 from pathlib import Path
 
 from flask import Blueprint, Response, abort, current_app, jsonify, request, send_file
@@ -151,29 +154,47 @@ def api_rename():
 @login_required
 def api_delete():
     user = current_user()
-    count = 0
-    affected = []
-    for vp in body().get("paths") or []:
+    data = body()
+    items = []
+    for vp in data.get("paths") or []:
         root, target = resolve(user, vp, need_write=True)
         protect_top(root, vp)
-        if not target.exists():
-            continue
-        rbase = recycle_base(root, target)
-        recycle = rbase / RECYCLE
-        if root.kind == "removable" or is_within(target.resolve(), recycle.resolve()):
-            # حذف نهائي من البطاقة أو من داخل سلة المحذوفات
-            shutil.rmtree(target) if target.is_dir() else target.unlink()
-        else:
-            rel = target.resolve().relative_to(rbase.resolve())
-            dest = unique_path(recycle / rel)
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(target), dest)
-        affected.append(target.parent)
-        count += 1
-    if count:
-        log_action("حذف ملفات", f"{count} عنصر")
-        touched(*set(affected))
-    return jsonify(ok=True, count=count)
+        if target.exists() or target.is_symlink():
+            items.append((root, target))
+
+    def run(job):
+        affected = []
+        for root, target in items:
+            if job["cancel"]:
+                raise Cancelled
+            job["current"] = target.name
+            if not (target.exists() or target.is_symlink()):
+                job["done_files"] += 1
+                continue
+            rbase = recycle_base(root, target)
+            recycle = rbase / RECYCLE
+            if root.kind == "removable" or is_within(target.resolve(), recycle.resolve()):
+                # حذف نهائي من البطاقة أو من داخل سلة المحذوفات
+                shutil.rmtree(target) if target.is_dir() and not target.is_symlink() else target.unlink()
+            else:
+                rel = target.resolve().relative_to(rbase.resolve())
+                dest = unique_path(recycle / rel)
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(target), dest)
+            affected.append(target.parent)
+            job["count"] += 1
+            job["done_files"] += 1
+        if job["count"]:
+            log_action("حذف ملفات", f"{job['count']} عنصر", job["username"])
+            touched(*set(affected))
+
+    if data.get("background"):   # البند 30: يستمر على السيرفر حتى لو أُغلق المتصفح
+        job = start_job("delete", user, run, total_files=len(items), total_bytes=0,
+                        label=items[0][1].name if len(items) == 1 else f"{len(items)}")
+        return jsonify(ok=True, job=public_job(job))
+    job = new_job("delete", user, len(items), 0, "")
+    run(job)
+    return jsonify(ok=True, count=job["count"])
 
 
 @bp.post("/api/files/empty-recycle")
@@ -197,7 +218,7 @@ def api_transfer():
     droot, dest_dir = resolve(user, data.get("dest", ""), need_write=True)
     if not dest_dir.is_dir():
         abort(404, "مجلد الوجهة غير موجود")
-    done = 0
+    items = []
     for vp in data.get("paths") or []:
         sroot, src = resolve(user, vp, need_write=move)
         if move:
@@ -208,17 +229,181 @@ def api_transfer():
             abort(400, "لا يمكن نسخ مجلد إلى داخل نفسه")
         if move and src.parent.resolve() == dest_dir.resolve():
             continue
-        dest = unique_path(dest_dir / src.name)
-        if move:
-            shutil.move(str(src), dest, copy_function=safe_copy)
-        elif src.is_dir():
-            shutil.copytree(src, dest, ignore=shutil.ignore_patterns(RECYCLE), copy_function=safe_copy)
-        else:
-            safe_copy(src, dest)
-        touched(src.parent, dest)
-        done += 1
-    log_action("نقل" if move else "نسخ", f"{done} عنصر إلى {to_vpath(droot, dest_dir)}")
-    return jsonify(ok=True, count=done)
+        items.append(src)
+    sizes = {src: tree_size(src) for src in items}
+
+    def run(job):
+        cp = progress_copy(job)
+        for src in items:
+            if job["cancel"]:
+                raise Cancelled
+            if not src.exists():
+                continue
+            job["current"] = src.name
+            f0, b0 = job["done_files"], job["done_bytes"]
+            dest = unique_path(dest_dir / src.name)
+            try:
+                if move:
+                    shutil.move(str(src), dest, copy_function=cp)
+                elif src.is_dir():
+                    shutil.copytree(src, dest, ignore=shutil.ignore_patterns(RECYCLE), copy_function=cp)
+                else:
+                    cp(src, dest)
+            except BaseException as exc:
+                # لا نترك نسخة ناقصة. في النقل نحذفها فقط عند «إيقاف» (يحدث أثناء النسخ والأصل كامل)؛
+                # أما خطأ أثناء حذف الأصل بعد النسخ فالنسخة الجديدة هي الكاملة فتبقى.
+                if not move or isinstance(exc, Cancelled):
+                    shutil.rmtree(dest, ignore_errors=True) if dest.is_dir() and not dest.is_symlink() else dest.unlink(missing_ok=True)
+                raise
+            n, b = sizes[src]
+            job["done_files"], job["done_bytes"] = f0 + n, b0 + b   # النقل داخل نفس القرص فوري (بلا نسخ)
+            touched(src.parent, dest)
+            job["count"] += 1
+        log_action("نقل" if move else "نسخ", f"{job['count']} عنصر إلى {to_vpath(droot, dest_dir)}", job["username"])
+
+    total_f, total_b = sum(n for n, _ in sizes.values()), sum(b for _, b in sizes.values())
+    if data.get("background"):   # البند 30: يستمر على السيرفر حتى لو أُغلق المتصفح
+        job = start_job("move" if move else "copy", user, run, total_files=total_f, total_bytes=total_b,
+                        label=items[0].name if len(items) == 1 else f"{len(items)}", dest=to_vpath(droot, dest_dir))
+        return jsonify(ok=True, job=public_job(job))
+    job = new_job("move" if move else "copy", user, total_f, total_b, "")
+    run(job)
+    return jsonify(ok=True, count=job["count"])
+
+
+# ----------------------------------------------------------------------------- البند 30: العمليات في الخلفية
+# النسخ والنقل والحذف تعمل في خيط على السيرفر، فلا تتوقف إن أُغلق المتصفح أو نام الكمبيوتر.
+# الواجهة تسأل /api/files/jobs لترى التقدّم، حتى بعد فتح المتصفح من جديد أو من جهاز آخر.
+JOBS: dict[str, dict] = {}
+_JLOCK = threading.Lock()
+CHUNK = 8 * 1024 * 1024
+KEEP_DONE = 3600   # تبقى العمليات المنتهية ظاهرة ساعة
+
+
+class Cancelled(Exception):
+    pass
+
+
+def tree_size(p: Path) -> tuple[int, int]:
+    """(عدد الملفات، الحجم بالبايت)."""
+    try:
+        if p.is_symlink() or not p.is_dir():
+            return 1, p.lstat().st_size
+    except OSError:
+        return 1, 0
+    n = b = 0
+    for dp, dns, fns in os.walk(p):
+        if RECYCLE in dns:
+            dns.remove(RECYCLE)
+        for f in fns:
+            try:
+                b += os.lstat(os.path.join(dp, f)).st_size
+                n += 1
+            except OSError:
+                pass
+    return n, b
+
+
+def progress_copy(job):
+    """مثل safe_copy لكن بأجزاء، فيتقدّم الشريط داخل الملف الكبير ويمكن الإيقاف في أي لحظة."""
+    def cp(src, dst, *, follow_symlinks=True):
+        if job["cancel"]:
+            raise Cancelled
+        job["current"] = os.path.basename(str(src))
+        try:
+            with open(src, "rb") as fi, open(dst, "wb") as fo:
+                while True:
+                    if job["cancel"]:
+                        raise Cancelled
+                    chunk = fi.read(CHUNK)
+                    if not chunk:
+                        break
+                    fo.write(chunk)
+                    job["done_bytes"] += len(chunk)
+        except BaseException:
+            Path(dst).unlink(missing_ok=True)
+            raise
+        try:
+            shutil.copystat(src, dst, follow_symlinks=follow_symlinks)
+        except OSError:
+            pass
+        job["done_files"] += 1
+        return dst
+    return cp
+
+
+def new_job(kind: str, user, total_files: int, total_bytes: int, label: str, dest: str = "") -> dict:
+    return {"id": uuid.uuid4().hex[:12], "kind": kind, "user_id": user["id"], "username": user["username"],
+            "label": label, "dest": dest, "state": "running", "total_files": total_files, "total_bytes": total_bytes,
+            "done_files": 0, "done_bytes": 0, "current": "", "count": 0, "error": None, "cancel": False,
+            "started": time.time(), "finished": None}
+
+
+def public_job(j: dict) -> dict:
+    return {k: v for k, v in j.items() if k not in ("cancel", "username", "user_id")} | {"cancelling": j["cancel"] and j["state"] == "running"}
+
+
+def _err_text(exc: Exception) -> str:
+    if (isinstance(exc, OSError) and exc.errno == errno.ENOSPC) or "No space left" in str(exc):
+        return "لا توجد مساحة كافية في القرص"
+    if isinstance(exc, PermissionError):
+        return "لا توجد صلاحية للكتابة هنا"
+    return getattr(exc, "description", None) or str(exc) or exc.__class__.__name__
+
+
+def start_job(kind: str, user, run, *, total_files: int, total_bytes: int, label: str, dest: str = "") -> dict:
+    job = new_job(kind, user, total_files, total_bytes, label, dest)
+    app = current_app._get_current_object()
+    ip = request.remote_addr
+
+    def work():
+        with app.test_request_context(environ_base={"REMOTE_ADDR": ip or ""}):
+            try:
+                run(job)
+                job["state"] = "done"
+            except Cancelled:
+                job["state"] = "cancelled"
+            except Exception as exc:  # noqa: BLE001 - الخطأ يظهر للمستخدم في لوحة العمليات
+                job["state"], job["error"] = "error", _err_text(exc)
+            finally:
+                job["finished"], job["current"] = time.time(), ""
+    now = time.time()
+    with _JLOCK:
+        for k in [k for k, j in JOBS.items() if j["finished"] and now - j["finished"] > KEEP_DONE]:
+            JOBS.pop(k, None)
+        JOBS[job["id"]] = job
+    threading.Thread(target=work, daemon=True, name=f"fileop-{job['id']}").start()
+    return job
+
+
+@bp.get("/api/files/jobs")
+@login_required
+def api_jobs():
+    uid = current_user()["id"]
+    with _JLOCK:
+        mine = [public_job(j) for j in JOBS.values() if j["user_id"] == uid]
+    return jsonify(jobs=sorted(mine, key=lambda j: j["started"]))
+
+
+@bp.post("/api/files/jobs/<jid>/cancel")
+@login_required
+def api_job_cancel(jid):
+    j = JOBS.get(jid)
+    if not j or j["user_id"] != current_user()["id"]:
+        abort(404)
+    j["cancel"] = True
+    return jsonify(ok=True)
+
+
+@bp.delete("/api/files/jobs/<jid>")
+@login_required
+def api_job_forget(jid):
+    """إخفاء عملية منتهية من اللوحة."""
+    j = JOBS.get(jid)
+    if j and j["user_id"] == current_user()["id"] and j["state"] != "running":
+        with _JLOCK:
+            JOBS.pop(jid, None)
+    return jsonify(ok=True)
 
 
 @bp.post("/api/files/upload")
