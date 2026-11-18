@@ -21,6 +21,7 @@ import pwd
 import re
 import shutil
 import subprocess
+import time
 import sys
 from pathlib import Path
 
@@ -154,28 +155,89 @@ def compose(app_id, *args):
 
 
 # ----------------------------------------------------------------------------- commands
+def docker_error() -> str:
+    """لماذا لا يعمل المحرك؟ أول سطر مفيد من docker info، أو حالة الخدمة."""
+    r = subprocess.run(["docker", "info"], capture_output=True, text=True)
+    if r.returncode == 0:
+        return ""
+    lines = [l.strip() for l in (r.stderr or r.stdout).splitlines() if l.strip()]
+    return (lines[-1] if lines else f"docker info exit {r.returncode}")[:300]
+
+
 def cmd_check():
     docker = FAKE or bool(shutil.which("docker"))
     running = FAKE or (docker and subprocess.run(["docker", "info"], capture_output=True).returncode == 0)
-    print(json.dumps({"docker": docker, "running": bool(running), "compose": bool(compose_cmd()) if docker else False}))
+    out = {"docker": docker, "running": bool(running), "compose": bool(compose_cmd()) if docker else False}
+    if docker and not running and not FAKE:
+        out["error"] = docker_error()   # البند 36: المحرك مثبت لكنه لا يعمل ← السبب
+    print(json.dumps(out))
+
+
+def internet_ok() -> bool:
+    """البند 36: تنزيل المحرك يحتاج الإنترنت. نفحصه قبل البدء حتى تظهر رسالة واضحة بدل فشل غامض."""
+    if FAKE:
+        return os.environ.get("HSEF_FAKE_NO_INTERNET") != "1"
+    import socket
+    for host in ("deb.debian.org", "security.debian.org"):
+        try:
+            socket.create_connection((socket.gethostbyname(host), 80), timeout=8).close()
+            return True
+        except OSError:
+            continue
+    return False
+
+
+def wait_engine(log, seconds=45) -> bool:
+    for _ in range(seconds // 3):
+        if subprocess.run(["docker", "info"], capture_output=True).returncode == 0:
+            return True
+        time.sleep(3)
+    log.write("$ systemctl status docker\n"); log.flush()
+    subprocess.run(["systemctl", "status", "--no-pager", "-n", "15", "docker"], stdout=log, stderr=subprocess.STDOUT)
+    subprocess.run(["journalctl", "-u", "docker", "-b", "--no-pager", "-n", "15"], stdout=log, stderr=subprocess.STDOUT)
+    return False
 
 
 def cmd_setup():
     lid = "_engine"
     log_path(lid).write_text("")
+    os.chmod(log_path(lid), 0o644)
     env = dict(os.environ, DEBIAN_FRONTEND="noninteractive")
+    if not internet_ok():
+        with open(log_path(lid), "a") as log:
+            log.write("no internet connection (deb.debian.org unreachable)\n[exit 1]\n")
+        die("no-internet")
     if FAKE:
         run_logged(lid, "apt-get", "install", "docker.io")
         return
     with open(log_path(lid), "a") as log:
         for cmd in (["apt-get", "update"],
-                    ["apt-get", "install", "-y", "--no-install-recommends", "docker.io", "docker-compose", "ca-certificates"]):
+                    ["apt-get", "install", "-y", "--no-install-recommends", "docker.io", "docker-compose", "ca-certificates",
+                     "iptables"]):
             log.write(f"$ {' '.join(cmd)}\n"); log.flush()
             r = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT, env=env)
             if r.returncode != 0:
                 log.write(f"[exit {r.returncode}]\n")
-                die("installing the container engine failed")
+                die("install-failed")
+        log.write("$ systemctl enable --now docker\n"); log.flush()
         subprocess.run(["systemctl", "enable", "--now", "docker"], stdout=log, stderr=subprocess.STDOUT)
+        if not wait_engine(log):   # البند 36: كان يُعلن النجاح والمحرك لا يعمل، فيبقى كل شيء معطلاً بلا رسالة
+            log.write("[exit 1]\n")
+            die("not-running")
+        log.write("[exit 0]\n")
+
+
+def cmd_start_engine():
+    """البند 36: المحرك مثبت لكنه متوقف ← تشغيله من جديد."""
+    lid = "_engine"
+    if FAKE:
+        return
+    with open(log_path(lid), "a") as log:
+        log.write("$ systemctl restart containerd docker\n"); log.flush()
+        subprocess.run(["systemctl", "restart", "containerd", "docker"], stdout=log, stderr=subprocess.STDOUT)
+        if not wait_engine(log):
+            log.write("[exit 1]\n")
+            die("not-running")
         log.write("[exit 0]\n")
 
 
@@ -268,6 +330,8 @@ def main():
         cmd_check()
     elif a == ["setup"]:
         cmd_setup()
+    elif a == ["start-engine"]:
+        cmd_start_engine()
     elif a == ["status"]:
         cmd_status()
     elif len(a) == 2 and a[0] == "install":

@@ -55,14 +55,20 @@ class AppStore {
     }
     const eng = d.engine || {};
     if (!eng.docker || !eng.running) {
-      const op = d.engine_op;
+      // البند 36: ثلاث حالات واضحة: غير مثبت، يُثبَّت الآن، مثبت لكنه لا يعمل. وعند الفشل: السبب والسجل.
+      const op = d.engine_op, busy = op && op.running, inst = eng.docker;
+      const why = eng.why || (inst && eng.error ? 'المحرك مثبت لكنه لا يعمل. اضغط «تشغيل المحرك».' : '');
       const card = h(`<div class="card" style="margin-bottom:16px"><h4>${icon('server')} محرك التطبيقات</h4>
-        <p>${op && op.running ? 'جارٍ تثبيت محرك التطبيقات… قد يستغرق عدة دقائق.' : 'تعمل التطبيقات داخل حاويات معزولة. يجب تثبيت محرك الحاويات مرة واحدة (يحتاج اتصالاً بالإنترنت).'}</p>
-        ${op && op.error ? `<p class="alert err" translate="no">${esc(op.error)}</p>` : ''}
-        ${op && op.running ? '<pre class="applog"></pre>' : `<button class="btn primary">${icon('download')} تثبيت محرك التطبيقات</button>`}</div>`);
-      const b = $('button', card);
-      if (b) b.onclick = async () => { if (await guard(() => api.post('/api/appstore/engine'))) this.load(); };
-      if (op && op.running) this.tailLog('_engine', $('.applog', card));
+        <p>${busy ? (inst ? 'جارٍ تشغيل محرك التطبيقات…' : 'جارٍ تثبيت محرك التطبيقات… قد يستغرق عدة دقائق.')
+          : inst ? 'محرك التطبيقات مثبت لكنه لا يعمل الآن، لذلك أزرار التطبيقات معطلة.'
+          : 'تعمل التطبيقات داخل حاويات معزولة. يجب تثبيت محرك الحاويات مرة واحدة (يحتاج اتصالاً بالإنترنت). أزرار التطبيقات تعمل بعد ذلك.'}</p>
+        ${!busy && why ? `<p class="alert err">${esc(why)}</p>` : ''}
+        ${!busy && inst && eng.error ? `<p class="muted small" dir="ltr" translate="no">${esc(eng.error)}</p>` : ''}
+        ${busy ? '<pre class="applog"></pre>' : `<button class="btn primary">${icon(inst ? 'refresh' : 'download')} ${inst ? 'تشغيل المحرك' : why ? 'إعادة المحاولة' : 'تثبيت محرك التطبيقات'}</button>`}
+        ${!busy && eng.log ? `<details style="margin-top:10px"><summary class="small">السجل</summary><pre class="applog" dir="ltr" translate="no">${esc(eng.log)}</pre></details>` : ''}</div>`);
+      const b = $('button.btn.primary', card);
+      if (b) b.onclick = async () => { b.disabled = true; if (await guard(() => api.post('/api/appstore/engine'))) this.load(); else b.disabled = false; };
+      if (busy) this.tailLog('_engine', $('.applog', card));
       box.appendChild(card);
     }
     const grid = h('<div class="appgrid"></div>');
@@ -86,7 +92,7 @@ class AppStore {
       ${running ? '<pre class="applog"></pre>' : ''}
       <div class="acts"></div></div>`);
     const acts = $('.acts', c);
-    const btn = (label, ic, cls, fn) => { const b = h(`<button class="btn ${cls}">${ic ? icon(ic) : ''} ${esc(label)}</button>`); b.onclick = fn; b.disabled = running || !ready; acts.appendChild(b); return b; };
+    const btn = (label, ic, cls, fn) => { const b = h(`<button class="btn ${cls}">${ic ? icon(ic) : ''} ${esc(label)}</button>`); b.onclick = fn; b.disabled = running || !ready; if (!ready) b.title = 'شغّل محرك التطبيقات أولاً (أعلى الصفحة)'; acts.appendChild(b); return b; };
     if (!inst) btn('تثبيت', 'download', 'primary', () => this.install(a));
     else {
       const open = btn('فتح', 'external', 'primary', () => window.open(appUrl(inst.port, a.path, a.scheme), '_blank'));

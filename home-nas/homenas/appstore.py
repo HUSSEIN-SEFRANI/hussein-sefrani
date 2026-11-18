@@ -92,6 +92,13 @@ def shared_folders(db) -> list[dict]:
     return out
 
 
+ENGINE_WHY = {
+    "no-internet": "لا يوجد اتصال بالإنترنت. تنزيل محرك التطبيقات يحتاج الإنترنت مرة واحدة: تأكد من الكابل أو الوايفاي ثم أعد المحاولة.",
+    "install-failed": "فشل تنزيل المحرك أو تثبيته. غالباً انقطع الإنترنت أثناء التنزيل: أعد المحاولة.",
+    "not-running": "المحرك مثبت لكنه لا يعمل. اضغط «تشغيل المحرك». إن تكرر، أرسل صورة السجل أدناه.",
+}
+
+
 def read_log(app_id: str, lines: int = 40) -> str:
     try:
         text = (LOG_DIR / f"{app_id}.log").read_text(errors="replace")
@@ -135,7 +142,13 @@ def api_store():
         item["state"] = (states.get(app_id) or {}).get("state")
         item["op"] = store().ops.get(app_id)
         apps.append(item)
-    return jsonify(available=available(), engine=engine, engine_op=store().ops.get("_engine"), ram_mb=ram,
+    eop = store().ops.get("_engine")
+    # البند 36: المحرك لا يعمل بعد محاولة ← آخر أسطر السجل وسبب مفهوم، حتى لا تبقى الصفحة صامتة
+    if engine is not None and not (engine.get("docker") and engine.get("running")) and not (eop and eop["running"]):
+        engine["log"] = read_log("_engine", 25)
+        if eop and eop.get("error"):
+            engine["why"] = ENGINE_WHY.get(eop["error"].replace("hsef-apps: ", "").strip(), eop["error"])
+    return jsonify(available=available(), engine=engine, engine_op=eop, ram_mb=ram,
                    apps=apps, folders=shared_folders(db))
 
 
@@ -160,8 +173,14 @@ def api_installed():
 def api_engine():
     if not available():
         abort(400, "هذه الميزة متاحة على جهاز HOME ANAB المخصص فقط")
-    store().run("_engine", ["setup"])
-    log_action("تثبيت محرك التطبيقات")
+    # البند 36: إن كان المحرك مثبتاً لكنه متوقف ← تشغيله، وإلا ← تثبيته
+    ok, out = helper("check", timeout=30)
+    try:
+        installed = ok and json.loads(out).get("docker")
+    except ValueError:
+        installed = False
+    store().run("_engine", ["start-engine"] if installed else ["setup"])
+    log_action("تشغيل محرك التطبيقات" if installed else "تثبيت محرك التطبيقات")
     return jsonify(ok=True)
 
 
