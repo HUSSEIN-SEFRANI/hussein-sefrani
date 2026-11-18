@@ -141,9 +141,21 @@ def render_smb(cfg) -> str:
    valid users = {' '.join(admins)}
    read only = no
 """)
+        # البند 27: للمدير فقط: كل ملفات السيرفر في مكان واحد (مجلدات كل المستخدمين كاملة، وكل المجلدات المشتركة
+        # ومنها الألعاب والتعليم والكاميرات). منطقة النظام الداخلية (@system: قاعدة البيانات والذاكرة المؤقتة) مخفية
+        # حتى لا تتلف؛ وتُدار من لوحة التحكم.
+        out.append(f"""[ANAB SERVER FILE]
+   comment = HOME ANAB: all files (administrators)
+   path = {data}
+   valid users = {' '.join(admins)}
+   read only = no
+   browseable = yes
+   veto files = /@system/.*.uploading/.*.saving/.*.hnpart/lost+found/
+   delete veto files = no
+""")
     for sh in smb.get("shares", []):
         name = str(sh.get("name", ""))
-        if not name or SHARE_BAD.search(name) or name.lower() in ("global", "home", "users", "homes", "printers", "ipc$"):
+        if not name or SHARE_BAD.search(name) or name.lower() in ("global", "home", "users", "homes", "printers", "ipc$", "anab server file"):
             continue
         path = safe_path(sh["path"])
         read = {unames[int(i)] for i in sh.get("read", []) if int(i) in unames}

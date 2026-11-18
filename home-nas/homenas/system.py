@@ -29,7 +29,7 @@ except ImportError:  # pragma: no cover
 bp = Blueprint("auth", __name__)
 STARTED = time.time()
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_.\-]{2,32}$")
-RESERVED_NAMES = {"home", "homes", "backup", "@system", "#recycle"}
+RESERVED_NAMES = {"home", "homes", "backup", "@system", "#recycle", "anab server file"}
 
 
 def server_name() -> str:
