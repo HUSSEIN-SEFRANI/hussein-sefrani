@@ -13,6 +13,7 @@ import json
 import mimetypes
 import os
 import re
+import shutil
 import subprocess
 from urllib.parse import quote
 from datetime import date, datetime
@@ -1277,6 +1278,21 @@ def prep_sources(data_paths) -> list[Path]:
         for r in db.execute("SELECT m.rel_path, u.username FROM media m JOIN users u ON m.library='u:' || u.id "
                             "WHERE m.is_video=1 AND u.disabled=0 AND COALESCE(u.tv_role,'none')!='none' ORDER BY m.id DESC"):
             out.append(data_paths.homes / r["username"] / "Photos" / r["rel_path"])
+        # البند 21: «كل الفيديو»: كل الملفات الشخصية وكل المجلدات المشتركة، لا مربعات التلفاز فقط
+        row = db.execute("SELECT value FROM settings WHERE key='tv_prep_scope'").fetchone()
+        if row and row["value"] == "all":
+            roots = [data_paths.homes] + [Path(r["path"]) for r in db.execute("SELECT path FROM folders")]
+            seen = set(map(str, out))
+            for d in roots:
+                if not d.is_dir():
+                    continue
+                for r, ds, fs in os.walk(d):
+                    ds[:] = sorted(x for x in ds if not x.startswith((".", "#", "@")))
+                    for f in sorted(fs):
+                        fp = Path(r) / f
+                        if file_kind(f) == "video" and str(fp) not in seen:
+                            seen.add(str(fp))
+                            out.append(fp)
     finally:
         db.close()
     return out
@@ -1301,8 +1317,8 @@ def start_tv_prep(data_paths):
 @admin_required
 def api_admin_tv_prep():
     from .tvvideo import FFMPEG
-    return jsonify(available=bool(FFMPEG), mode=get_setting("tv_prep_mode") or "idle",
-                   max_gb=float(get_setting("tv_prep_max_gb") or 0), **_tvv().prep_status())
+    return jsonify(available=bool(FFMPEG), mode=get_setting("tv_prep_mode") or "idle", scope=get_setting("tv_prep_scope") or "tv",
+                   max_gb=float(get_setting("tv_prep_max_gb") or 0), replace=_replace_job, **_tvv().prep_status())
 
 
 @bp.post("/api/admin/tv/prep")
@@ -1314,6 +1330,10 @@ def api_admin_tv_prep_set():
         set_setting("tv_prep_mode", d["mode"])
     if "max_gb" in d:
         set_setting("tv_prep_max_gb", max(0.0, float(d["max_gb"] or 0)))
+    if d.get("scope") in ("tv", "all"):
+        set_setting("tv_prep_scope", d["scope"])
+        v.rescan = True
+        log_action("تجهيز الفيديو للتلفاز", "كل الفيديو" if d["scope"] == "all" else "فيديو مربعات التلفاز")
     if d.get("action") == "start":
         v.manual, v.rescan = True, True
         log_action("تجهيز الفيديو للتلفاز", "بدء الآن")
@@ -1323,6 +1343,116 @@ def api_admin_tv_prep_set():
         v.rescan = True
     v.prep_wake.set()
     return api_admin_tv_prep()
+
+
+# ----------------------------------------------------------------------------- البند 21: استبدال الأصل بالنسخة المجهّزة
+# النسخة المجهّزة (MP4 بدقة 1080p على الأكثر) تأخذ مكان الأصل في المجلد نفسه، والأصل يذهب إلى سلة المحذوفات
+# (يمكن إرجاعه حتى تُفرَّغ السلة). يوفّر المساحة، لكن الجودة تصير 1080p والفيديو الملوّن الواسع (HDR) يصير عادياً.
+_replace_job = {"running": False, "done": 0, "total": 0, "saved": 0, "current": "", "finished": None, "error": None}
+
+
+def _recycle_dest(src: Path, data_paths, folders: list[Path]) -> Path | None:
+    from .core import RECYCLE
+    try:
+        rel = src.resolve().relative_to(data_paths.homes.resolve())
+        return data_paths.homes / rel.parts[0] / RECYCLE / Path(*rel.parts[1:])
+    except ValueError:
+        pass
+    for base in folders:
+        try:
+            rel = src.resolve().relative_to(base.resolve())
+            return base / RECYCLE / rel
+        except ValueError:
+            continue
+    return None
+
+
+def replace_candidates(data_paths) -> list[tuple[Path, Path]]:
+    """(الأصل، النسخة المجهّزة) لكل فيديو جاهز ما زال أصله موجوداً داخل الملفات."""
+    v = _tvv()
+    out = []
+    for key, src in list(v.srcmap.items()):
+        f = Path(src)
+        try:
+            if f.is_file() and v.key(f) == key and v.out(key).is_file():
+                out.append((f, v.out(key)))
+        except OSError:
+            continue
+    return out
+
+
+def _do_replace(data_paths, folders: list[Path], pairs: list[tuple[Path, Path]]):
+    from .core import unique_path
+    job = _replace_job
+    try:
+        for src, ready in pairs:
+            job["current"] = src.name
+            dest = _recycle_dest(src, data_paths, folders)
+            if dest is None:
+                continue
+            try:
+                st = src.stat()
+                new = src.with_suffix(".mp4")
+                if new != src and new.exists():
+                    new = unique_path(new)
+                tmp = src.with_name(f".{src.stem}.hnpart.mp4")
+                shutil.copy2(ready, tmp)
+                os.utime(tmp, (st.st_atime, st.st_mtime))      # يبقى تاريخ الفيديو كما هو في «صوري»
+                dest = unique_path(dest)
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                os.rename(src, dest)                             # الأصل إلى سلة المحذوفات
+                os.replace(tmp, new)
+                job["saved"] += max(0, st.st_size - new.stat().st_size)
+                ready.unlink(missing_ok=True)
+            except OSError as exc:
+                job["error"] = str(exc)[:200]
+            job["done"] += 1
+    finally:
+        job.update(running=False, current="", finished=datetime.now().isoformat(timespec="seconds"))
+        from . import tvvideo
+        tvvideo.get(data_paths.cache).rescan = True
+        try:
+            from .core import connect
+            from .photos import indexer
+            db = connect(data_paths.db)
+            for d in {p.parent for p, _ in pairs}:
+                try:
+                    indexer().notify_path(db, d)
+                except Exception:  # noqa: BLE001
+                    pass
+            db.execute("INSERT INTO logs(ts, username, ip, action, detail) VALUES (?,?,?,?,?)",
+                       (datetime.now().isoformat(timespec="seconds"), "النظام", None, "استبدال الفيديو الأصلي بالمجهّز",
+                        f"{job['done']} فيديو، وُفّر {job['saved'] // 1048576} MB"))
+            db.commit()
+            db.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+@bp.get("/api/admin/tv/prep/replace")
+@admin_required
+def api_admin_tv_replace_info():
+    pairs = replace_candidates(paths())
+    size_src = sum(s.stat().st_size for s, _ in pairs)
+    size_ready = sum(r.stat().st_size for _, r in pairs)
+    return jsonify(count=len(pairs), originals=size_src, prepared=size_ready, saving=max(0, size_src - size_ready), job=_replace_job)
+
+
+@bp.post("/api/admin/tv/prep/replace")
+@admin_required
+def api_admin_tv_replace():
+    if _replace_job["running"]:
+        abort(409, "يعمل الآن")
+    p = paths()
+    pairs = replace_candidates(p)
+    if not pairs:
+        abort(400, "لا توجد فيديوهات مجهّزة بعد")
+    folders = [Path(r["path"]) for r in get_db().execute("SELECT path FROM folders")]
+    _replace_job.update(running=True, done=0, total=len(pairs), saved=0, current="", finished=None, error=None)
+    import threading
+    threading.Thread(target=_do_replace, args=(p, folders, pairs), daemon=True, name="tv-replace").start()
+    log_action("استبدال الفيديو الأصلي بالمجهّز", f"{len(pairs)} فيديو (الأصل إلى سلة المحذوفات)")
+    return jsonify(ok=True, job=_replace_job)
 
 
 def _vinfo(src: Path, ready_url: str):

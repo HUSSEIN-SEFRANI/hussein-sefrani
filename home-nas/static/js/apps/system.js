@@ -421,12 +421,19 @@ const CP = {
       if (!u) { ub.innerHTML = `<p class="muted small">${running ? 'يُحسب الآن في الخلفية… قد يأخذ دقائق على الأقراص الكبيرة.' : 'لم يُحسب بعد.'}</p>`; return; }
       const all = [...u.people.map((x) => x.total), ...u.shares.map((x) => x.total), ...u.other.map((x) => x.total)];
       const max = Math.max(1, ...all);
-      const rows = (list, sub) => list.map((x) => `<div class="ov-row small" style="margin-top:8px"><span translate="no">${esc(x.name)}</span><span class="muted" dir="ltr" translate="no">${fmtSize(x.total)}</span></div>
+      const rows = (list, sub) => list.map((x) => `<div class="ov-row small" style="margin-top:8px"><span translate="no">${esc(x.name)}${x.clear && x.total ? ` <button class="btn ghost sm" data-clear="${x.clear}" style="padding:0 8px">تفريغ</button>` : ''}</span><span class="muted" dir="ltr" translate="no">${fmtSize(x.total)}</span></div>
         <div class="ov-bar"><i style="width:${Math.max(1, 100 * x.total / max)}%"></i></div>${sub && x.photos ? `<div class="muted small" style="margin-top:-2px">منها الصور والفيديو: <span dir="ltr" translate="no">${fmtSize(x.photos)}</span></div>` : ''}`).join('');
       ub.innerHTML = `${u.people.length ? `<h5 class="ov-sub">أفراد العائلة</h5>${rows(u.people, true)}` : ''}
         ${u.shares.length ? `<h5 class="ov-sub">المجلدات المشتركة</h5>${rows(u.shares)}` : ''}
         ${u.other.length ? `<h5 class="ov-sub">النظام</h5>${rows(u.other)}` : ''}
+        ${u.other.some((x) => x.clear) ? '<p class="muted small" style="margin:6px 0 0">الفيديو المجهّز والمصغرات ذاكرة مؤقتة: الأصل لا يُمس، وتُصنع من جديد عند الحاجة (أول تشغيل أو عرض يكون أبطأ قليلاً).</p>' : ''}
         <p class="muted small" style="margin:10px 0 0">آخر حساب: <bdi>${esc(fmtDateTime(new Date(u.t * 1000).toISOString()))}</bdi>${running ? ' · يُعاد الحساب الآن…' : ''}</p>`;
+      $$('[data-clear]', ub).forEach((b) => (b.onclick = async () => {
+        const tv = b.dataset.clear === 'tv-video';
+        if (!(await confirmBox(tv ? 'تُحذف كل نسخ الفيديو المجهّزة للتلفاز. الأصل لا يُمس، ويُجهَّز الفيديو من جديد عند تشغيله أو في الخلفية.' : 'تُحذف كل مصغرات الصور والمعاينات، وتُصنع من جديد عند فتح الصور.', { ok: 'تفريغ' }))) return;
+        const r = await guard(() => api.post('/api/admin/storage/clear', { what: b.dataset.clear }));
+        if (r) { toast(`تم تحرير ${fmtSize(r.freed)}`, 'ok'); drawUsage(r.usage, false); }
+      }));
     };
     drawUsage(d.usage, d.usage_running);
     let up = 0;

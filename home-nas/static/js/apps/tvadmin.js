@@ -89,12 +89,20 @@ function prepCard() {
           <option value="night">ليلاً فقط (1–7 صباحاً)</option>
           <option value="off">متوقف (فقط بالزر)</option></select></label>
         <button class="btn ghost sm" data-a="space">المساحة…</button>
-      </div>`;
+      </div>
+      <label class="lbl">أي فيديو يُجهَّز؟</label>
+      <select class="field" data-x="scope" style="max-width:520px">
+        <option value="tv">فيديو مربعات التلفاز و«صوري» فقط</option>
+        <option value="all">كل الفيديو: الملفات الشخصية لكل العائلة وكل المجلدات المشتركة</option></select>
+      <div class="rp" style="margin-top:14px;border-top:1px solid var(--border);padding-top:10px"></div>`;
+    $('[data-x=scope]', b).value = r.scope || 'tv';
+    $('[data-x=scope]', b).onchange = async (e) => { const x = await guard(() => api.post('/api/admin/tv/prep', { scope: e.target.value })); if (x) { toast('تم الحفظ. يُعاد فحص الفيديو الآن.', 'ok'); draw(x); } };
+    drawReplace($('.rp', b));
     $('[data-x=mode]', b).value = r.mode;
     $('[data-x=mode]', b).onchange = async (e) => { const x = await guard(() => api.post('/api/admin/tv/prep', { mode: e.target.value })); if (x) { toast('تم الحفظ', 'ok'); draw(x); } };
     b.querySelectorAll('[data-a]').forEach((x) => (x.onclick = async () => {
       if (x.dataset.a === 'space') {
-        const v = await modal({ title: 'مساحة النسخ الجاهزة', body: `<label class="lbl">أقصى مساحة بالـGB (0 = تلقائي: 40% من القرص)</label><input class="field" name="gb" type="number" min="0" value="${r.max_gb || 0}">`,
+        const v = await modal({ title: 'مساحة النسخ الجاهزة', body: `<label class="lbl">أقصى مساحة بالـGB (0 = تلقائي: 10% من القرص)</label><input class="field" name="gb" type="number" min="0" value="${r.max_gb || 0}">`,
           buttons: [{ label: 'إلغاء', value: null }, { label: 'حفظ', cls: 'primary', value: (bk) => +$('[name=gb]', bk).value || 0 }] });
         if (v === null) return;
         const y = await guard(() => api.post('/api/admin/tv/prep', { max_gb: v })); if (y) draw(y);
@@ -104,6 +112,28 @@ function prepCard() {
       if (y) { draw(y); toast(x.dataset.a === 'start' ? 'بدأ التجهيز. يمكنك إغلاق الصفحة، سيكمل وحده.' : 'تم', 'ok'); }
     }));
   };
+  // البند 21: استبدال الأصل بالنسخة المجهّزة لتوفير المساحة
+  let rpInfo = null, rpAt = 0;
+  async function drawReplace(box) {
+    if (!rpInfo || Date.now() - rpAt > 30000 || (rpInfo.job && rpInfo.job.running)) {
+      rpInfo = await api.get('/api/admin/tv/prep/replace').catch(() => null); rpAt = Date.now();
+    }
+    const x = rpInfo; if (!x || !box.isConnected) return;
+    const j = x.job;
+    box.innerHTML = `<b class="small">توفير المساحة: احذف الأصل وأبقِ المجهّز</b>
+      <p class="muted small" style="margin:4px 0 8px">النسخة المجهّزة تأخذ مكان الفيديو الأصلي في المجلد نفسه، ويذهب الأصل إلى سلة المحذوفات (تستطيع إرجاعه حتى تُفرَّغ السلة).
+        <b>الجودة تصير 1080p على الأكثر، وألوان فيديو الآيفون الواسعة (HDR) تصير عادية.</b> لا تفعل هذا لفيديوهات تريدها بأعلى جودة.</p>
+      ${j.running ? `<div class="small">⏳ جارٍ الاستبدال: ${j.done} من ${j.total} — <span translate="no" dir="auto">${esc(j.current)}</span></div>`
+        : j.finished ? `<div class="small" style="margin-bottom:6px">✅ آخر مرة: استُبدل ${j.done} فيديو، ووُفّر <bdi dir="ltr">${fmtSize(j.saved)}</bdi> (بعد تفريغ السلة).${j.error ? ` <span class="muted">${esc(j.error)}</span>` : ''}</div>` : ''}
+      ${!j.running ? (x.count ? `<button class="btn sm danger" data-x="replace">استبدال ${x.count} فيديو (توفير نحو <bdi dir="ltr">${fmtSize(x.saving)}</bdi>)</button>`
+        : '<p class="muted small" style="margin:0">لا توجد فيديوهات مجهّزة بعد. جهّزها أولاً.</p>') : ''}`;
+    const btn = $('[data-x=replace]', box);
+    if (btn) btn.onclick = async () => {
+      if (!(await confirmBox(`سيُستبدل ${x.count} فيديو أصلي بنسخته المجهّزة (1080p على الأكثر)، وتذهب الأصول إلى سلة المحذوفات. المساحة تتحرر عند تفريغ السلة. متابعة؟`, { ok: 'استبدال', danger: true }))) return;
+      const res = await guard(() => api.post('/api/admin/tv/prep/replace'));
+      if (res) { rpInfo = null; toast('بدأ الاستبدال في الخلفية', 'ok'); drawReplace(box); }
+    };
+  }
   const load = async () => {
     const r = await api.get('/api/admin/tv/prep').catch(() => null);
     if (r) draw(r);
