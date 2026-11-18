@@ -675,7 +675,9 @@ const CP = {
       <div class="card"><h4>${icon('server')} من كمبيوتر ويندوز</h4><ol class="steps">
         <li>افتح «مستكشف الملفات» واكتب في شريط العنوان: <span class="code">\\\\${esc(host)}</span> أو <span class="code">\\\\${esc(ip)}</span></li>
         <li>أدخل اسم المستخدم وكلمة المرور.</li>
-        <li>لربطه كحرف قرص: انقر بالزر الأيمن على المجلد ← «تعيين محرك أقراص شبكة».</li></ol></div>
+        <li>لربطه كحرف قرص: انقر بالزر الأيمن على المجلد ← «تعيين محرك أقراص شبكة».</li></ol>
+        ${ME.is_admin ? `<p class="small" style="margin:8px 0 0">🗂️ <b>للمدير:</b> المجلد <b translate="no">ANAB SERVER FILE</b> فيه كل ملفات السيرفر: مجلدات كل المستخدمين كاملة (<span translate="no">homes</span>)، وكل المجلدات المشتركة ومنها الألعاب والتعليم والكاميرات (<span translate="no">shares</span>).
+          اربطه كحرف قرص فتظهر له أيقونة في «هذا الكمبيوتر»: <span class="code" dir="ltr">\\\\${esc(host)}\\ANAB SERVER FILE</span></p>` : ''}</div>
       <div class="card"><h4>${icon('phone')} من الآيفون / الآيباد</h4><ol class="steps">
         <li>افتح تطبيق <b>الملفات</b> ← زر <b>⋯</b> في الأعلى ← <b>الاتصال بالخادم</b>.</li>
         <li>اكتب: <span class="code">smb://${esc(host)}.local</span> (أو <span class="code">smb://${esc(ip)}</span>)</li>
