@@ -211,9 +211,18 @@ def connect(db_path: Path) -> sqlite3.Connection:
     return db
 
 
+# البند 25: مجلدات تظهر على قرص الشبكة (SMB) للمدير فقط: ألعاب التلفاز ودروسه ومكتباته، يضيف إليها المدير من الكمبيوتر
+SMB_ADMIN_DEFAULT = ("الألعاب", "التعليم", "القرآن الصوتي", "ذكريات العائلة")
+
+
 def init_db(db_path: Path) -> None:
     with connect(db_path) as db:
         db.executescript(SCHEMA)
+        cols = {r[1] for r in db.execute("PRAGMA table_info(folders)")}
+        if "smb" not in cols:   # v1.9.8: 'all' = حسب الصلاحيات، 'admin' = للمدير فقط على قرص الشبكة
+            db.execute("ALTER TABLE folders ADD COLUMN smb TEXT NOT NULL DEFAULT 'all'")
+            db.execute(f"UPDATE folders SET smb='admin' WHERE name IN ({','.join('?' * len(SMB_ADMIN_DEFAULT))})", SMB_ADMIN_DEFAULT)
+            db.commit()
 
 
 def get_db() -> sqlite3.Connection:

@@ -851,14 +851,19 @@ const CP = {
     const rows = await guard(() => api.get('/api/admin/folders')); if (!rows) return;
     if (!rows.length) { p.appendChild(h(`<div class="empty-state">${icon('hdd')}<p>لا توجد مجلدات مشتركة بعد</p></div>`)); return; }
     const users = await guard(() => api.get('/api/admin/users')) || [];
-    const t = h(`<table class="tbl"><thead><tr><th>الاسم</th><th>المسار على الكمبيوتر</th><th>المستخدمون</th><th></th></tr></thead><tbody></tbody></table>`);
+    const t = h(`<table class="tbl"><thead><tr><th>الاسم</th><th>المسار على الكمبيوتر</th><th>المستخدمون</th><th>قرص الشبكة</th><th></th></tr></thead><tbody></tbody></table>`);
     for (const f of rows) {
       const who = Object.entries(f.perms).map(([uid, perm]) => { const u = users.find(x => x.id == uid); return u ? `${esc(u.username)} <span class="muted">(${perm === 'rw' ? 'كتابة' : 'قراءة'})</span>` : ''; }).filter(Boolean).join('، ') || '<span class="muted">المدير فقط</span>';
       const tr = h(`<tr><td translate="no"><b></b><div class="muted" style="font-size:12px"></div></td><td class="ltr muted" style="font-size:12px"></td><td>${who}</td>
+        <td><button class="btn ghost sm" data-x="smb" title="من يرى هذا المجلد على قرص الشبكة (ويندوز والماك)">${f.smb === 'admin' ? '🔒 للمدير فقط' : '👥 حسب الصلاحيات'}</button></td>
         <td style="white-space:nowrap"><button class="btn sm" data-x="edit">${icon('edit')} الصلاحيات</button>
         <button class="btn ghost icon sm danger" data-x="del">${icon('trash')}</button></td></tr>`);
       $('b', tr).textContent = f.name; $('div.muted', tr).textContent = f.description; $('td.ltr', tr).textContent = f.path + (f.exists ? '' : ' ⚠️');
       $('[data-x=edit]', tr).onclick = () => editFolder(f, reload);
+      $('[data-x=smb]', tr).onclick = async () => {
+        const v = f.smb === 'admin' ? 'all' : 'admin';
+        if (await guard(() => api.patch('/api/admin/folders/' + f.id, { smb: v }))) { toast(v === 'admin' ? 'على قرص الشبكة: للمدير فقط' : 'على قرص الشبكة: حسب الصلاحيات', 'ok'); reload(); }
+      };
       $('[data-x=del]', tr).onclick = async () => {
         if (await confirmBox(`إزالة المجلد المشترك «${f.name}» من النظام؟ الملفات نفسها تبقى على القرص.`, { ok: 'إزالة', danger: true })
           && await guard(() => api.del('/api/admin/folders/' + f.id))) reload();

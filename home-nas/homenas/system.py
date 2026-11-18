@@ -398,6 +398,8 @@ def api_folder_update(fid):
     data = body()
     if "description" in data:
         db.execute("UPDATE folders SET description=? WHERE id=?", ((data["description"] or "")[:200], fid))
+    if data.get("smb") in ("all", "admin"):
+        db.execute("UPDATE folders SET smb=? WHERE id=?", (data["smb"], fid))
     if "perms" in data:
         db.execute("DELETE FROM folder_perms WHERE folder_id=?", (fid,))
         for uid, perm in (data.get("perms") or {}).items():
