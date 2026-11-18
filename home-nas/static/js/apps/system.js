@@ -176,7 +176,7 @@ const SECTIONS = [
   { id: 'users', group: 'family', label: 'المستخدمون', icon: 'users', admin: true, keys: 'حساب مستخدم جديد صلاحيات أطفال' },
   { id: 'folders', group: 'files', label: 'المجلدات المشتركة', icon: 'hdd', admin: true, keys: 'مشاركة صلاحيات الألعاب التعليم' },
   { id: 'photos', group: 'files', label: 'إعدادات الصور', icon: 'image', admin: true, keys: 'الوجوه الأشخاص تمييز فهرسة' },
-  { id: 'backup', group: 'files', label: 'النسخ الاحتياطي', icon: 'save', admin: true, keys: 'قرص خارجي نسخة استعادة' },
+  { id: 'backup', group: 'files', label: 'النسخ الاحتياطي والاستيراد', icon: 'save', admin: true, keys: 'قرص خارجي نسخة استعادة استرجاع تصدير استيراد نقل جهاز جديد ملف anab يومي أسبوعي شهري usb فلاشة' },
   { id: 'phone', group: 'files', label: 'ربط الآيفون', icon: 'phone', keys: 'هاتف صور آيفون مزامنة' },
   { id: 'network', group: 'files', label: 'قرص الشبكة والتلفاز الذكي', icon: 'wifi', keys: 'SMB DLNA ويندوز سامبا الشبكة' },
   { id: 'tv', group: 'tv', label: 'وضع التلفاز', icon: 'video', admin: true, keys: 'شاشة مربعات ألعاب تعليم أذان مواقيت الصلاة خلفية شاشة التوقف' },
@@ -187,7 +187,7 @@ const SECTIONS = [
   { id: 'remote', group: 'device', label: 'من خارج البيت', icon: 'shield', admin: true, keys: 'إنترنت وصول بعيد tailscale' },
   { id: 'general', group: 'system', label: 'عام والتحديث', icon: 'sliders', admin: true, keys: 'اسم السيرفر المنطقة الزمنية تحديث إصدار بدون إنترنت' },
   { id: 'activation', group: 'system', label: 'التفعيل', icon: 'key', admin: true, keys: 'كود رقم الجهاز تجربة' },
-  { id: 'transfer', group: 'system', label: 'تصدير واستيراد وإعادة ضبط', icon: 'download', admin: true, keys: 'نقل جهاز جديد نسخة ملف anab إعادة ضبط المصنع مسح بداية جديدة' },
+  { id: 'transfer', group: 'system', label: 'إعادة ضبط المصنع', icon: 'refresh', admin: true, keys: 'إعادة ضبط المصنع مسح بداية جديدة' },
   { id: 'logs', group: 'system', label: 'سجل النشاط', icon: 'clock', admin: true, keys: 'سجل من فعل ماذا' },
 ];
 
@@ -336,67 +336,16 @@ const CP = {
   // البند 6 و15: تصدير النظام واستيراده، وإعادة ضبط المصنع
   async transfer(sc) {
     const st = await guard(() => api.get('/api/admin/transfer')); if (!st) return;
-    const p = section(sc, 'تصدير واستيراد وإعادة ضبط',
-      'انقل كل إعدادات العائلة إلى جهاز HOME ANAB آخر، أو ابدأ هذا الجهاز من جديد. تفعيل هذا الجهاز وإعدادات الوايفاي تبقى كما هي في كل الحالات.');
-    if (!st.openssl) p.appendChild(h('<div class="alert warn">برنامج openssl غير موجود على هذا الجهاز، فالتصدير والاستيراد غير متاحين.</div>'));
+    const p = section(sc, 'إعادة ضبط المصنع',
+      'ابدأ هذا الجهاز من جديد. تفعيل هذا الجهاز وإعدادات الوايفاي والشبكة تبقى. ولحفظ الإعدادات أو نقلها إلى جهاز آخر: «النسخ الاحتياطي والاستيراد».');
     if (st.pending_import || st.pending_reset) {
-      const w = h(`<div class="alert warn"><b>${st.pending_reset ? 'إعادة ضبط المصنع' : 'استيراد نظام'} ينتظر إعادة التشغيل.</b>
+      const w = h(`<div class="alert warn"><b>${st.pending_reset ? 'إعادة ضبط المصنع' : 'استيراد الإعدادات'} ينتظر إعادة التشغيل.</b>
         ${st.appliance ? 'يُطبَّق خلال لحظات.' : 'أعد تشغيل البرنامج ليُطبَّق.'} <button class="btn sm" data-x="cancel">إلغاء</button></div>`);
-      $('[data-x=cancel]', w).onclick = async () => { if (await guard(() => api.del(st.pending_reset ? '/api/admin/transfer/reset' : '/api/admin/transfer/import'))) { toast('أُلغي', 'ok'); CP.transfer(sc.replaceChildren() || sc); } };
+      $('[data-x=cancel]', w).onclick = async () => { if (await guard(() => api.del(st.pending_reset ? '/api/admin/transfer/reset' : '/api/admin/transfer/import'))) { toast('أُلغي', 'ok'); sc.innerHTML = ''; CP.transfer(sc); } };
       p.appendChild(w);
     }
-    // ---- التصدير
-    const ex = h(`<div class="card" style="max-width:720px"><h4>${icon('download')} تصدير النظام</h4>
-      <p class="muted small" style="margin:0 0 10px">ملف واحد ‎.anab مشفّر بكلمة سر: المستخدمون وكلمات السر ورموز الدخول، ونجوم الأطفال وسجلها،
-        ومربعات التلفاز وإعداداته (الأذان، المواقيت، الخلفيات)، والكاميرات، والمجلدات المشتركة.</p>
-      <label class="check"><input type="radio" name="what" value="0" checked> الإعدادات والبيانات فقط (ملف صغير)</label>
-      <label class="check"><input type="radio" name="what" value="1"> كل شيء مع الملفات والصور (ملف كبير، يحتاج مساحة فارغة بحجمه)</label>
-      <div class="tv-grid" style="margin-top:10px"><label>كلمة سر الملف<input class="field" type="password" name="pw" autocomplete="new-password"></label>
-        <label>أعد كتابتها<input class="field" type="password" name="pw2" autocomplete="new-password"></label></div>
-      <p class="alert warn small" style="margin:8px 0">احفظ كلمة السر: بدونها لا يمكن فتح الملف أبداً.</p>
-      <button class="btn primary" data-x="export">${icon('download')} تجهيز ملف التصدير</button> <span class="muted small ex-st"></span></div>`);
-    $('[data-x=export]', ex).onclick = async (e) => {
-      const pw = $('[name=pw]', ex).value;
-      if (pw.length < 6) return toast('كلمة السر 6 أحرف على الأقل', 'err');
-      if (pw !== $('[name=pw2]', ex).value) return toast('كلمتا السر غير متطابقتين', 'err');
-      e.target.disabled = true; $('.ex-st', ex).textContent = 'جارٍ التجهيز… قد يأخذ دقائق إن اخترت كل الملفات';
-      const r = await guard(() => api.post('/api/admin/transfer/export', { password: pw, files: $('[name=what]:checked', ex).value === '1' }));
-      e.target.disabled = false; $('.ex-st', ex).textContent = '';
-      if (!r) return;
-      $$('input[type=password]', ex).forEach((i) => (i.value = ''));
-      download(`${r.url}?name=${encodeURIComponent(r.name)}`);
-      toast(`جاهز: ${r.name} (${fmtSize(r.size)})`, 'ok');
-    };
-    p.appendChild(ex);
-    // ---- الاستيراد
-    const im = h(`<div class="card" style="max-width:720px;margin-top:14px"><h4>${icon('upload')} استيراد نظام</h4>
-      <p class="muted small" style="margin:0 0 10px">يستبدل كل إعدادات هذا الجهاز ومستخدميه بما في الملف. النسخة الحالية تُحفظ بجانبه ولا تُحذف.
-        بعد الاستيراد يُعاد تشغيل البرنامج، ثم تدخل بحساب وكلمة سر من الجهاز القديم.</p>
-      <input class="field" type="file" name="f" accept=".anab">
-      <label class="lbl">كلمة سر الملف</label><input class="field" type="password" name="ipw" style="max-width:320px" autocomplete="off">
-      <div style="margin-top:12px"><button class="btn" data-x="import">${icon('upload')} استيراد</button> <span class="muted small im-st"></span></div></div>`);
-    $('[data-x=import]', im).onclick = async (e) => {
-      const f = $('[name=f]', im).files[0], pw = $('[name=ipw]', im).value;
-      if (!f || !pw) return toast('اختر الملف واكتب كلمة سره', 'err');
-      if (!await confirmBox('سيُستبدل كل ما في هذا الجهاز من مستخدمين وإعدادات بما في الملف، ثم يُعاد تشغيل البرنامج. متابعة؟', { ok: 'استيراد', danger: true })) return;
-      const fd = new FormData(); fd.append('file', f); fd.append('password', pw);
-      e.target.disabled = true; $('.im-st', im).textContent = 'جارٍ الرفع والفحص…';
-      try {
-        const r = await fetch('/api/admin/transfer/import', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'fetch' } });
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(j.error || `خطأ ${r.status}`);
-        const m = j.manifest;
-        $('.im-st', im).textContent = '';
-        await modal({ title: '✅ الملف سليم', body: h(`<div><p>من «<b translate="no">${esc(m.server_name || '')}</b>»، بتاريخ <bdi>${esc(fmtDateTime(m.created))}</bdi> (الإصدار <span translate="no">${esc(m.version)}</span>).</p>
-          <p>${m.users} مستخدم${m.files ? '، مع الملفات والصور' : '، بلا الملفات والصور'}.</p>
-          <p class="muted">${j.restart ? 'يُعاد تشغيل البرنامج الآن ويُطبَّق الاستيراد. انتظر نصف دقيقة ثم حدّث الصفحة.' : 'أعد تشغيل البرنامج ليُطبَّق الاستيراد.'}</p></div>`), buttons: [{ label: 'حسناً', cls: 'primary', value: true }] });
-        if (j.restart) setTimeout(() => location.reload(), 30000);
-      } catch (err) { $('.im-st', im).textContent = ''; toast(err.message, 'err'); }
-      e.target.disabled = false;
-    };
-    p.appendChild(im);
     // ---- إعادة ضبط المصنع
-    const rs = h(`<div class="card" style="max-width:720px;margin-top:14px;border-color:var(--err)"><h4 style="color:var(--err)">${icon('refresh')} إعادة ضبط المصنع</h4>
+    const rs = h(`<div class="card" style="max-width:720px;border-color:var(--err)"><h4 style="color:var(--err)">${icon('refresh')} إعادة ضبط المصنع</h4>
       <p class="small" style="margin:0 0 6px">يرجع الجهاز كما كان بعد التنصيب: تُحذف كل الحسابات وكلمات السر والنجوم ومربعات التلفاز والإعدادات، وتظهر شاشة الإعداد الأول.</p>
       <p class="muted small" style="margin:0 0 10px">يبقى: تفعيل هذا الجهاز، وإعدادات الوايفاي والشبكة، والبرنامج نفسه. <b>صدّر النظام أولاً</b> إن أردت الرجوع إلى ما عندك الآن.</p>
       <label class="check"><input type="radio" name="wipe" value="0" checked> الإعدادات فقط: الملفات والصور تبقى على القرص</label>
@@ -869,94 +818,103 @@ const CP = {
     p.appendChild(t);
   },
 
+  // البند 20: النسخ الاحتياطي والاستيراد في مكان واحد
   async backup(sc) {
     const r = await guard(() => api.get('/api/backup')); if (!r) return;
     const { settings: st, status, target: tg } = r;
-    const p = section(sc, 'النسخ الاحتياطي', 'نسخ تلقائي لكل الملفات والصور إلى قرص خارجي. كل نسخة محفوظة كمجلد بالتاريخ، والملفات غير المتغيرة لا تأخذ مساحة إضافية. احتفظ بالقرص في مكان آمن.');
+    const p = section(sc, 'النسخ الاحتياطي والاستيراد', 'انسخ الملفات والصور والإعدادات إلى قرص موصول بالجهاز، يدوياً أو تلقائياً، واسترجعها منه. ولنقل الإعدادات إلى جهاز HOME ANAB آخر استعمل ملفاً على الكمبيوتر.');
+    const reload = () => { sc.innerHTML = ''; CP.backup(sc); };
     const last = st.last;
+    const WHAT = r.what_choices, FREQ = r.freq_choices;
+    const ord = (o, keys) => keys.filter((k) => o[k]).map((k) => [k, o[k]]);   // الخادم يرتّب المفاتيح أبجدياً
+    const WHAT_L = ord(WHAT, ['full', 'files', 'settings']), FREQ_L = ord(FREQ, ['daily', 'weekly', 'monthly']);
     const stateBadge = status.running ? '<span class="badge accent">يعمل الآن…</span>'
-      : !st.target ? '<span class="badge">غير مُعدّ</span>'
+      : !st.target ? '<span class="badge">لم تُختر الوجهة</span>'
       : !tg.connected ? '<span class="badge err">القرص غير موصول</span>'
       : last && !last.ok ? '<span class="badge err">فشل آخر نسخ</span>'
       : last ? '<span class="badge ok">سليم</span>' : '<span class="badge warn">لم يُنسخ بعد</span>';
+    // ---- 1. الحالة والنسخ الآن
     const card = h(`<div class="cards" style="padding:0">
       <div class="card"><h4>${icon('shield')} الحالة</h4><div style="margin-bottom:8px">${stateBadge}</div>
         <dl class="kv">
           <dt>آخر نسخة ناجحة</dt><dd>${esc(fmtDateTime(st.last_success) || '—')}</dd>
-          ${last ? `<dt>آخر محاولة</dt><dd>${esc(fmtDateTime(last.finished))}<br><span class="muted">${esc(last.ok ? (last.summary || '') : (last.error || last.summary || ''))}</span></dd>` : ''}
+          ${last ? `<dt>آخر محاولة</dt><dd>${esc(fmtDateTime(last.finished))}${last.what ? ` · ${esc(WHAT[last.what] || '')}` : ''}<br><span class="muted">${esc(last.ok ? (last.summary || '') : (last.error || last.summary || ''))}</span></dd>` : ''}
           ${tg.connected && tg.total ? `<dt>مساحة القرص</dt><dd>${fmtSize(tg.free)} متاح من ${fmtSize(tg.total)}</dd>` : ''}
-          ${tg.connected ? `<dt>النسخ المحفوظة</dt><dd>${tg.mirror && !tg.snapshots.length ? 'مرآة واحدة (القرص لا يدعم الإصدارات)' : tg.snapshots.length}</dd>` : ''}
+          ${tg.connected ? `<dt>النسخ المحفوظة</dt><dd>${tg.mirror && !tg.snapshots.length ? 'نسخة واحدة تُحدَّث (القرص لا يدعم النسخ بالتاريخ)' : tg.snapshots.length}</dd>` : ''}
+          <dt>التلقائي</dt><dd>${st.enabled ? `${esc(FREQ[st.freq])}، الساعة <span dir="ltr">${String(st.hour).padStart(2, '0')}:00</span> · ${esc(WHAT[st.what])}` : 'يدوياً فقط'}</dd>
         </dl>
         <div class="run-st muted" style="font-size:12px;margin-top:8px"></div>
-        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        <label class="lbl">انسخ الآن</label>
+        <select class="field" name="now-what" style="max-width:320px">${WHAT_L.map(([k, v]) => `<option value="${k}" ${k === st.what ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn primary" data-b="run" ${tg.connected && !status.running ? '' : 'disabled'}>${icon('save')} نسخ احتياطي الآن</button>
-          ${tg.connected && (tg.snapshots.length || tg.mirror) ? `<button class="btn" data-b="browse">${icon('folder')} استعراض واسترجاع</button>` : ''}
-        </div></div>
+          ${tg.connected && (tg.snapshots.length || tg.mirror) ? `<button class="btn" data-b="browse">${icon('folder')} استعراض النسخ</button>` : ''}
+        </div>
+        ${!tg.connected ? '<p class="muted small" style="margin:8px 0 0">اختر القرص في «إلى أين يكون النسخ؟» ليعمل الزر.</p>' : ''}</div>
       <div class="card"><h4>${icon('hdd')} إلى أين يكون النسخ؟</h4>
         <p class="small" style="margin:0 0 8px">الوجهة الآن: <b translate="no">${st.usb_label ? esc(st.usb_label) : st.target ? `<span dir="ltr">${esc(st.target)}</span>` : 'لم تُختر بعد'}</b>
           ${st.target ? (tg.connected ? ' <span class="badge ok">موصول</span>' : ' <span class="badge err">غير موصول</span>') : ''}</p>
         <div class="bk-dests muted small">جارٍ البحث عن الأقراص الموصولة…</div>
         <details class="bk-other" style="margin-top:8px"><summary class="small">مسار آخر (متقدم)</summary>
           <input class="field" name="target" dir="ltr" placeholder="${esc(st.suggested || '/srv/homenas/backup')}" style="margin-top:6px">
-          ${tg.exists && !tg.initialized ? `<div class="muted" style="font-size:12px;margin-top:6px">⚠️ المجلد موجود لكنه غير مُجهز كوجهة نسخ. اضغط «تجهيز».</div>` : ''}
-          ${st.target && !tg.exists && !st.usb_uuid ? `<div class="muted" style="font-size:12px;margin-top:6px">⚠️ المجلد غير موجود — صِل القرص.</div>` : ''}
-        </details>
-        <label class="check"><input type="checkbox" name="enabled" ${st.enabled ? 'checked' : ''}> نسخ تلقائي كل يوم</label>
-        <div style="display:flex;gap:10px">
-          <div style="flex:1"><label class="lbl">الساعة</label><select class="field" name="hour">${Array.from({ length: 24 }, (_, i) => `<option value="${i}" ${i === st.hour ? 'selected' : ''}>${String(i).padStart(2, '0')}:00</option>`).join('')}</select></div>
-          <div style="flex:1"><label class="lbl">عدد النسخ المحفوظة</label><input class="field" name="keep" type="number" min="1" max="365" value="${st.keep}"></div>
+          ${tg.exists && !tg.initialized ? `<div class="muted" style="font-size:12px;margin-top:6px">⚠️ المجلد موجود لكنه غير مُجهز كوجهة نسخ. اضغط «تجهيز».</div><button class="btn sm" data-b="init" style="margin-top:6px">${icon('check')} تجهيز هذا المجلد</button>` : ''}
+          <button class="btn sm" data-b="save-path" style="margin-top:6px">حفظ المسار</button>
+        </details></div>
+      <div class="card span2"><h4>${icon('clock')} ماذا يُنسخ، ومتى؟</h4>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px">
+          <div><label class="lbl" style="margin-top:0">ماذا يُنسخ</label>
+            ${WHAT_L.map(([k, v]) => `<label class="check"><input type="radio" name="what" value="${k}" ${k === st.what ? 'checked' : ''}> ${esc(v)}</label>`).join('')}
+            <p class="muted small" style="margin:4px 0 0">الإعدادات = المستخدمون وكلمات السر، ونجوم العائلة، ومربعات التلفاز وإعداداته (الأذان، المواقيت، الخلفيات)، والكاميرات، والمجلدات المشتركة.</p></div>
+          <div><label class="lbl" style="margin-top:0">متى</label>
+            <select class="field" name="freq"><option value="off" ${st.enabled ? '' : 'selected'}>يدوياً فقط</option>
+              ${FREQ_L.map(([k, v]) => `<option value="${k}" ${st.enabled && k === st.freq ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
+            <div style="display:flex;gap:10px">
+              <div style="flex:1"><label class="lbl">الساعة</label><select class="field" name="hour">${Array.from({ length: 24 }, (_, i) => `<option value="${i}" ${i === st.hour ? 'selected' : ''}>${String(i).padStart(2, '0')}:00</option>`).join('')}</select></div>
+              <div style="flex:1"><label class="lbl">عدد النسخ المحفوظة</label><input class="field" name="keep" type="number" min="1" max="365" value="${st.keep}"></div>
+            </div></div>
         </div>
-        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn primary" data-b="save">حفظ</button>
-          ${tg.exists && !tg.initialized ? `<button class="btn" data-b="init">${icon('check')} تجهيز هذا المجلد</button>` : ''}
-        </div></div>
-      <div class="card span2"><h4>${icon('info')} ما الذي يُنسخ؟</h4>
-        <p style="margin:0">${r.sources.map(x => `<span class="code">${esc(x)}</span>`).join(' ')} <span class="code">@system/nas.db</span></p>
-        <p class="muted" style="font-size:13px">كل الملفات والصور لكل المستخدمين، والمجلدات المشتركة (حتى المربوطة بأقراص أخرى)، وقاعدة البيانات (الحسابات والألبومات والمفضلة). سلال المحذوفات والمصغرات لا تُنسخ.</p>
-        <p class="muted" style="font-size:13px">صِل القرص الخارجي بمنفذ USB واختره في «إلى أين يكون النسخ؟». يتعرّف HOME ANAB على القرص نفسه في كل مرة توصله، حتى لو وصلته بمنفذ آخر.
-          ولقرص دائم داخل الجهاز استعمل «إدارة التخزين ← استعمال القرص ← قرص النسخ الاحتياطي».</p></div></div>`);
+        <div style="margin-top:12px"><button class="btn primary" data-b="save">حفظ</button></div></div></div>`);
     $('[name=target]', card).value = st.usb_uuid ? '' : (st.target || '');
-    const reload = () => { sc.innerHTML = ''; CP.backup(sc); };
-    // البند 17: اختيار الوجهة من الأقراص الموصولة
+    p.appendChild(card);
+    // الوجهات الموصولة
     const dests = $('.bk-dests', card);
     const drawDests = async () => {
       const t = await api.get('/api/backup/targets').catch(() => null);
       if (!t) { dests.textContent = 'تعذرت قراءة الأقراص.'; return; }
       dests.classList.remove('muted', 'small');
-      if (!t.targets.length) {
-        dests.innerHTML = '<div class="alert warn small" style="margin:0">لا يوجد قرص موصول. صِل قرصاً خارجياً أو فلاشة بمنفذ USB، ثم اضغط «بحث مرة أخرى».</div> <button class="btn sm" data-b="rescan" style="margin-top:6px">بحث مرة أخرى</button>';
-      } else {
-        dests.innerHTML = t.targets.map((x) => `<div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+      dests.innerHTML = (t.targets.length ? t.targets.map((x) => `<div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
           <div style="flex:1;min-width:0"><b translate="no">${esc(x.title)}</b>
             <div class="muted small" translate="no">${[x.model ? `<bdi>${esc(x.model)}</bdi>` : '', (x.size || x.total) ? `<bdi dir="ltr">${fmtSize(x.size || x.total)}</bdi>` : '', x.free != null ? `متاح <bdi dir="ltr">${fmtSize(x.free)}</bdi>` : '', x.fstype ? `<bdi>${esc(x.fstype)}</bdi>` : ''].filter(Boolean).join(' · ')}</div>
             ${x.kind === 'usb' && !x.versions ? '<div class="muted small">هذه الصيغة تحفظ نسخة واحدة تُحدَّث (بلا نسخ بالتاريخ).</div>' : ''}</div>
           ${x.current ? '<span class="badge ok">الوجهة الحالية</span>' : x.ro ? '<span class="badge warn">للقراءة فقط</span>'
             : `<button class="btn sm primary" style="white-space:nowrap" data-use="${esc(x.kind === 'usb' ? x.dev : 'internal')}">انسخ إلى هذا القرص</button>`}</div>`).join('')
-          + '<button class="btn ghost sm" data-b="rescan">بحث مرة أخرى</button>';
-      }
-      $$('[data-b=rescan]', dests).forEach((b) => (b.onclick = () => { dests.innerHTML = '<span class="muted small">جارٍ البحث…</span>'; drawDests(); }));
+        : '<div class="alert warn small" style="margin:0">لا يوجد قرص موصول. صِل قرصاً خارجياً أو فلاشة بمنفذ USB.</div>')
+        + '<button class="btn ghost sm" data-b="rescan" style="margin-top:6px">بحث مرة أخرى</button>';
+      $('[data-b=rescan]', dests).onclick = () => { dests.innerHTML = '<span class="muted small">جارٍ البحث…</span>'; drawDests(); };
       $$('[data-use]', dests).forEach((b) => (b.onclick = async () => {
         b.disabled = true;
         const v = b.dataset.use;
         const ok = await guard(() => api.post('/api/backup/use', v === 'internal' ? { kind: 'internal' } : { kind: 'usb', dev: v }));
         b.disabled = false;
-        if (ok) { toast('صار هذا القرص وجهة النسخ الاحتياطي. اضغط «نسخ احتياطي الآن»', 'ok', 6000); reload(); }
+        if (ok) { toast('صار هذا القرص وجهة النسخ الاحتياطي', 'ok', 5000); reload(); }
       }));
     };
     drawDests();
     $('[data-b=save]', card).onclick = async () => {
-      const tv = $('[name=target]', card).value.trim();
-      const d = { enabled: $('[name=enabled]', card).checked, hour: +$('[name=hour]', card).value, keep: +$('[name=keep]', card).value };
-      if (tv !== (st.usb_uuid ? '' : (st.target || ''))) d.target = tv;   // المسار اليدوي فقط إذا تغيّر
+      const freq = $('[name=freq]', card).value;
+      const d = { enabled: freq !== 'off', ...(freq !== 'off' ? { freq } : {}), what: $('[name=what]:checked', card).value,
+        hour: +$('[name=hour]', card).value, keep: +$('[name=keep]', card).value };
       if (await guard(() => api.post('/api/backup/settings', d))) { toast('تم الحفظ', 'ok'); reload(); }
+    };
+    $('[data-b=save-path]', card).onclick = async () => {
+      if (await guard(() => api.post('/api/backup/settings', { target: $('[name=target]', card).value.trim() }))) { toast('تم الحفظ', 'ok'); reload(); }
     };
     const init = $('[data-b=init]', card);
     if (init) init.onclick = async () => { if (await guard(() => api.post('/api/backup/init'))) { toast('أصبح المجلد جاهزاً للنسخ الاحتياطي', 'ok'); reload(); } };
     const browse = $('[data-b=browse]', card);
     if (browse) browse.onclick = () => openApp('files', { path: '/backup', forceNew: false });
     const runBtn = $('[data-b=run]', card);
-    runBtn.onclick = async () => { if (await guard(() => api.post('/api/backup/run'))) { toast('بدأ النسخ الاحتياطي', 'ok'); setTimeout(poll, 700); } };
-    p.appendChild(card);
+    runBtn.onclick = async () => { if (await guard(() => api.post('/api/backup/run', { what: $('[name=now-what]', card).value }))) { toast('بدأ النسخ الاحتياطي', 'ok'); setTimeout(poll, 700); } };
     async function poll() {
       const x = await api.get('/api/backup').catch(() => null);
       if (!x || !document.body.contains(card)) return;
@@ -972,6 +930,96 @@ const CP = {
       }
     }
     if (status.running) poll();
+
+    // ---- 2. الاستيراد: من القرص الموصول
+    const rs = h(`<div class="card" style="margin-top:14px"><h4>${icon('upload')} الاستيراد والاسترجاع من القرص</h4>
+      <p class="muted small" style="margin:0 0 8px">استرجاع الملفات ينسخ ما نقص أو تغيّر فقط، ولا يحذف شيئاً ولا يستبدل ملفاً أحدث.
+        استرجاع الإعدادات يستبدل الإعدادات الحالية (تُحفظ نسخة منها) ثم يُعاد تشغيل البرنامج. تفعيل هذا الجهاز وإعدادات عتاده (الشاشة، الصوت، الشبكة، الريموت) تبقى كما هي، فلا تحدث مشاكل في التعريفات إن كانت النسخة من جهاز آخر.</p>
+      <div class="rs-body muted small">جارٍ القراءة…</div></div>`);
+    p.appendChild(rs);
+    const rb = $('.rs-body', rs);
+    let rpoll = 0;
+    const drawRestore = async () => {
+      const x = await api.get('/api/backup/restore').catch(() => null);
+      if (!x || !rs.isConnected) return;
+      rb.classList.remove('muted', 'small');
+      const job = x.job;
+      const jobHtml = job.running ? `<div class="alert small" style="margin:0 0 8px">⏳ جارٍ استرجاع الملفات: ${job.files} ملف فُحص، ${job.copied} نُسخ — <span translate="no">${esc(job.current)}</span></div>`
+        : job.done ? `<div class="alert ${job.error ? 'err' : 'ok'} small" style="margin:0 0 8px">${job.error ? esc(job.error) : `✅ اكتمل استرجاع الملفات: ${job.copied} ملف.`}</div>` : '';
+      if (!x.connected) { rb.innerHTML = jobHtml + '<p class="muted small" style="margin:0">صِل قرص النسخ الاحتياطي واختره في «إلى أين يكون النسخ؟» لترى نسخه هنا. ويمكن اختيار قرص فيه نسخ من جهاز آخر.</p>'; return; }
+      rb.innerHTML = jobHtml + (x.snapshots.length ? `<table class="tbl"><thead><tr><th>النسخة</th><th>فيها</th><th></th></tr></thead><tbody>
+        ${x.snapshots.map((s) => `<tr><td><bdi>${esc(s.name === 'mirror' ? 'النسخة المحدَّثة' : fmtDateTime(s.created) || s.name)}</bdi>${s.server_name ? `<div class="muted small" translate="no">${esc(s.server_name)}${s.version ? ` · v${esc(s.version)}` : ''}</div>` : ''}</td>
+          <td>${s.settings ? '<span class="badge">الإعدادات</span> ' : ''}${s.files ? '<span class="badge">الملفات والصور</span>' : ''}</td>
+          <td style="white-space:nowrap">${s.files ? `<button class="btn sm" data-r="files" data-s="${esc(s.name)}" ${job.running ? 'disabled' : ''}>استرجاع الملفات</button> ` : ''}
+            ${s.settings ? `<button class="btn sm" data-r="settings" data-s="${esc(s.name)}" ${job.running ? 'disabled' : ''}>استرجاع الإعدادات</button>` : ''}</td></tr>`).join('')}</tbody></table>`
+        : '<p class="muted small" style="margin:0">لا توجد نسخ على هذا القرص بعد.</p>');
+      $$('[data-r]', rb).forEach((b) => (b.onclick = async () => {
+        const part = b.dataset.r;
+        if (!(await confirmBox(part === 'settings' ? 'ستُستبدل إعدادات هذا الجهاز ومستخدموه بما في النسخة، ثم يُعاد تشغيل البرنامج. متأكد؟'
+          : 'ستُنسخ الملفات والصور الناقصة من النسخة إلى الجهاز. لا يُحذف شيء. متابعة؟', { ok: 'استرجاع' }))) return;
+        const res = await guard(() => api.post('/api/backup/restore', { snapshot: b.dataset.s, part }));
+        if (!res) return;
+        if (part === 'settings') {
+          await modal({ title: 'استرجاع الإعدادات', body: h(`<p>${res.restart ? 'يُعاد تشغيل البرنامج الآن. انتظر نصف دقيقة ثم حدّث الصفحة وادخل بحساب من النسخة.' : 'أعد تشغيل البرنامج ليُطبَّق الاسترجاع.'}</p>`) });
+          if (res.restart) setTimeout(() => location.reload(), 30000);
+        } else { toast('بدأ استرجاع الملفات', 'ok'); drawRestore(); }
+      }));
+      clearTimeout(rpoll);
+      if (job.running) rpoll = setTimeout(drawRestore, 2000);
+    };
+    drawRestore();
+
+    // ---- 3. نقل الإعدادات عبر ملف على الكمبيوتر
+    const tr = await api.get('/api/admin/transfer').catch(() => null);
+    if (tr && (tr.pending_import || tr.pending_reset)) {
+      const w = h(`<div class="alert warn" style="margin-top:14px"><b>${tr.pending_reset ? 'إعادة ضبط المصنع' : 'استيراد الإعدادات'} ينتظر إعادة التشغيل.</b>
+        ${tr.appliance ? 'يُطبَّق خلال لحظات.' : 'أعد تشغيل البرنامج ليُطبَّق.'} <button class="btn sm" data-x="cancel">إلغاء</button></div>`);
+      $('[data-x=cancel]', w).onclick = async () => { if (await guard(() => api.del(tr.pending_reset ? '/api/admin/transfer/reset' : '/api/admin/transfer/import'))) { toast('أُلغي', 'ok'); reload(); } };
+      p.appendChild(w);
+    }
+    const pc = h(`<div class="cards" style="padding:0;margin-top:14px">
+      <div class="card"><h4>${icon('download')} حفظ الإعدادات في ملف على الكمبيوتر</h4>
+        <p class="muted small" style="margin:0 0 10px">ملف صغير ‎.anab مشفّر بكلمة سر، فيه الإعدادات فقط. لنقلها إلى جهاز HOME ANAB آخر. الملفات والصور تُنقل بالقرص (أعلاه).</p>
+        <div class="tv-grid"><label>كلمة سر الملف<input class="field" type="password" name="pw" autocomplete="new-password"></label>
+          <label>أعد كتابتها<input class="field" type="password" name="pw2" autocomplete="new-password"></label></div>
+        <p class="alert warn small" style="margin:8px 0">احفظ كلمة السر: بدونها لا يمكن فتح الملف أبداً.</p>
+        <button class="btn primary" data-x="export" ${tr && tr.openssl ? '' : 'disabled'}>${icon('download')} تنزيل ملف الإعدادات</button></div>
+      <div class="card"><h4>${icon('upload')} الاستيراد من الكمبيوتر</h4>
+        <p class="muted small" style="margin:0 0 10px">ملف ‎.anab من هذا الجهاز أو من جهاز آخر. يستبدل الإعدادات والمستخدمين (تُحفظ نسخة من الحالية)، ثم يُعاد تشغيل البرنامج. إعدادات عتاد هذا الجهاز تبقى.</p>
+        <input class="field" type="file" name="f" accept=".anab">
+        <label class="lbl">كلمة سر الملف</label><input class="field" type="password" name="ipw" autocomplete="off">
+        <div style="margin-top:12px"><button class="btn" data-x="import" ${tr && tr.openssl ? '' : 'disabled'}>${icon('upload')} استيراد</button> <span class="muted small im-st"></span></div></div></div>`);
+    p.appendChild(pc);
+    $('[data-x=export]', pc).onclick = async (e) => {
+      const pw = $('[name=pw]', pc).value;
+      if (pw.length < 6) return toast('كلمة السر 6 أحرف على الأقل', 'err');
+      if (pw !== $('[name=pw2]', pc).value) return toast('كلمتا السر غير متطابقتين', 'err');
+      e.target.disabled = true;
+      const x = await guard(() => api.post('/api/admin/transfer/export', { password: pw, files: false }));
+      e.target.disabled = false;
+      if (!x) return;
+      $$('input[type=password]', pc).forEach((i) => (i.value = ''));
+      download(`${x.url}?name=${encodeURIComponent(x.name)}`);
+      toast(`جاهز: ${x.name} (${fmtSize(x.size)})`, 'ok');
+    };
+    $('[data-x=import]', pc).onclick = async (e) => {
+      const f = $('[name=f]', pc).files[0], pw = $('[name=ipw]', pc).value;
+      if (!f || !pw) return toast('اختر الملف واكتب كلمة سره', 'err');
+      if (!await confirmBox('ستُستبدل إعدادات هذا الجهاز ومستخدموه بما في الملف، ثم يُعاد تشغيل البرنامج. متابعة؟', { ok: 'استيراد' })) return;
+      const fd = new FormData(); fd.append('file', f); fd.append('password', pw);
+      e.target.disabled = true; $('.im-st', pc).textContent = 'جارٍ الرفع والفحص…';
+      try {
+        const res = await fetch('/api/admin/transfer/import', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'fetch' } });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(j.error || `خطأ ${res.status}`);
+        const m = j.manifest;
+        $('.im-st', pc).textContent = '';
+        await modal({ title: '✅ الملف سليم', body: h(`<div><p>من «<b translate="no">${esc(m.server_name || '')}</b>»، بتاريخ <bdi>${esc(fmtDateTime(m.created))}</bdi>، فيه ${m.users} مستخدم.</p>
+          <p class="muted">${j.restart ? 'يُعاد تشغيل البرنامج الآن. انتظر نصف دقيقة ثم حدّث الصفحة.' : 'أعد تشغيل البرنامج ليُطبَّق الاستيراد.'}</p></div>`) });
+        if (j.restart) setTimeout(() => location.reload(), 30000);
+      } catch (err) { $('.im-st', pc).textContent = ''; toast(err.message, 'err'); }
+      e.target.disabled = false;
+    };
   },
 
   async photos(sc) {
