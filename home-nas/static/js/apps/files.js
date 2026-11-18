@@ -3,7 +3,7 @@
 // ====================================================================
 import {
   $, $$, h, esc, icon, api, guard, toast, modal, form, confirmBox, promptBox, menu, menuAt, shareDialog,
-  pickFolder, registerApp, openApp, uploads, ARROW, filesFromDrop, chooseFiles, openViewer, fmtSize, fmtEpoch,
+  pickFolder, registerApp, openApp, uploads, fileOps, ARROW, filesFromDrop, chooseFiles, openViewer, fmtSize, fmtEpoch,
   fileType, THUMBABLE, TEXT_EDITABLE, encPath, isTouch, debounce, download,
 } from '../core.js';
 
@@ -28,6 +28,10 @@ class FilesApp {
     this.win = win; this.path = ''; this.items = []; this.sel = new Set(); this.anchor = null;
     this.history = []; this.fwd = []; this.view = localStorage.getItem('files.view') || 'list';
     this.sort = { key: 'name', dir: 1 }; this.searchMode = false;
+    // البند 30: عملية نسخ/نقل/حذف انتهت على السيرفر ← حدّث القائمة
+    const onChanged = () => { if (!this.searchMode) this.refresh(); };
+    addEventListener('nas-files-changed', onChanged);
+    win.onClose(() => removeEventListener('nas-files-changed', onChanged));
     win.body.innerHTML = `<div class="app">
       <aside class="app-side"></aside>
       <section class="app-main">
@@ -285,8 +289,9 @@ class FilesApp {
     const perm = this.path.includes('#recycle') || this.path.startsWith('/card-');   // البطاقة بلا سلة محذوفات
     const msg = perm ? `سيتم حذف ${sel.length} عنصر نهائياً ولا يمكن استرجاعه.` : `نقل ${sel.length} عنصر إلى سلة المحذوفات؟`;
     if (!await confirmBox(msg, { ok: 'حذف', danger: true })) return;
-    const r = await guard(() => api.post('/api/files/delete', { paths: sel.map(i => this.itemPath(i)) }));
-    if (r) { toast(perm ? 'تم الحذف' : 'نُقلت إلى سلة المحذوفات', 'ok'); this.refresh(); }
+    // البند 30: الحذف يعمل على السيرفر ويستمر حتى لو أُغلق المتصفح؛ التقدّم في لوحة العمليات
+    const r = await guard(() => api.post('/api/files/delete', { paths: sel.map(i => this.itemPath(i)), background: true }));
+    if (r) { this.sel.clear(); fileOps.watch(); }
   }
   async emptyRecycle() {
     if (!await confirmBox('حذف كل محتويات سلة المحذوفات نهائياً؟', { ok: 'تفريغ', danger: true })) return;
@@ -298,9 +303,9 @@ class FilesApp {
     const sel = this.selected(); if (!sel.length) return;
     const dest = await pickFolder(move ? 'نقل إلى' : 'نسخ إلى', this.path);
     if (!dest) return;
-    toast(move ? 'جارِ النقل…' : 'جارِ النسخ…');
-    const r = await guard(() => api.post('/api/files/transfer', { paths: sel.map(i => this.itemPath(i)), dest, move }));
-    if (r) { toast(`تم ${move ? 'نقل' : 'نسخ'} ${r.count} عنصر`, 'ok'); this.refresh(); }
+    // البند 30: يعمل على السيرفر ويستمر حتى لو أُغلق المتصفح؛ التقدّم في لوحة العمليات
+    const r = await guard(() => api.post('/api/files/transfer', { paths: sel.map(i => this.itemPath(i)), dest, move, background: true }));
+    if (r) fileOps.watch();
   }
   async properties(one) {
     const p = one ? this.itemPath(one) : this.path;

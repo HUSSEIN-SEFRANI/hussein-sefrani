@@ -1,7 +1,7 @@
 // ====================================================================
 // HOME ANAB — سطح المكتب: الأيقونات، شريط المهام، قائمة البدء، الساعة
 // ====================================================================
-import { ME, I18N, $, h, esc, icon, api, apps, openApp, closePopovers, isMobile, toast } from './core.js';
+import { ME, I18N, $, h, esc, icon, api, apps, openApp, closePopovers, isMobile, toast, fileOps } from './core.js';
 import './apps/files.js';
 import './apps/photos.js';
 import './apps/system.js';
@@ -181,3 +181,6 @@ if (ME.parent) {
   pollPending();
   addEventListener('nas-chores', pollPending);
 }
+
+// البند 30: نسخ/نقل/حذف ما زال يعمل على السيرفر (بدأ قبل إغلاق المتصفح أو من جهاز آخر) ← أظهر تقدّمه
+fileOps.resume();

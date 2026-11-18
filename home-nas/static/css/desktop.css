@@ -369,6 +369,20 @@ label.lbl { display: block; font-size: 13px; color: var(--muted); margin: 10px 0
 #uploads li .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: ltr; text-align: start; }
 #uploads li .s { font-size: 12px; white-space: nowrap; }
 #uploads.collapsed ul { display: none; }
+/* البند 30: لوحة النسخ والنقل والحذف على السيرفر (بنفس شكل لوحة الرفع، وبجانبها إن ظهرتا معاً) */
+#fileops { position: fixed; z-index: 9600; bottom: 16px; left: 16px; width: 340px; max-width: calc(100vw - 32px);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow, 0 10px 30px rgba(0,0,0,.18)); overflow: hidden; }
+body:has(#uploads) #fileops { left: 368px; }
+@media (max-width: 760px) { body:has(#uploads) #fileops { left: 16px; bottom: 90px; } }
+#fileops .uh { display: flex; align-items: center; gap: 8px; padding: 10px 12px; cursor: pointer; }
+#fileops .uh .t { flex: 1; font-weight: 600; }
+#fileops .bar { height: 4px; background: var(--surface-3); }
+#fileops .bar div { height: 100%; width: 0; background: var(--accent); transition: width .4s; }
+#fileops ul { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow: auto; }
+#fileops li { display: flex; align-items: center; gap: 8px; padding: 8px 12px; font-size: 13px; border-top: 1px solid var(--border); }
+#fileops li .s { font-size: 12px; white-space: nowrap; }
+#fileops li .s.ok { color: var(--ok); } #fileops li .s.err { color: var(--err); }
+#fileops.collapsed ul { display: none; }
 
 /* ---------------------------------------------------------- بطاقات وجداول (لوحة التحكم والمراقب) */
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; padding: 16px; }

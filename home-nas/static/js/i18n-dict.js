@@ -35,6 +35,8 @@ window.I18N_DICT = {
 "فحص مرة أخرى": ["Check again", "Vérifier à nouveau", "Tekrar kontrol et", "Opnieuw controleren"],
 "غير موصول": ["Not connected", "Non connecté", "Bağlı değil", "Niet verbonden"],
 "جارٍ الفحص…": ["Checking…", "Vérification…", "Kontrol ediliyor…", "Controleren…"],
+"انتهت العمليات": ["Operations finished", "Opérations terminées", "İşlemler bitti", "Bewerkingen voltooid"],
+"الأصل باقٍ كما هو": ["The original is unchanged", "L'original est inchangé", "Orijinal değişmedi", "Het origineel is ongewijzigd"],
 "بحث في الإعدادات…": ["Search settings…", "Rechercher dans les réglages…", "Ayarlarda ara…", "Instellingen zoeken…"],
 "العائلة والملفات": ["Family & files", "Famille et fichiers", "Aile ve dosyalar", "Gezin en bestanden"],
 "الصور والفيديو": ["Photos & videos", "Photos et vidéos", "Fotoğraflar ve videolar", "Foto's en video's"],
