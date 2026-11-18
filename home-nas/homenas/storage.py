@@ -31,6 +31,7 @@ CONFIRM_WORD = "مسح"
 OP_LABEL = {"add": "قرص منفصل", "backup-disk": "قرص النسخ الاحتياطي", "mirror": "مرآة RAID 1", "replace": "استبدال قرص في المرآة"}
 
 _usage = {"running": False, "result": None}
+THUMB_DIRS = ("thumbs", "previews", "fthumbs", "fpreview", "tvpdf")   # تُصنع من جديد وحدها عند الحاجة
 _lock = threading.Lock()
 
 
@@ -77,8 +78,10 @@ def _compute(data_paths, folders: list[tuple[str, str]], users: dict):
             if p.is_dir() and str(p.resolve()) not in seen:
                 seen.add(str(p.resolve()))
                 shares.append({"name": name, "total": _size(p)})
+        thumbs = sum(_size(data_paths.cache / d) for d in THUMB_DIRS if (data_paths.cache / d).is_dir())
         other = [{"name": "تسجيلات الكاميرات", "total": _size(data_paths.system / "cameras")},
-                 {"name": "فيديو التلفاز المجهّز ومصغرات الصور", "total": _size(data_paths.cache)}]
+                 {"name": "فيديو التلفاز المجهّز", "total": _size(data_paths.cache / "tv-video"), "clear": "tv-video"},
+                 {"name": "مصغرات الصور والمعاينات", "total": thumbs, "clear": "thumbs"}]
         res = {"t": int(time.time()), "people": sorted(people, key=lambda x: -x["total"]),
                "shares": sorted(shares, key=lambda x: -x["total"]), "other": [x for x in other if x["total"]]}
         try:
@@ -225,3 +228,30 @@ def api_storage_run():
         abort(500, out[-300:] or "فشل البدء")
     log_action("إدارة التخزين", f"{OP_LABEL[op]}: {' '.join(devs)}")
     return jsonify(ok=True, op=_op_status())
+
+
+@bp.post("/api/admin/storage/clear")
+@admin_required
+def api_storage_clear():
+    """البند 21: تفريغ الذاكرة المؤقتة: فيديو التلفاز المجهّز، أو المصغرات. الأصل لا يُمس، وكلها تُصنع من جديد عند الحاجة."""
+    what = body().get("what")
+    p = paths()
+    if what == "tv-video":
+        from .tv import _tvv
+        n = _tvv().clear()
+        log_action("تفريغ فيديو التلفاز المجهّز", f"{n // 1048576} MB")
+    elif what == "thumbs":
+        n = 0
+        for d in THUMB_DIRS:
+            if (p.cache / d).is_dir():
+                n += _size(p.cache / d)
+                shutil.rmtree(p.cache / d, ignore_errors=True)
+        log_action("تفريغ مصغرات الصور", f"{n // 1048576} MB")
+    else:
+        abort(400)
+    res = usage_result(p)
+    if res:   # نحدّث الرقم المعروض دون إعادة حساب كل شيء
+        for x in res.get("other", []):
+            if x.get("clear") == what:
+                x["total"] = 0
+    return jsonify(ok=True, freed=n, usage=res)

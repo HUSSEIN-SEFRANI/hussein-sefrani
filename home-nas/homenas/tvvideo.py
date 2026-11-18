@@ -26,7 +26,8 @@ OK_VIDEO = {"h264", "vp8", "vp9", "av1"}
 OK_AUDIO = {"aac", "mp3", "opus", "vorbis", "flac"}
 OK_CONTAINER = {".mp4", ".m4v", ".mov", ".webm"}
 HDR = {"arib-std-b67", "smpte2084"}
-CACHE_LIMIT = 30 * 1024 ** 3  # أقل حد لمساحة النسخ المحوّلة: الأقدم يُحذف أولاً
+CACHE_LIMIT = 5 * 1024 ** 3   # أقل حد لمساحة النسخ المحوّلة: الأقدم يُحذف أولاً
+DEFAULT_SHARE = 0.10          # v1.9.8 (البند 21): الحد التلقائي 10% من القرص (كان 40%)
 IDLE_SECS = 15 * 60           # التلفاز «غير مستعمل» بعد 15 دقيقة بلا مشاهدة أو تصفح
 NIGHT = (1, 7)                # الليل: من 1 إلى 7 صباحاً
 
@@ -56,6 +57,12 @@ class TvVideo:
         self.decisions: dict[str, str] = {}
         try:
             self.decisions = json.loads((self.dir / "prep.json").read_text())
+        except (OSError, ValueError):
+            pass
+        # البند 21: مصدر كل نسخة مجهّزة، لنحذفها إذا حُذف الأصل أو تغيّر
+        self.srcmap: dict[str, str] = {}
+        try:
+            self.srcmap = json.loads((self.dir / "sources.json").read_text())
         except (OSError, ValueError):
             pass
 
@@ -183,6 +190,8 @@ class TvVideo:
 
     def transcode(self, key: str, src: Path, bg: bool = False):
         job = self.jobs[key]
+        self.srcmap[key] = str(src)
+        self.save_srcmap()
         out = self.out(key)
         out.parent.mkdir(parents=True, exist_ok=True)
         tmp = out.with_suffix(".part.mp4")
@@ -254,6 +263,58 @@ class TvVideo:
             except OSError:
                 pass
 
+    def save_srcmap(self):
+        try:
+            self.dir.mkdir(parents=True, exist_ok=True)
+            tmp = self.dir / "sources.json.tmp"
+            tmp.write_text(json.dumps(self.srcmap, ensure_ascii=False))
+            tmp.replace(self.dir / "sources.json")
+        except OSError:
+            pass
+
+    def drop_orphans(self) -> int:
+        """البند 21: نسخة مجهّزة لفيديو حُذف (أو تغيّر) لا فائدة منها: تُحذف."""
+        n = 0
+        for key, src in list(self.srcmap.items()):
+            f = Path(src)
+            try:
+                gone = not f.is_file() or self.key(f) != key
+            except OSError:
+                gone = True
+            if gone:
+                try:
+                    if self.out(key).exists():
+                        n += self.out(key).stat().st_size
+                        self.out(key).unlink()
+                except OSError:
+                    pass
+                del self.srcmap[key]
+                self.decisions.pop(key, None)
+        # نسخ بلا مصدر معروف (قبل 1.9.8) تبقى حتى يحذفها الحد الأقصى (الأقدم أولاً)
+        for key in [k for k in self.srcmap if not self.out(k).exists()]:
+            del self.srcmap[key]
+        self.save_srcmap()
+        self.save_decisions()
+        return n
+
+    def clear(self) -> int:
+        """تفريغ كل النسخ المجهّزة (تُصنع من جديد عند الحاجة)."""
+        n = 0
+        for f in list(self.dir.rglob("*.mp4")) if self.dir.exists() else []:
+            if self.bg_key and f.name.startswith(self.bg_key):
+                continue
+            try:
+                n += f.stat().st_size
+                f.unlink()
+            except OSError:
+                pass
+        self.srcmap = {k: v for k, v in self.srcmap.items() if self.out(k).exists()}
+        self.save_srcmap()
+        self.prep.update(cache_bytes=self.cache_size(), ready=0)
+        self.rescan = True
+        self.prep_wake.set()
+        return n
+
     def save_decisions(self):
         try:
             self.dir.mkdir(parents=True, exist_ok=True)
@@ -309,6 +370,9 @@ class TvVideo:
             total += 1
             if self.out(key).exists():
                 ready += 1
+                if key not in self.srcmap:          # نسخ قديمة: نعرف مصدرها الآن
+                    self.srcmap[key] = str(f)
+                    changed = True
                 continue
             d = self.decisions.get(key)
             if d is None:
@@ -328,6 +392,7 @@ class TvVideo:
             changed = True
         if changed:
             self.save_decisions()
+            self.save_srcmap()
         self.prep.update(total=total, ready=ready, todo=len(todo), failed=failed, scanned=time.time(),
                          cache_bytes=self.cache_size())
         return todo
@@ -351,7 +416,7 @@ class TvVideo:
                     total_disk = shutil.disk_usage(self.dir.parent).total
                 except OSError:
                     total_disk = 0
-                self.limit = int(gb * 1024 ** 3) if gb > 0 else max(CACHE_LIMIT, int(total_disk * 0.4))
+                self.limit = int(gb * 1024 ** 3) if gb > 0 else max(CACHE_LIMIT, int(total_disk * DEFAULT_SHARE))
                 ok, why = self.allowed(st.get("mode", "idle"))
                 running = self.bg_worker is not None and self.bg_worker.is_alive()
                 if running:
@@ -362,6 +427,7 @@ class TvVideo:
                 else:
                     if self.rescan or (not todo and time.time() - last_scan > 900) or time.time() - last_scan > 6 * 3600:
                         self.prep["state"] = "scanning"
+                        self.drop_orphans()
                         todo = self.scan()
                         last_scan, self.rescan = time.time(), False
                     todo = [(k, f) for k, f in todo if not self.out(k).exists() and not self.jobs.get(k, {}).get("running")]
