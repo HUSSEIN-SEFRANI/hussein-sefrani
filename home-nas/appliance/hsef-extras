@@ -827,6 +827,7 @@ WIFI_FILE = Path("/etc/network/interfaces.d/hsef-wifi")
 OFFLINE_FLAG = Path("/etc/homenas/offline")
 TV_MODE = Path("/etc/homenas/tv-mode")
 IP_RE = _re.compile(r"^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$")
+FAKE_ARP = {"192.168.1.77": ["aa:bb:cc:dd:ee:ff"]}   # للاختبار فقط: عنوان «مستعمل» في وضع FAKE
 MAC_RE = _re.compile(r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$")
 
 
@@ -994,10 +995,62 @@ def rewrite_ifaces(ifc, static=None):
     IFACES.write_text("\n".join(out).rstrip() + "\n\n" + iface_stanza(ifc, static))
 
 
+# ----------------------------------------------------------------------------- البند 37: تعارض العناوين
+def _mac_of(ifc: str) -> bytes | None:
+    try:
+        return bytes.fromhex(Path(f"/sys/class/net/{ifc}/address").read_text().strip().replace(":", ""))
+    except (OSError, ValueError):
+        return None
+
+
+def arp_probe(ifc: str, ip: str, timeout: float = 1.5, tries: int = 2) -> list[str]:
+    """من يستعمل هذا العنوان في الشبكة؟ طلب ARP «مَن عنده IP؟» بمرسِل 0.0.0.0 (مثل فحص التكرار RFC 5227)،
+    فيرد كل جهاز يملك العنوان، حتى لو كان العنوان نفسه على هذا الجهاز. يرجع عناوين MAC للأجهزة الأخرى."""
+    import socket, struct, select
+    mine = _mac_of(ifc)
+    if not mine or not valid_ip(ip):
+        return []
+    try:
+        sk = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(0x0806))
+        sk.bind((ifc, 0))
+    except (OSError, AttributeError):
+        return []
+    tip = socket.inet_aton(ip)
+    frame = (b"\xff" * 6 + mine + struct.pack("!H", 0x0806) +
+             struct.pack("!HHBBH", 1, 0x0800, 6, 4, 1) + mine + b"\0" * 4 + b"\0" * 6 + tip)
+    found = set()
+    try:
+        for _ in range(tries):
+            sk.send(frame)
+            end = _time.time() + timeout
+            while (left := end - _time.time()) > 0:
+                if not select.select([sk], [], [], left)[0]:
+                    break
+                pkt = sk.recv(128)
+                if len(pkt) < 42 or pkt[12:14] != b"\x08\x06" or struct.unpack("!H", pkt[20:22])[0] != 2:
+                    continue
+                sha, spa = pkt[22:28], pkt[28:32]
+                if spa == tip and sha != mine:
+                    found.add(":".join(f"{b:02x}" for b in sha))
+    finally:
+        sk.close()
+    return sorted(found)
+
+
+def free_address_near(ifc: str, ip: str) -> str | None:
+    """عنوان حر قريب للاقتراح (خارج نطاق التوزيع التلقائي غالباً: .200 وما بعدها)."""
+    base = ".".join(ip.split(".")[:3])
+    for last in (200, 201, 202, 210, 220, 230, 240, 250):
+        cand = f"{base}.{last}"
+        if cand != ip and not arp_probe(ifc, cand, timeout=0.8, tries=1):
+            return cand
+    return None
+
+
 def net_set(mode: str, ip="", prefix="24", gateway="", dns=""):
     """يغيّر العنوان مع شبكة أمان: إن لم يُؤكَّد من العنوان الجديد خلال 3 دقائق يعود الإعداد القديم."""
-    ifc = wired_iface()
-    if not ifc or not IFACES.exists():
+    ifc = "eth0" if FAKE else wired_iface()
+    if not FAKE and (not ifc or not IFACES.exists()):
         die("network configuration not supported on this machine")
     static = None
     if mode == "static":
@@ -1005,6 +1058,14 @@ def net_set(mode: str, ip="", prefix="24", gateway="", dns=""):
             die("invalid address")
         dns_list = [d for d in dns.split(",") if valid_ip(d.strip())] or [gateway]
         static = {"ip": ip, "prefix": int(prefix), "gateway": gateway}
+        if ip == gateway:
+            die("هذا عنوان الراوتر نفسه. اختر عنواناً آخر.")
+        # البند 37: لا نثبّت عنواناً يستعمله جهاز آخر (كان الكابل يتقطع لأن جهازين يتنازعان العنوان نفسه)
+        others = FAKE_ARP.get(ip, []) if FAKE else arp_probe(ifc, ip)
+        if others:
+            alt = None if FAKE else free_address_near(ifc, ip)
+            die(f"العنوان {ip} يستعمله جهاز آخر في الشبكة ({others[0]}). اختر عنواناً آخر"
+                + (f"، مثل {alt}" if alt else "") + ".")
     if FAKE:
         return
     if not IFACES_BAK.exists():
@@ -1219,6 +1280,15 @@ def net_diag():
         dpat = _re.compile(r"(%s).*(carrier lost|leased|rebinding|expired|NAK|duplicate|DAD|conflict|offered)" % "|".join(map(_re.escape, names)), _re.I)
         dhcp = [l.split(": ", 1)[-1][:160] for l in r.stdout.splitlines() if dpat.search(l)][-10:]
     same_ip = any(_re.search(r"duplicate|DAD|conflict", l, _re.I) for l in dhcp)
+    # البند 37: هل يرد جهاز آخر على عنوان هذا الجهاز؟ (السبب الأشهر لتقطع الكابل بعد تثبيت العنوان)
+    conflicts = {}
+    for p in ports:
+        if p["ip"] and p["carrier"]:
+            m = arp_probe(p["iface"], p["ip"])
+            if m:
+                conflicts[p["iface"]] = m
+                p["conflict"] = m
+    same_ip = same_ip or bool(conflicts)
     print(json.dumps({"ports": ports, "uptime_min": int(float(up.split()[0]) // 60) if up else None, "log": log, "dhcp_log": dhcp,
                       "same_ip": same_ip, "hardening": WIRED_RULES.exists() and EEE_HOOK.exists(),
                       "ethtool": bool(shutil.which("ethtool"))}))

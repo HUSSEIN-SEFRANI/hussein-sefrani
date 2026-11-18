@@ -42,7 +42,11 @@ function cableCard() {
     }).join('');
     const tip = (r.ports || []).some((x) => (x.downs || x.changes / 2) > 1)
       ? `<p class="small" style="margin:8px 0 0">انقطع الكابل منذ التشغيل. جرّب بالترتيب: كابلاً آخر، ثم منفذاً آخر في الراوتر. وإن كان المنفذ عبر محوّل USB فصِله بمنفذ USB آخر (يفضّل الخلفي).</p>` : '';
-    const same = r.same_ip ? '<div class="alert err small" style="margin-top:8px">يبدو أن جهازاً آخر في الشبكة يستعمل نفس العنوان. أطفئ الجهاز الآخر أو أعطِ هذا الجهاز عنواناً ثابتاً مختلفاً.</div>' : '';
+    // البند 37: جهاز آخر يرد على عنوان هذا الجهاز ← الكابل «يتقطع» لأن الجهازين يتنازعان العنوان
+    const cf = (r.ports || []).find((x) => x.conflict && x.conflict.length);
+    const same = cf ? `<div class="alert err small" style="margin-top:8px"><b>جهاز آخر في الشبكة يستعمل نفس العنوان <bdi dir="ltr">${esc(cf.ip)}</bdi></b>
+        (<bdi dir="ltr" translate="no">${esc(cf.conflict.join(', '))}</bdi>). هذا سبب الانقطاع. الحل: في «عنوان السيرفر في الشبكة» أعلاه اختر «تلقائي من الراوتر»، أو عنواناً ثابتاً آخر (مثل .200)، وأعطِ الجهاز الآخر عنواناً مختلفاً.</div>`
+      : r.same_ip ? '<div class="alert err small" style="margin-top:8px">يبدو أن جهازاً آخر في الشبكة يستعمل نفس العنوان. أطفئ الجهاز الآخر أو أعطِ هذا الجهاز عنواناً ثابتاً مختلفاً.</div>' : '';
     const log = [...(r.log || []), ...(r.dhcp_log || [])];
     b.innerHTML = (ports || '<p class="muted small" style="margin:0">لا يوجد منفذ كابل في هذا الجهاز.</p>')
       + (up ? `<p class="muted small" style="margin:8px 0 0">منذ التشغيل: ${up}${r.hardening ? ' · حماية الانقطاع مفعّلة' : ''}</p>` : '') + tip + same
