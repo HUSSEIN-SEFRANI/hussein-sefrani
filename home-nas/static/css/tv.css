@@ -361,7 +361,11 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 .sp-row .sp .bal .emo { font-size: 24px; }
 .sp-row .sp .crown { position: absolute; top: -18px; font-size: 32px; }
 .stars-scr .sp-acts { position: absolute; top: 330px; right: 60px; left: 60px; display: flex; gap: 16px; justify-content: center; }
-.stars-scr .sp-log { position: absolute; top: 400px; bottom: 64px; right: 120px; left: 120px; display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+.stars-scr .sp-log { position: absolute; top: 400px; bottom: 64px; right: 120px; left: 120px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; scrollbar-width: none; padding: 6px 8px; }
+.stars-scr .sp-log::-webkit-scrollbar { display: none; }
+.stars-scr .sl-h { margin: 0 4px 2px; font-size: 18px; color: #94a3b8; font-weight: 600; }
+.stars-scr .sl { flex: none; outline: none; }
+.stars-scr .sl.focus { background: rgba(255,255,255,.16); box-shadow: 0 0 0 3px #fde68a; }
 .sl { display: flex; align-items: center; gap: 14px; background: rgba(255,255,255,.06); border-radius: 14px; padding: 8px 16px; font-size: 17px; }
 .sl i { font-style: normal; color: #cbd5e1; flex: 1; }
 .sl small { color: #94a3b8; font-size: 14px; }

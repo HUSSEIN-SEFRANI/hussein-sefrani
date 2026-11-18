@@ -350,15 +350,15 @@ function starsLine(x) {
   const n = `<b class="sv">⭐ ${x.amount}</b>`;
   const what = x.kind === "transfer" ? `${nm(esc(x.from || "?"))} ← ${nm(esc(x.to || "?"))} ${n}` : x.kind === "give" ? `${nm(esc(x.by || "?"))} أعطى ${nm(esc(x.to || "?"))} ${n}`
     : x.kind === "learn" ? `📚 ${nm(esc(x.to || "?"))} أنهى درساً ${n}` : x.kind === "game" ? `🎮 ${nm(esc(x.to || "?"))} ربح ${n}` : `${nm(esc(x.by || "?"))} خصم من ${nm(esc(x.to || "?"))} ${n}`;
-  return `<div class="sl ${x.kind}"><span>${what}</span><i>${esc(x.reason)}</i><small>${ago(x.ts)}</small></div>`;
+  return `<div class="sl f ${x.kind}"><span>${what}</span><i>${esc(x.reason)}</i><small>${ago(x.ts)}</small></div>`;
 }
 async function starsScreen() {
   let r;
   try { r = await api("/api/tv/stars"); } catch (e) { toast(e.message); return; }
   const el = h(`<div class="bg-dark stars-scr"><div class="bhead"><button class="back f js-back">${A.CHEVRON}<span>الرئيسية</span></button>
     <div class="ti emo" style="background:linear-gradient(135deg,#fef3c7,#f59e0b);font-size:34px">⭐</div><h1>نجوم العائلة</h1></div>
-    <div class="sp-row"></div><div class="sp-acts"></div><div class="sp-log"></div>
-    ${hints([["موافق", "اختيار"], ["رجوع", "الرئيسية"]])}</div>`);
+    <div class="sp-row"></div><div class="sp-acts"></div><div class="sp-log list"></div>
+    ${hints([["موافق", "اختيار"], ["⬇", "السجل"], ["رجوع", "الرئيسية"]])}</div>`);
   const draw = (d) => {
     r = d;
     const top1 = Math.max(...d.people.map((p) => p.balance));
@@ -370,7 +370,7 @@ async function starsScreen() {
     else if (parent) acts.push(`<button class="btn gold f" data-a="needpin">⭐ أعطِ نجوماً</button>`);
     if (d.my_balance != null) acts.push(`<button class="btn ${parent ? "" : "gold "}f" data-a="transfer">🎁 أهدِ من رصيدي (${d.my_balance})</button>`);
     el.querySelector(".sp-acts").innerHTML = acts.join("");
-    el.querySelector(".sp-log").innerHTML = d.log.length ? d.log.slice(0, 7).map(starsLine).join("") : `<p class="set-msg">لا توجد حركات بعد. كل شخص يبدأ بـ ${d.start} نجوم ⭐</p>`;
+    el.querySelector(".sp-log").innerHTML = d.log.length ? `<h3 class="sl-h">السجل</h3>${d.log.map(starsLine).join("")}` : `<p class="set-msg">لا توجد حركات بعد. كل شخص يبدأ بـ ${d.start} نجوم ⭐</p>`;
     el.querySelectorAll("[data-a]").forEach((b) => b.addEventListener("click", () => {
       if (b.dataset.a === "needpin") { toast("لتعطي نجوماً من التلفاز ضع رمز دخول (PIN) لحسابك: لوحة التحكم ← وضع التلفاز. أو من الهاتف: «نجوم العائلة»", 7000); return; }
       starFlow(b.dataset.a, r, draw);
