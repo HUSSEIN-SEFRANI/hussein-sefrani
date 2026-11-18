@@ -485,6 +485,30 @@ const CP = {
     if (d.usage_running) pollUsage();
     $('[data-x=usage]', uc).onclick = async () => { if (await guard(() => api.post('/api/admin/storage/usage'))) { drawUsage(d.usage, true); pollUsage(); } };
 
+    // ---- سلة المحذوفات (البند 16)
+    const rc = h(`<div class="card" style="margin-top:14px"><h4>${icon('trash')} سلة المحذوفات</h4><div class="rb muted small">جارٍ الحساب…</div></div>`);
+    p.appendChild(rc);
+    const drawRecycle = (r) => {
+      const rb = $('.rb', rc); rb.classList.remove('muted', 'small');
+      rb.innerHTML = `<p class="small" style="margin:0 0 8px">الملفات المحذوفة لا تُمسح فوراً: تبقى في سلة المحذوفات وتشغل مساحتها، حتى تُفرَّغ.</p>
+        <div class="ov-row"><b>المجموع</b><span dir="ltr" translate="no">${fmtSize(r.total)} · ${r.count} ملف</span></div>
+        ${r.bins.map((x) => `<div class="ov-row small" style="margin-top:6px"><span translate="no">${esc(x.name)}</span><span class="muted" dir="ltr" translate="no">${fmtSize(x.size)} · ${x.count}</span></div>`).join('')}
+        <label class="lbl" style="margin-top:12px">التفريغ التلقائي</label>
+        <select class="field" name="rdays" style="max-width:320px">${r.choices.map((d) => `<option value="${d}" ${d === r.days ? 'selected' : ''}>${d ? `امسح نهائياً ما مرّ على حذفه ${d} يوماً` : 'لا تفريغ تلقائي'}</option>`).join('')}</select>
+        <p class="muted small" style="margin:4px 0 10px">يعمل مرة كل يوم.</p>
+        <button class="btn danger sm" data-x="empty" ${r.count ? '' : 'disabled'}>تفريغ كل السلال الآن</button>`;
+      $('[name=rdays]', rb).onchange = async (e) => {
+        const res = await guard(() => api.post('/api/admin/recycle', { days: +e.target.value }));
+        if (res) { toast(res.files ? `تم. حُذف نهائياً ${res.files} ملف (${fmtSize(res.bytes)})` : 'تم', 'ok'); drawRecycle(res.summary); }
+      };
+      $('[data-x=empty]', rb).onclick = async () => {
+        if (!(await confirmBox(`ستُحذف نهائياً كل الملفات في سلال المحذوفات لكل العائلة (${fmtSize(r.total)}). لا يمكن استرجاعها بعد ذلك.`, { ok: 'تفريغ', danger: true }))) return;
+        const res = await guard(() => api.post('/api/admin/recycle', { action: 'empty' }));
+        if (res) { toast(`تم تحرير ${fmtSize(res.bytes)}`, 'ok'); drawRecycle(res.summary); }
+      };
+    };
+    api.get('/api/admin/recycle').then(drawRecycle).catch((e) => { $('.rb', rc).textContent = e.message; });
+
     // ---- استعمال قرص جديد
     async function useDisk(dev) {
       const x = d.disks.find((k) => k.name === dev);
