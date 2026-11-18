@@ -178,6 +178,68 @@ def api_learn_result():
     return jsonify(ok=True, stored=True)
 
 
+# ----------------------------------------------------------------------------- البند 43: لعبة تحفظ PDF في الملفات الشخصية
+LETTERS_DIR = "الرسائل"          # في المجلد الشخصي لكل فرد
+LETTERS_SENT = "المرسلة"          # نسخة المرسل: الرسائل/المرسلة
+PDF_MAX = 15 * 1024 * 1024
+
+
+def pdf_name(s) -> str:
+    """اسم ملف آمن: بلا / \\ : * ? " < > | ولا رموز تحكم، وينتهي بـ .pdf."""
+    s = re.sub(r'[\x00-\x1f/\\:*?"<>|]+', " ", str(s or ""))
+    s = " ".join(s.split()).strip(" .")[:90] or "رسالة"
+    return s if s.lower().endswith(".pdf") else s + ".pdf"
+
+
+def _free_path(folder: Path, name: str) -> Path:
+    p = folder / name
+    stem, n = p.stem, 2
+    while p.exists():
+        p = folder / f"{stem} ({n}).pdf"
+        n += 1
+    return p
+
+
+@bp.post("/api/tv/files/pdf")
+def api_tv_save_pdf():
+    """الجسم: ملف PDF. ‎?to=<رقم الشخص>&name=<اسم الملف>&copy=1
+    يُحفظ في «الرسائل» داخل المجلد الشخصي لـ to (أو للاعب نفسه)، ومع copy=1 نسخة في «الرسائل/المرسلة» للاعب.
+    للألعاب على التلفاز فقط (من عنوان الصفحة /tv/game/...)، وto يجب أن يكون من أفراد التلفاز."""
+    from urllib.parse import urlparse
+    from .core import home_dir
+    from .tv import display_name
+    u = _tv_user()
+    if not re.match(r"^/tv/game/\d+/", urlparse(request.referrer or "").path):
+        abort(403, "للألعاب على التلفاز فقط")
+    db = get_db()
+    to_id = request.args.get("to", type=int) or u["id"]
+    to = next((m for m in _members(db) if m["id"] == to_id), None)
+    if to is None:
+        abort(404, "الشخص غير موجود")
+    if (request.content_length or 0) > PDF_MAX:
+        abort(413, "الملف كبير")
+    data = request.get_data(cache=False)
+    if len(data) > PDF_MAX:
+        abort(413, "الملف كبير")
+    if not data.startswith(b"%PDF-"):
+        abort(400, "ليس ملف PDF")
+    name = pdf_name(request.args.get("name"))
+    targets = [(to, Path(LETTERS_DIR))]
+    if request.args.get("copy") and to["id"] != u["id"]:
+        targets.append((u, Path(LETTERS_DIR) / LETTERS_SENT))
+    saved = []
+    for who, sub in targets:
+        folder = home_dir(who["username"]) / sub
+        folder.mkdir(parents=True, exist_ok=True)
+        p = _free_path(folder, name)
+        tmp = p.with_name(f".{p.name}.part")
+        tmp.write_bytes(data)
+        tmp.replace(p)
+        saved.append({"user": display_name(who), "path": str(sub / p.name)})
+    log_action("رسالة PDF من لعبة", f"{display_name(u)} ← {display_name(to)}: {name}", u["username"])
+    return jsonify(ok=True, saved=saved)
+
+
 # ============================================================================= مشترك
 def _members(db, kids_only=False):
     rows = db.execute("SELECT * FROM users WHERE disabled=0 AND COALESCE(tv_role,'none')!='none' ORDER BY id").fetchall()

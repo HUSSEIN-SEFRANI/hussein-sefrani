@@ -1,0 +1,60 @@
+/* الرسائل */
+#sky { --sky: linear-gradient(180deg, #c4b5fd 0%, #ede9fe 62%, #bbf7d0 62%, #86efac 100%); }
+.sun { background: #fde68a; box-shadow: 0 0 6vh #fde68a; }
+h1 { -webkit-text-stroke-color: #6b21a8; }
+.sub { color: #581c87; }
+.sub.warn { background: #fff7; border-radius: 2vh; padding: .5vh 2vh; font-size: 2.6vh; }
+.mode small .badge, .badge { display: inline-block; background: #facc15; color: #713f12; border-radius: 2vh; padding: 0 1.2vh; font-weight: 800; }
+
+/* الوجوه */
+.face { position: relative; width: 8vh; height: 8vh; border-radius: 50%; color: #fff; font-weight: 800; font-size: 4.2vh; display: inline-flex; align-items: center; justify-content: center; flex: none; overflow: hidden; box-shadow: 0 .5vh 1vh #0002; }
+.face img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.face.big { width: 17vh; height: 17vh; font-size: 8vh; }
+
+/* الصندوق */
+.cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2vh 2vw; width: 86vw; margin-top: 2vh; overflow: hidden; }
+.card { position: relative; display: flex; align-items: center; gap: 1.5vw; border: 0; border-radius: 3vh; background: #fff; padding: 1.4vh 1.6vw; text-align: right; color: #3b0764; box-shadow: 0 .8vh 1.6vh #581c8722; }
+.card.new { background: #fdf4ff; box-shadow: 0 0 0 .4vh #e879f9, 0 .8vh 1.6vh #581c8722; }
+.card .ct { display: flex; flex-direction: column; min-width: 0; }
+.card b { font-size: 3.2vh; }
+.card span { font-size: 2.8vh; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card small { font-size: 2.2vh; color: #7e6a8f; }
+.card .dot { position: absolute; top: 1.4vh; left: 1.4vw; width: 2vh; height: 2vh; border-radius: 50%; background: #db2777; }
+.empty { display: flex; flex-direction: column; align-items: center; gap: 2vh; margin-top: 8vh; font-size: 4vh; color: #581c87; }
+.empty .emo { font-size: 16vh; }
+.people { display: flex; flex-wrap: wrap; gap: 3vh 3vw; justify-content: center; margin-top: 5vh; }
+.person { border: 0; background: #fff; border-radius: 4vh; padding: 2.4vh 2vw; width: 20vw; display: flex; flex-direction: column; align-items: center; gap: 1.4vh; color: #3b0764; font-size: 3.8vh; box-shadow: 0 1vh 2vh #581c8722; }
+
+/* الورقة والكتابة */
+#app:has(.composer), #app:has(.reader) { padding: 2vh 2vw; }
+.composer, .reader { width: 100%; height: 100%; display: flex; gap: 2vw; align-items: stretch; }
+.paperbox { flex: 0 0 52vw; height: 96vh; overflow-y: auto; overflow-x: hidden; border-radius: 1.4vh; scrollbar-width: none; scroll-behavior: smooth; }
+.paperbox::-webkit-scrollbar { display: none; }
+canvas.paper { display: block; width: 100%; border-radius: 1vh; box-shadow: 0 1.5vh 4vh #3b076444; }
+.side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1.6vh; align-items: stretch; justify-content: flex-start; }
+.reader .side { justify-content: center; gap: 2.4vh; }
+.reader .side .pill { text-align: center; font-size: 3.6vh; color: #6b21a8; }
+.reader .side .btn { font-size: 3.4vh; }
+.hint { text-align: center; color: #581c87; font-size: 2.4vh; margin: 0; }
+.flds { display: flex; gap: .8vw; }
+.fld { flex: 1; border: 0; border-radius: 2vh; padding: 1.2vh .5vw; font-size: 2.8vh; font-weight: 800; background: #fff8; color: #581c87; }
+.fld.on { background: #7e22ce; color: #fff; }
+.kb { background: #fff9; border-radius: 2.4vh; padding: 1.2vh .8vw; display: flex; flex-direction: column; gap: .9vh; }
+.krow { display: flex; gap: .45vw; justify-content: center; }
+.key { flex: 1; min-width: 0; height: 8.4vh; border: 0; border-radius: 1.4vh; background: #fff; color: #3b0764; font-size: 4vh; font-weight: 700; box-shadow: 0 .5vh 0 #c4b5fd; padding: 0; font-family: "Baloo", "Noto Sans Arabic", "Noto Color Emoji", sans-serif; }
+.key.wide { flex: 1.6; font-size: 2.8vh; background: #ede9fe; }
+.key.space { flex: 4; font-size: 2.8vh; }
+.key.f.sel { transform: scale(1.12); background: #facc15; }
+.acts { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2vh .8vw; margin-top: auto; }
+.acts .btn { font-size: 3vh; padding: 1.3vh 1vw; }
+.btn.go { background: #7e22ce; color: #fff; }
+.btn:disabled { opacity: .6; }
+
+/* بعد الإرسال */
+.sent { display: flex; flex-direction: column; align-items: center; margin-top: 3vh; }
+.sent .big { font-size: 20vh; animation: bob 2s ease-in-out infinite; }
+.note { background: #fff; color: #166534; border-radius: 3vh; padding: 1.4vh 3vw; font-size: 3vh; font-weight: 700; text-align: center; max-width: 80vw; }
+.note.bad { color: #9a3412; }
+
+.toast { position: fixed; bottom: 4vh; left: 50%; transform: translateX(-50%); background: #3b0764; color: #fff; padding: 1.4vh 3vw; border-radius: 3vh; font-size: 3vh; font-weight: 700; z-index: 50; box-shadow: 0 1vh 3vh #0004; }
+.toast.bad { background: #be123c; }
