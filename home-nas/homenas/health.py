@@ -122,6 +122,8 @@ def build_alerts(db, arrays, disks) -> list[dict]:
                            "text": f"قطاعات معطوبة: {d['reallocated'] or 0}، قيد الانتظار: {d['pending'] or 0}. راقب القرص."})
     from .cpuinfo import alerts as cpu_alerts
     alerts += cpu_alerts()
+    from .recycle import alerts as recycle_alerts
+    alerts += recycle_alerts(paths())
     try:
         du = shutil.disk_usage(paths().data)
         if du.used / du.total > 0.92:

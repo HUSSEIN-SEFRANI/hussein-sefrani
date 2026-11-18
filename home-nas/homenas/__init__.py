@@ -84,11 +84,13 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
         start_tv_prep(data_paths)   # تجهيز الفيديو للتلفاز في الخلفية
         from .cpuinfo import start_sampler
         start_sampler()             # حرارة المعالج واستعماله لرسم آخر ساعة
+        from .recycle import start_auto
+        start_auto(data_paths)      # تفريغ سلة المحذوفات تلقائياً مرة كل يوم
 
     from . import (activation, appstore, backup, cameras, cpuinfo, faces, files, health, iphone, links, media_cards, network, photos, profile, remote,
-                   kids, stars, storage, sysadmin, system, transfer, tv, welcome)
+                   kids, recycle, stars, storage, sysadmin, system, transfer, tv, welcome)
     for mod in (system, files, photos, links, backup, health, network, appstore, faces, remote, tv, profile, sysadmin, iphone, stars, welcome,
-                cameras, media_cards, activation, kids, transfer, storage, cpuinfo):
+                cameras, media_cards, activation, kids, transfer, storage, cpuinfo, recycle):
         app.register_blueprint(mod.bp)
 
     @app.teardown_appcontext
