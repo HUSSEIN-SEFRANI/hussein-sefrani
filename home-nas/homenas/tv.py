@@ -116,7 +116,7 @@ def share_dir(db, data_paths, kind: str = "games") -> Path:
         d = Path(row["path"])
     else:
         d = data_paths.shares / name
-        db.execute("INSERT INTO folders(name, path, description, created_at) VALUES (?,?,?,?)",
+        db.execute("INSERT INTO folders(name, path, description, created_at, smb) VALUES (?,?,?,?,'admin')",
                    (name, str(d.resolve()), desc, now_iso()))
         db.commit()
     d.mkdir(parents=True, exist_ok=True)

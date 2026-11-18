@@ -102,9 +102,10 @@ class Network:
         shares = []
         for f in db.execute("SELECT * FROM folders"):
             perms = db.execute("SELECT user_id, perm FROM folder_perms WHERE folder_id=?", (f["id"],)).fetchall()
+            admin_only = "smb" in f.keys() and f["smb"] == "admin"   # البند 25: على قرص الشبكة للمدير فقط
             shares.append({"name": f["name"], "path": f["path"], "comment": f["description"],
-                           "read": [p["user_id"] for p in perms if p["perm"] == "ro"],
-                           "write": [p["user_id"] for p in perms if p["perm"] == "rw"]})
+                           "read": [] if admin_only else [p["user_id"] for p in perms if p["perm"] == "ro"],
+                           "write": [] if admin_only else [p["user_id"] for p in perms if p["perm"] == "rw"]})
         return {"server_name": s["server_name"], "data_dir": str(self.paths.data),
                 "smb": {"enabled": s["smb_enabled"], "users": users, "shares": shares},
                 "dlna": {"enabled": s["dlna_enabled"], "dirs": [str(self.tv_root)] if s["dlna_enabled"] else []}}

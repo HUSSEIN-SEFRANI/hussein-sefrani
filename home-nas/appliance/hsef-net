@@ -84,6 +84,8 @@ def render_smb(cfg) -> str:
 [global]
    workgroup = WORKGROUP
    server string = {server}
+   # لا يرى الشخص في قائمة المجلدات إلا ما يستطيع فتحه (مجلدات «للمدير فقط» مخفية عن غيره)
+   access based share enum = yes
    netbios name = {netbios}
    server role = standalone server
    security = user
