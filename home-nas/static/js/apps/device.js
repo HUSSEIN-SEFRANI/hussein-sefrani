@@ -215,9 +215,12 @@ function btCard() {
           ${dv.connected ? '<span class="badge ok">متصل</span>' : dv.paired ? '<span class="badge">مقترن</span>' : ''}
           ${dv.paired ? '' : '<button class="btn primary sm" data-p="pair">ربط</button>'}
           ${dv.paired && !dv.connected ? '<button class="btn sm" data-p="pair">اتصال</button>' : ''}
-          ${dv.paired ? '<button class="btn ghost icon sm danger" data-p="remove" title="إزالة">' + icon('trash') + '</button>' : ''}</div>`);
+          <button class="btn ghost icon sm danger" data-p="remove" title="إزالة من القائمة">${icon('trash')}</button></div>`);
         $('b', row).textContent = dv.name;
-        $$('[data-p]', row).forEach(x => x.onclick = () => act(x.dataset.p, dv.mac));
+        $$('[data-p]', row).forEach(x => x.onclick = async () => {
+          if (x.dataset.p === 'remove' && dv.paired && !(await confirmBox(`إزالة «${dv.name}»؟ ${dv.icon === 'input-gaming' ? 'لاستعمال اليد مرة أخرى ستحتاج إلى ربطها من جديد.' : 'لاستعماله مرة أخرى ستحتاج إلى ربطه من جديد.'}`, { ok: 'إزالة', danger: true }))) return;
+          act(x.dataset.p, dv.mac);
+        });
         box.appendChild(row);
       }
     }
@@ -247,6 +250,7 @@ function btCard() {
       const m = String(e.message || e);
       toast(/press the PS/i.test(m) ? 'تم الربط، لكن اليد لم تتصل بعد: اضغط زر PS في اليد مرة واحدة'
         : /not found|not available/i.test(m) ? 'لم نجد اليد: اضغط Create و PS معاً حتى يومض الضوء بسرعة، ثم «البحث» ثم «ربط» مباشرة'
+        : /could not remove/i.test(m) ? 'لم تنجح الإزالة. أطفئ الجهاز أو أبعده ثم حاول مرة أخرى'
         : /pairing failed/i.test(m) ? 'لم ينجح الربط. احذف اليد إن وُجدت، ثم ضعها في وضع الربط (Create + PS) وأعد المحاولة' : m, 'err');
     }
     if (r) { draw(r); if (a === 'pair') toast('تم الربط ✓ اضغط أي زر في اليد', 'ok'); }
