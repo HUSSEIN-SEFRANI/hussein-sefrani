@@ -27,7 +27,7 @@ bp = Blueprint("storage", __name__)
 
 HELPER = "/usr/local/sbin/hsef-extras"
 APPLIANCE = os.environ.get("HOMENAS_APPLIANCE") == "1"
-CONFIRM_WORD = "مسح"
+CONFIRM_WORD = "123"   # البند 38: أرقام تُكتب بأي لغة (مثل إعادة ضبط المصنع)
 OP_LABEL = {"add": "قرص منفصل", "backup-disk": "قرص النسخ الاحتياطي", "mirror": "مرآة RAID 1", "replace": "استبدال قرص في المرآة"}
 
 _usage = {"running": False, "result": None}
@@ -197,7 +197,8 @@ def api_storage_run():
     u = current_user()
     if not check_password_hash(u["password_hash"], str(d.get("password") or "")):
         abort(403, "كلمة مرور حسابك غير صحيحة")
-    if " ".join(str(d.get("confirm") or "").split()) != CONFIRM_WORD:
+    from .transfer import confirm_ok
+    if not confirm_ok(d.get("confirm")):   # تقبل 123 و١٢٣ و۱۲۳
         abort(400, f"اكتب «{CONFIRM_WORD}» للتأكيد")
     op = d.get("op")
     devs = [str(x) for x in d.get("devs") or []]

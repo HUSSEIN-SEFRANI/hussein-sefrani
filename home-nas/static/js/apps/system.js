@@ -579,13 +579,14 @@ const CP = {
           ${degraded ? '' : '<span class="muted small">(لا توجد مرآة متدهورة)</span>'}</label>
         <div class="alert warn small" style="margin:12px 0 8px">⚠️ سيُمسح كل ما على القرص المختار نهائياً.</div>
         <div class="tv-grid"><label>كلمة مرور حسابك<input class="field" type="password" name="pw" autocomplete="current-password"></label>
-          <label>اكتب «${esc(d.confirm_word)}» للتأكيد<input class="field" name="cw" autocomplete="off"></label></div></div>`);
+          <label>اكتب «${esc(d.confirm_word)}» للتأكيد<input class="field" name="cw" autocomplete="off" inputmode="numeric" dir="ltr" maxlength="6"></label></div></div>`);
       const sync = () => { const op = $('[name=op]:checked', body).value; $('.op-add', body).hidden = op !== 'add'; $('.op-mirror', body).hidden = op !== 'mirror'; };
       $$('[name=op]', body).forEach((r) => (r.onchange = sync)); sync();
       const ok = await modal({ title: 'استعمال قرص جديد', body, wide: true, buttons: [{ label: 'إلغاء', value: null }, { label: 'ابدأ', cls: 'danger', value: true, validate: async () => {
         const op = $('[name=op]:checked', body).value;
         const devs = op === 'mirror' ? [dev, $('[name=second]', body).value] : [dev];
-        if ($('[name=cw]', body).value.trim() !== d.confirm_word) { toast(`اكتب «${d.confirm_word}» للتأكيد`, 'err'); return false; }
+        const cw = $('[name=cw]', body).value.replace(/\s/g, '').replace(/[٠-٩]/g, (c) => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[۰-۹]/g, (c) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c));
+        if (cw !== d.confirm_word) { toast(`اكتب «${d.confirm_word}» للتأكيد`, 'err'); return false; }
         const r = await guard(() => api.post('/api/admin/storage/run', { op, devs, name: $('[name=nm]', body).value.trim(), password: $('[name=pw]', body).value, confirm: $('[name=cw]', body).value }));
         if (r) drawOp(r.op);
         return !!r;

@@ -20,8 +20,8 @@ for _ in range(20):
     if d["usage"]: break
 u = d["usage"]; me = u["people"][0] if u else {}
 res.append(ok(me.get("name") == "بابا" and me.get("total") == 400000 and me.get("photos") == 300000, f"ماذا يشغل المساحة: {me}"))
-run = lambda **k: c.post("/api/admin/storage/run", json={"password": "pass1234", "confirm": "مسح", **k})
-r = c.post("/api/admin/storage/run", json={"op": "add", "devs": ["sdd"], "name": "x1", "password": "bad", "confirm": "مسح"}); res.append(ok(r.status_code == 403, "كلمة مرور خاطئة ← مرفوض"))
+run = lambda **k: c.post("/api/admin/storage/run", json={"password": "pass1234", "confirm": "123", **k})
+r = c.post("/api/admin/storage/run", json={"op": "add", "devs": ["sdd"], "name": "x1", "password": "bad", "confirm": "123"}); res.append(ok(r.status_code == 403, "كلمة مرور خاطئة ← مرفوض"))
 r = c.post("/api/admin/storage/run", json={"op": "add", "devs": ["sdd"], "name": "x1", "password": "pass1234", "confirm": "نعم"}); res.append(ok(r.status_code == 400, "كلمة التأكيد خاطئة ← مرفوض"))
 r = run(op="add", devs=["sdb"], name="x1"); res.append(ok(r.status_code == 400 and "مستعمل" in r.get_json()["error"], "قرص في المرآة لا يُمسح"))
 r = run(op="add", devs=["sda"], name="x1"); res.append(ok(r.status_code == 400, "قرص النظام لا يُمسح"))
