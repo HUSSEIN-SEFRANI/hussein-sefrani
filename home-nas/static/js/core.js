@@ -586,5 +586,5 @@ const TYPES = {
   code: ['py', 'js', 'css', 'html', 'htm', 'json', 'xml', 'yml', 'yaml', 'sh', 'bat', 'sql', 'ini', 'cfg', 'conf', 'log'],
 };
 export function fileType(ext) { for (const [t, l] of Object.entries(TYPES)) if (l.includes(ext)) return t; return 'other'; }
-export const THUMBABLE = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif', 'tif', 'tiff', 'mp4', 'mov', 'm4v', 'mkv', 'avi', 'webm', '3gp']);
+export const THUMBABLE = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif', 'tif', 'tiff', 'dng', 'mp4', 'mov', 'm4v', 'mkv', 'avi', 'webm', '3gp']);
 export const TEXT_EDITABLE = new Set(['txt', 'md', 'json', 'csv', 'log', 'xml', 'yml', 'yaml', 'ini', 'cfg', 'conf', 'py', 'js', 'css', 'html', 'htm', 'sh', 'bat', 'sql', 'srt']);
