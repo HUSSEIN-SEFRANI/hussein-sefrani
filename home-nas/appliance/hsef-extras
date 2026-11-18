@@ -18,6 +18,7 @@
     hsef-extras update-verify            after an update: go back automatically if the app does not start
     hsef-extras device-id                this device's number for activation (from board UUID + network card) as JSON
     hsef-extras tv-screen-set NAME|auto [SECONDS]   choose the TV screen (or try it for a few seconds)
+    hsef-extras io-top                   which programs read/write the disk now (1 second)
     hsef-extras cec-set on|off           TV remote over HDMI-CEC
     hsef-extras host-set NAME            the device's name on the network (NAME.local)
     hsef-extras disk-info                all disks with their partitions, mounts and role (system/raid/data/backup/new) as JSON
@@ -2223,6 +2224,44 @@ def cec_set(on: bool):
     print(json.dumps({"ok": True, "enabled": on}))
 
 
+# ----------------------------------------------------------------------------- البند 22: من يقرأ ويكتب على القرص
+def _proc_io() -> dict:
+    out = {}
+    for d in Path("/proc").iterdir():
+        if not d.name.isdigit():
+            continue
+        try:
+            io = dict(l.split(": ") for l in (d / "io").read_text().splitlines() if ": " in l)
+            out[d.name] = (int(io.get("read_bytes", 0)), int(io.get("write_bytes", 0)))
+        except (OSError, ValueError):
+            pass
+    return out
+
+
+def io_top():
+    if FAKE:
+        print(json.dumps([{"name": "ffmpeg", "cmd": ["ffmpeg"], "read": 18_000_000, "write": 6_000_000},
+                          {"name": "smbd", "cmd": ["/usr/sbin/smbd"], "read": 2_500_000, "write": 41_000_000},
+                          {"name": "python3", "cmd": ["python3", "/opt/homenas/server.py"], "read": 900_000, "write": 120_000}]))
+        return
+    a = _proc_io()
+    _time.sleep(1)
+    b = _proc_io()
+    rows = []
+    for pid, (r1, w1) in b.items():
+        r0, w0 = a.get(pid, (r1, w1))
+        if r1 - r0 <= 0 and w1 - w0 <= 0:
+            continue
+        try:
+            name = Path(f"/proc/{pid}/comm").read_text().strip()
+            cmd = Path(f"/proc/{pid}/cmdline").read_bytes().decode(errors="replace").split("\0")[:4]
+        except OSError:
+            continue
+        rows.append({"name": name, "cmd": cmd, "read": r1 - r0, "write": w1 - w0})
+    rows.sort(key=lambda r: -(r["read"] + r["write"]))
+    print(json.dumps(rows[:30]))
+
+
 def main():
     if sys.argv[1:2] == ["tv-session"]:  # يعمل بصلاحية مستخدم الشاشة
         tv_session(sys.argv[2] if len(sys.argv) > 2 else "")
@@ -2302,6 +2341,8 @@ def main():
         cec_set(a[1] == "on")
     elif len(a) == 2 and a[0] == "host-set":
         host_set(a[1])
+    elif a == ["io-top"]:
+        io_top()
     elif a == ["disk-info"]:
         disk_info()
     elif len(a) >= 3 and a[0] == "disk-run":
