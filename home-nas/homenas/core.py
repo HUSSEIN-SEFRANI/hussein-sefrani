@@ -302,8 +302,114 @@ def parse_exif_date(value) -> datetime | None:
     return None
 
 
+# ----------------------------------------------------------------------------- صور DNG (البند 26)
+# DNG = صورة خام (RAW) بصيغة TIFF من الآيفون (ProRAW) وهواتف أندرويد والكاميرات. البيانات الخام نفسها لا تُعرض،
+# لكن الملف يحمل معاينة JPEG جاهزة (غالباً بالحجم الكامل أو قريباً منه): نأخذ أكبرها، ونديرها حسب اتجاه الصورة.
+DNG_EXT = {".dng"}
+
+
+def _tiff_ifds(data: bytes):
+    """يمر على كل IFD في ملف TIFF/DNG (السلسلة الرئيسية و SubIFDs)، ويرجع قاموس الوسوم لكل واحد."""
+    import struct
+    if data[:2] == b"II":
+        e = "<"
+    elif data[:2] == b"MM":
+        e = ">"
+    else:
+        return
+    if struct.unpack(e + "H", data[2:4])[0] != 42:
+        return
+    sizes = {1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 1, 7: 1, 8: 2, 9: 4, 10: 8, 11: 4, 12: 8, 13: 4}
+    todo, seen = [struct.unpack(e + "I", data[4:8])[0]], set()
+    while todo and len(seen) < 64:
+        off = todo.pop(0)
+        if off in seen or off <= 0 or off + 2 > len(data):
+            continue
+        seen.add(off)
+        n = struct.unpack(e + "H", data[off:off + 2])[0]
+        tags = {}
+        for i in range(min(n, 500)):
+            ent = off + 2 + i * 12
+            if ent + 12 > len(data):
+                break
+            tag, typ, cnt = struct.unpack(e + "HHI", data[ent:ent + 8])
+            size = sizes.get(typ, 1) * cnt
+            voff = ent + 8 if size <= 4 else struct.unpack(e + "I", data[ent + 8:ent + 12])[0]
+            raw = data[voff:voff + size]
+            if typ in (3, 8):
+                vals = list(struct.unpack(e + "%dH" % (len(raw) // 2), raw[:len(raw) // 2 * 2]))
+            elif typ in (4, 9, 13):
+                vals = list(struct.unpack(e + "%dI" % (len(raw) // 4), raw[:len(raw) // 4 * 4]))
+            elif typ in (1, 7, 6):
+                vals = list(raw) if cnt <= 16 else raw
+            else:
+                vals = raw
+            tags[tag] = vals
+        yield tags
+        if 330 in tags and isinstance(tags[330], list):    # SubIFDs
+            todo.extend(tags[330])
+        nxt = off + 2 + n * 12
+        if nxt + 4 <= len(data):
+            todo.append(struct.unpack(e + "I", data[nxt:nxt + 4])[0])
+
+
+def dng_preview(path: Path) -> tuple[bytes | None, int]:
+    """(أكبر معاينة JPEG داخل ملف DNG، واتجاه الصورة Orientation)."""
+    try:
+        data = Path(path).read_bytes()
+    except OSError:
+        return None, 1
+    best, area, orient = None, 0, 1
+    first = True
+    for t in _tiff_ifds(data):
+        g1 = lambda k, d=None: (t.get(k) or [d])[0] if isinstance(t.get(k), list) else d
+        if first:
+            orient = g1(274, 1) or 1
+            first = False
+        cands = []
+        if 513 in t and 514 in t:                                   # JPEGInterchangeFormat
+            cands.append((g1(513), g1(514)))
+        comp, photo = g1(259), g1(262)
+        offs, cnts = t.get(273), t.get(279)
+        if comp in (6, 7) and photo in (2, 6) and isinstance(offs, list) and len(offs) == 1 and isinstance(cnts, list):
+            cands.append((offs[0], cnts[0]))                         # معاينة JPEG في شريط واحد (لا الخام CFA/LinearRaw)
+        for o, n in cands:
+            if not o or not n or o + n > len(data) or data[o:o + 2] != b"\xff\xd8":
+                continue
+            w, h = g1(256, 0) or 0, g1(257, 0) or 0
+            if not (w and h):
+                try:
+                    with Image.open(io.BytesIO(data[o:o + n])) as im:
+                        w, h = im.size
+                except Exception:
+                    continue
+            if w * h > area:
+                best, area = data[o:o + n], w * h
+    return best, int(orient or 1)
+
+
+def dng_to_jpeg(src: Path, dest: Path) -> bool:
+    """يحفظ معاينة DNG كصورة JPEG مُدارة في الاتجاه الصحيح."""
+    jpg, orient = dng_preview(src)
+    if not jpg or not PIL_OK:
+        return False
+    try:
+        with Image.open(io.BytesIO(jpg)) as im:
+            im.load()
+            op = {2: Image.Transpose.FLIP_LEFT_RIGHT, 3: Image.Transpose.ROTATE_180, 4: Image.Transpose.FLIP_TOP_BOTTOM,
+                  5: Image.Transpose.TRANSPOSE, 6: Image.Transpose.ROTATE_270, 7: Image.Transpose.TRANSVERSE,
+                  8: Image.Transpose.ROTATE_90}.get(orient)
+            out = im.transpose(op) if op else im
+            if out.mode not in ("RGB", "L"):
+                out = out.convert("RGB")
+            out.save(dest, "JPEG", quality=92)
+        return True
+    except Exception:
+        return False
+
+
 class open_image:
-    """يفتح صورة بـ Pillow، مع تحويل HEIC إلى JPEG مؤقت عند عدم توفر pillow-heif."""
+    """يفتح صورة بـ Pillow، مع تحويل HEIC إلى JPEG مؤقت عند عدم توفر pillow-heif، و DNG إلى معاينتها."""
 
     def __init__(self, path: Path):
         self.path, self.tmp, self.im = Path(path), None, None
@@ -315,6 +421,13 @@ class open_image:
             subprocess.run([HEIF_CLI, "-q", "92", str(src), str(self.tmp)], capture_output=True, timeout=120,
                            stdin=subprocess.DEVNULL, check=True)
             src = self.tmp
+        elif src.suffix.lower() in DNG_EXT:
+            self.tmp = Path(tempfile.gettempdir()) / f"hsef-{secrets.token_hex(6)}.jpg"
+            if dng_to_jpeg(src, self.tmp):
+                src = self.tmp
+            else:
+                self.tmp.unlink(missing_ok=True)
+                self.tmp = None
         self.im = Image.open(src)
         return self.im
 
@@ -336,6 +449,21 @@ def image_meta(path: Path) -> dict:
     if not PIL_OK:
         return meta
     try:
+        if Path(path).suffix.lower() in DNG_EXT:   # التاريخ والكاميرا من الملف الأصلي، والأبعاد من المعاينة (مُدارة مسبقاً)
+            with Image.open(path) as raw:
+                exif = raw.getexif()
+            with open_image(path) as im:
+                w, h = im.size
+            if exif:
+                sub = exif.get_ifd(0x8769)
+                meta["taken"] = (parse_exif_date(sub.get(36867)) or parse_exif_date(sub.get(36868))
+                                 or parse_exif_date(exif.get(306)))
+                make = str(exif.get(271) or "").strip("\x00 ")
+                model = str(exif.get(272) or "").strip("\x00 ")
+                if model:
+                    meta["camera"] = model if make and model.startswith(make) else f"{make} {model}".strip()
+            meta["width"], meta["height"] = w, h
+            return meta
         with open_image(path) as im:
             w, h = im.size
             exif = im.getexif()
