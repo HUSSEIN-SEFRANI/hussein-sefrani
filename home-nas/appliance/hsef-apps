@@ -155,8 +155,15 @@ def compose(app_id, *args):
 
 
 # ----------------------------------------------------------------------------- commands
+def docker_ok() -> bool:
+    """البند 41: المحرك يعمل؟ (بلا انهيار إن لم يوجد أمر docker)."""
+    return bool(shutil.which("docker")) and subprocess.run(["docker", "info"], capture_output=True).returncode == 0
+
+
 def docker_error() -> str:
     """لماذا لا يعمل المحرك؟ أول سطر مفيد من docker info، أو حالة الخدمة."""
+    if not shutil.which("docker"):
+        return "docker command not found (package docker-cli missing)"
     r = subprocess.run(["docker", "info"], capture_output=True, text=True)
     if r.returncode == 0:
         return ""
@@ -166,7 +173,7 @@ def docker_error() -> str:
 
 def cmd_check():
     docker = FAKE or bool(shutil.which("docker"))
-    running = FAKE or (docker and subprocess.run(["docker", "info"], capture_output=True).returncode == 0)
+    running = FAKE or docker_ok()
     out = {"docker": docker, "running": bool(running), "compose": bool(compose_cmd()) if docker else False}
     if docker and not running and not FAKE:
         out["error"] = docker_error()   # البند 36: المحرك مثبت لكنه لا يعمل ← السبب
@@ -187,11 +194,18 @@ def internet_ok() -> bool:
     return False
 
 
+def apt_has(pkg: str) -> bool:
+    r = subprocess.run(["apt-cache", "policy", pkg], capture_output=True, text=True)
+    return "Candidate:" in r.stdout and "Candidate: (none)" not in r.stdout
+
+
 def wait_engine(log, seconds=45) -> bool:
     for _ in range(seconds // 3):
-        if subprocess.run(["docker", "info"], capture_output=True).returncode == 0:
+        if docker_ok():
             return True
         time.sleep(3)
+    if not shutil.which("docker"):
+        log.write("docker command not found (package docker-cli missing)\n")
     log.write("$ systemctl status docker\n"); log.flush()
     subprocess.run(["systemctl", "status", "--no-pager", "-n", "15", "docker"], stdout=log, stderr=subprocess.STDOUT)
     subprocess.run(["journalctl", "-u", "docker", "-b", "--no-pager", "-n", "15"], stdout=log, stderr=subprocess.STDOUT)
@@ -211,9 +225,15 @@ def cmd_setup():
         run_logged(lid, "apt-get", "install", "docker.io")
         return
     with open(log_path(lid), "a") as log:
-        for cmd in (["apt-get", "update"],
-                    ["apt-get", "install", "-y", "--no-install-recommends", "docker.io", "docker-compose", "ca-certificates",
-                     "iptables"]):
+        # البند 41: في ديبيان 13 أمر «docker» في حزمة منفصلة (docker-cli) لا تأتي مع --no-install-recommends،
+        # فكان المحرك يُثبَّت بلا أمر docker: «FileNotFoundError: docker» ويبقى كل شيء معطلاً.
+        log.write("$ apt-get update\n"); log.flush()
+        r = subprocess.run(["apt-get", "update"], stdout=log, stderr=subprocess.STDOUT, env=env)
+        if r.returncode != 0:
+            log.write(f"[exit {r.returncode}]\n")
+            die("install-failed")
+        pkgs = ["docker.io", "ca-certificates", "iptables"] + [p for p in ("docker-cli", "docker-compose") if apt_has(p)]
+        for cmd in (["apt-get", "install", "-y", "--no-install-recommends", *pkgs],):
             log.write(f"$ {' '.join(cmd)}\n"); log.flush()
             r = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT, env=env)
             if r.returncode != 0:
@@ -347,4 +367,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except FileNotFoundError as exc:   # البند 41: أمر ناقص ← رسالة قصيرة بدل تتبّع Python
+        die(f"missing command: {exc.filename}")
