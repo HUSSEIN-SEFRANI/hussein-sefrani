@@ -33,6 +33,9 @@ bp = Blueprint("transfer", __name__)
 MAGIC = "HOME ANAB"
 FORMAT = 1
 KEEP_SETTINGS = "act_%"          # التفعيل يبقى مع الجهاز
+# v1.9.8 (البند 20): إعدادات تخص عتاد هذا الجهاز بعينه لا تُنقل إلى جهاز آخر، فلا تحدث مشاكل في التعريفات.
+# (الشاشة والدقة، ومخرج الصوت، والريموت، واسم الشبكة، والوايفاي كلها في ‎/etc/homenas أصلاً فلا تُنقل.)
+DEVICE_KEYS = ("backup_%", "tv_lite", "tv_prep_mode", "tv_prep_max_gb")
 SKIP_SYSTEM = {"cache", "tmp", "nas.db", "nas.db-wal", "nas.db-shm", "import-pending", "factory-reset.json"}
 PENDING = "import-pending"
 RESET_FLAG = "factory-reset.json"
@@ -92,6 +95,8 @@ def api_export():
     if len(pw) < 6:
         abort(400, "اختر كلمة سر للملف من 6 أحرف على الأقل، واحفظها: بدونها لا يمكن فتح الملف")
     files = bool(d.get("files"))
+    if files:   # البند 20: الملفات والصور تُنسخ إلى قرص موصول (النسخ الاحتياطي)، لا عبر المتصفح
+        abort(400, "لنقل الملفات والصور استعمل «النسخ الاحتياطي» إلى قرص موصول بالجهاز. ملف الكمبيوتر للإعدادات فقط.")
     p = paths()
     from . import __version__
     from .system import server_name
@@ -220,6 +225,35 @@ def api_import():
                    restart=_restart_soon())
 
 
+def stage_from_folder(db_file: Path, system_dir: Path | None, manifest: dict, by: str) -> None:
+    """البند 20: استرجاع الإعدادات من نسخة على القرص: يجهّز «استيراد» يُطبَّق عند إعادة التشغيل."""
+    p = paths()
+    pend = p.system / PENDING
+    shutil.rmtree(pend, ignore_errors=True)
+    pend.mkdir(parents=True)
+    try:
+        _db_copy(db_file, pend / "nas.db")
+        if system_dir and system_dir.is_dir():
+            for x in system_dir.iterdir():
+                if x.name in SKIP_SYSTEM or x.name.startswith("nas.db") or ".before-" in x.name or x.is_symlink():
+                    continue
+                (pend / "system").mkdir(exist_ok=True)
+                if x.is_dir():
+                    shutil.copytree(x, pend / "system" / x.name, symlinks=False)
+                else:
+                    shutil.copy2(x, pend / "system" / x.name)
+        man = {"magic": MAGIC, "format": FORMAT, **manifest, "files": False}
+        (pend / "manifest.json").write_text(json.dumps(man, ensure_ascii=False))
+        (pend / "ready").write_text(json.dumps({"by": by, "at": datetime.now().isoformat(timespec="seconds")}))
+    except BaseException:
+        shutil.rmtree(pend, ignore_errors=True)
+        raise
+
+
+def restart_soon() -> bool:
+    return _restart_soon()
+
+
 @bp.delete("/api/admin/transfer/import")
 @admin_required
 def api_import_cancel():
@@ -264,12 +298,19 @@ def _restart_soon() -> bool:
 
 
 # ----------------------------------------------------------------------------- التطبيق عند بدء التشغيل
+def _kept_where() -> tuple[str, tuple]:
+    pats = (KEEP_SETTINGS, *DEVICE_KEYS)
+    return " OR ".join(["key LIKE ?"] * len(pats)), pats
+
+
 def _keep_activation(old_db: Path) -> list[tuple]:
+    """التفعيل وإعدادات عتاد هذا الجهاز: تبقى كما هي بعد الاستيراد."""
     if not old_db.exists():
         return []
     c = sqlite3.connect(old_db)
+    w, pats = _kept_where()
     try:
-        return c.execute("SELECT key, value FROM settings WHERE key LIKE ?", (KEEP_SETTINGS,)).fetchall()
+        return c.execute(f"SELECT key, value FROM settings WHERE {w}", pats).fetchall()
     except sqlite3.Error:
         return []
     finally:
@@ -280,7 +321,8 @@ def _put_activation(db_path: Path, rows: list[tuple]):
     c = sqlite3.connect(db_path)
     try:
         c.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
-        c.execute("DELETE FROM settings WHERE key LIKE ?", (KEEP_SETTINGS,))
+        w, pats = _kept_where()
+        c.execute(f"DELETE FROM settings WHERE {w}", pats)
         c.executemany("INSERT INTO settings(key, value) VALUES (?,?)", rows)
         c.commit()
     finally:
