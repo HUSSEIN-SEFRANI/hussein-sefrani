@@ -170,7 +170,7 @@ function timeCard(s, reload) {
     <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap"><input class="field" type="datetime-local" name="dt" style="max-width:260px"><button class="btn sm" data-x="set">ضبط</button></div>
     <hr style="border:0;border-top:1px solid var(--border);margin:14px 0">
     <label class="check"><input type="checkbox" name="off" ${s.offline ? 'checked' : ''}> <b>وضع بدون إنترنت</b></label>
-    <p class="muted small">يوقف كل اتصال يبدؤه السيرفر بالخارج: التحديثات التلقائية، وضبط الوقت من الإنترنت، والبحث عن تحديثات HOME ANAB. التحديث بعدها من فلاشة (لوحة التحكم ← النظام ← عام والتحديث).</p></div>`);
+    <p class="muted small">يوقف كل اتصال يبدؤه السيرفر بالخارج: التحديثات التلقائية، وضبط الوقت من الإنترنت، والبحث عن تحديثات HOME ANAB. التحديث بعدها من فلاشة (لوحة التحكم ← عام).</p></div>`);
   const pad = (x) => String(x).padStart(2, '0');
   const now = new Date();
   $('[name=dt]', c).value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;

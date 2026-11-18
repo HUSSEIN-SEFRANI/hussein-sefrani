@@ -394,6 +394,11 @@ table.tbl tr:hover td { background: var(--surface-2); }
 .section-h { display: flex; align-items: center; gap: 10px; padding: 16px 18px 6px; }
 .section-h h2 { margin: 0; font-size: 18px; flex: 1; }
 .section-p { padding: 0 18px 16px; color: var(--muted); }
+/* البند 29: تبويبات القسم في لوحة التحكم */
+.cp-tabs { display: flex; gap: 4px; flex-wrap: wrap; padding: 12px 18px 0; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); z-index: 2; }
+.cp-tabs button { border: 0; background: transparent; color: var(--muted); padding: 8px 14px; font: inherit; font-size: 14px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.cp-tabs button:hover { color: var(--text); }
+.cp-tabs button.on { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
 .perm-grid { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center; margin-top: 6px; }
 .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .seg button { border: 0; background: transparent; padding: 4px 10px; font-size: 12px; cursor: pointer; }
