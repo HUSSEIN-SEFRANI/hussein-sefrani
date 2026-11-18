@@ -1281,7 +1281,7 @@ def prep_sources(data_paths) -> list[Path]:
         # البند 21: «كل الفيديو»: كل الملفات الشخصية وكل المجلدات المشتركة، لا مربعات التلفاز فقط
         row = db.execute("SELECT value FROM settings WHERE key='tv_prep_scope'").fetchone()
         if row and row["value"] == "all":
-            roots = [data_paths.homes] + [Path(r["path"]) for r in db.execute("SELECT path FROM folders")]
+            roots = [data_paths.homes] + [Path(r["path"]) for r in db.execute("SELECT path FROM folders WHERE name<>'الكاميرات'")]
             seen = set(map(str, out))
             for d in roots:
                 if not d.is_dir():

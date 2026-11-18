@@ -183,6 +183,10 @@ class Backup:
             s = self.settings(db)
             what = what if what in WHAT else s["what"]
             sources = self.sources(db) if what in ("full", "files") else []
+            # تسجيلات الكاميرات (المجلد المشترك «الكاميرات») لا تُنسخ: كبيرة وتتجدد وحدها
+            row = db.execute("SELECT path FROM folders WHERE name='الكاميرات'").fetchone()
+            self.skip = {str(Path(row["path"]).resolve())} if row else set()
+            sources = [(lab, src) for lab, src in sources if str(Path(src).resolve()) not in self.skip]
             db.close()
             root = backup_root(s["target"])
             if root is None:
@@ -236,7 +240,8 @@ class Backup:
     def copy_tree(self, src: Path, dst: Path, prev: Path | None, mirror: bool):
         st = self.status
         for dirpath, dirnames, filenames in os.walk(src):
-            dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".")]
+            dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".")
+                           and str((Path(dirpath) / d).resolve()) not in getattr(self, "skip", ())]
             rel = Path(dirpath).relative_to(src)
             out_dir = dst / rel
             out_dir.mkdir(parents=True, exist_ok=True)
