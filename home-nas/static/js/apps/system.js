@@ -944,66 +944,58 @@ const CP = {
     const WHAT = r.what_choices, FREQ = r.freq_choices;
     const ord = (o, keys) => keys.filter((k) => o[k]).map((k) => [k, o[k]]);   // الخادم يرتّب المفاتيح أبجدياً
     const WHAT_L = ord(WHAT, ['full', 'files', 'settings']), FREQ_L = ord(FREQ, ['daily', 'weekly', 'monthly']);
-    const stateBadge = status.running ? '<span class="badge accent">يعمل الآن…</span>'
-      : !st.target ? '<span class="badge">لم تُختر الوجهة</span>'
-      : !tg.connected ? '<span class="badge err">القرص غير موصول</span>'
-      : last && !last.ok ? '<span class="badge err">فشل آخر نسخ</span>'
-      : last ? '<span class="badge ok">سليم</span>' : '<span class="badge warn">لم يُنسخ بعد</span>';
-    // ---- 1. الحالة والنسخ الآن
+    // البند 34: ثلاث خطوات، وكل معلومة تظهر مرة واحدة:
+    // ١. القرص (الحالي عليه علامة ومساحته)  ٢. ماذا ومتى  ٣. الحالة وزر «انسخ الآن» (ينسخ حسب اختيار الخطوة ٢)
     const card = h(`<div class="cards" style="padding:0">
-      <div class="card"><h4>${icon('shield')} الحالة</h4><div style="margin-bottom:8px">${stateBadge}</div>
-        <dl class="kv">
-          <dt>آخر نسخة ناجحة</dt><dd>${esc(fmtDateTime(st.last_success) || '—')}</dd>
-          ${last ? `<dt>آخر محاولة</dt><dd>${esc(fmtDateTime(last.finished))}${last.what ? ` · ${esc(WHAT[last.what] || '')}` : ''}<br><span class="muted">${esc(last.ok ? (last.summary || '') : (last.error || last.summary || ''))}</span></dd>` : ''}
-          ${tg.connected && tg.total ? `<dt>مساحة القرص</dt><dd>${fmtSize(tg.free)} متاح من ${fmtSize(tg.total)}</dd>` : ''}
-          ${tg.connected ? `<dt>النسخ المحفوظة</dt><dd>${tg.mirror && !tg.snapshots.length ? 'نسخة واحدة تُحدَّث (القرص لا يدعم النسخ بالتاريخ)' : tg.snapshots.length}</dd>` : ''}
-          <dt>التلقائي</dt><dd>${st.enabled ? `${esc(FREQ[st.freq])}، الساعة <span dir="ltr">${String(st.hour).padStart(2, '0')}:00</span> · ${esc(WHAT[st.what])}` : 'يدوياً فقط'}</dd>
-        </dl>
-        <div class="run-st muted" style="font-size:12px;margin-top:8px"></div>
-        <label class="lbl">انسخ الآن</label>
-        <select class="field" name="now-what" style="max-width:320px">${WHAT_L.map(([k, v]) => `<option value="${k}" ${k === st.what ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
-        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn primary" data-b="run" ${tg.connected && !status.running ? '' : 'disabled'}>${icon('save')} نسخ احتياطي الآن</button>
-          ${tg.connected && (tg.snapshots.length || tg.mirror) ? `<button class="btn" data-b="browse">${icon('folder')} استعراض النسخ</button>` : ''}
-        </div>
-        ${!tg.connected ? '<p class="muted small" style="margin:8px 0 0">اختر القرص في «إلى أين يكون النسخ؟» ليعمل الزر.</p>' : ''}</div>
-      <div class="card"><h4>${icon('hdd')} إلى أين يكون النسخ؟</h4>
-        <p class="small" style="margin:0 0 8px">الوجهة الآن: <b translate="no">${st.usb_label ? esc(st.usb_label) : st.target ? `<span dir="ltr">${esc(st.target)}</span>` : 'لم تُختر بعد'}</b>
-          ${st.target ? (tg.connected ? ' <span class="badge ok">موصول</span>' : ' <span class="badge err">غير موصول</span>') : ''}</p>
+      <div class="card"><h4>${icon('hdd')} ١. القرص</h4>
         <div class="bk-dests muted small">جارٍ البحث عن الأقراص الموصولة…</div>
         <details class="bk-other" style="margin-top:8px"><summary class="small">مسار آخر (متقدم)</summary>
           <input class="field" name="target" dir="ltr" placeholder="${esc(st.suggested || '/srv/homenas/backup')}" style="margin-top:6px">
           ${tg.exists && !tg.initialized ? `<div class="muted" style="font-size:12px;margin-top:6px">⚠️ المجلد موجود لكنه غير مُجهز كوجهة نسخ. اضغط «تجهيز».</div><button class="btn sm" data-b="init" style="margin-top:6px">${icon('check')} تجهيز هذا المجلد</button>` : ''}
           <button class="btn sm" data-b="save-path" style="margin-top:6px">حفظ المسار</button>
         </details></div>
-      <div class="card span2"><h4>${icon('clock')} ماذا يُنسخ، ومتى؟</h4>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px">
-          <div><label class="lbl" style="margin-top:0">ماذا يُنسخ</label>
-            ${WHAT_L.map(([k, v]) => `<label class="check"><input type="radio" name="what" value="${k}" ${k === st.what ? 'checked' : ''}> ${esc(v)}</label>`).join('')}
-            <p class="muted small" style="margin:4px 0 0">الإعدادات = المستخدمون وكلمات السر، ونجوم العائلة، ومربعات التلفاز وإعداداته (الأذان، المواقيت، الخلفيات)، والكاميرات، والمجلدات المشتركة.</p></div>
-          <div><label class="lbl" style="margin-top:0">متى</label>
+      <div class="card"><h4>${icon('clock')} ٢. ماذا يُنسخ، ومتى؟</h4>
+        ${WHAT_L.map(([k, v]) => `<label class="check" style="display:flex"><input type="radio" name="what" value="${k}" ${k === st.what ? 'checked' : ''}> ${esc(v)}</label>`).join('')}
+        <p class="muted small" style="margin:4px 0 10px">الإعدادات = المستخدمون وكلمات السر، ونجوم العائلة، ومربعات التلفاز وإعداداته، والكاميرات، والمجلدات المشتركة.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <div style="flex:2;min-width:140px"><label class="lbl" style="margin-top:0">متى</label>
             <select class="field" name="freq"><option value="off" ${st.enabled ? '' : 'selected'}>يدوياً فقط</option>
-              ${FREQ_L.map(([k, v]) => `<option value="${k}" ${st.enabled && k === st.freq ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
-            <div style="display:flex;gap:10px">
-              <div style="flex:1"><label class="lbl">الساعة</label><select class="field" name="hour">${Array.from({ length: 24 }, (_, i) => `<option value="${i}" ${i === st.hour ? 'selected' : ''}>${String(i).padStart(2, '0')}:00</option>`).join('')}</select></div>
-              <div style="flex:1"><label class="lbl">عدد النسخ المحفوظة</label><input class="field" name="keep" type="number" min="1" max="365" value="${st.keep}"></div>
-            </div></div>
+              ${FREQ_L.map(([k, v]) => `<option value="${k}" ${st.enabled && k === st.freq ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
+          <div style="flex:1;min-width:90px" class="bk-hour"><label class="lbl" style="margin-top:0">الساعة</label><select class="field" name="hour">${Array.from({ length: 24 }, (_, i) => `<option value="${i}" ${i === st.hour ? 'selected' : ''}>${String(i).padStart(2, '0')}:00</option>`).join('')}</select></div>
+          <div style="flex:1;min-width:90px"><label class="lbl" style="margin-top:0">عدد النسخ</label><input class="field" name="keep" type="number" min="1" max="365" value="${st.keep}"></div>
         </div>
-        <div style="margin-top:12px"><button class="btn primary" data-b="save">حفظ</button></div></div></div>`);
+        <div style="margin-top:12px"><button class="btn primary" data-b="save">حفظ</button></div></div>
+      <div class="card span2"><h4>${icon('shield')} ٣. الحالة</h4>
+        <p class="bk-state" style="margin:0 0 10px"></p>
+        <div class="run-st muted" style="font-size:12px;margin-bottom:8px"></div>
+        <button class="btn primary" data-b="run" ${tg.connected && !status.running ? '' : 'disabled'}>${icon('save')} انسخ الآن</button>
+        ${!tg.connected ? '<span class="muted small" style="margin-inline-start:8px">اختر القرص في الخطوة ١ ليعمل الزر.</span>' : ''}</div></div>`);
     $('[name=target]', card).value = st.usb_uuid ? '' : (st.target || '');
+    // الحالة في سطر واحد: يعمل الآن، أو القرص غير موصول، أو آخر نسخة (ناجحة أو سبب الفشل)
+    $('.bk-state', card).innerHTML = status.running ? '<span class="badge accent">يعمل الآن…</span>'
+      : !st.target ? '<span class="badge">لم يُختر القرص بعد</span>'
+      : !tg.connected ? '<span class="badge err">القرص غير موصول</span> صِله بالجهاز ليعمل النسخ.'
+      : last && !last.ok ? `<span class="badge err">فشل آخر نسخ</span> <bdi>${esc(fmtDateTime(last.finished))}</bdi>: ${esc(last.error || last.summary || '')}${st.last_success ? `<br><span class="muted small">آخر نسخة ناجحة: <bdi>${esc(fmtDateTime(st.last_success))}</bdi></span>` : ''}`
+      : st.last_success ? `<span class="badge ok">سليم</span> آخر نسخة: <bdi>${esc(fmtDateTime(st.last_success))}</bdi>${last && last.summary ? ` <span class="muted small">(${esc(last.summary)})</span>` : ''}`
+      : '<span class="badge warn">لم يُنسخ بعد</span>';
+    const freqSel = $('[name=freq]', card);
+    const syncHour = () => { $('.bk-hour', card).hidden = freqSel.value === 'off'; };
+    freqSel.onchange = syncHour; syncHour();
     p.appendChild(card);
-    // الوجهات الموصولة
+    // ١. الأقراص الموصولة: الحالي عليه علامة ومساحته المتاحة
     const dests = $('.bk-dests', card);
     const drawDests = async () => {
       const t = await api.get('/api/backup/targets').catch(() => null);
       if (!t) { dests.textContent = 'تعذرت قراءة الأقراص.'; return; }
       dests.classList.remove('muted', 'small');
-      dests.innerHTML = (t.targets.length ? t.targets.map((x) => `<div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+      const cur = t.targets.some((x) => x.current);
+      dests.innerHTML = (st.target && !cur ? `<div class="alert ${tg.connected ? '' : 'err'} small" style="margin:0 0 6px">القرص المختار: <b translate="no">${st.usb_label ? esc(st.usb_label) : `<bdi dir="ltr">${esc(st.target)}</bdi>`}</b>${tg.connected ? (tg.total ? ` · متاح ${fmtSize(tg.free)} من ${fmtSize(tg.total)}` : '') : ' — غير موصول'}</div>` : '')
+        + (t.targets.length ? t.targets.map((x) => `<div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
           <div style="flex:1;min-width:0"><b translate="no">${esc(x.title)}</b>
             <div class="muted small" translate="no">${[x.model ? `<bdi>${esc(x.model)}</bdi>` : '', (x.size || x.total) ? `<bdi dir="ltr">${fmtSize(x.size || x.total)}</bdi>` : '', x.free != null ? `متاح <bdi dir="ltr">${fmtSize(x.free)}</bdi>` : '', x.fstype ? `<bdi>${esc(x.fstype)}</bdi>` : ''].filter(Boolean).join(' · ')}</div>
             ${x.kind === 'usb' && !x.versions ? '<div class="muted small">هذه الصيغة تحفظ نسخة واحدة تُحدَّث (بلا نسخ بالتاريخ).</div>' : ''}</div>
-          ${x.current ? '<span class="badge ok">الوجهة الحالية</span>' : x.ro ? '<span class="badge warn">للقراءة فقط</span>'
-            : `<button class="btn sm primary" style="white-space:nowrap" data-use="${esc(x.kind === 'usb' ? x.dev : 'internal')}">انسخ إلى هذا القرص</button>`}</div>`).join('')
+          ${x.current ? '<span class="badge ok">✓ المختار</span>' : x.ro ? '<span class="badge warn">للقراءة فقط</span>'
+            : `<button class="btn sm" style="white-space:nowrap" data-use="${esc(x.kind === 'usb' ? x.dev : 'internal')}">اختر هذا القرص</button>`}</div>`).join('')
         : '<div class="alert warn small" style="margin:0">لا يوجد قرص موصول. صِل قرصاً خارجياً أو فلاشة بمنفذ USB.</div>')
         + '<button class="btn ghost sm" data-b="rescan" style="margin-top:6px">بحث مرة أخرى</button>';
       $('[data-b=rescan]', dests).onclick = () => { dests.innerHTML = '<span class="muted small">جارٍ البحث…</span>'; drawDests(); };
@@ -1016,26 +1008,26 @@ const CP = {
       }));
     };
     drawDests();
-    $('[data-b=save]', card).onclick = async () => {
-      const freq = $('[name=freq]', card).value;
-      const d = { enabled: freq !== 'off', ...(freq !== 'off' ? { freq } : {}), what: $('[name=what]:checked', card).value,
-        hour: +$('[name=hour]', card).value, keep: +$('[name=keep]', card).value };
-      if (await guard(() => api.post('/api/backup/settings', d))) { toast('تم الحفظ', 'ok'); reload(); }
+    const saveSettings = () => {
+      const freq = freqSel.value;
+      return guard(() => api.post('/api/backup/settings', { enabled: freq !== 'off', ...(freq !== 'off' ? { freq } : {}),
+        what: $('[name=what]:checked', card).value, hour: +$('[name=hour]', card).value, keep: +$('[name=keep]', card).value }));
     };
+    $('[data-b=save]', card).onclick = async () => { if (await saveSettings()) { toast('تم الحفظ', 'ok'); reload(); } };
     $('[data-b=save-path]', card).onclick = async () => {
       if (await guard(() => api.post('/api/backup/settings', { target: $('[name=target]', card).value.trim() }))) { toast('تم الحفظ', 'ok'); reload(); }
     };
     const init = $('[data-b=init]', card);
     if (init) init.onclick = async () => { if (await guard(() => api.post('/api/backup/init'))) { toast('أصبح المجلد جاهزاً للنسخ الاحتياطي', 'ok'); reload(); } };
-    const browse = $('[data-b=browse]', card);
-    if (browse) browse.onclick = () => openApp('files', { path: '/backup', forceNew: false });
     const runBtn = $('[data-b=run]', card);
-    runBtn.onclick = async () => { if (await guard(() => api.post('/api/backup/run', { what: $('[name=now-what]', card).value }))) { toast('بدأ النسخ الاحتياطي', 'ok'); setTimeout(poll, 700); } };
+    // «انسخ الآن» ينسخ ما هو مختار في الخطوة ٢
+    runBtn.onclick = async () => { if (await guard(() => api.post('/api/backup/run', { what: $('[name=what]:checked', card).value }))) { toast('بدأ النسخ الاحتياطي', 'ok'); setTimeout(poll, 700); } };
     async function poll() {
       const x = await api.get('/api/backup').catch(() => null);
       if (!x || !document.body.contains(card)) return;
       if (x.status.running) {
         runBtn.disabled = true;
+        $('.bk-state', card).innerHTML = '<span class="badge accent">يعمل الآن…</span>';
         $('.run-st', card).textContent = `جارٍ النسخ: ${x.status.files} ملف (${x.status.copied} جديد) — ${x.status.current}`;
         setTimeout(poll, 1500);
       } else {
@@ -1048,9 +1040,8 @@ const CP = {
     if (status.running) poll();
 
     // ---- 2. الاستيراد: من القرص الموصول
-    const rs = h(`<div class="card" style="margin-top:14px"><h4>${icon('upload')} الاستيراد والاسترجاع من القرص</h4>
-      <p class="muted small" style="margin:0 0 8px">استرجاع الملفات ينسخ ما نقص أو تغيّر فقط، ولا يحذف شيئاً ولا يستبدل ملفاً أحدث.
-        استرجاع الإعدادات يستبدل الإعدادات الحالية (تُحفظ نسخة منها) ثم يُعاد تشغيل البرنامج. تفعيل هذا الجهاز وإعدادات عتاده (الشاشة، الصوت، الشبكة، الريموت) تبقى كما هي، فلا تحدث مشاكل في التعريفات إن كانت النسخة من جهاز آخر.</p>
+    const rs = h(`<div class="card" style="margin-top:14px"><h4>${icon('upload')} الاسترجاع من القرص</h4>
+      <p class="muted small" style="margin:0 0 8px">«استرجاع الملفات» ينسخ الناقص فقط، ولا يحذف شيئاً ولا يستبدل ملفاً أحدث. «استرجاع الإعدادات» يستبدل الإعدادات الحالية (تُحفظ نسخة منها) ثم يُعاد تشغيل البرنامج. تفعيل هذا الجهاز وإعدادات عتاده تبقى كما هي، حتى لو كانت النسخة من جهاز آخر.</p>
       <div class="rs-body muted small">جارٍ القراءة…</div></div>`);
     p.appendChild(rs);
     const rb = $('.rs-body', rs);
@@ -1062,13 +1053,14 @@ const CP = {
       const job = x.job;
       const jobHtml = job.running ? `<div class="alert small" style="margin:0 0 8px">⏳ جارٍ استرجاع الملفات: ${job.files} ملف فُحص، ${job.copied} نُسخ — <span translate="no">${esc(job.current)}</span></div>`
         : job.done ? `<div class="alert ${job.error ? 'err' : 'ok'} small" style="margin:0 0 8px">${job.error ? esc(job.error) : `✅ اكتمل استرجاع الملفات: ${job.copied} ملف.`}</div>` : '';
-      if (!x.connected) { rb.innerHTML = jobHtml + '<p class="muted small" style="margin:0">صِل قرص النسخ الاحتياطي واختره في «إلى أين يكون النسخ؟» لترى نسخه هنا. ويمكن اختيار قرص فيه نسخ من جهاز آخر.</p>'; return; }
+      if (!x.connected) { rb.innerHTML = jobHtml + '<p class="muted small" style="margin:0">صِل قرص النسخ الاحتياطي واختره في الخطوة ١ لترى نسخه هنا. ويمكن اختيار قرص فيه نسخ من جهاز آخر.</p>'; return; }
       rb.innerHTML = jobHtml + (x.snapshots.length ? `<table class="tbl"><thead><tr><th>النسخة</th><th>فيها</th><th></th></tr></thead><tbody>
         ${x.snapshots.map((s) => `<tr><td><bdi>${esc(s.name === 'mirror' ? 'النسخة المحدَّثة' : fmtDateTime(s.created) || s.name)}</bdi>${s.server_name ? `<div class="muted small" translate="no">${esc(s.server_name)}${s.version ? ` · v${esc(s.version)}` : ''}</div>` : ''}</td>
           <td>${s.settings ? '<span class="badge">الإعدادات</span> ' : ''}${s.files ? '<span class="badge">الملفات والصور</span>' : ''}</td>
-          <td style="white-space:nowrap">${s.files ? `<button class="btn sm" data-r="files" data-s="${esc(s.name)}" ${job.running ? 'disabled' : ''}>استرجاع الملفات</button> ` : ''}
+          <td style="white-space:nowrap"><button class="btn sm ghost" data-browse="${esc(s.name)}">${icon('folder')} استعراض</button> ${s.files ? `<button class="btn sm" data-r="files" data-s="${esc(s.name)}" ${job.running ? 'disabled' : ''}>استرجاع الملفات</button> ` : ''}
             ${s.settings ? `<button class="btn sm" data-r="settings" data-s="${esc(s.name)}" ${job.running ? 'disabled' : ''}>استرجاع الإعدادات</button>` : ''}</td></tr>`).join('')}</tbody></table>`
         : '<p class="muted small" style="margin:0">لا توجد نسخ على هذا القرص بعد.</p>');
+      $$('[data-browse]', rb).forEach((b) => (b.onclick = () => openApp('files', { path: `/backup/${b.dataset.browse}`, forceNew: false })));
       $$('[data-r]', rb).forEach((b) => (b.onclick = async () => {
         const part = b.dataset.r;
         if (!(await confirmBox(part === 'settings' ? 'ستُستبدل إعدادات هذا الجهاز ومستخدموه بما في النسخة، ثم يُعاد تشغيل البرنامج. متأكد؟'
