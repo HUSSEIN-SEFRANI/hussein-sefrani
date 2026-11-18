@@ -199,6 +199,9 @@ def apply_smb(cfg):
         if link.exists() or link.is_symlink():
             link.unlink()
         link.symlink_to(target)
+    known = smb.get("known_ids")
+    if isinstance(known, list):   # إعدادات من إصدار أقدم بلا known_ids: لا نحذف شيئاً
+        prune_smb_users({unix_name(i) for i in known if str(i).isdigit() and 0 < int(i) <= 10 ** 7})
     SMB_CONF.parent.mkdir(parents=True, exist_ok=True)
     SMB_CONF.write_text(render_smb(cfg))
     if smb.get("enabled"):
@@ -211,6 +214,17 @@ def apply_smb(cfg):
         systemctl("disable", "--now", "smbd")
         for svc in ("wsdd2", "wsdd"):
             systemctl("disable", "--now", svc)
+
+
+def prune_smb_users(keep: set):
+    """البند 31: حسابات سامبا لأشخاص لم يعودوا في HOME ANAB (بعد استيراد من جهاز آخر أو حذف) تُزال،
+    حتى لا تبقى كلمة سر قديمة تفتح قرص الشبكة باسم رقم صار لشخص آخر."""
+    if not shutil.which("pdbedit"):
+        return
+    for line in run("pdbedit", "-L").stdout.splitlines():
+        name = line.split(":")[0]
+        if re.fullmatch(r"hsef[0-9]+", name) and name not in keep:
+            run("smbpasswd", "-x", name)
 
 
 # ----------------------------------------------------------------------------- DLNA

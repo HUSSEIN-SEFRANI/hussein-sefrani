@@ -107,7 +107,9 @@ class Network:
                            "read": [] if admin_only else [p["user_id"] for p in perms if p["perm"] == "ro"],
                            "write": [] if admin_only else [p["user_id"] for p in perms if p["perm"] == "rw"]})
         return {"server_name": s["server_name"], "data_dir": str(self.paths.data),
-                "smb": {"enabled": s["smb_enabled"], "users": users, "shares": shares},
+                "smb": {"enabled": s["smb_enabled"], "users": users, "shares": shares,
+                        # البند 31: كل الحسابات (ومنها الموقوفة) حتى لا تُحذف كلمة سر حساب موقوف مؤقتاً
+                        "known_ids": [r["id"] for r in db.execute("SELECT id FROM users")]},
                 "dlna": {"enabled": s["dlna_enabled"], "dirs": [str(self.tv_root)] if s["dlna_enabled"] else []}}
 
     def apply(self):
@@ -126,6 +128,28 @@ class Network:
             return
         ok, out = run_helper("apply")
         self.status["apply_error"] = None if ok or not helper_available() else out
+        if ok and helper_available():
+            self.heal_marks()
+
+    def heal_marks(self):
+        """البند 31: شخص علامته «جاهز» لكن سامبا لا يعرفه (بعد استيراد من جهاز آخر في إصدار قديم):
+        نمسح العلامة، فتطلب منه الواجهة التفعيل، أو تُضبط كلمة سره تلقائياً عند دخوله التالي."""
+        ok, out = run_helper("status")
+        try:
+            known = set(json.loads(out).get("smb_users") or []) if ok else None
+        except ValueError:
+            known = None
+        if known is None:
+            return
+        db = connect(self.paths.db)
+        try:
+            stale = [r["key"] for r in db.execute("SELECT key FROM settings WHERE key LIKE 'smb\\_pw\\_%' ESCAPE '\\' AND value='1'")
+                     if f"hsef{r['key'].rsplit('_', 1)[-1]}" not in known]
+            if stale:
+                db.executemany("DELETE FROM settings WHERE key=?", [(k,) for k in stale])
+                db.commit()
+        finally:
+            db.close()
 
     # ------------------------------------------------------------ مكتبة التلفاز
     def tv_preview(self, src: Path, sha: str | None) -> Path | None:
