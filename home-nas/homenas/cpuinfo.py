@@ -7,11 +7,12 @@
 from __future__ import annotations
 
 import os
+import re
 import threading
 import time
 from collections import deque
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 
 from .core import admin_required
 
@@ -36,6 +37,9 @@ FRIENDLY = [
     ("rsync", "النسخ الاحتياطي"), ("tailscale", "الوصول من خارج البيت"),
     ("pipewire", "الصوت"), ("wireplumber", "الصوت"), ("bluetoothd", "البلوتوث"),
     ("mdadm", "مرآة RAID"), ("md0_resync", "مرآة RAID"), ("apt", "تثبيت حزم"), ("dpkg", "تثبيت حزم"),
+    ("jbd2", "نظام الملفات (حفظ التغييرات)"), ("kworker", "النظام"), ("systemd-journal", "سجلات النظام"),
+    ("wsdd", "قرص الشبكة (ويندوز)"), ("nmbd", "قرص الشبكة (ويندوز)"), ("usbmuxd", "الآيفون"), ("ifuse", "الآيفون"),
+    ("python3", "HOME ANAB (الصور والوجوه والملفات)"), ("waitress", "HOME ANAB (الصور والوجوه والملفات)"),
 ]
 
 
@@ -87,11 +91,50 @@ def level(t: float | None) -> str | None:
     return "hot" if t >= HOT_C else "warm" if t >= WARN_C else "ok"
 
 
+# ----------------------------------------------------------------------------- البند 22: القراءة والكتابة على القرص
+DISK_RE = re.compile(r"^(sd[a-z]+|nvme\d+n\d+|mmcblk\d+|vd[a-z]+|hd[a-z]+)$")   # الأقراص كاملة (لا الأقسام ولا RAID مرتين)
+_last_io: dict = {}
+
+
+def disk_bytes() -> tuple[int, int] | None:
+    """مجموع ما قُرئ وكُتب على الأقراص الفعلية منذ الإقلاع (بايت)."""
+    if not psutil:
+        return None
+    try:
+        per = psutil.disk_io_counters(perdisk=True) or {}
+    except Exception:
+        return None
+    rows = [v for k, v in per.items() if DISK_RE.match(k)]
+    if not rows:
+        return None
+    return sum(r.read_bytes for r in rows), sum(r.write_bytes for r in rows)
+
+
+def disk_rate(seconds: float = 1.0) -> dict | None:
+    a = disk_bytes()
+    if a is None:
+        return None
+    time.sleep(seconds)
+    b = disk_bytes()
+    return {"read": max(0, int((b[0] - a[0]) / seconds)), "write": max(0, int((b[1] - a[1]) / seconds))}
+
+
+def _io_sample() -> dict:
+    now, cur = time.time(), disk_bytes()
+    out = {}
+    if cur and _last_io.get("v"):
+        dt = max(1.0, now - _last_io["t"])
+        out = {"rd": max(0, int((cur[0] - _last_io["v"][0]) / dt)), "wr": max(0, int((cur[1] - _last_io["v"][1]) / dt))}
+    _last_io.update(t=now, v=cur)
+    return out
+
+
 def _sampler():
     while True:
         try:
             t = temperature()
-            _history.append({"t": int(time.time()), "cpu": psutil.cpu_percent(interval=1), "temp": t["current"] if t else None})
+            _history.append({"t": int(time.time()), "cpu": psutil.cpu_percent(interval=1), "temp": t["current"] if t else None,
+                             **_io_sample()})
         except Exception:
             pass
         time.sleep(SAMPLE_SEC - 1)
@@ -165,3 +208,58 @@ def api_cpu():
                    usage=round(sum(per) / max(1, len(per)), 1), per_core=per, load=load,
                    temp=t, level=level(t["current"] if t else None), warn_c=WARN_C, hot_c=HOT_C,
                    history=list(_history), top=top_processes())
+
+
+def io_processes(n: int = 8) -> list[dict]:
+    """ما يقرأ ويكتب على القرص الآن، بأسماء مفهومة. البرامج التي تعمل بصلاحيات النظام (مثل قرص الشبكة)
+    لا يراها إلا المساعد (hsef-extras io-top)، وإلا نكتفي بما نستطيع قراءته."""
+    rows = None
+    helper = "/usr/local/sbin/hsef-extras"
+    fake = os.environ.get("HSEF_EXTRAS_FAKE") == "1"
+    if fake or (os.environ.get("HOMENAS_APPLIANCE") == "1" and os.path.exists(helper)):
+        import json as _json
+        import subprocess
+        cmd = ["python3", os.path.join(os.path.dirname(__file__), "..", "appliance", "hsef-extras"), "io-top"] if fake else ["sudo", "-n", helper, "io-top"]
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            if r.returncode == 0:
+                rows = _json.loads(r.stdout or "[]")
+        except Exception:
+            rows = None
+    if rows is None and psutil:
+        first = {}
+        for pr in psutil.process_iter(["name", "cmdline"]):
+            try:
+                io = pr.io_counters()
+                first[pr.pid] = (pr, io.read_bytes, io.write_bytes)
+            except (psutil.NoSuchProcess, psutil.AccessDenied, AttributeError):
+                pass
+        time.sleep(1)
+        rows = []
+        for pid, (pr, r0, w0) in first.items():
+            try:
+                io = pr.io_counters()
+                rows.append({"name": pr.info.get("name") or "", "cmd": pr.info.get("cmdline") or [],
+                             "read": io.read_bytes - r0, "write": io.write_bytes - w0})
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+    groups: dict[str, dict] = {}
+    for r in rows or []:
+        if r["read"] <= 0 and r["write"] <= 0:
+            continue
+        label = friendly(r.get("name") or "", r.get("cmd") or [])
+        g = groups.setdefault(label, {"name": label, "read": 0, "write": 0})
+        g["read"] += r["read"]
+        g["write"] += r["write"]
+    return sorted(groups.values(), key=lambda g: -(g["read"] + g["write"]))[:n]
+
+
+@bp.get("/api/admin/disk-io")
+@admin_required
+def api_disk_io():
+    """البند 22: سرعة القراءة والكتابة على القرص الآن (بايت/ثانية)، وآخر ساعة، والبرامج التي تستعمل القرص."""
+    now = disk_rate(1.0)
+    hist = [{"t": h["t"], "rd": h["rd"], "wr": h["wr"]} for h in _history if "rd" in h]
+    top = io_processes() if request.args.get("top") != "0" else []
+    return jsonify(available=now is not None, read=(now or {}).get("read", 0), write=(now or {}).get("write", 0),
+                   history=hist, top=top)

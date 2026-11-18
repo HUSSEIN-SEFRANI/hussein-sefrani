@@ -289,6 +289,17 @@ function section(sc, title, desc, actions = '') {
   sc.appendChild(el); return $('.pad', el);
 }
 
+// البند 22: القراءة والكتابة على القرص (ميغابايت/ثانية) ومن يستعملها
+const mbs = (b) => `${(b / 1048576).toFixed(b >= 10 * 1048576 ? 0 : 1)} MB/s`;
+function ioHtml(d, n = 8) {
+  const top = (d.top || []).slice(0, n);
+  return `<div class="ov-row"><span>⬇ قراءة</span><b dir="ltr" translate="no">${mbs(d.read)}</b></div>
+    <div class="ov-row"><span>⬆ كتابة</span><b dir="ltr" translate="no">${mbs(d.write)}</b></div>
+    ${top.length ? `<div class="muted small" style="margin:8px 0 2px">يستعمل القرص الآن:</div>${top.map((x) => `<div class="ov-row small"><span>${esc(x.name)}</span>
+      <span class="muted" dir="ltr" translate="no">⬇${mbs(x.read)} ⬆${mbs(x.write)}</span></div>`).join('')}`
+      : '<div class="muted small" style="margin-top:8px">لا يوجد برنامج يستعمل القرص الآن.</div>'}`;
+}
+
 const CP = {
   // نظرة عامة: حالة كل شيء بنظرة واحدة، وكل بطاقة تفتح قسمها
   async overview(sc, go) {
@@ -329,8 +340,22 @@ const CP = {
       : ac.state === 'active' ? `<span class="badge ${ac.warn ? 'warn' : 'ok'}">مفعّل · باقي ${ac.days_left} يوماً</span>`
       : ac.state === 'trial' ? `<span class="badge warn">تجربة: باقي ${ac.days_left} يوماً</span>`
       : ac.state === 'expired' ? '<span class="badge err">منتهٍ</span>' : '<span class="badge">—</span>'}</p>`));
+    if (st) cards.push(card('storage', 'activity', 'القرص الآن', '<div class="ov-io muted small">جارٍ القياس…</div>'));
     box.innerHTML = cards.join('') || '<p class="muted">تعذر الاتصال بالسيرفر</p>';
     $$('[data-go]', box).forEach(b => { if (b.dataset.go === 'overview') b.disabled = true; else b.onclick = () => go(b.dataset.go); });
+    // البند 22: القراءة والكتابة على القرص، ومن يستعمله (يُقاس ثانيتين، فلا يؤخر بقية البطاقات)
+    const io = $('.ov-io', box);
+    if (io) {
+      const loadIo = async () => {
+        const d = await api.get('/api/admin/disk-io').catch(() => null);
+        if (!io.isConnected) return;
+        if (!d || !d.available) { io.textContent = 'غير متاح على هذا الجهاز.'; return; }
+        io.classList.remove('muted', 'small');
+        io.innerHTML = ioHtml(d, 3);
+        setTimeout(loadIo, 5000);
+      };
+      loadIo();
+    }
   },
 
   // البند 6 و15: تصدير النظام واستيراده، وإعادة ضبط المصنع
@@ -412,6 +437,24 @@ const CP = {
     // ---- المساحة
     p.appendChild(h(`<div class="card" style="margin-top:14px"><h4>${icon('chart')} المساحة</h4>${d.volumes.map((v) => { const pct = v.total ? 100 * v.used / v.total : 0;
       return `<div class="ov-vol"><div class="ov-row"><span translate="no">${esc(v.labels.join('، '))}</span><span class="muted small" dir="ltr" translate="no">${fmtSize(v.used)} / ${fmtSize(v.total)} · ${Math.round(pct)}%</span></div>${bar(pct)}</div>`; }).join('')}</div>`));
+    // ---- نشاط القرص (البند 22)
+    const ioc = h(`<div class="card" style="margin-top:14px"><h4>${icon('activity')} نشاط القرص الآن</h4><div class="iob muted small">جارٍ القياس…</div></div>`);
+    p.appendChild(ioc);
+    const ioLoop = async () => {
+      const x = await api.get('/api/admin/disk-io').catch(() => null);
+      if (!ioc.isConnected) return;
+      const b = $('.iob', ioc);
+      if (!x || !x.available) { b.textContent = 'غير متاح على هذا الجهاز.'; return; }
+      b.classList.remove('muted', 'small');
+      const hist = x.history.slice(-60), hmax = Math.max(1, ...hist.map((r) => Math.max(r.rd, r.wr)));
+      b.innerHTML = ioHtml(x) + (hist.length > 2 ? `<div class="muted small" style="margin:10px 0 4px">آخر ساعة (أعلى: <span dir="ltr">${mbs(hmax)}</span>):</div>
+        <svg viewBox="0 0 ${hist.length} 40" preserveAspectRatio="none" style="width:100%;height:60px;display:block;direction:ltr">
+          <polyline fill="none" stroke="var(--accent)" stroke-width="1" vector-effect="non-scaling-stroke" points="${hist.map((r, i) => `${i},${40 - 38 * r.rd / hmax}`).join(' ')}"/>
+          <polyline fill="none" stroke="var(--warn)" stroke-width="1" vector-effect="non-scaling-stroke" points="${hist.map((r, i) => `${i},${40 - 38 * r.wr / hmax}`).join(' ')}"/></svg>
+        <div class="small"><span style="color:var(--accent)">━ قراءة</span> &nbsp; <span style="color:var(--warn)">━ كتابة</span></div>` : '');
+      setTimeout(ioLoop, 5000);
+    };
+    ioLoop();
     // ---- ماذا يشغل المساحة؟
     const uc = h(`<div class="card" style="margin-top:14px"><div class="ov-row"><h4 style="margin:0">${icon('grid')} ماذا يشغل المساحة؟</h4>
       <button class="btn ghost sm" data-x="usage">${icon('refresh')} احسب الآن</button></div><div class="ub"></div></div>`);
