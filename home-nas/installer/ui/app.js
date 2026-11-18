@@ -227,6 +227,7 @@
     document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
     document.querySelectorAll("[data-t]").forEach((e) => { e.textContent = t(e.dataset.t); });
     drawSteps();
+    main.classList.toggle("dense", view === "disk");   // البند 32
     if (view === "welcome") {
       main.innerHTML = `<h1>${t("w_h")}</h1><p>${t("w_p")}</p>
         <div class="muted" style="margin-top:10px">${t("lang")}</div>
@@ -473,6 +474,7 @@
     const f = focusables(); if (!f.length) return;
     cur = (i + f.length) % f.length;
     f.forEach((e, j) => e.classList.toggle("sel", j === cur));
+    if (!soft) f[cur].scrollIntoView({ block: "nearest" });   // البند 32: الأسهم والريموت تُنزل الشاشة إلى المختار
     if (soft) return; // مرور الفأرة لا يُخرج الكتابة من حقل كلمة المرور
     // حقل الكتابة يأخذ التركيز الحقيقي حتى تصل إليه لوحة المفاتيح
     if (f[cur].tagName === "INPUT") { f[cur].focus(); const n = f[cur].value.length; try { f[cur].setSelectionRange(n, n); } catch (e) { /* */ } }
