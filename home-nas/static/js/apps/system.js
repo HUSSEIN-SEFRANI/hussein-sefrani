@@ -892,11 +892,15 @@ const CP = {
           <button class="btn primary" data-b="run" ${tg.connected && !status.running ? '' : 'disabled'}>${icon('save')} نسخ احتياطي الآن</button>
           ${tg.connected && (tg.snapshots.length || tg.mirror) ? `<button class="btn" data-b="browse">${icon('folder')} استعراض واسترجاع</button>` : ''}
         </div></div>
-      <div class="card"><h4>${icon('hdd')} الوجهة والجدولة</h4>
-        <label class="lbl">مجلد الوجهة (على القرص الخارجي)</label>
-        <input class="field" name="target" dir="ltr" placeholder="${esc(st.suggested || 'E:\\H.SEF-Backup')}">
-        ${tg.exists && !tg.initialized ? `<div class="muted" style="font-size:12px;margin-top:6px">⚠️ المجلد موجود لكنه غير مُجهز كوجهة نسخ. اضغط «تجهيز».</div>` : ''}
-        ${st.target && !tg.exists ? `<div class="muted" style="font-size:12px;margin-top:6px">⚠️ المجلد غير موجود — صِل القرص.</div>` : ''}
+      <div class="card"><h4>${icon('hdd')} إلى أين يكون النسخ؟</h4>
+        <p class="small" style="margin:0 0 8px">الوجهة الآن: <b translate="no">${st.usb_label ? esc(st.usb_label) : st.target ? `<span dir="ltr">${esc(st.target)}</span>` : 'لم تُختر بعد'}</b>
+          ${st.target ? (tg.connected ? ' <span class="badge ok">موصول</span>' : ' <span class="badge err">غير موصول</span>') : ''}</p>
+        <div class="bk-dests muted small">جارٍ البحث عن الأقراص الموصولة…</div>
+        <details class="bk-other" style="margin-top:8px"><summary class="small">مسار آخر (متقدم)</summary>
+          <input class="field" name="target" dir="ltr" placeholder="${esc(st.suggested || '/srv/homenas/backup')}" style="margin-top:6px">
+          ${tg.exists && !tg.initialized ? `<div class="muted" style="font-size:12px;margin-top:6px">⚠️ المجلد موجود لكنه غير مُجهز كوجهة نسخ. اضغط «تجهيز».</div>` : ''}
+          ${st.target && !tg.exists && !st.usb_uuid ? `<div class="muted" style="font-size:12px;margin-top:6px">⚠️ المجلد غير موجود — صِل القرص.</div>` : ''}
+        </details>
         <label class="check"><input type="checkbox" name="enabled" ${st.enabled ? 'checked' : ''}> نسخ تلقائي كل يوم</label>
         <div style="display:flex;gap:10px">
           <div style="flex:1"><label class="lbl">الساعة</label><select class="field" name="hour">${Array.from({ length: 24 }, (_, i) => `<option value="${i}" ${i === st.hour ? 'selected' : ''}>${String(i).padStart(2, '0')}:00</option>`).join('')}</select></div>
@@ -909,13 +913,41 @@ const CP = {
       <div class="card span2"><h4>${icon('info')} ما الذي يُنسخ؟</h4>
         <p style="margin:0">${r.sources.map(x => `<span class="code">${esc(x)}</span>`).join(' ')} <span class="code">@system/nas.db</span></p>
         <p class="muted" style="font-size:13px">كل الملفات والصور لكل المستخدمين، والمجلدات المشتركة (حتى المربوطة بأقراص أخرى)، وقاعدة البيانات (الحسابات والألبومات والمفضلة). سلال المحذوفات والمصغرات لا تُنسخ.</p>
-        <p class="muted" style="font-size:13px"><b>على جهاز HOME ANAB المخصص:</b> جهّز قرص USB مرة واحدة من شاشة الجهاز بالأمر
-          <span class="code">sudo homenas-disk backup-disk /dev/sdX</span> ثم استخدم المسار <span class="code">/srv/homenas/backup</span>.</p></div></div>`);
-    $('[name=target]', card).value = st.target || '';
+        <p class="muted" style="font-size:13px">صِل القرص الخارجي بمنفذ USB واختره في «إلى أين يكون النسخ؟». يتعرّف HOME ANAB على القرص نفسه في كل مرة توصله، حتى لو وصلته بمنفذ آخر.
+          ولقرص دائم داخل الجهاز استعمل «إدارة التخزين ← استعمال القرص ← قرص النسخ الاحتياطي».</p></div></div>`);
+    $('[name=target]', card).value = st.usb_uuid ? '' : (st.target || '');
     const reload = () => { sc.innerHTML = ''; CP.backup(sc); };
+    // البند 17: اختيار الوجهة من الأقراص الموصولة
+    const dests = $('.bk-dests', card);
+    const drawDests = async () => {
+      const t = await api.get('/api/backup/targets').catch(() => null);
+      if (!t) { dests.textContent = 'تعذرت قراءة الأقراص.'; return; }
+      dests.classList.remove('muted', 'small');
+      if (!t.targets.length) {
+        dests.innerHTML = '<div class="alert warn small" style="margin:0">لا يوجد قرص موصول. صِل قرصاً خارجياً أو فلاشة بمنفذ USB، ثم اضغط «بحث مرة أخرى».</div> <button class="btn sm" data-b="rescan" style="margin-top:6px">بحث مرة أخرى</button>';
+      } else {
+        dests.innerHTML = t.targets.map((x) => `<div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div style="flex:1;min-width:0"><b translate="no">${esc(x.title)}</b>
+            <div class="muted small" translate="no">${[x.model ? `<bdi>${esc(x.model)}</bdi>` : '', (x.size || x.total) ? `<bdi dir="ltr">${fmtSize(x.size || x.total)}</bdi>` : '', x.free != null ? `متاح <bdi dir="ltr">${fmtSize(x.free)}</bdi>` : '', x.fstype ? `<bdi>${esc(x.fstype)}</bdi>` : ''].filter(Boolean).join(' · ')}</div>
+            ${x.kind === 'usb' && !x.versions ? '<div class="muted small">هذه الصيغة تحفظ نسخة واحدة تُحدَّث (بلا نسخ بالتاريخ).</div>' : ''}</div>
+          ${x.current ? '<span class="badge ok">الوجهة الحالية</span>' : x.ro ? '<span class="badge warn">للقراءة فقط</span>'
+            : `<button class="btn sm primary" style="white-space:nowrap" data-use="${esc(x.kind === 'usb' ? x.dev : 'internal')}">انسخ إلى هذا القرص</button>`}</div>`).join('')
+          + '<button class="btn ghost sm" data-b="rescan">بحث مرة أخرى</button>';
+      }
+      $$('[data-b=rescan]', dests).forEach((b) => (b.onclick = () => { dests.innerHTML = '<span class="muted small">جارٍ البحث…</span>'; drawDests(); }));
+      $$('[data-use]', dests).forEach((b) => (b.onclick = async () => {
+        b.disabled = true;
+        const v = b.dataset.use;
+        const ok = await guard(() => api.post('/api/backup/use', v === 'internal' ? { kind: 'internal' } : { kind: 'usb', dev: v }));
+        b.disabled = false;
+        if (ok) { toast('صار هذا القرص وجهة النسخ الاحتياطي. اضغط «نسخ احتياطي الآن»', 'ok', 6000); reload(); }
+      }));
+    };
+    drawDests();
     $('[data-b=save]', card).onclick = async () => {
-      const d = { target: $('[name=target]', card).value, enabled: $('[name=enabled]', card).checked,
-        hour: +$('[name=hour]', card).value, keep: +$('[name=keep]', card).value };
+      const tv = $('[name=target]', card).value.trim();
+      const d = { enabled: $('[name=enabled]', card).checked, hour: +$('[name=hour]', card).value, keep: +$('[name=keep]', card).value };
+      if (tv !== (st.usb_uuid ? '' : (st.target || ''))) d.target = tv;   // المسار اليدوي فقط إذا تغيّر
       if (await guard(() => api.post('/api/backup/settings', d))) { toast('تم الحفظ', 'ok'); reload(); }
     };
     const init = $('[data-b=init]', card);

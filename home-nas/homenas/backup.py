@@ -86,6 +86,8 @@ class Backup:
             "keep": int(g("backup_keep", "14")),
             "last": json.loads(last) if last else None,
             "last_success": g("backup_last_success"),
+            "usb_uuid": g("backup_usb_uuid", ""),
+            "usb_label": g("backup_usb_label", ""),
         }
 
     def sources(self, db) -> list[tuple[str, Path]]:
@@ -117,6 +119,10 @@ class Backup:
                 now = datetime.now()
                 last_day = (s["last"] or {}).get("started", "")[:10]
                 if s["enabled"] and now.hour == s["hour"] and last_day != now.strftime("%Y-%m-%d"):
+                    if s["usb_uuid"]:
+                        db = connect(self.paths.db)
+                        s["target"] = usb_target(db) or s["target"]
+                        db.close()
                     if backup_root(s["target"]):
                         self.run()
                     else:
@@ -281,6 +287,130 @@ def target_info(target: str) -> dict:
 
 
 # ==========================================================================
+# v1.9.8 (البند 17): قرص USB كوجهة. يُعرف بمعرّف القرص (UUID)، لأن اسمه في النظام (sdb1، sdc1…) يتغير
+# عند كل توصيل. قبل كل نسخ (يدوي أو مجدول) نفتحه ونحدّث المسار.
+# ==========================================================================
+USB_DIR = "HOME-ANAB-Backup"
+
+
+def _cards(force=True) -> list:
+    try:
+        from .media_cards import cards
+        return cards(force=force)
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _set(db, key, value):
+    if value is None:
+        db.execute("DELETE FROM settings WHERE key=?", (key,))
+    else:
+        db.execute("INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                   (key, str(value)))
+    db.commit()
+
+
+def _prepare(dev: str) -> dict | None:
+    from .sysadmin import helper
+    try:
+        return helper("backup-usb", dev, timeout=90, as_json=True)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def usb_target(db) -> str | None:
+    """قرص USB المختار: موصول؟ نفتحه ونعيد مسار النسخ عليه (ونحدّثه في الإعدادات)، وإلا None."""
+    row = db.execute("SELECT value FROM settings WHERE key='backup_usb_uuid'").fetchone()
+    uuid = row["value"] if row else ""
+    if not uuid:
+        return None
+    c = next((x for x in _cards() if x.get("uuid") == uuid), None)
+    if not c:
+        return None
+    if c.get("mount") and (Path(c["mount"]) / USB_DIR / MARKER).is_file():
+        path = str(Path(c["mount"]) / USB_DIR)
+    else:
+        r = _prepare(c["dev"])
+        if not r:
+            return None
+        path = r["path"]
+    _set(db, "backup_target", path)
+    return path
+
+
+def targets(db) -> list[dict]:
+    s = backup_engine().settings(db)
+    out = []
+    if Path(DEFAULT_APPLIANCE_TARGET).is_dir():
+        info = target_info(DEFAULT_APPLIANCE_TARGET)
+        out.append({"kind": "internal", "title": "قرص النسخ الاحتياطي الداخلي", "path": DEFAULT_APPLIANCE_TARGET,
+                    "free": info["free"], "total": info["total"], "current": s["target"] == DEFAULT_APPLIANCE_TARGET and not s["usb_uuid"]})
+    for c in _cards():
+        if not c.get("uuid"):
+            continue
+        free = None
+        if c.get("mount"):
+            try:
+                free = shutil.disk_usage(c["mount"]).free
+            except OSError:
+                pass
+        out.append({"kind": "usb", "dev": c["dev"], "uuid": c["uuid"], "title": c.get("title") or c["dev"],
+                    "label": c.get("label", ""), "model": c.get("model", ""), "size": c.get("size"), "free": free,
+                    "fstype": c.get("fstype"), "ro": bool(c.get("ro")), "versions": c.get("fstype") == "ext4" or c.get("fstype") == "ntfs",
+                    "current": c["uuid"] == s["usb_uuid"]})
+    return out
+
+
+@bp.get("/api/backup/targets")
+@admin_required
+def api_backup_targets():
+    return jsonify(targets=targets(get_db()))
+
+
+@bp.post("/api/backup/use")
+@admin_required
+def api_backup_use():
+    """{kind: "usb", dev} أو {kind: "internal"}: يجعل القرص وجهة النسخ الاحتياطي ويجهّزه."""
+    d = body()
+    db = get_db()
+    if d.get("kind") == "internal":
+        p = Path(DEFAULT_APPLIANCE_TARGET)
+        if not p.is_dir():
+            abort(404, "لا يوجد قرص نسخ احتياطي داخلي")
+        try:
+            if not (p / MARKER).is_file():
+                (p / MARKER).write_text("H.SEF backup destination\n")
+            (p / ROOT_NAME).mkdir(exist_ok=True)
+        except OSError as exc:
+            abort(400, f"لا يمكن الكتابة في القرص: {exc}")
+        _set(db, "backup_target", str(p))
+        _set(db, "backup_usb_uuid", None)
+        _set(db, "backup_usb_label", None)
+        log_action("وجهة النسخ الاحتياطي", "القرص الداخلي")
+        return jsonify(ok=True)
+    dev = str(d.get("dev") or "")
+    c = next((x for x in _cards() if x["dev"] == dev), None)
+    if not c or not c.get("uuid"):
+        abort(404, "القرص غير موجود. هل سُحب؟")
+    if c.get("ro"):
+        abort(400, "القرص للقراءة فقط (قد يكون مقفولاً، أو لم يُغلق جيداً في ويندوز)")
+    r = _prepare(dev)
+    if not r:
+        abort(400, "تعذّر فتح القرص")
+    t = Path(r["path"])
+    try:
+        (t / MARKER).write_text("H.SEF backup destination\n")
+        (t / ROOT_NAME).mkdir(exist_ok=True)
+    except OSError as exc:
+        abort(400, f"لا يمكن الكتابة في القرص: {exc}")
+    _set(db, "backup_target", str(t))
+    _set(db, "backup_usb_uuid", c["uuid"])
+    _set(db, "backup_usb_label", c.get("title") or dev)
+    log_action("وجهة النسخ الاحتياطي", c.get("title") or dev)
+    return jsonify(ok=True)
+
+
+# ==========================================================================
 # واجهة API (للمدير)
 # ==========================================================================
 
@@ -289,6 +419,8 @@ def target_info(target: str) -> dict:
 def api_backup():
     eng = backup_engine()
     s = eng.settings(get_db())
+    if s["usb_uuid"] and not eng.status["running"]:
+        s["target"] = usb_target(get_db()) or s["target"]
     if not s["target"] and Path(DEFAULT_APPLIANCE_TARGET, MARKER).is_file():
         s["target"] = DEFAULT_APPLIANCE_TARGET
     s["suggested"] = DEFAULT_APPLIANCE_TARGET if Path(DEFAULT_APPLIANCE_TARGET).exists() else ""
@@ -315,6 +447,8 @@ def api_backup_settings():
                 abort(400, "لا يمكن وضع النسخة الاحتياطية داخل مجلد البيانات نفسه")
             target = str(p)
         set_setting("backup_target", target)
+        set_setting("backup_usb_uuid", None)
+        set_setting("backup_usb_label", None)
     if "enabled" in data:
         set_setting("backup_enabled", "1" if data["enabled"] else "0")
     if "hour" in data:
@@ -347,7 +481,10 @@ def api_backup_init():
 @bp.post("/api/backup/run")
 @admin_required
 def api_backup_run():
-    if not backup_root(get_setting("backup_target")):
+    target = get_setting("backup_target")
+    if get_setting("backup_usb_uuid") and not backup_engine().status["running"]:
+        target = usb_target(get_db()) or target
+    if not backup_root(target):
         abort(400, "قرص النسخ الاحتياطي غير موصول أو غير مُهيأ")
     if not backup_engine().run_async():
         abort(409, "النسخ الاحتياطي يعمل الآن")

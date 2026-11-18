@@ -1486,7 +1486,7 @@ def bt_remove(mac: str):
 
 # ----------------------------------------------------------------------------- بطاقة الذاكرة والفلاشات
 MEDIA_ROOT = Path("/media/hsef")
-MEDIA_FS = {"vfat", "exfat", "ntfs"}
+MEDIA_FS = {"vfat", "exfat", "ntfs", "ext4"}   # ext4: أقراص النسخ الاحتياطي المهيأة على لينكس
 MEDIA_DEV = _re.compile(r"^(sd[a-z]+\d*|mmcblk\d+(p\d+)?)$")
 MEDIA_FAKE = Path("/tmp/hsef-fake-card")       # للاختبار فقط: وجود الملف = بطاقة مُدخلة
 
@@ -1498,10 +1498,10 @@ def media_scan() -> list:
             return []
         mp = MEDIA_ROOT / "mmcblk0p1"
         mounted = mp.is_dir() and any(mp.iterdir())
-        return [{"dev": "mmcblk0p1", "label": "CANON", "size": 31914983424, "fstype": "exfat", "kind": "sd", "model": "",
+        return [{"dev": "mmcblk0p1", "label": "CANON", "size": 31914983424, "fstype": "exfat", "kind": "sd", "model": "", "uuid": "FAKE-1234",
                  "mount": str(mp) if mounted else None, "ro": False}]
     try:
-        out = subprocess.run(["lsblk", "-J", "-b", "-o", "NAME,TYPE,RM,HOTPLUG,SIZE,FSTYPE,LABEL,MOUNTPOINT,TRAN,MODEL,VENDOR"],
+        out = subprocess.run(["lsblk", "-J", "-b", "-o", "NAME,TYPE,RM,HOTPLUG,SIZE,FSTYPE,LABEL,UUID,MOUNTPOINT,TRAN,MODEL,VENDOR"],
                              capture_output=True, text=True, timeout=15).stdout
         devs = json.loads(out or "{}").get("blockdevices", [])
     except (OSError, ValueError, subprocess.TimeoutExpired):
@@ -1531,7 +1531,7 @@ def media_scan() -> list:
             mine = mp.startswith(str(MEDIA_ROOT) + "/")
             res.append({"dev": part["name"], "label": (part.get("label") or "").strip(), "size": int(part["size"]),
                         "fstype": part["fstype"], "kind": "sd" if sd else "usb", "model": desc.strip(),
-                        "mount": mp if mine else None, "ro": mp in ro_mounts})
+                        "mount": mp if mine else None, "ro": mp in ro_mounts, "uuid": part.get("uuid") or ""})
     return res
 
 
@@ -1592,7 +1592,8 @@ def media_mount(dev: str):
     fs = info["fstype"]
     tries = {"vfat": [("vfat", common + ",umask=002,quiet,utf8=1,shortname=mixed,flush")],
              "exfat": [("exfat", common + ",umask=002,iocharset=utf8")],
-             "ntfs": [("ntfs3", common + ",umask=002,iocharset=utf8"), ("ntfs-3g", common + ",umask=002")]}[fs]
+             "ntfs": [("ntfs3", common + ",umask=002,iocharset=utf8"), ("ntfs-3g", common + ",umask=002")],
+             "ext4": [("ext4", "nosuid,nodev,noexec")]}[fs]
     err = ""
     for t, opts in tries:
         for extra, ro in (("", False), (",ro", True)):   # بطاقة مقفولة (زر القفل) أو NTFS غير مغلق جيداً: قراءة فقط
@@ -1606,6 +1607,37 @@ def media_mount(dev: str):
     except OSError:
         pass
     die("could not open the card: " + err[-200:])
+
+
+def backup_usb_prepare(dev: str):
+    """v1.9.8 (البند 17): قرص USB كوجهة للنسخ الاحتياطي: يفتحه ويصنع فيه مجلد HOME-ANAB-Backup يكتب فيه البرنامج."""
+    if not MEDIA_DEV.match(dev):
+        die("invalid device")
+    info = next((x for x in media_scan() if x["dev"] == dev), None)
+    if not info:
+        die("not a USB disk")
+    if not info["mount"]:
+        mp = MEDIA_ROOT / dev
+        if FAKE:
+            mp.mkdir(parents=True, exist_ok=True)
+        else:
+            import io, contextlib
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                media_mount(dev)
+            info = next((x for x in media_scan() if x["dev"] == dev), info)
+    mp = Path(info["mount"] or (MEDIA_ROOT / dev))
+    if info.get("ro"):
+        die("the disk is read-only")
+    d = mp / "HOME-ANAB-Backup"
+    d.mkdir(exist_ok=True)
+    try:
+        import pwd
+        pw = pwd.getpwnam("homenas")
+        os.chown(d, pw.pw_uid, pw.pw_gid)
+    except (KeyError, OSError):
+        pass
+    print(json.dumps({"path": str(d), "fstype": info["fstype"], "uuid": info.get("uuid", "")}))
 
 
 def media_eject(dev: str):
@@ -2276,6 +2308,8 @@ def main():
         device_id()
     elif a == ["media-list"]:
         media_list()
+    elif len(a) == 2 and a[0] == "backup-usb":
+        backup_usb_prepare(a[1])
     elif len(a) == 2 and a[0] == "media-mount":
         media_mount(a[1])
     elif len(a) == 2 and a[0] == "media-eject":
