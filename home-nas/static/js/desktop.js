@@ -34,7 +34,7 @@ const visible = () => apps().filter(a => !a.hidden);
 // أيقونات سطح المكتب
 const icons = $('#icons');
 let famPending = 0;   // مهام أنهاها الأطفال وتنتظر تأكيد الأب أو الأم
-const shortcuts = [...visible(), { id: 'phone', title: 'ربط الآيفون', icon: 'phone', color: 'linear-gradient(135deg,#00b4db,#0083b0)', launch: () => openApp('control', { section: 'phone' }) }];
+const shortcuts = [...visible(), { id: 'phone', title: 'ربط الآيفون والأندرويد', icon: 'phone', color: 'linear-gradient(135deg,#00b4db,#0083b0)', launch: () => openApp('control', { section: 'phone' }) }];
 function drawIcons() {
   icons.innerHTML = '';
   for (const a of shortcuts) {
