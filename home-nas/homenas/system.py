@@ -59,6 +59,16 @@ def check_password_strength(pw: str):
 _failed: dict[str, list[float]] = {}
 
 
+def _sync_smb(user, password: str):
+    """البند 31: عند كل دخول نعرف كلمة السر، فنضبطها في سامبا (قرص الشبكة) لتطابق كلمة سر الواجهة دائماً:
+    بعد استيراد من جهاز آخر، أو إن كان في سامبا كلمة سر قديمة من أول إعداد للجهاز. عملية سريعة، والدخول نادر."""
+    try:
+        from .network import on_password
+        on_password(user["id"], user["username"], password)
+    except Exception as exc:  # pragma: no cover - الدخول لا يفشل بسبب قرص الشبكة
+        print(f"[smb] {exc}")
+
+
 @bp.route("/login", methods=["GET", "POST"])
 def login():
     if user_count() == 0:
@@ -76,6 +86,7 @@ def login():
                                                                     request.form.get("password", "")):
             _failed.pop(ip, None)
             start_session(user)
+            _sync_smb(user, request.form.get("password", ""))
             log_action("تسجيل دخول", "", user["username"])
             nxt = request.args.get("next") or "/"
             return redirect(nxt if nxt.startswith("/") and not nxt.startswith("//") else "/")

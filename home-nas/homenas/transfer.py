@@ -340,6 +340,20 @@ def _set_aside(p: Path, stamp: str):
         p.rename(p.with_name(f"{p.name}.before-{stamp}"))
 
 
+def _forget_smb_passwords(db_path: Path):
+    """البند 31: كلمات سر قرص الشبكة (SMB) محفوظة في سامبا على الجهاز نفسه، لا في قاعدة البيانات ولا في النسخة.
+    بعد الاستيراد تصل علامات «جاهز» (smb_pw_<id>) من الجهاز القديم بينما سامبا هنا لا يعرف كلمات السر،
+    فلا يظهر أي مجلد على قرص الشبكة. نمسح العلامات، فتُضبط كلمة سر كل شخص تلقائياً عند أول دخول له إلى الواجهة."""
+    c = sqlite3.connect(db_path)
+    try:
+        c.execute("DELETE FROM settings WHERE key LIKE 'smb_pw_%'")
+        c.commit()
+    except sqlite3.Error:
+        pass
+    finally:
+        c.close()
+
+
 def apply_pending(data_paths) -> str | None:
     """يُستدعى عند بدء التشغيل قبل فتح قاعدة البيانات. يرجع ما طُبّق (أو None)."""
     sysd = data_paths.system
@@ -378,6 +392,7 @@ def apply_pending(data_paths) -> str | None:
         _set_aside(data_paths.db, stamp)
         (pend / "nas.db").rename(data_paths.db)
         _put_activation(data_paths.db, act)
+        _forget_smb_passwords(data_paths.db)   # البند 31
         # المجلدات المشتركة محفوظة بمسارها الكامل: إن اختلف مجلد البيانات في الجهاز الجديد نصحّحه
         old, new = str(man.get("data_dir") or ""), str(data_paths.data)
         if old and old != new:
