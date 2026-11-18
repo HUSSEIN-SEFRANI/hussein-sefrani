@@ -35,8 +35,33 @@ function appsCard() {
   const c = h(`<div class="card"><p class="muted small" style="margin:0 0 10px">مجلدان مشتركان لكل العائلة: 🎮 «الألعاب» للمتعة بلا نجوم،
     و📚 «التعليم» يعطي نجمة واحدة عند إنهاء كل درس (ضمن الحد اليومي في «نجوم العائلة»). لإضافة تطبيق جديد ضع مجلده في أحدهما
     من «الملفات» أو من الكمبيوتر: المجلد الذي تختاره هو نوعه. وإن كان في التطبيق ملف app.json بنوع مختلف يظهر هنا تنبيه.</p>
+    <div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <label class="btn primary sm" style="cursor:pointer">${icon('upload')} إضافة تطبيق (ملف ZIP)<input type="file" accept=".zip" data-up="zip" hidden></label>
+      <label class="btn sm" style="cursor:pointer">${icon('folder')} إضافة تطبيق (مجلد)<input type="file" webkitdirectory multiple data-up="dir" hidden></label>
+      <span class="muted small up-st"></span></div>
     <div class="tv-apps muted">جارٍ القراءة…</div></div>`);
   const box = $('.tv-apps', c);
+  // البند 28: إضافة تطبيق من الكمبيوتر (ZIP أو مجلد كامل)
+  $$('[data-up]', c).forEach((inp) => (inp.onchange = async () => {
+    const files = [...inp.files]; inp.value = '';
+    if (!files.length) return;
+    const to = await modal({ title: 'أين يوضع التطبيق؟', body: '<p class="muted small">التطبيق المتوافق صفحة ويب تعمل بلا إنترنت: مجلد فيه index.html.</p>',
+      buttons: [{ label: 'إلغاء', value: null }, { label: '🎮 الألعاب (بلا نجوم)', value: 'games' }, { label: '📚 التعليم (نجمة عند إنهاء الدرس)', cls: 'primary', value: 'learn' }] });
+    if (!to) return;
+    const send = async (replace) => {
+      const fd = new FormData();
+      fd.append('to', to); if (replace) fd.append('replace', '1');
+      for (const f of files) { fd.append('files', f); fd.append('paths', f.webkitRelativePath || f.name); }
+      $('.up-st', c).textContent = `جارٍ الرفع… (${files.length} ملف)`;
+      const r = await fetch('/api/admin/tv/apps/upload', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'fetch' } });
+      const j = await r.json().catch(() => ({}));
+      $('.up-st', c).textContent = '';
+      if (r.status === 409 && await confirmBox(`${j.error} استبداله بالجديد؟`, { ok: 'استبدال', danger: true })) return send(true);
+      if (!r.ok) { toast(j.error || `خطأ ${r.status}`, 'err', 8000); return; }
+      toast('أُضيف التطبيق ✓ يظهر على التلفاز الآن', 'ok'); draw(j);
+    };
+    send(false);
+  }));
   const col = (kind, title, list, other) => `<div class="tv-appcol"><b>${title} <span class="muted" translate="no">(${list.filter((x) => x.app).length})</span></b>
     ${list.length ? `<ul>${list.map((x) => `<li><span translate="no">${esc(x.name)}</span>
       ${!x.app ? '<span class="badge">مجلد</span>' : ''}
