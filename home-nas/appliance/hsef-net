@@ -84,8 +84,8 @@ def render_smb(cfg) -> str:
 [global]
    workgroup = WORKGROUP
    server string = {server}
-   # لا يرى الشخص في قائمة المجلدات إلا ما يستطيع فتحه (مجلدات «للمدير فقط» مخفية عن غيره)
-   access based share enum = yes
+   # البند 40: لا «access based share enum»: كان يخفي كل المجلدات من القائمة (حتى عن المدير) فتظهر فارغة
+   # في ويندوز والآيفون. المجلدات «للمدير فقط» تظهر في القائمة لكنها لا تُفتح إلا للمدير (valid users).
    netbios name = {netbios}
    server role = standalone server
    security = user
@@ -187,7 +187,8 @@ def apply_smb(cfg):
     wanted = {}
     for u in users:
         n = u["name"]
-        for variant in {n, n.lower(), n.upper(), n.capitalize()}:
+        # البند 40: سامبا يضع في %U اسم الحساب الداخلي بعد الربط (hsefN)، لا الاسم المكتوب، فكان «home» لا يُفتح
+        for variant in {n, n.lower(), n.upper(), n.capitalize(), unix_name(u["id"])}:
             wanted[variant] = data / "homes" / n
     for link in HOMES_LINKS.iterdir():
         if link.name not in wanted:
