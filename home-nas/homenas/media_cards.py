@@ -66,7 +66,7 @@ def root_name(c: dict) -> str:
 
 
 def title(c: dict) -> str:
-    base = "بطاقة الذاكرة" if c.get("kind") == "sd" else "فلاشة USB"
+    base = "بطاقة الذاكرة" if c.get("kind") == "sd" else "قرص USB" if (c.get("size") or 0) > 300 * 1024 ** 3 else "فلاشة USB"
     return f"{base} · {c['label']}" if c.get("label") else base
 
 
