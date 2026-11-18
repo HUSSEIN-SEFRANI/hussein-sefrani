@@ -1134,9 +1134,103 @@ def wifi_connect(ssid: str):
     die("not connected: check the password or move closer to the router")
 
 
+# ----------------------------------------------------------------------------- البند 33: ثبات الكابل وفحصه
+WIRED_RULES = Path("/etc/udev/rules.d/80-hsef-wired.rules")
+EEE_HOOK = Path("/etc/network/if-up.d/hsef-wired")
+SKIP_IFACES = ("lo", "wl", "docker", "br-", "veth", "tailscale", "virbr", "tun", "tap")
+
+
+def wired_hardening():
+    """سببان معروفان لانقطاع الكابل في الأجهزة الصغيرة، نوقفهما (لا ضرر منهما على جهاز يعمل طوال الوقت):
+    ١. توفير الطاقة في محوّلات USB إلى Ethernet (USB autosuspend): المحوّل «ينام» فينقطع الاتصال.
+    ٢. Energy-Efficient Ethernet (EEE) في كروت Realtek وIntel: ينقطع الرابط ويرجع كل فترة."""
+    WIRED_RULES.write_text(
+        "# HOME ANAB (البند 33): محوّل USB إلى Ethernet لا ينام\n"
+        'ACTION=="add", SUBSYSTEM=="net", SUBSYSTEMS=="usb", KERNEL!="wl*", '
+        'RUN+="/bin/sh -c \'p=/sys$devpath/../../../power/control; [ -w $$p ] && echo on > $$p\'"\n')
+    EEE_HOOK.parent.mkdir(parents=True, exist_ok=True)
+    EEE_HOOK.write_text("#!/bin/sh\n# HOME ANAB (البند 33): إيقاف EEE على منافذ الكابل عند كل اتصال\n"
+                        'case "$IFACE" in lo|wl*|docker*|br-*|veth*|tailscale*|virbr*|tun*|tap*) exit 0 ;; esac\n'
+                        'command -v ethtool >/dev/null 2>&1 && ethtool --set-eee "$IFACE" eee off >/dev/null 2>&1\n'
+                        "exit 0\n")
+    os.chmod(EEE_HOOK, 0o755)
+    if shutil.which("udevadm"):
+        subprocess.run(["udevadm", "control", "--reload"], capture_output=True)
+    # الآن أيضاً، دون انتظار إعادة التشغيل
+    for d in Path("/sys/class/net").iterdir() if Path("/sys/class/net").is_dir() else []:
+        if d.name.startswith(SKIP_IFACES):
+            continue
+        try:
+            if (d / "device/subsystem").resolve().name == "usb":
+                pc = (d / "device").resolve().parent / "power/control"
+                if pc.exists():
+                    pc.write_text("on")
+        except OSError:
+            pass
+        if shutil.which("ethtool"):
+            subprocess.run(["ethtool", "--set-eee", d.name, "eee", "off"], capture_output=True, timeout=10)
+
+
+def _rd(p: Path) -> str | None:
+    try:
+        return p.read_text().strip()
+    except OSError:
+        return None
+
+
+def net_diag():
+    """فحص الكابل: كم مرة انقطع منذ التشغيل، ونوع الكرت، وآخر رسائل النظام عنه."""
+    if FAKE:
+        print(json.dumps({"ports": [{"iface": "enp1s0", "driver": "r8169", "bus": "pci", "carrier": True, "speed": 1000, "duplex": "full",
+                                     "changes": 6, "downs": 3, "eee": "off", "mac": "00:11:22:33:44:55", "ip": "192.168.1.25"}],
+                          "uptime_min": 125, "log": ["enp1s0: Link is Down", "enp1s0: Link is Up - 1Gbps/Full"],
+                          "dhcp_log": [], "same_ip": False, "hardening": True}))
+        return
+    ports = []
+    for d in sorted(Path("/sys/class/net").iterdir()):
+        n = d.name
+        if n.startswith(SKIP_IFACES) or _rd(d / "type") != "1" or not (d / "device").exists():
+            continue
+        drv = (d / "device/driver")
+        bus = None
+        try:
+            bus = (d / "device/subsystem").resolve().name
+        except OSError:
+            pass
+        speed = _rd(d / "speed")
+        eee = None
+        if shutil.which("ethtool"):
+            r = subprocess.run(["ethtool", "--show-eee", n], capture_output=True, text=True, timeout=10)
+            m = _re.search(r"EEE status:\s*(\S+)", r.stdout)
+            eee = m.group(1) if m else None
+        ports.append({"iface": n, "driver": drv.resolve().name if drv.exists() else None, "bus": bus,
+                      "carrier": _rd(d / "carrier") == "1", "speed": int(speed) if speed and speed.lstrip("-").isdigit() and int(speed) > 0 else None,
+                      "duplex": _rd(d / "duplex"), "changes": int(_rd(d / "carrier_changes") or 0),
+                      "downs": int(_rd(d / "carrier_down_count") or 0), "eee": eee, "mac": _rd(d / "address"),
+                      "ip": iface_ipv4(n)})
+    up = _rd(Path("/proc/uptime"))
+    names = [p["iface"] for p in ports]
+    log, dhcp = [], []
+    if names and shutil.which("journalctl"):
+        r = subprocess.run(["journalctl", "-k", "-b", "--no-pager", "-o", "short", "-n", "4000"], capture_output=True, text=True, timeout=30)
+        pat = _re.compile(r"(%s).*(Link is (Down|Up)|link becomes ready|NETDEV WATCHDOG|transmit queue|reset|timed out|renamed)" % "|".join(map(_re.escape, names)), _re.I)
+        log = [l.split(": ", 1)[-1][:160] for l in r.stdout.splitlines() if pat.search(l)][-15:]
+        r = subprocess.run(["journalctl", "-b", "--no-pager", "-o", "short", "-n", "3000", "-t", "dhcpcd"], capture_output=True, text=True, timeout=30)
+        dpat = _re.compile(r"(%s).*(carrier lost|leased|rebinding|expired|NAK|duplicate|DAD|conflict|offered)" % "|".join(map(_re.escape, names)), _re.I)
+        dhcp = [l.split(": ", 1)[-1][:160] for l in r.stdout.splitlines() if dpat.search(l)][-10:]
+    same_ip = any(_re.search(r"duplicate|DAD|conflict", l, _re.I) for l in dhcp)
+    print(json.dumps({"ports": ports, "uptime_min": int(float(up.split()[0]) // 60) if up else None, "log": log, "dhcp_log": dhcp,
+                      "same_ip": same_ip, "hardening": WIRED_RULES.exists() and EEE_HOOK.exists(),
+                      "ethtool": bool(shutil.which("ethtool"))}))
+
+
 def net_fixups():
     """عند التحديث: إعداد الكابل المفصول، وقاعدة بطاقات الوايفاي USB، وتحويل اتصال وايفاي قديم إلى الطريقة الجديدة."""
     ensure_linkdown_sysctl()
+    try:
+        wired_hardening()   # البند 33
+    except OSError:
+        pass
     try:
         write_wifi_rules()
     except OSError:
@@ -2379,6 +2473,8 @@ def main():
         iphone_install()
     elif a == ["net-fixups"]:
         net_fixups()
+    elif a == ["net-diag"]:
+        net_diag()
     elif a == ["iphone-rules"]:
         write_iphone_rules()
     elif a == ["tv-wait"]:

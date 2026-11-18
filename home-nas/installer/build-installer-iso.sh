@@ -84,7 +84,7 @@ in_root apt-get install -y --no-install-recommends \
     grub-pc-bin grub-efi-amd64-bin grub-efi-amd64-signed shim-signed grub2-common grub-common efibootmgr \
     isolinux syslinux-common \
     parted gdisk dosfstools e2fsprogs mdadm rsync util-linux \
-    ifupdown dhcpcd-base iproute2 iputils-ping netbase wpasupplicant iw bluez \
+    ifupdown dhcpcd-base iproute2 iputils-ping netbase wpasupplicant iw bluez ethtool \
     firmware-linux-free firmware-misc-nonfree firmware-realtek firmware-iwlwifi firmware-atheros \
     firmware-mediatek firmware-brcm80211 firmware-libertas firmware-zd1211 usb-modeswitch usb-modeswitch-data firmware-sof-signed wireless-regdb \
     firmware-intel-graphics firmware-amd-graphics firmware-intel-sound amd64-microcode intel-microcode \

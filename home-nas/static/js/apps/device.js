@@ -12,10 +12,46 @@ export async function deviceSection(sc, section) {
     return;
   }
   p.appendChild(netCard(d.net, reload));
+  p.appendChild(cableCard());
   p.appendChild(wifiCard(d.net.wifi || {}, reload));
   p.appendChild(timeCard(d.sys, reload));
   p.appendChild(btCard());
   p.appendChild(diagCard());
+}
+
+// ------------------------------------------------------------------ البند 33: فحص الكابل
+// هل ينقطع الكابل؟ كم مرة منذ التشغيل، ونوع الكرت، وآخر رسائل النظام. صورة شاشة لهذه البطاقة تكفي لمعرفة السبب.
+function cableCard() {
+  const c = h(`<div class="card" style="max-width:640px;margin-top:14px"><h4>${icon('activity')} فحص الكابل</h4><div class="cb muted small">جارٍ الفحص…</div>
+    <button class="btn ghost sm" data-x="re" style="margin-top:8px">${icon('refresh')} فحص مرة أخرى</button></div>`);
+  const b = $('.cb', c);
+  const draw = async () => {
+    const r = await api.get('/api/admin/net/diag').catch(() => null);
+    if (!r || !r.available) { b.textContent = 'تعذر الفحص.'; return; }
+    b.classList.remove('muted', 'small');
+    const up = r.uptime_min != null ? (r.uptime_min >= 120 ? `${Math.round(r.uptime_min / 60)} ساعة` : `${r.uptime_min} دقيقة`) : '';
+    const ports = (r.ports || []).map((x) => {
+      const drops = x.downs || Math.floor((x.changes || 0) / 2);
+      const st = !x.carrier ? '<span class="badge err">غير موصول</span>'
+        : drops > 1 ? `<span class="badge warn">انقطع ${drops} مرة</span>` : '<span class="badge ok">ثابت</span>';
+      return `<div style="padding:8px 0;border-bottom:1px solid var(--border)"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <b dir="ltr" translate="no">${esc(x.iface)}</b> ${st}
+          ${x.speed ? `<span class="muted small" dir="ltr">${x.speed >= 1000 ? x.speed / 1000 + ' Gb/s' : x.speed + ' Mb/s'}${x.duplex && x.duplex !== 'full' ? ' · ' + esc(x.duplex) : ''}</span>` : ''}</div>
+        <div class="muted small" dir="ltr" translate="no">${[x.driver, x.bus === 'usb' ? 'USB adapter' : x.bus, x.eee ? 'EEE ' + x.eee : '', x.ip, x.mac].filter(Boolean).map(esc).join(' · ')}</div>
+        ${x.speed && x.speed < 1000 && x.carrier ? '<div class="small" style="margin-top:4px">السرعة أقل من 1 Gb/s: جرّب كابلاً آخر أو منفذاً آخر في الراوتر.</div>' : ''}</div>`;
+    }).join('');
+    const tip = (r.ports || []).some((x) => (x.downs || x.changes / 2) > 1)
+      ? `<p class="small" style="margin:8px 0 0">انقطع الكابل منذ التشغيل. جرّب بالترتيب: كابلاً آخر، ثم منفذاً آخر في الراوتر. وإن كان المنفذ عبر محوّل USB فصِله بمنفذ USB آخر (يفضّل الخلفي).</p>` : '';
+    const same = r.same_ip ? '<div class="alert err small" style="margin-top:8px">يبدو أن جهازاً آخر في الشبكة يستعمل نفس العنوان. أطفئ الجهاز الآخر أو أعطِ هذا الجهاز عنواناً ثابتاً مختلفاً.</div>' : '';
+    const log = [...(r.log || []), ...(r.dhcp_log || [])];
+    b.innerHTML = (ports || '<p class="muted small" style="margin:0">لا يوجد منفذ كابل في هذا الجهاز.</p>')
+      + (up ? `<p class="muted small" style="margin:8px 0 0">منذ التشغيل: ${up}${r.hardening ? ' · حماية الانقطاع مفعّلة' : ''}</p>` : '') + tip + same
+      + (log.length ? `<details style="margin-top:8px"><summary class="small">رسائل النظام (${log.length})</summary>
+          <pre class="small" dir="ltr" translate="no" style="white-space:pre-wrap;margin:6px 0 0;max-height:220px;overflow:auto">${log.map(esc).join('\n')}</pre></details>` : '');
+  };
+  $('[data-x=re]', c).onclick = () => { b.innerHTML = '<span class="muted small">جارٍ الفحص…</span>'; draw(); };
+  draw();
+  return c;
 }
 
 // ------------------------------------------------------------------ تشخيص الأجهزة

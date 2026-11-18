@@ -53,6 +53,15 @@ def api_device():
     return jsonify(available=True, net=helper("net-status", as_json=True), sys=helper("sys-status", as_json=True))
 
 
+@bp.get("/api/admin/net/diag")
+@admin_required
+def api_net_diag():
+    """البند 33: فحص الكابل (عدد الانقطاعات منذ التشغيل، والكرت، وآخر رسائل النظام)."""
+    if not available():
+        return jsonify(available=False)
+    return jsonify(available=True, **(helper("net-diag", as_json=True) or {}))
+
+
 @bp.post("/api/admin/fw-install")
 @admin_required
 def api_fw_install():
