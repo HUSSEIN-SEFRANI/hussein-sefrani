@@ -662,3 +662,10 @@ pre.applog.big { max-height: 60vh; font-size: 12px; }
 .icon-picker .ip-colors { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
 .icon-picker .ip-colors button { width: 34px; height: 34px; border-radius: 10px; border: 2px solid transparent; cursor: pointer; }
 .icon-picker .ip-colors button.on { border-color: var(--text); box-shadow: 0 0 0 2px var(--surface); }
+/* البند 45: رسوم الفواكه والحيوانات الملونة (لا تأخذ لون الخط الأبيض للرموز) */
+.app-tile svg.art { width: 80%; height: 80%; stroke: none; }
+.tb-btn .mini svg.art { width: 100%; height: 100%; stroke: none; }
+.icon-picker .ip-icons.art { grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); }
+.icon-picker .ip-icons.art button { height: 52px; }
+.icon-picker .ip-icons.art svg { width: 40px; height: 40px; }
+.icon-picker .ip-icons[hidden] { display: none; }

@@ -3,6 +3,7 @@
 // قائمة الرفع، عارض الصور والفيديو.
 // ====================================================================
 
+import { artSvg } from './icon-art.js';
 export const ME = window.__ME__ || {};
 export const I18N = window.I18N || { lang: 'ar', rtl: true, locale: 'ar', t: (x) => x };
 export const RTL = I18N.rtl;
@@ -74,6 +75,8 @@ export function icon(name, cls = '') {
   return `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${P[name] || P.file}</svg>`;
 }
 export const ICON_NAMES = Object.keys(P);
+// البند 45: «art-<اسم>» = رسم ملوّن (فاكهة أو حيوان) من icon-art.js
+export const glyph = (name) => (String(name).startsWith('art-') ? artSvg(name.slice(4)) : icon(name));
 
 // البند 44: أيقونة البرنامج كما اختارها المستخدم (رمز ولون أو صورة)، وإلا الأصلية
 export function appLook(a) {
@@ -82,7 +85,7 @@ export function appLook(a) {
 }
 export function tileHTML(a, cls = '', extra = '') {
   const l = appLook(a);
-  return `<div class="app-tile ${cls}" style="background:${l.img ? 'transparent' : l.color}">${l.img ? `<img src="${l.img}" alt="">` : icon(l.icon)}${extra}</div>`;
+  return `<div class="app-tile ${cls}" style="background:${l.img ? 'transparent' : l.color}">${l.img ? `<img src="${l.img}" alt="">` : glyph(l.icon)}${extra}</div>`;
 }
 
 // ---------------------------------------------------------------- أدوات
@@ -332,7 +335,7 @@ export class Win {
     $('#desktop').appendChild(el);
     windows.add(this);
     const lk = appLook(app);
-    this.tb = h(`<button class="tb-btn"><span class="mini" style="background:${lk.img ? 'transparent' : lk.color}">${lk.img ? `<img src="${lk.img}" alt="">` : icon(lk.icon)}</span><span></span></button>`);
+    this.tb = h(`<button class="tb-btn"><span class="mini" style="background:${lk.img ? 'transparent' : lk.color}">${lk.img ? `<img src="${lk.img}" alt="">` : glyph(lk.icon)}</span><span></span></button>`);
     $('span:last-child', this.tb).textContent = this.title;
     this.tb.onclick = () => (this.focused && !el.classList.contains('minimized')) ? this.minimize() : this.focus();
     $('#tb-windows').appendChild(this.tb);
