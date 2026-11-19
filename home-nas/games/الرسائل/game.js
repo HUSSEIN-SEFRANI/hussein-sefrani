@@ -34,11 +34,14 @@
   const BOX = { in: { t: "📥 الوارد", f: "الوارد" }, out: { t: "📤 الصادر", f: "الصادر" }, saved: { t: "💾 المحفوظة", f: "المحفوظة" } };
   const folderOf = (box) => `تلفاز/تطبيقات/الرسائل/${BOX[box].f}`;
   let OLD = false;   // سيرفر أقدم من 1.9.11 (لا توجد صناديق)
-  const OLD_MSG = "حدّث الجهاز (الإصدار 1.9.11 أو أحدث) لتعمل صناديق الرسائل";
+  const OLD_MSG = "الإرسال يحتاج تحديث الجهاز إلى الإصدار 1.9.11. رسالتك محفوظة هنا ولم تضع.";
   async function api(path, opt = {}) {
     const r = await fetch(path, { credentials: "same-origin", ...opt });
     const d = await r.json().catch(() => ({}));
-    if (r.status === 404 && !d.error || r.status === 405) { OLD = true; throw new Error(OLD_MSG); }
+    // سيرفر أقدم من 1.9.11: الرابط نفسه غير موجود (الرد «غير موجود» العام، لا «الشخص/الرسالة غير موجودة»)
+    if (r.status === 404 && (!d.error || d.error === "غير موجود" || /^The requested URL/.test(d.error)) || r.status === 405) {
+      OLD = true; throw new Error(OLD_MSG);
+    }
     if (!r.ok) throw new Error(d.error || "خطأ " + r.status);
     return d;
   }
