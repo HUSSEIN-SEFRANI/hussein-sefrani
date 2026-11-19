@@ -677,3 +677,7 @@ html[dir=ltr] .crescent { right: auto; left: 150px; }
 .cams .cam-side { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; scrollbar-width: none; padding: 4px; }
 .cams .cam-side .cam-it .nm { font-size: 16px; }
 .cams .bhead .js-lay { font-size: 18px; }
+/* البند 46: عدد الرسائل الجديدة على مربع «الرسائل» */
+.dk .ic, .kt .box { position: relative; }
+.tcount { position: absolute; top: -6px; inset-inline-end: -6px; min-width: 30px; height: 30px; padding: 0 8px; border-radius: 99px;
+  background: #ef4444; color: #fff; font: 800 18px/30px Cairo, sans-serif; text-align: center; box-shadow: 0 0 0 3px #fff, 0 4px 10px rgba(0,0,0,.25); }
