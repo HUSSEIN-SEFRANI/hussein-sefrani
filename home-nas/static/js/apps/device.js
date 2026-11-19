@@ -13,6 +13,7 @@ export async function deviceSection(sc, section) {
   }
   p.appendChild(netCard(d.net, reload));
   p.appendChild(cableCard());
+  p.appendChild(bootCard());
   p.appendChild(wifiCard(d.net.wifi || {}, reload));
   p.appendChild(timeCard(d.sys, reload));
   p.appendChild(btCard());
@@ -55,6 +56,25 @@ function cableCard() {
   };
   $('[data-x=re]', c).onclick = () => { b.innerHTML = '<span class="muted small">جارٍ الفحص…</span>'; draw(); };
   draw();
+  return c;
+}
+
+// ------------------------------------------------------------------ البند 48: سرعة الإقلاع
+function bootCard() {
+  const c = h(`<div class="card" style="max-width:640px;margin-top:14px"><h4>${icon('activity')} سرعة الإقلاع</h4><div class="bt muted small">جارٍ القراءة…</div></div>`);
+  const b = $('.bt', c);
+  api.get('/api/admin/boot-time').then((r) => {
+    if (!r.available) { b.textContent = r.busy ? 'الجهاز ما زال يكمل الإقلاع. افتح هذه الصفحة بعد دقيقة.' : 'غير متاح.'; return; }
+    const sec = (x) => (x >= 60 ? `${Math.floor(x / 60)} د ${Math.round(x % 60)} ث` : `${x < 10 ? x.toFixed(1) : Math.round(x)} ث`);
+    const P = r.parts || {};
+    const lbl = { firmware: 'شاشة الجهاز (BIOS)', loader: 'GRUB', kernel: 'النواة', initrd: 'تحميل النظام', userspace: 'الخدمات' };
+    b.classList.remove('muted', 'small');
+    b.innerHTML = `<div style="font-size:22px;font-weight:800">${sec(r.total || 0)}</div>
+      <div class="muted small">${Object.keys(lbl).filter((k) => P[k] != null).map((k) => `${lbl[k]}: ${sec(P[k])}`).join(' · ')}</div>
+      ${(P.firmware || 0) > 15 ? '<p class="small" style="margin:8px 0 0">أغلب الوقت قبل أن يبدأ النظام (شاشة BIOS للجهاز نفسه). من إعدادات BIOS: فعّل Fast Boot واجعل القرص أول جهاز إقلاع.</p>' : ''}
+      ${r.slow && r.slow.length ? `<div class="small" style="margin-top:8px"><b>أبطأ الخدمات:</b>${r.slow.map((x) => `<div style="display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--border);padding:3px 0">
+        <span>${esc(x.name || '')} <bdi dir="ltr" class="muted" translate="no">${esc(x.unit)}</bdi></span><b>${sec(x.secs)}</b></div>`).join('')}</div>` : ''}`;
+  }).catch(() => { b.textContent = 'تعذرت القراءة.'; });
   return c;
 }
 

@@ -62,6 +62,55 @@ def api_net_diag():
     return jsonify(available=True, **(helper("net-diag", as_json=True) or {}))
 
 
+# ------------------------------------------------------------------ البند 48: سرعة الإقلاع
+_UNITS = {"s": 1, "ms": 0.001, "us": 0.000001, "µs": 0.000001, "min": 60, "h": 3600}
+NAMES = {"homenas.service": "برنامج السيرفر", "hsef-tv.service": "شاشة التلفاز", "networking.service": "الشبكة",
+         "ifupdown-wait-online.service": "انتظار الشبكة", "systemd-networkd-wait-online.service": "انتظار الشبكة",
+         "docker.service": "محرك التطبيقات", "containerd.service": "محرك التطبيقات", "smbd.service": "قرص الشبكة (SMB)",
+         "apt-daily.service": "تحديثات ديبيان", "apt-daily-upgrade.service": "تحديثات ديبيان", "hsef-fw.service": "التعريفات",
+         "mdadm-last-resort@.service": "الأقراص", "systemd-fsck-root.service": "فحص القرص", "plymouth-quit-wait.service": "الشعار"}
+
+
+def _secs(txt: str) -> float:
+    """«1min 2.345s» أو «812ms» ← ثوانٍ."""
+    import re
+    return round(sum(float(n) * _UNITS.get(u, 1) for n, u in re.findall(r"([\d.]+)\s*(min|ms|us|µs|s|h)\b", txt)), 2)
+
+
+def parse_boot(summary: str, blame: str) -> dict:
+    import re
+    out = {"total": None, "parts": {}, "slow": []}
+    line = next((ln for ln in summary.splitlines() if "Startup finished" in ln), "")
+    for val, part in re.findall(r"([\d.]+(?:min|ms|us|µs|s)(?:\s[\d.]+(?:ms|s))?)\s*\((\w+)\)", line):
+        out["parts"][part] = _secs(val)
+    m = re.search(r"=\s*(.+)$", line)
+    if m:
+        out["total"] = _secs(m.group(1))
+    for ln in blame.splitlines():
+        m = re.match(r"\s*((?:[\d.]+\s*(?:h|min|ms|us|µs|s)\s*)+)\s+(\S+)$", ln)
+        if m:
+            unit = m.group(2)
+            out["slow"].append({"unit": unit, "secs": _secs(m.group(1)), "name": NAMES.get(unit, NAMES.get(re.sub(r"@.*\.service$", "@.service", unit), ""))})
+        if len(out["slow"]) >= 6:
+            break
+    return out
+
+
+@bp.get("/api/admin/boot-time")
+@admin_required
+def api_boot_time():
+    """كم ثانية أخذ الإقلاع، وأبطأ الخدمات (systemd-analyze لا يحتاج root)."""
+    def run(*a):
+        try:
+            return subprocess.run(["systemd-analyze", *a, "--no-pager"], capture_output=True, text=True, timeout=20).stdout
+        except Exception:  # noqa: BLE001
+            return ""
+    summary = run("time")
+    if "Startup finished" not in summary:
+        return jsonify(available=False, busy="boot" in summary.lower() or not summary)
+    return jsonify(available=True, **parse_boot(summary, run("blame")))
+
+
 @bp.post("/api/admin/fw-install")
 @admin_required
 def api_fw_install():

@@ -167,6 +167,8 @@ install -m 755 "$APP/appliance/hsef-net" /usr/local/sbin/hsef-net
 install -m 755 "$APP/appliance/hsef-apps" /usr/local/sbin/hsef-apps
 install -m 755 "$APP/appliance/hsef-extras" /usr/local/sbin/hsef-extras
 install -m 755 "$APP/appliance/hsef-cec" /usr/local/sbin/hsef-cec
+install -m 755 "$APP/appliance/hsef-splash" /usr/local/sbin/hsef-splash
+mkdir -p /usr/local/share/hsef-splash && install -m 644 "$APP"/appliance/splash/logo-*.png /usr/local/share/hsef-splash/
 # الآيفون بالكابل: تبدأ خدمة النسخ عند توصيله
 /usr/local/sbin/hsef-extras iphone-rules >/dev/null 2>&1 || true
 # الشبكة: الوايفاي يعمل وحده عند فصل الكابل
@@ -234,11 +236,47 @@ HandleHibernateKey=ignore
 IdleAction=ignore
 EOF
     systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target >/dev/null 2>&1 || true
+    # البند 48: شعار السيرفر على الشاشة من أول الإقلاع حتى تفتح شاشة التلفاز
+    cat > /etc/systemd/system/hsef-splash.service <<'EOF'
+[Unit]
+Description=HOME ANAB boot logo
+DefaultDependencies=no
+After=systemd-udevd.service
+Before=sysinit.target
+ConditionKernelCommandLine=!hsef_installer
+ConditionPathExists=/usr/local/sbin/hsef-splash
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/hsef-splash
+TimeoutStopSec=3
+
+[Install]
+WantedBy=sysinit.target
+EOF
+    systemctl enable hsef-splash.service >/dev/null 2>&1 || true
+    # البند 48: لا ينتظر الإقلاع الشبكة أكثر من 15 ثانية (كابل مفصول أو راوتر بطيء كان يؤخّر كل شيء)
+    for u in ifupdown-wait-online systemd-networkd-wait-online; do
+        mkdir -p /etc/systemd/system/$u.service.d
+        printf '[Service]\nTimeoutStartSec=15\n' > /etc/systemd/system/$u.service.d/hsef.conf
+    done
+    if [ -f /etc/default/networking ] && ! grep -q '^WAIT_ONLINE_TIMEOUT=' /etc/default/networking; then
+        echo 'WAIT_ONLINE_TIMEOUT=10' >> /etc/default/networking
+    fi
+    # البند 48: قائمة GRUB مخفية (Esc أو Shift يظهرها)، وبلا مؤشر يومض فوق الشعار
+    if [ -f /etc/default/grub ]; then
+        G=/etc/default/grub; before=$(md5sum < $G)
+        if grep -q '^GRUB_TIMEOUT_STYLE=' $G; then sed -i 's/^GRUB_TIMEOUT_STYLE=.*/GRUB_TIMEOUT_STYLE=hidden/' $G; else echo 'GRUB_TIMEOUT_STYLE=hidden' >> $G; fi
+        sed -i 's/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=1/' $G
+        grep -q 'vt.global_cursor_default=0' $G || sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT="\(.*\)"/GRUB_CMDLINE_LINUX_DEFAULT="\1 vt.global_cursor_default=0"/' $G
+        [ "$before" = "$(md5sum < $G)" ] || NEED_GRUB=1
+    fi
     # Turn the console screen off after 5 minutes (saves power, screen keeps the banner)
     if [ -f /etc/default/grub ] && ! grep -q consoleblank /etc/default/grub; then
         sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT="\(.*\)"/GRUB_CMDLINE_LINUX_DEFAULT="\1 consoleblank=300"/' /etc/default/grub
-        command -v update-grub >/dev/null && update-grub >/dev/null 2>&1 || true
+        NEED_GRUB=1
     fi
+    if [ "${NEED_GRUB:-0}" = 1 ]; then command -v update-grub >/dev/null && update-grub >/dev/null 2>&1 || true; fi
 fi
 
 systemctl daemon-reload 2>/dev/null || true
