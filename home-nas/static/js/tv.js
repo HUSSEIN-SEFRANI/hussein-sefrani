@@ -2224,6 +2224,26 @@ const padPrefs = { swap: false, rumble: true };
 try { Object.assign(padPrefs, JSON.parse(localStorage.getItem("tvpad") || "{}")); } catch { /* */ }
 const savePad = () => { try { localStorage.setItem("tvpad", JSON.stringify(padPrefs)); } catch { /* */ } };
 let padPrev = {}, padRep = {}, padState = {}, padName = "";
+// البند 49: اليد الأساسية (اللاعب 1) ثابتة في الواجهة وفي كل الألعاب: أول يد يُضغط فيها زر،
+// أو اليد التي يختارها المدير («اختيار اليد الأساسية»، وتُحفظ باسمها فترجع أساسية عند اتصالها من جديد)
+let PADSEEN = [], PADMAIN = null;
+const MAIN_KEY = "hsef-pad-main";
+const livePads = () => { try { return [...navigator.getGamepads()].filter((g) => g && g.connected); } catch { return []; } };
+function setMainPad(i, save) {
+  PADMAIN = i;
+  const g = livePads().find((x) => x.index === i);
+  if (save && g) { try { localStorage.setItem(MAIN_KEY, g.id); } catch { /* */ } }
+}
+function padTouch(gp) {
+  if (!PADSEEN.includes(gp.index)) PADSEEN.push(gp.index);
+  if (PADMAIN == null || !livePads().some((x) => x.index === PADMAIN)) setMainPad(gp.index, false);
+}
+// ترتيب اللاعبين: [اللاعب 1، اللاعب 2، …] بأرقام الأيادي. تقرؤه الألعاب (kit.js) من هنا
+window.hsefPadOrder = () => {
+  const live = livePads().map((g) => g.index);
+  return [PADMAIN, ...PADSEEN].filter((i, k, a) => i != null && a.indexOf(i) === k && live.includes(i));
+};
+const playerNo = (i) => window.hsefPadOrder().indexOf(i) + 1;
 const padKey = (key) => document.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
 function rumble(gp, ms = 40) {
   if (!padPrefs.rumble) return;
@@ -2275,7 +2295,7 @@ function pollPads() {
     const prev = padPrev[gp.index] || {};
     for (const [name, on] of Object.entries(st)) {
       const k = gp.index + name;
-      if (on && !prev[name]) { padRep[k] = now + 420; activity(); padFire(name, gp); }
+      if (on && !prev[name]) { padRep[k] = now + 420; activity(); padTouch(gp); padFire(name, gp); }
       else if (on && ["up", "down", "left", "right"].includes(name) && now > (padRep[k] || 0)) { padRep[k] = now + 140; padFire(name, gp); }
     }
     padPrev[gp.index] = st;
@@ -2288,7 +2308,13 @@ addEventListener("gamepadconnected", (e) => {
   const g = e.gamepad, name = g.id.replace(/\(.*\)/, "").trim() || "يد تحكم";
   if (g.mapping !== "standard" && !PADMAPS[g.id]) toast(`🎮 ${name}: يد جديدة. لتعمل أزرارها صحيحة: الإعدادات ← يد التحكم ← «إعداد يد جديدة»`, 9000);
   else toast(`🎮 ${name}`, 2000);
+  let saved = ""; try { saved = localStorage.getItem(MAIN_KEY) || ""; } catch { /* */ }
+  if (saved && g.id === saved && !livePads().some((x) => x.index === PADMAIN && x.id === saved)) setMainPad(g.index, false);   // الأساسية رجعت
   rumble(g, 120); startPads();
+});
+addEventListener("gamepaddisconnected", (e) => {
+  PADSEEN = PADSEEN.filter((i) => i !== e.gamepad.index);
+  if (PADMAIN === e.gamepad.index) PADMAIN = PADSEEN[0] ?? null;
 });
 startPads();
 
@@ -2439,6 +2465,78 @@ function btError(m) {
   return m;
 }
 
+// البند 49: «ربط يد جديدة»: خطوة واحدة. السيرفر يبحث حتى تظهر يد في وضع الربط ويربطها وحده
+const PAD_HOWTO = [["🎮", "بلايستيشن 5", "اضغط معاً <b>Create</b> و <b>PS</b> حتى يومض الضوء بسرعة"],
+  ["🎮", "بلايستيشن 4", "اضغط معاً <b>Share</b> و <b>PS</b> حتى يومض الضوء الخلفي"],
+  ["🎮", "إكس بوكس", "شغّل اليد بزر <b>Xbox</b>، ثم اضغط زر الربط الصغير أعلاها حتى يومض"],
+  ["🎮", "سويتش برو وغيرها", "اضغط زر <b>Sync</b> الصغير (أعلى اليد) حتى تومض الأضواء"]];
+function padPairScreen(done) {
+  const el = subScreen("ربط يد جديدة", "pad"), body = el.querySelector(".set-body");
+  let left = 45, alive = true, timer = 0;
+  body.innerHTML = `<p class="set-msg" style="font-size:28px;font-weight:800;color:#fde68a">ضع اليد في وضع الربط الآن، وانتظر:</p>
+    <div class="set-list">${PAD_HOWTO.map(([i, n, t]) => `<div class="set-item"><span>${i}</span><b>${n}</b><span class="muted">${t}</span></div>`).join("")}</div>
+    <p class="set-msg js-st" style="font-size:24px">🔎 أبحث عن اليد… <b class="ltr js-left">45</b></p>`;
+  const st = body.querySelector(".js-st");
+  timer = setInterval(() => { left = Math.max(0, left - 1); const x = body.querySelector(".js-left"); if (x) x.textContent = left; }, 1000);
+  push({ el, destroy() { alive = false; clearInterval(timer); } });
+  setFocus(el.querySelector(".js-back"));
+  api("/api/tv/admin/bt/pairpad", { json: {} }).then((r) => {
+    clearInterval(timer);
+    if (!alive) return;
+    const n = (r.paired && r.paired.name) || "اليد";
+    st.innerHTML = `✅ تم ربط <b class="ltr">${esc(n)}</b>. اضغط أي زر فيها.`;
+    toast(`✓ تم ربط ${n}`, 5000);
+    setTimeout(() => { if (alive) { pop(); if (done) done(r); } }, 2500);
+  }).catch((e) => {
+    clearInterval(timer);
+    if (!alive) return;
+    const m = /no controller/i.test(e.message) ? "لم أجد يداً في وضع الربط. تأكد أن ضوءها يومض بسرعة، ثم جرّب مرة أخرى."
+      : /adapter/i.test(e.message) ? "لا يوجد بلوتوث في هذا الجهاز. يمكنك وصل قطعة بلوتوث USB صغيرة." : btError(e.message);
+    st.innerHTML = `<span class="bad">${esc(m)}</span>`;
+    st.insertAdjacentHTML("afterend", `<div class="set-row"><button class="btn gold f js-again">حاول مرة أخرى</button></div>`);
+    const again = body.querySelector(".js-again");
+    again.addEventListener("click", () => { pop(); padPairScreen(done); });
+    setFocus(again);
+  });
+}
+
+// البند 49: اختيار اليد الأساسية: من يضغط ✕ تصير يده اللاعب 1 (في الواجهة وكل الألعاب)
+function padMainScreen(done) {
+  const el = subScreen("اختيار اليد الأساسية", "pad"), body = el.querySelector(".set-body");
+  body.innerHTML = `<p class="set-msg" style="font-size:30px;font-weight:800;color:#fde68a">اضغط ✕ (أو A) في اليد التي تريدها أساسية</p>
+    <p class="set-msg">هذه اليد تصير «اللاعب 1»: تتحكم بقوائم الألعاب، وتبقى الأساسية كلما اتصلت.</p>
+    <div class="set-list js-pl"></div>`;
+  const prev = {};
+  let raf = 0;
+  const tick = () => {
+    raf = requestAnimationFrame(tick);
+    for (const g of livePads()) {
+      const n = padNorm(g, PADMAPS), on = !!(n.buttons[0] && n.buttons[0].pressed);
+      if (on && !prev[g.index]) {
+        setMainPad(g.index, true);
+        if (!PADSEEN.includes(g.index)) PADSEEN.push(g.index);
+        const r0 = padPrefs.rumble; padPrefs.rumble = true; rumble(g, 400); padPrefs.rumble = r0;
+        toast(`⭐ ${g.id.replace(/\(.*\)/, "").trim() || "اليد"}: صارت الأساسية (اللاعب 1)`, 4000);
+        padCapture = false; cancelAnimationFrame(raf); pop(); if (done) done(); return;
+      }
+      prev[g.index] = on;
+    }
+  };
+  padCapture = true;
+  push({ el, destroy() { padCapture = false; cancelAnimationFrame(raf); } });
+  tick();
+}
+
+// قائمة الأيادي الموصولة الآن بأرقام اللاعبين
+function playersHTML() {
+  const order = window.hsefPadOrder(), pads = livePads();
+  const rest = pads.filter((g) => !order.includes(g.index));
+  const row = (g, n) => `<div class="set-item"><span>${n === 1 ? "⭐" : "🎮"}</span><b>${n ? `اللاعب ${n}` : "لم تُستعمل بعد"}${n === 1 ? " (الأساسية)" : ""}</b>
+    <span class="ltr muted">${esc(g.id.replace(/\(.*\)/, "").trim() || "يد تحكم")}</span></div>`;
+  return pads.length ? order.map((i, k) => row(pads.find((g) => g.index === i), k + 1)).join("") + rest.map((g) => row(g, 0)).join("")
+    : `<p class="set-msg">لا توجد يد متصلة الآن. اضغط زر PS (أو Home) في اليد لتتصل.</p>`;
+}
+
 async function btScreen() {
   const el = subScreen("البلوتوث", "bt"), body = el.querySelector(".set-body");
   push({ el });
@@ -2449,16 +2547,24 @@ async function btScreen() {
     if (!r.installed) html = `<button class="btn gold f" data-a="install">تثبيت البلوتوث (يحتاج الإنترنت)</button>`;
     else if (!r.adapter) html = `<p class="set-msg">لا يوجد بلوتوث في هذا الجهاز. يمكنك وصل قطعة بلوتوث USB صغيرة.</p>`;
     else {
-      html = `<p class="set-msg">يد بلايستيشن 5: اضغط معاً <b>Create</b> و <b>PS</b> حتى يومض الضوء بسرعة، ثم «البحث»، ثم «ربط» مباشرة. بعدها تكفي ضغطة على <b>PS</b> لتتصل.</p>
-        <div class="set-row"><button class="btn gold f" data-a="scan">البحث عن أجهزة</button></div>
-        <div class="set-list">${r.devices.filter((d) => showAllBt || d.named !== false || d.paired).map((d) => `<div class="set-item"><span>${d.icon === "input-gaming" ? "🎮" : d.icon && d.icon.startsWith("audio") ? "🎧" : d.icon === "input-keyboard" ? "⌨️" : d.icon === "phone" ? "📱" : "🔵"}</span><b>${esc(d.name)}</b>
+      const isPad = (d) => d.pad ?? d.icon === "input-gaming";
+      const pads = r.devices.filter((d) => isPad(d) && d.paired);
+      const others = r.devices.filter((d) => !(isPad(d) && d.paired));
+      const devRow = (d) => `<div class="set-item"><span>${d.icon === "input-gaming" ? "🎮" : d.icon && d.icon.startsWith("audio") ? "🎧" : d.icon === "input-keyboard" ? "⌨️" : d.icon === "phone" ? "📱" : "🔵"}</span><b>${esc(d.name)}</b>
           ${d.connected ? `<span class="ok">متصل</span>` : d.paired ? `<span>مقترن</span>` : ""}
           ${!d.connected ? `<button class="btn f" data-p="pair" data-m="${d.mac}">${d.paired ? "اتصال" : "ربط"}</button>` : ""}
-          ${d.paired ? `<button class="btn f" data-p="remove" data-m="${d.mac}">إزالة</button>` : ""}</div>`).join("") || `<p class="set-msg">لا توجد أجهزة بعد.</p>`}</div>
-        ${!showAllBt && r.devices.some((d) => d.named === false && !d.paired) ? `<div class="set-row"><button class="btn f js-allbt">إظهار ${r.devices.filter((d) => d.named === false && !d.paired).length} أجهزة بلا اسم</button></div>` : ""}`;
+          ${d.paired ? `<button class="btn f" data-p="remove" data-m="${d.mac}">إزالة</button>` : ""}</div>`;
+      html = `<div class="set-row"><button class="btn gold f js-pairpad">🎮 ربط يد جديدة</button></div>
+        <p class="set-msg">أياديك المربوطة (تكفي ضغطة على PS أو Home لتتصل):</p>
+        <div class="set-list">${pads.map(devRow).join("") || `<p class="set-msg">لا توجد يد مربوطة بعد. اضغط «ربط يد جديدة».</p>`}</div>
+        ${showAllBt ? `<p class="set-msg">أجهزة أخرى (سماعات، لوحة مفاتيح…):</p>
+          <div class="set-row"><button class="btn f" data-a="scan">البحث عن أجهزة</button></div>
+          <div class="set-list">${others.map(devRow).join("") || `<p class="set-msg">لا توجد أجهزة أخرى.</p>`}</div>`
+          : `<div class="set-row"><button class="btn f js-allbt">أجهزة أخرى${others.length ? ` (${others.length})` : ""}: سماعات، لوحة مفاتيح…</button></div>`}`;
     }
     body.innerHTML = html;
     body.querySelector(".js-allbt")?.addEventListener("click", () => { showAllBt = true; draw(r); });
+    body.querySelector(".js-pairpad")?.addEventListener("click", () => padPairScreen((x) => draw(x)));
     body.querySelectorAll("[data-a]").forEach((b) => b.addEventListener("click", () => act(b.dataset.a)));
     body.querySelectorAll("[data-p]").forEach((b) => b.addEventListener("click", () => act(b.dataset.p, b.dataset.m)));
     setFocus(body.querySelector(".f") || el.querySelector(".js-back"));
@@ -2560,13 +2666,17 @@ function padScreen() {
   const el = subScreen("يد التحكم", "pad"), body = el.querySelector(".set-body");
   const BTN = [["cross", "✕"], ["circle", "○"], ["square", "□"], ["triangle", "△"], ["up", "↑"], ["down", "↓"], ["left", "←"], ["right", "→"],
     ["l1", "L1"], ["r1", "R1"], ["l2", "L2"], ["r2", "R2"], ["options", "Options"], ["create", "Create"], ["ps", "PS"]];
-  body.innerHTML = `<div class="set-status"><div>اليد: <b class="ltr js-pn">اضغط أي زر في اليد…</b></div></div>
+  body.innerHTML = `<div class="set-row"><button class="btn gold f js-pair">🎮 ربط يد جديدة</button><button class="btn gold f js-main">⭐ اختيار اليد الأساسية</button></div>
+    <div class="set-list js-players">${playersHTML()}</div>
+    <div class="set-status"><div>آخر يد ضُغط فيها زر: <b class="ltr js-pn">اضغط أي زر في اليد…</b></div></div>
     <div class="pad-test ltr">${BTN.map(([k, t]) => `<span data-b="${k}">${t}</span>`).join("")}</div>
     <div class="set-row"><button class="btn f js-swap"></button><button class="btn f js-rum"></button><button class="btn gold f js-diag">🩺 تشخيص اليد</button></div>
     <div class="set-row"><button class="btn gold f js-setup">🎮 إعداد يد جديدة</button>${Object.keys(PADMAPS).length ? `<button class="btn f js-reset">مسح إعدادات الأيادي (${Object.keys(PADMAPS).length})</button>` : ""}</div>
     <p class="set-msg">«إعداد يد جديدة»: لأي يد لا تعمل أزرارها صحيحة (يد عامة بلا ماركة): تضغط كل زر مرة عند السؤال، فتُحفظ لهذه اليد.</p>
     <p class="set-msg">✕ موافق · ○ رجوع · الأسهم أو العصا للتنقل · L1/R1 السابق/التالي · L2/R2 الصوت · Options تشغيل/إيقاف · PS الرئيسية (وفي الألعاب: الخروج)</p>`;
   el.querySelector(".js-diag").addEventListener("click", () => padDiagScreen());
+  el.querySelector(".js-pair").addEventListener("click", () => { pop(); padPairScreen(() => padScreen()); });
+  el.querySelector(".js-main").addEventListener("click", () => { pop(); padMainScreen(() => padScreen()); });
   el.querySelector(".js-setup").addEventListener("click", () => { pop(); padSetupScreen(); });
   el.querySelector(".js-reset")?.addEventListener("click", async () => {
     for (const id of Object.keys(PADMAPS)) { try { PADMAPS = (await api("/api/tv/padmaps", { json: { id, map: null } })).maps || {}; } catch { /* */ } }
@@ -2583,10 +2693,12 @@ function padScreen() {
   const live = () => {
     el.querySelectorAll("[data-b]").forEach((s) => s.classList.toggle("on", !!padState[s.dataset.b]));
     if (padName) el.querySelector(".js-pn").textContent = padName;
+    const pl = el.querySelector(".js-players"), ph = playersHTML();
+    if (pl && pl.dataset.h !== ph) { pl.innerHTML = ph; pl.dataset.h = ph; }
     raf = requestAnimationFrame(live);
   };
   live();
-  push({ el, initial: () => el.querySelector(".js-swap"), destroy() { cancelAnimationFrame(raf); } });
+  push({ el, initial: () => el.querySelector(".js-pair"), destroy() { cancelAnimationFrame(raf); } });
 }
 
 // تقرير يد التحكم: صوّره وأرسله إن لم تعمل اليد

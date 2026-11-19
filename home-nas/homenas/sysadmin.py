@@ -238,6 +238,10 @@ def api_bt_action(action):
         helper("bt-install", timeout=1800)
     elif action == "scan":
         helper("bt-scan", timeout=60)
+    elif action == "pairpad":   # البند 49: ابحث عن يد في وضع الربط واربطها وحدك
+        r = helper("bt-pair-pad", timeout=150, as_json=True) or {}
+        log_action("بلوتوث", f"ربط يد {r.get('name', '')} {r.get('mac', '')}")
+        return jsonify(available=True, paired=r, **helper("bt-status", as_json=True))
     elif action in ("pair", "remove"):
         if not MAC.match(mac):
             abort(400)
