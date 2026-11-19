@@ -8,6 +8,8 @@ import datetime as dt
 import json
 import re
 import math
+import secrets
+import threading
 import time
 from pathlib import Path
 
@@ -178,10 +180,14 @@ def api_learn_result():
     return jsonify(ok=True, stored=True)
 
 
-# ----------------------------------------------------------------------------- البند 43: لعبة تحفظ PDF في الملفات الشخصية
-LETTERS_DIR = "الرسائل"          # في المجلد الشخصي لكل فرد
-LETTERS_SENT = "المرسلة"          # نسخة المرسل: الرسائل/المرسلة
+# ----------------------------------------------------------------------------- البند 43: صناديق «الرسائل» في مجلد كل فرد
+# <المجلد الشخصي>/تلفاز/تطبيقات/الرسائل/{الوارد,الصادر,المحفوظة}/<رسالة>.pdf
+# ومعها فهرس مخفي ‎.letters.json في كل صندوق (الموضوع، النص، من، إلى، الوقت، قُرئت). حذف الـPDF من «الملفات» يحذفها من الصندوق.
+LETTERS_ROOT = Path("تلفاز") / "تطبيقات" / "الرسائل"
+BOXES = {"in": "الوارد", "out": "الصادر", "saved": "المحفوظة"}
+INDEX = ".letters.json"
 PDF_MAX = 15 * 1024 * 1024
+_letters_lock = threading.Lock()
 
 
 def pdf_name(s) -> str:
@@ -189,6 +195,26 @@ def pdf_name(s) -> str:
     s = re.sub(r'[\x00-\x1f/\\:*?"<>|]+', " ", str(s or ""))
     s = " ".join(s.split()).strip(" .")[:90] or "رسالة"
     return s if s.lower().endswith(".pdf") else s + ".pdf"
+
+
+def _box_dir(user, box: str) -> Path:
+    from .core import home_dir
+    return home_dir(user["username"]) / LETTERS_ROOT / BOXES[box]
+
+
+def _index(folder: Path) -> list:
+    try:
+        d = json.loads((folder / INDEX).read_text(encoding="utf-8"))
+        return d if isinstance(d, list) else []
+    except (OSError, ValueError):
+        return []
+
+
+def _write_index(folder: Path, items: list):
+    folder.mkdir(parents=True, exist_ok=True)
+    tmp = folder / (INDEX + ".part")
+    tmp.write_text(json.dumps(items, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(folder / INDEX)
 
 
 def _free_path(folder: Path, name: str) -> Path:
@@ -200,44 +226,116 @@ def _free_path(folder: Path, name: str) -> Path:
     return p
 
 
-@bp.post("/api/tv/files/pdf")
-def api_tv_save_pdf():
-    """الجسم: ملف PDF. ‎?to=<رقم الشخص>&name=<اسم الملف>&copy=1
-    يُحفظ في «الرسائل» داخل المجلد الشخصي لـ to (أو للاعب نفسه)، ومع copy=1 نسخة في «الرسائل/المرسلة» للاعب.
-    للألعاب على التلفاز فقط (من عنوان الصفحة /tv/game/...)، وto يجب أن يكون من أفراد التلفاز."""
-    from urllib.parse import urlparse
-    from .core import home_dir
+def _person(m) -> dict:
     from .tv import display_name
-    u = _tv_user()
+    return {"id": m["id"], "name": display_name(m)}
+
+
+def _box_arg() -> str:
+    box = request.args.get("box", "in")
+    if box not in BOXES:
+        abort(400, "صندوق غير معروف")
+    return box
+
+
+def _game_only():
+    from urllib.parse import urlparse
     if not re.match(r"^/tv/game/\d+/", urlparse(request.referrer or "").path):
         abort(403, "للألعاب على التلفاز فقط")
-    db = get_db()
-    to_id = request.args.get("to", type=int) or u["id"]
-    to = next((m for m in _members(db) if m["id"] == to_id), None)
-    if to is None:
-        abort(404, "الشخص غير موجود")
-    if (request.content_length or 0) > PDF_MAX:
+
+
+@bp.post("/api/tv/letters/send")
+def api_tv_letter_send():
+    """multipart: pdf=<ملف PDF>، meta=JSON {"to": رقم, "subject": "", "body": "", "name": "اسم الملف"}، ‎?save=1 للحفظ عندي فقط.
+    الإرسال: PDF في «الصادر» عند المرسل وفي «الوارد» عند المرسَل إليه (نفس id). الحفظ: في «المحفوظة» عندي."""
+    u = _tv_user()
+    _game_only()
+    if (request.content_length or 0) > PDF_MAX + 200_000:
         abort(413, "الملف كبير")
-    data = request.get_data(cache=False)
+    f = request.files.get("pdf")
+    data = f.read(PDF_MAX + 1) if f else b""
     if len(data) > PDF_MAX:
         abort(413, "الملف كبير")
     if not data.startswith(b"%PDF-"):
         abort(400, "ليس ملف PDF")
-    name = pdf_name(request.args.get("name"))
-    targets = [(to, Path(LETTERS_DIR))]
-    if request.args.get("copy") and to["id"] != u["id"]:
-        targets.append((u, Path(LETTERS_DIR) / LETTERS_SENT))
-    saved = []
-    for who, sub in targets:
-        folder = home_dir(who["username"]) / sub
-        folder.mkdir(parents=True, exist_ok=True)
-        p = _free_path(folder, name)
-        tmp = p.with_name(f".{p.name}.part")
-        tmp.write_bytes(data)
-        tmp.replace(p)
-        saved.append({"user": display_name(who), "path": str(sub / p.name)})
-    log_action("رسالة PDF من لعبة", f"{display_name(u)} ← {display_name(to)}: {name}", u["username"])
-    return jsonify(ok=True, saved=saved)
+    try:
+        meta = json.loads(request.form.get("meta") or "{}")
+    except ValueError:
+        meta = {}
+    db = get_db()
+    me = _person(u)
+    save_only = bool(request.args.get("save"))
+    if save_only:
+        to, targets = me, [(u, "saved")]
+    else:
+        to_row = next((m for m in _members(db) if m["id"] == int(meta.get("to") or 0)), None)
+        if to_row is None:
+            abort(404, "الشخص غير موجود")
+        if to_row["id"] == u["id"]:
+            abort(400, "اختر شخصاً آخر")
+        to, targets = _person(to_row), [(u, "out"), (to_row, "in")]
+    entry = {"id": secrets.token_hex(8), "from": me, "to": to, "ts": now_iso(),
+             "subject": str(meta.get("subject") or "")[:120], "body": str(meta.get("body") or "")[:20000]}
+    name = pdf_name(meta.get("name") or entry["subject"])
+    with _letters_lock:
+        for who, box in targets:
+            folder = _box_dir(who, box)
+            folder.mkdir(parents=True, exist_ok=True)
+            p = _free_path(folder, name)
+            tmp = folder / f".{p.name}.part"
+            tmp.write_bytes(data)
+            tmp.replace(p)
+            items = _index(folder)
+            items.append({**entry, "file": p.name, "read": box != "in"})
+            _write_index(folder, items[-1000:])
+    if not save_only:
+        log_action("رسالة من لعبة «الرسائل»", f"{me['name']} ← {to['name']}", u["username"])
+    return jsonify(ok=True, id=entry["id"], folder=str(LETTERS_ROOT / BOXES[targets[0][1]]), to=to)
+
+
+@bp.get("/api/tv/letters")
+def api_tv_letters():
+    """‎?box=in|out|saved ← الرسائل (الأحدث أولاً) التي ما زال ملفها موجوداً، وعدد غير المقروء في «الوارد»."""
+    u = _tv_user()
+    box = _box_arg()
+    folder = _box_dir(u, box)
+    items = [x for x in _index(folder) if (folder / x.get("file", "")).is_file()]
+    unread = sum(1 for x in _index(_box_dir(u, "in")) if not x.get("read") and (_box_dir(u, "in") / x.get("file", "")).is_file())
+    return jsonify(box=box, folder=str(LETTERS_ROOT / BOXES[box]), letters=list(reversed(items)), unread=unread)
+
+
+@bp.post("/api/tv/letters/<lid>/read")
+def api_tv_letter_read(lid):
+    u = _tv_user()
+    folder = _box_dir(u, "in")
+    with _letters_lock:
+        items = _index(folder)
+        for x in items:
+            if x.get("id") == lid:
+                x["read"] = True
+        _write_index(folder, items)
+    return jsonify(ok=True)
+
+
+@bp.post("/api/tv/letters/<lid>/delete")
+def api_tv_letter_delete(lid):
+    """يحذف الرسالة من صندوقي فقط (ملف PDF والسطر). صندوق الطرف الآخر لا يتغير."""
+    u = _tv_user()
+    box = _box_arg()
+    folder = _box_dir(u, box)
+    with _letters_lock:
+        items = _index(folder)
+        keep = [x for x in items if x.get("id") != lid]
+        if len(keep) == len(items):
+            abort(404, "الرسالة غير موجودة")
+        for x in items:
+            if x.get("id") == lid and x.get("file"):
+                try:
+                    (folder / Path(x["file"]).name).unlink()
+                except OSError:
+                    pass
+        _write_index(folder, keep)
+    return jsonify(ok=True)
 
 
 # ============================================================================= مشترك
@@ -826,7 +924,7 @@ def api_tv_ramadan():
         hd = int(request.args.get("hd") or hd)
     except ValueError:
         pass
-    names = {m["id"]: _name(m) for m in _members(db)}
+    names = {m["id"]: _name(m) for m in members(db)}
     kh = {r["juz"]: {"juz": r["juz"], "user_id": r["user_id"], "name": names.get(r["user_id"], "؟")}
           for r in db.execute("SELECT * FROM khatma WHERE hyear=?", (hy,))}
     day = dt.date.today().isoformat()

@@ -12,7 +12,7 @@ h1 { -webkit-text-stroke-color: #6b21a8; }
 .face.big { width: 17vh; height: 17vh; font-size: 8vh; }
 
 /* الصندوق */
-.cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2vh 2vw; width: 86vw; margin-top: 2vh; overflow: hidden; }
+.cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2vh 2vw; width: 86vw; margin-top: 2vh; padding: 1vh; }
 .card { position: relative; display: flex; align-items: center; gap: 1.5vw; border: 0; border-radius: 3vh; background: #fff; padding: 1.4vh 1.6vw; text-align: right; color: #3b0764; box-shadow: 0 .8vh 1.6vh #581c8722; }
 .card.new { background: #fdf4ff; box-shadow: 0 0 0 .4vh #e879f9, 0 .8vh 1.6vh #581c8722; }
 .card .ct { display: flex; flex-direction: column; min-width: 0; }

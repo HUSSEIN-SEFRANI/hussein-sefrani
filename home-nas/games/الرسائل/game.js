@@ -1,11 +1,11 @@
 // الرسائل — يكتب الطفل رسالة على ورقة A4 مسطّرة مزخرفة بأغصان العنب، ويختار لمن هي من أعلى الورقة.
-// الإرسال: تُصنع الرسالة PDF وتُحفظ في «الرسائل» داخل الملفات الشخصية للمرسَل إليه، ونسخة في «الرسائل/المرسلة» للمرسل
-// (POST /api/tv/files/pdf — البند 43، v1.9.11). وتصل أيضاً إلى «صندوقي» داخل اللعبة على التلفاز.
+// الصناديق على السيرفر في مجلد كل فرد: تلفاز/تطبيقات/الرسائل/{الوارد,الصادر,المحفوظة}
+// الإرسال: PDF في «الصادر» عند المرسل و«الوارد» عند المرسَل إليه (‎/api/tv/letters — البند 43، v1.9.11).
 (() => {
   "use strict";
   const K = window.K;
   const esc = K.esc;
-  const STORE = "anab-letters-v1";
+  const DEMO = "anab-letters-demo";   // خارج التلفاز فقط (تجربة على الكمبيوتر)
   const DRAFT = "anab-letter-draft-v1";
 
   // ---------------------------------------------------------------- الأشخاص
@@ -31,12 +31,37 @@
     p.photo_v && onTV ? `<img src="/api/users/${p.id}/photo?v=${p.photo_v}" alt="" onerror="this.remove()">` : ""}</span>`;
 
   // ---------------------------------------------------------------- صندوق الرسائل (في متصفح التلفاز، مشترك بين أفراد العائلة)
-  const all = () => { try { return JSON.parse(localStorage.getItem(STORE) || "[]"); } catch { return []; } };
-  const saveAll = (a) => { try { localStorage.setItem(STORE, JSON.stringify(a.slice(-300))); } catch { /* ممتلئ */ } };
-  const inbox = () => all().filter((m) => m.to.id === me.id && !m.delTo).reverse();
-  const sent = () => all().filter((m) => m.from.id === me.id && !m.delFrom).reverse();
-  const unread = () => inbox().filter((m) => !m.read).length;
-  function update(id, fn) { const a = all(); const m = a.find((x) => x.id === id); if (m) { fn(m); saveAll(a); } }
+  const BOX = { in: { t: "📥 الوارد", f: "الوارد" }, out: { t: "📤 الصادر", f: "الصادر" }, saved: { t: "💾 المحفوظة", f: "المحفوظة" } };
+  const folderOf = (box) => `تلفاز/تطبيقات/الرسائل/${BOX[box].f}`;
+  let OLD = false;   // سيرفر أقدم من 1.9.11 (لا توجد صناديق)
+  const OLD_MSG = "حدّث الجهاز (الإصدار 1.9.11 أو أحدث) لتعمل صناديق الرسائل";
+  async function api(path, opt = {}) {
+    const r = await fetch(path, { credentials: "same-origin", ...opt });
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 404 && !d.error || r.status === 405) { OLD = true; throw new Error(OLD_MSG); }
+    if (!r.ok) throw new Error(d.error || "خطأ " + r.status);
+    return d;
+  }
+  const demo = () => { try { return JSON.parse(localStorage.getItem(DEMO) || "[]"); } catch { return []; } };
+  const demoSave = (a) => { try { localStorage.setItem(DEMO, JSON.stringify(a.slice(-200))); } catch { /* */ } };
+  // ← { letters: [...] الأحدث أولاً, unread }
+  async function listBox(box) {
+    if (!onTV) {
+      const a = demo();
+      return { letters: a.filter((m) => m.box === box).reverse(), unread: a.filter((m) => m.box === "in" && !m.read).length };
+    }
+    return api(`/api/tv/letters?box=${box}`);
+  }
+  async function markRead(m) {
+    if (!onTV) { const a = demo(); a.forEach((x) => { if (x.id === m.id && x.box === "in") x.read = true; }); demoSave(a); return; }
+    await api(`/api/tv/letters/${encodeURIComponent(m.id)}/read`, { method: "POST" }).catch(() => {});
+  }
+  async function remove(m, box) {
+    if (!onTV) { demoSave(demo().filter((x) => !(x.id === m.id && x.box === box))); return; }
+    await api(`/api/tv/letters/${encodeURIComponent(m.id)}/delete?box=${box}`, { method: "POST" });
+  }
+  // كل شاشة تأخذ رقماً؛ إن تغيّرت الشاشة أثناء التحميل لا نرسم فوقها
+  let gen = 0;
   const draftKey = () => `${DRAFT}-${me.id}`;
   const loadDraft = () => { try { return JSON.parse(localStorage.getItem(draftKey()) || "null"); } catch { return null; } };
   const saveDraft = (d) => { try { localStorage.setItem(draftKey(), JSON.stringify(d)); } catch { /* */ } };
@@ -307,86 +332,95 @@
     const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     return `رسالة من ${m.from.name} إلى ${m.to.name}${m.subject ? " - " + m.subject : ""} ${day}`;
   };
-  // يحفظ PDF في ملفات to (ونسخة عندي مع copy). يرجع ما قاله السيرفر أو سبب الفشل
-  async function savePdf(m, to, copy) {
+  // يرسل الرسالة (أو يحفظها عندي مع saveOnly). يرجع { ok, folder } أو { ok: false, why }
+  async function deliver(m, saveOnly) {
     const pdf = buildPdf(await pagesJpeg(m), m.subject || "رسالة");
-    if (!onTV) {   // خارج التلفاز: تنزيل الملف للتجربة
+    if (!onTV) {   // خارج التلفاز: تنزيل الملف للتجربة، والصناديق في هذا المتصفح
       const a = document.createElement("a");
       a.href = URL.createObjectURL(pdf); a.download = fileName(m) + ".pdf"; a.click();
-      return { ok: true, local: true };
+      const id = Date.now().toString(36);
+      const x = { id, from: m.from, to: m.to, ts: new Date(m.ts).toISOString(), subject: m.subject, body: m.body };
+      const list = demo();
+      if (saveOnly) list.push({ ...x, box: "saved", read: true });
+      else list.push({ ...x, box: "out", read: true }, { ...x, box: "in", read: false });
+      demoSave(list);
+      return { ok: true, local: true, folder: folderOf(saveOnly ? "saved" : "out") };
     }
+    const fd = new FormData();
+    fd.append("meta", JSON.stringify({ to: m.to.id, subject: m.subject, body: m.body, name: fileName(m) }));
+    fd.append("pdf", pdf, "letter.pdf");
     try {
-      const r = await fetch(`/api/tv/files/pdf?to=${to.id}&copy=${copy ? 1 : ""}&name=${encodeURIComponent(fileName(m))}`,
-        { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/pdf" }, body: pdf });
-      if (r.status === 404 || r.status === 405) {
-        const d = await r.json().catch(() => null);
-        return { ok: false, why: d && d.error ? d.error : "حدّث الجهاز (الإصدار 1.9.11 أو أحدث) لحفظ الرسائل في الملفات" };
-      }
-      const d = await r.json().catch(() => ({}));
-      return r.ok ? d : { ok: false, why: d.error || "تعذّر الحفظ" };
-    } catch { return { ok: false, why: "تعذّر الاتصال بالجهاز" }; }
+      const d = await api("/api/tv/letters/send" + (saveOnly ? "?save=1" : ""), { method: "POST", body: fd });
+      return { ok: true, folder: d.folder };
+    } catch (e) { return { ok: false, why: e.message || "تعذّر الاتصال بالجهاز" }; }
   }
 
   // ---------------------------------------------------------------- الشاشة الرئيسية
-  function home() {
+  async function home() {
+    const g = ++gen;
     K.begin();
-    const n = unread();
+    let n = 0, why = "";
+    try { n = (await listBox("in")).unread; } catch (e) { why = e.message; }
+    if (g !== gen) return;
     K.paint(`
       <div class="title"><span class="mascot emo">💌</span><div><h1>الرسائل</h1><p class="sub">أهلاً يا ${esc(me.name)}! اكتب رسالة جميلة لمن تحب</p></div></div>
       <div class="modes">
         <button class="mode f" style="background:linear-gradient(160deg,#a855f7,#7e22ce)" ${K.act("write", () => K.show(compose, null))}>
           <span class="big emo">✍️</span><b>اكتب رسالة</b><small>على ورقة العنب</small></button>
         <button class="mode f" style="background:linear-gradient(160deg,#ec4899,#be185d)" ${K.act("in", () => K.show(box, "in"))}>
-          <span class="big emo">📬</span><b>صندوقي</b><small>${n ? `<span class="badge">${n}</span> رسالة جديدة` : `${inbox().length} رسالة`}</small></button>
+          <span class="big emo">📥</span><b>الوارد</b><small>${n ? `<span class="badge">${n}</span> رسالة جديدة` : "رسائل وصلتني"}</small></button>
         <button class="mode f" style="background:linear-gradient(160deg,#0ea5e9,#0369a1)" ${K.act("out", () => K.show(box, "out"))}>
-          <span class="big emo">📤</span><b>أرسلتُ</b><small>${sent().length} رسالة</small></button>
+          <span class="big emo">📤</span><b>الصادر</b><small>رسائل أرسلتُها</small></button>
+        <button class="mode f" style="background:linear-gradient(160deg,#22c55e,#15803d)" ${K.act("saved", () => K.show(box, "saved"))}>
+          <span class="big emo">💾</span><b>المحفوظة</b><small>رسائل حفظتُها</small></button>
       </div>
-      ${onTV ? "" : `<p class="sub warn">تجربة خارج التلفاز: «أرسل» يُنزّل ملف PDF بدل حفظه في ملفات الشخص.</p>`}
+      ${why ? `<p class="sub warn">${esc(why)}</p>` : ""}
+      ${onTV ? "" : `<p class="sub warn">تجربة خارج التلفاز: الملف يُنزّل، والصناديق في هذا المتصفح فقط.</p>`}
       ${K.HELP}`, "write");
     if (n) K.sfx.pop();
   }
 
   // ---------------------------------------------------------------- الصندوق (الوارد أو المرسل)
   const when = (ts) => new Date(ts).toLocaleDateString("ar", { day: "numeric", month: "long", numberingSystem: "latn" });
-  function box(kind) {
+  async function box(kind) {
+    const g = ++gen;
     K.begin();
-    const list = kind === "in" ? inbox() : sent();
-    const cards = list.slice(0, 40).map((m, i) => {
+    K.paint(`<div class="top"><span class="pill">${BOX[kind].t}</span>${K.backBtn()}</div><div class="empty"><span class="emo">⏳</span></div>`, "back");
+    let list = [], why = "";
+    try { list = (await listBox(kind)).letters || []; } catch (e) { why = e.message; }
+    if (g !== gen) return;
+    K.begin();
+    if (K.top() && K.top().focus === "back") K.top().focus = null;   // التركيز على أول رسالة بعد التحميل
+    const cards = list.slice(0, 60).map((m, i) => {
       const who = kind === "in" ? m.from : m.to;
-      return `<button class="card f ${kind === "in" && !m.read ? "new" : ""}" ${K.act("m" + i, () => K.show(read, m.id, kind))}>
-        ${face(who)}<div class="ct"><b>${kind === "in" ? "من" : "إلى"} ${esc(who.name)}</b><span>${esc(m.subject || "بلا موضوع")}</span><small>${when(m.ts)}</small></div>
+      return `<button class="card f ${kind === "in" && !m.read ? "new" : ""}" ${K.act("m" + i, () => K.show(read, m, kind))}>
+        ${face(who)}<div class="ct"><b>${kind === "in" ? "من" : kind === "out" ? "إلى" : "لـ"} ${esc(who.name)}</b><span>${esc(m.subject || "بلا موضوع")}</span><small>${when(m.ts)}</small></div>
         ${kind === "in" && !m.read ? `<i class="dot"></i>` : ""}</button>`;
     }).join("");
     K.paint(`
-      <div class="top"><span class="pill">${kind === "in" ? "📬 صندوقي" : "📤 أرسلتُ"}</span>${K.backBtn()}</div>
-      ${list.length ? `<div class="cards">${cards}</div>` : `<div class="empty"><span class="emo">${kind === "in" ? "📭" : "✉️"}</span>
-        <b>${kind === "in" ? "لا توجد رسائل بعد" : "لم ترسل رسائل بعد"}</b>
+      <div class="top"><span class="pill">${BOX[kind].t}</span>${K.backBtn()}</div>
+      ${list.length ? `<div class="cards">${cards}</div>` : `<div class="empty"><span class="emo">${why ? "⚠️" : kind === "in" ? "📭" : "✉️"}</span>
+        <b>${why ? esc(why) : kind === "in" ? "لا توجد رسائل بعد" : "لا توجد رسائل هنا بعد"}</b>
         <button class="btn go f" ${K.act("w", () => K.replace(compose, null))}>✍️ اكتب رسالة</button></div>`}
-      ${K.HELP}`, "m0");
+      <p class="hint">📁 في ملفاتك: ${esc(folderOf(kind))}</p>
+      ${K.HELP}`, list.length ? "m0" : "w");
   }
 
   // ---------------------------------------------------------------- قراءة رسالة
-  function read(id, kind) {
+  function read(m, kind) {
+    ++gen;
     K.begin();
-    const m = all().find((x) => x.id === id);
-    if (!m) { K.back(); return; }
-    if (kind === "in" && !m.read) update(id, (x) => { x.read = true; });
+    if (kind === "in" && !m.read) { m.read = true; markRead(m); }
     const back = K.act("back", K.back);
     K.paint(`
       <div class="reader">
         <div class="paperbox" id="pb"><canvas id="cv" class="paper"></canvas></div>
         <div class="side">
           <div class="pill">${kind === "in" ? `من ${esc(m.from.name)}` : `إلى ${esc(m.to.name)}`}</div>
+          <p class="hint">📁 ${esc(folderOf(kind))}</p>
           ${kind === "in" ? `<button class="btn go f" ${K.act("reply", () => K.replace(compose, { to: m.from, subject: m.subject ? "رد: " + m.subject.replace(/^رد: /, "") : "رد" }))}>↩️ ردّ عليها</button>` : ""}
-          <button class="btn f" ${K.act("pdf", async (b) => {
-            b.disabled = true; b.textContent = "⏳ …";
-            const r = await savePdf(m, me, false);
-            b.disabled = false; b.textContent = "💾 في ملفاتي";
-            toast(r.ok ? (r.local ? "نُزّل ملف PDF" : "✅ حُفظت في ملفاتك: الرسائل") : r.why, r.ok);
-          })}>💾 في ملفاتي</button>
-          <button class="btn f" ${K.act("del", (b) => twice(b, "اضغط مرة ثانية للحذف", () => {
-            update(id, (x) => { if (kind === "in") x.delTo = true; else x.delFrom = true; });
-            K.back();
+          <button class="btn f" ${K.act("del", (b) => twice(b, "اضغط مرة ثانية للحذف من صندوقك", async () => {
+            try { await remove(m, kind); K.back(); } catch (e) { toast(e.message, false); }
           }))}>🗑️ احذف</button>
           <button class="btn f" ${back}>→ رجوع</button>
           <p class="hint">⬆⬇ لتحريك الورقة</p>
@@ -413,6 +447,7 @@
     en: ["qwertyuiop", "asdfghjkl", "zxcvbnm", [",", ".", "?", "!", "'", "@", "-"]],
   };
   function compose(start) {
+    ++gen;
     K.begin();
     const dr = !start ? loadDraft() : null;
     const m = {
@@ -446,9 +481,9 @@
               <button class="btn f" ${K.act("mine", async (b) => {
                 if (!m.body.trim()) { toast("اكتب الرسالة أولاً", false); return; }
                 b.textContent = "⏳ …";
-                const r = await savePdf({ ...m, to: m.to || me, ts: Date.now() }, me, false);
+                const r = await deliver({ ...m, to: m.to || me, ts: Date.now() }, true);
                 b.textContent = "💾 احفظ لي";
-                toast(r.ok ? (r.local ? "نُزّل ملف PDF" : "✅ حُفظت في ملفاتك: الرسائل") : r.why, r.ok);
+                toast(r.ok ? `✅ حُفظت في ملفاتك: ${r.folder}` : r.why, r.ok);
               })}>💾 احفظ لي</button>
               <button class="btn f" ${K.act("clr", (b) => twice(b, "اضغط مرة ثانية للمسح", () => { m.body = ""; m.subject = ""; keep(); draw(); }))}>🧽 امسح</button>
               <button class="btn f" ${K.act("back", K.back)}>→ رجوع</button>
@@ -494,10 +529,13 @@
       if (m.to.id === me.id) { toast("اختر شخصاً آخر", false); setActive("to"); return; }
       const b = document.querySelector('[data-k="send"]');
       if (b) { b.disabled = true; b.textContent = "⏳ أرسل…"; }
-      const letter = { id: Date.now() + "-" + Math.random().toString(36).slice(2, 7), from: m.from, to: { id: m.to.id, name: m.to.name },
-        subject: m.subject.trim(), body: m.body.replace(/\s+$/, ""), ts: Date.now(), read: false };
-      const r = await savePdf(letter, letter.to, true);
-      const a = all(); a.push(letter); saveAll(a);
+      const letter = { from: m.from, to: { id: m.to.id, name: m.to.name }, subject: m.subject.trim(), body: m.body.replace(/\s+$/, ""), ts: Date.now() };
+      const r = await deliver(letter, false);
+      if (!r.ok) {   // لم تُرسل: تبقى الكتابة كما هي
+        if (b) { b.disabled = false; b.textContent = "📮 أرسل"; }
+        toast(r.why, false);
+        return;
+      }
       saveDraft(null);
       K.replace(done, letter, r);
     }
@@ -523,6 +561,7 @@
 
   // اختيار لمن الرسالة
   function pick(onPick) {
+    ++gen;
     K.begin();
     const list = people.filter((p) => p.id !== me.id);
     K.paint(`
@@ -534,13 +573,13 @@
 
   // بعد الإرسال
   function done(letter, r) {
+    ++gen;
     K.begin();
     K.paint(`
       <div class="sent"><span class="emo big">📮</span>
         <h1>وصلت رسالتك!</h1>
         <p class="sub">إلى ${esc(letter.to.name)} ${letter.subject ? "· " + esc(letter.subject) : ""}</p>
-        <p class="note ${r.ok ? "" : "bad"}">${r.ok ? (r.local ? "تجربة خارج التلفاز: نُزّل ملف PDF." : `💾 حُفظت في ملفات ${esc(letter.to.name)}: «الرسائل»، ونسخة في ملفاتك: «الرسائل/المرسلة»`)
-          : `ستجدها في صندوق ${esc(letter.to.name)} في هذه اللعبة. ${esc(r.why || "")}`}</p>
+        <p class="note">📥 في «الوارد» عند ${esc(letter.to.name)}، و📤 في «الصادر» عندك${r.local ? " (تجربة: نُزّل ملف PDF)" : ""}</p>
         <div class="mini"><button class="btn go f" ${K.act("again", () => K.replace(compose, null))}>✍️ رسالة أخرى</button>
         <button class="btn f" ${K.act("home", K.home)}>🏠 الرئيسية</button></div>
       </div>`, "home");
