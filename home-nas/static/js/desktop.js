@@ -1,7 +1,7 @@
 // ====================================================================
 // HOME ANAB — سطح المكتب: الأيقونات، شريط المهام، قائمة البدء، الساعة
 // ====================================================================
-import { ME, I18N, $, h, esc, icon, api, apps, openApp, closePopovers, isMobile, toast, fileOps } from './core.js';
+import { ME, I18N, $, $$, h, esc, icon, api, apps, openApp, closePopovers, isMobile, toast, fileOps, menu, modal, tileHTML, appLook, ICON_NAMES } from './core.js';
 import './apps/files.js';
 import './apps/photos.js';
 import './apps/system.js';
@@ -39,8 +39,18 @@ function drawIcons() {
   icons.innerHTML = '';
   for (const a of shortcuts) {
     const badge = a.id === 'family' && famPending ? `<i class="dbadge">${famPending}</i>` : '';
-    const b = h(`<button class="dicon"><div class="app-tile" style="background:${a.color}">${icon(a.icon)}${badge}</div><span ${a.external ? 'translate="no"' : ''}>${esc(a.title)}</span></button>`);
+    const b = h(`<button class="dicon">${tileHTML(a, '', badge)}<span ${a.external ? 'translate="no"' : ''}>${esc(a.title)}</span></button>`);
     b.onclick = () => a.launch ? a.launch() : openApp(a.id);
+    // البند 44: زر أيمن (أو ضغطة طويلة) ← تغيير الأيقونة
+    if (!a.media) b.oncontextmenu = (e) => {
+      e.preventDefault(); e.stopPropagation();
+      menu(e.clientX, e.clientY, [
+        { label: 'فتح', icon: 'external', fn: () => b.click() },
+        '-',
+        { label: 'تغيير الأيقونة…', icon: 'edit', fn: () => changeIcon(a) },
+        { label: 'الأيقونة الأصلية', icon: 'refresh', hidden: !(ME.icons || {})[a.id], fn: () => resetIcon(a) },
+      ]);
+    };
     icons.appendChild(b);
   }
 }
@@ -90,7 +100,7 @@ $('#tb-start').onclick = (e) => {
     <div class="who"><div class="av"></div><div class="nm"><b></b><div class="muted" style="font-size:12px"></div></div>
     <a class="btn ghost" href="/logout">${icon('logout')} خروج</a></div></div>`);
   for (const a of shortcuts) {
-    const b = h(`<button><div class="app-tile" style="background:${a.color}">${icon(a.icon)}</div><span ${a.external ? 'translate="no"' : ''}>${esc(a.title)}</span></button>`);
+    const b = h(`<button>${tileHTML(a)}<span ${a.external ? 'translate="no"' : ''}>${esc(a.title)}</span></button>`);
     b.onclick = () => { m.remove(); a.launch ? a.launch() : openApp(a.id); };
     $('.apps', m).appendChild(b);
   }
@@ -110,6 +120,56 @@ const tick = () => { clock.textContent = new Intl.DateTimeFormat(I18N.locale, { 
 tick(); setInterval(tick, 15000);
 
 desktop.addEventListener('contextmenu', e => { if (e.target === desktop || e.target === icons) e.preventDefault(); });
+
+// ---------------------------------------------------------------- البند 44: تغيير أيقونة برنامج (لكل مستخدم)
+const ICON_COLORS = [
+  'linear-gradient(135deg,#f43f5e,#8b5cf6)', 'linear-gradient(135deg,#7c3aed,#db2777)', 'linear-gradient(135deg,#00b4db,#0083b0)',
+  'linear-gradient(135deg,#0ea5e9,#6366f1)', 'linear-gradient(135deg,#10b981,#059669)', 'linear-gradient(135deg,#84cc16,#16a34a)',
+  'linear-gradient(135deg,#f59e0b,#ea580c)', 'linear-gradient(135deg,#f97316,#ef4444)', 'linear-gradient(135deg,#ec4899,#f43f5e)',
+  'linear-gradient(135deg,#64748b,#334155)', 'linear-gradient(135deg,#111827,#374151)', 'linear-gradient(135deg,#a16207,#713f12)',
+];
+// رموز أزرار الواجهة (أسهم، إغلاق…) لا تصلح أيقونة برنامج
+const UI_ONLY = new Set(['left', 'right', 'up', 'x', 'minus', 'square', 'check', 'more', 'menu', 'plus', 'refresh', 'external', 'logout', 'move', 'copy', 'edit', 'list', 'search', 'upload', 'download', 'trash', 'link']);
+const PICK_ICONS = ICON_NAMES.filter((n) => !UI_ONLY.has(n));
+function setIcons(r) { if (r && r.icons) { ME.icons = r.icons; drawIcons(); } }
+async function resetIcon(a) {
+  const r = await api.del(`/api/me/icons/${encodeURIComponent(a.id)}`).catch((e) => toast(e.message, 'err'));
+  if (r) { setIcons(r); toast('رجعت الأيقونة الأصلية', 'ok'); }
+}
+async function changeIcon(a) {
+  const cur = appLook(a);
+  let pick = { icon: cur.img ? a.icon : cur.icon, color: cur.color || ICON_COLORS[0] };
+  const body = h(`<div class="icon-picker">
+    <div class="ip-prev">${tileHTML(a)}<b>${esc(a.title)}</b></div>
+    <div class="lbl">الرمز</div><div class="ip-icons">${PICK_ICONS.map((n) => `<button data-i="${n}" title="${n}">${icon(n)}</button>`).join('')}</div>
+    <div class="lbl">اللون</div><div class="ip-colors">${ICON_COLORS.map((c, i) => `<button data-c="${i}" style="background:${c}"></button>`).join('')}</div>
+    <div class="lbl">أو صورة من عندك</div>
+    <label class="btn sm" style="cursor:pointer">${icon('upload')} رفع صورة<input type="file" accept="image/*" hidden></label>
+    <span class="muted small">تُقص مربعاً تلقائياً.</span></div>`);
+  const prev = () => {
+    $('.ip-prev .app-tile', body).outerHTML = `<div class="app-tile" style="background:${pick.color}">${icon(pick.icon)}</div>`;
+    $$('[data-i]', body).forEach((b) => b.classList.toggle('on', b.dataset.i === pick.icon));
+    $$('[data-c]', body).forEach((b) => b.classList.toggle('on', ICON_COLORS[b.dataset.c] === pick.color));
+  };
+  $$('[data-i]', body).forEach((b) => (b.onclick = () => { pick.icon = b.dataset.i; prev(); }));
+  $$('[data-c]', body).forEach((b) => (b.onclick = () => { pick.color = ICON_COLORS[b.dataset.c]; prev(); }));
+  let uploaded = false;
+  $('input[type=file]', body).onchange = async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const fd = new FormData(); fd.append('image', f);
+    const r = await fetch(`/api/me/icons/${encodeURIComponent(a.id)}/image`, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'fetch' } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return toast(j.error || 'تعذّر رفع الصورة', 'err');
+    uploaded = true; setIcons(j); toast('تغيّرت الأيقونة', 'ok');
+    $('.modal-back .modal-f .btn', document)?.click();   // أغلق النافذة: الصورة محفوظة
+  };
+  if (!cur.img) setTimeout(prev);
+  const ok = await modal({ title: 'تغيير الأيقونة', body, wide: true,
+    buttons: [{ label: 'إلغاء', value: false }, { label: 'حفظ', cls: 'primary', value: true }] });
+  if (!ok || uploaded) return;
+  const r = await api('PUT', `/api/me/icons/${encodeURIComponent(a.id)}`, pick).catch((e) => toast(e.message, 'err'));
+  if (r) { setIcons(r); toast('تغيّرت الأيقونة', 'ok'); }
+}
 addEventListener('keydown', e => { if (e.key === 'Escape') closePopovers(); });
 
 // تطبيق قابل للتثبيت: عامل الخدمة يعمل عبر HTTPS (مثل Tailscale) أو localhost
