@@ -26,5 +26,5 @@ r = c.get(f"/tv/game/{tid}/قديمة/index.html"); res.append(ok(r.data == b"<h
 same = (APP / "static/kit/kit.js").read_bytes() == (APP / "games/_kit/kit.js").read_bytes() and (APP / "static/kit/kit.css").read_bytes() == (APP / "games/_kit/kit.css").read_bytes()
 res.append(ok(same, "static/kit مطابقة لـ games/_kit"))
 wf = (REPO / ".github/workflows/homenas-iso.yml").read_text()
-res.append(ok("--exclude=./games" in wf and "static" not in re.findall(r"--exclude=\S+", wf), "حزمة التحديث تستثني games/ لكنها تحمل static/kit"))
+res.append(ok("static" not in " ".join(re.findall(r"--exclude=\S+", wf)), "حزمة التحديث تحمل static/kit (والألعاب نفسها منذ البند 47)"))
 print(f"\n{sum(res)}/{len(res)} نجح"); shutil.rmtree(tmp, ignore_errors=True); sys.exit(0 if all(res) else 1)
