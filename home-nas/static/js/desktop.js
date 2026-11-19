@@ -1,7 +1,8 @@
 // ====================================================================
 // HOME ANAB — سطح المكتب: الأيقونات، شريط المهام، قائمة البدء، الساعة
 // ====================================================================
-import { ME, I18N, $, $$, h, esc, icon, api, apps, openApp, closePopovers, isMobile, toast, fileOps, menu, modal, tileHTML, appLook, ICON_NAMES } from './core.js';
+import { ME, I18N, $, $$, h, esc, icon, api, apps, openApp, closePopovers, isMobile, toast, fileOps, menu, modal, tileHTML, appLook, ICON_NAMES, glyph } from './core.js';
+import { FRUITS, ANIMALS } from './icon-art.js';
 import './apps/files.js';
 import './apps/photos.js';
 import './apps/system.js';
@@ -127,6 +128,9 @@ const ICON_COLORS = [
   'linear-gradient(135deg,#0ea5e9,#6366f1)', 'linear-gradient(135deg,#10b981,#059669)', 'linear-gradient(135deg,#84cc16,#16a34a)',
   'linear-gradient(135deg,#f59e0b,#ea580c)', 'linear-gradient(135deg,#f97316,#ef4444)', 'linear-gradient(135deg,#ec4899,#f43f5e)',
   'linear-gradient(135deg,#64748b,#334155)', 'linear-gradient(135deg,#111827,#374151)', 'linear-gradient(135deg,#a16207,#713f12)',
+  // فاتحة: تناسب أيقونات الفواكه والحيوانات الملونة (البند 45)
+  'linear-gradient(135deg,#ffffff,#e2e8f0)', 'linear-gradient(135deg,#fef9c3,#fde68a)', 'linear-gradient(135deg,#dcfce7,#bbf7d0)',
+  'linear-gradient(135deg,#e0f2fe,#bae6fd)', 'linear-gradient(135deg,#fce7f3,#fbcfe8)', 'linear-gradient(135deg,#ede9fe,#ddd6fe)',
 ];
 // رموز أزرار الواجهة (أسهم، إغلاق…) لا تصلح أيقونة برنامج
 const UI_ONLY = new Set(['left', 'right', 'up', 'x', 'minus', 'square', 'check', 'more', 'menu', 'plus', 'refresh', 'external', 'logout', 'move', 'copy', 'edit', 'list', 'search', 'upload', 'download', 'trash', 'link']);
@@ -141,17 +145,28 @@ async function changeIcon(a) {
   let pick = { icon: cur.img ? a.icon : cur.icon, color: cur.color || ICON_COLORS[0] };
   const body = h(`<div class="icon-picker">
     <div class="ip-prev">${tileHTML(a)}<b>${esc(a.title)}</b></div>
-    <div class="lbl">الرمز</div><div class="ip-icons">${PICK_ICONS.map((n) => `<button data-i="${n}" title="${n}">${icon(n)}</button>`).join('')}</div>
+    <div class="ip-tabs cp-tabs" style="padding:0;margin-bottom:8px"><button data-t="sym" class="on">رموز</button><button data-t="fruit">فواكه</button><button data-t="animal">حيوانات</button></div>
+    <div class="ip-icons" data-g="sym">${PICK_ICONS.map((n) => `<button data-i="${n}" title="${n}">${icon(n)}</button>`).join('')}</div>
+    <div class="ip-icons art" data-g="fruit" hidden>${Object.entries(FRUITS).map(([k, [t]]) => `<button data-i="art-${k}" title="${esc(t)}">${glyph('art-' + k)}</button>`).join('')}</div>
+    <div class="ip-icons art" data-g="animal" hidden>${Object.entries(ANIMALS).map(([k, [t]]) => `<button data-i="art-${k}" title="${esc(t)}">${glyph('art-' + k)}</button>`).join('')}</div>
     <div class="lbl">اللون</div><div class="ip-colors">${ICON_COLORS.map((c, i) => `<button data-c="${i}" style="background:${c}"></button>`).join('')}</div>
     <div class="lbl">أو صورة من عندك</div>
     <label class="btn sm" style="cursor:pointer">${icon('upload')} رفع صورة<input type="file" accept="image/*" hidden></label>
     <span class="muted small">تُقص مربعاً تلقائياً.</span></div>`);
   const prev = () => {
-    $('.ip-prev .app-tile', body).outerHTML = `<div class="app-tile" style="background:${pick.color}">${icon(pick.icon)}</div>`;
+    $('.ip-prev .app-tile', body).outerHTML = `<div class="app-tile" style="background:${pick.color}">${glyph(pick.icon)}</div>`;
     $$('[data-i]', body).forEach((b) => b.classList.toggle('on', b.dataset.i === pick.icon));
     $$('[data-c]', body).forEach((b) => b.classList.toggle('on', ICON_COLORS[b.dataset.c] === pick.color));
   };
-  $$('[data-i]', body).forEach((b) => (b.onclick = () => { pick.icon = b.dataset.i; prev(); }));
+  $$('[data-i]', body).forEach((b) => (b.onclick = () => {
+    // أول اختيار لفاكهة أو حيوان على خلفية داكنة ← خلفية فاتحة تُظهر ألوانه
+    if (b.dataset.i.startsWith('art-') && !pick.icon.startsWith('art-') && ICON_COLORS.indexOf(pick.color) < 12) pick.color = ICON_COLORS[12];
+    pick.icon = b.dataset.i; prev();
+  }));
+  $$('.ip-tabs [data-t]', body).forEach((t) => (t.onclick = () => {
+    $$('.ip-tabs [data-t]', body).forEach((x) => x.classList.toggle('on', x === t));
+    $$('[data-g]', body).forEach((g) => (g.hidden = g.dataset.g !== t.dataset.t));
+  }));
   $$('[data-c]', body).forEach((b) => (b.onclick = () => { pick.color = ICON_COLORS[b.dataset.c]; prev(); }));
   let uploaded = false;
   $('input[type=file]', body).onchange = async (e) => {
