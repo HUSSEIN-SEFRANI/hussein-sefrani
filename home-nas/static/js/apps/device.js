@@ -255,12 +255,20 @@ function btCard() {
     } else if (!r.adapter) {
       b.innerHTML = '<p class="muted">لا يوجد محوّل بلوتوث في الجهاز. يمكنك شراء قطعة USB صغيرة للبلوتوث ووصلها.</p>';
     } else {
-      b.innerHTML = `<div class="devs"></div>
-        <p class="small muted" style="margin-top:10px"><b>يد بلايستيشن 5:</b> اضغط معاً زر <b>Create</b> (يسار اللوحة اللمسية) وزر <b>PS</b> حتى يبدأ الضوء بالوميض السريع، ثم اضغط «البحث»، ثم «ربط» مباشرة. بعدها تكفي ضغطة على <b>PS</b> لتتصل.</p>
-        <button class="btn" data-a="scan">${icon('search')} البحث عن أجهزة</button>
-        <button class="btn ghost" data-x="diag">🩺 تشخيص يد التحكم</button>`;
-      const box = $('.devs', b);
-      if (!r.devices.length) box.innerHTML = '<p class="muted">لا توجد أجهزة بعد.</p>';
+      b.innerHTML = `<button class="btn primary" data-a="pairpad">🎮 ربط يد جديدة</button>
+        <p class="small muted" style="margin:8px 0 10px">ضع اليد في وضع الربط ثم اضغط الزر، والجهاز يجدها ويربطها وحده (45 ثانية):
+          بلايستيشن 5 <b>Create + PS</b> · بلايستيشن 4 <b>Share + PS</b> · إكس بوكس زر الربط أعلى اليد · سويتش زر <b>Sync</b>. بعدها تكفي ضغطة على <b>PS</b> أو <b>Home</b> لتتصل.</p>
+        <div class="devs"></div>
+        <div style="margin-top:10px"><button class="btn ghost" data-x="others"></button>
+        <button class="btn ghost" data-x="diag">🩺 تشخيص يد التحكم</button></div>
+        <div class="others hidden" style="margin-top:8px"><button class="btn" data-a="scan">${icon('search')} البحث عن أجهزة أخرى</button><div class="devs2"></div></div>`;
+      const isPad = (dv) => dv.pad ?? dv.icon === 'input-gaming';
+      const padBox = $('.devs', b), box = $('.devs2', b);
+      const nOther = r.devices.filter((dv) => !(isPad(dv) && dv.paired)).length;
+      $('[data-x=others]', b).textContent = `أجهزة أخرى${nOther ? ` (${nOther})` : ''}: سماعات، لوحة مفاتيح…`;
+      $('[data-x=others]', b).onclick = () => $('.others', b).classList.toggle('hidden');
+      if (!r.devices.some((dv) => isPad(dv) && dv.paired)) padBox.innerHTML = '<p class="muted small">لا توجد يد مربوطة بعد.</p>';
+      if (!nOther) box.innerHTML = '<p class="muted small">لا توجد أجهزة أخرى.</p>';
       // الأجهزة بلا اسم (عنوان MAC فقط) مطوية: غالباً هواتف وأجهزة الجيران
       const nameless = r.devices.filter((dv) => dv.named === false && !dv.paired);
       const shown = r.devices.filter((dv) => !(dv.named === false && !dv.paired));
@@ -281,7 +289,7 @@ function btCard() {
           if (x.dataset.p === 'remove' && dv.paired && !(await confirmBox(`إزالة «${dv.name}»؟ ${dv.icon === 'input-gaming' ? 'لاستعمال اليد مرة أخرى ستحتاج إلى ربطها من جديد.' : 'لاستعماله مرة أخرى ستحتاج إلى ربطه من جديد.'}`, { ok: 'إزالة', danger: true }))) return;
           act(x.dataset.p, dv.mac);
         });
-        box.appendChild(row);
+        (isPad(dv) && dv.paired ? padBox : box).appendChild(row);
       }
     }
     $$('[data-a]', b).forEach(x => x.onclick = () => act(x.dataset.a));
@@ -304,16 +312,17 @@ function btCard() {
   };
   const act = async (a, mac) => {
     $$('button', b).forEach(x => { x.disabled = true; });
-    toast({ install: 'جارٍ التثبيت…', scan: 'جارٍ البحث 15 ثانية…', pair: 'جارٍ الربط…', remove: 'جارٍ الإزالة…' }[a]);
+    toast({ install: 'جارٍ التثبيت…', scan: 'جارٍ البحث 15 ثانية…', pair: 'جارٍ الربط…', remove: 'جارٍ الإزالة…', pairpad: 'أبحث عن يد في وضع الربط (حتى 45 ثانية)…' }[a]);
     let r = null;
     try { r = await api.post(`/api/admin/bt/${a}`, { mac }); } catch (e) {
       const m = String(e.message || e);
       toast(/press the PS/i.test(m) ? 'تم الربط، لكن اليد لم تتصل بعد: اضغط زر PS في اليد مرة واحدة'
         : /not found|not available/i.test(m) ? 'لم نجد اليد: اضغط Create و PS معاً حتى يومض الضوء بسرعة، ثم «البحث» ثم «ربط» مباشرة'
+        : /no controller/i.test(m) ? 'لم أجد يداً في وضع الربط. تأكد أن ضوءها يومض بسرعة، ثم جرّب مرة أخرى'
         : /could not remove/i.test(m) ? 'لم تنجح الإزالة. أطفئ الجهاز أو أبعده ثم حاول مرة أخرى'
         : /pairing failed/i.test(m) ? 'لم ينجح الربط. احذف اليد إن وُجدت، ثم ضعها في وضع الربط (Create + PS) وأعد المحاولة' : m, 'err');
     }
-    if (r) { draw(r); if (a === 'pair') toast('تم الربط ✓ اضغط أي زر في اليد', 'ok'); }
+    if (r) { draw(r); if (a === 'pair' || a === 'pairpad') toast(`تم ربط ${(r.paired && r.paired.name) || 'اليد'} ✓ اضغط أي زر فيها`, 'ok'); }
     else $$('button', b).forEach(x => { x.disabled = false; });
   };
   api.get('/api/admin/bt').then(draw).catch(e => { b.textContent = e.message; });

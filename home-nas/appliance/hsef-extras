@@ -1380,6 +1380,7 @@ def bt_devices() -> list:
         rssi = _re.search(r"RSSI:.*?\((-?\d+)\)", info) or _re.search(r"RSSI:\s*(-?\d+)", info)
         devs.append({"mac": mac, "name": name or mac, "named": bool(name), "paired": get("Paired") == "yes",
                      "connected": get("Connected") == "yes", "icon": get("Icon"), "rssi": int(rssi.group(1)) if rssi else None})
+        devs[-1]["pad"] = is_pad(devs[-1])
     devs.sort(key=lambda d: (not d["connected"], not d["paired"], d["icon"] != "input-gaming", not d["named"], -(d["rssi"] or -999)))
     return devs
 
@@ -1387,7 +1388,8 @@ def bt_devices() -> list:
 def bt_status():
     if FAKE:
         print(json.dumps({"installed": True, "adapter": True, "powered": True,
-                          "devices": [{"mac": "AA:BB:CC:DD:EE:FF", "name": "DualSense Wireless Controller", "paired": True, "connected": True, "icon": "input-gaming"}]}))
+                          "devices": [{"mac": "AA:BB:CC:DD:EE:FF", "name": "DualSense Wireless Controller", "paired": True, "connected": True, "icon": "input-gaming", "pad": True},
+                                      {"mac": "11:22:33:44:55:66", "name": "Galaxy S21", "paired": False, "connected": False, "icon": "phone", "pad": False}]}))
         return
     if not shutil.which("bluetoothctl"):
         print(json.dumps({"installed": False}))
@@ -1548,6 +1550,43 @@ def bt_pair(mac: str):
     if "not available" in out:
         die("controller not found: hold Create + PS until the light blinks fast, then try again")
     die("pairing failed: " + " ".join(out.split()[-25:]))
+
+
+# البند 49: «ربط يد جديدة» بضغطة واحدة: نبحث حتى تظهر يد في وضع الربط، ونربطها فوراً (بلا قائمة وبلا سباق مع ضوء اليد)
+PAD_NAME = _re.compile(r"DualSense|DualShock|Wireless Controller|Xbox|Pro Controller|Joy-?Con|Gamepad|Controller|8BitDo|Joystick|Game ?pad", _re.I)
+
+
+def is_pad(d: dict) -> bool:
+    return d.get("icon") == "input-gaming" or bool(PAD_NAME.search(d.get("name") or ""))
+
+
+def bt_pair_pad(wait: int = 45):
+    if FAKE:
+        print(json.dumps({"mac": "AA:BB:CC:DD:EE:01", "name": "DualSense Wireless Controller"}))
+        return
+    if not shutil.which("bluetoothctl") or not any(Path("/sys/class/bluetooth").glob("hci*")):
+        die("no bluetooth adapter")
+    if bt_conf():
+        subprocess.run(["systemctl", "restart", "bluetooth"], capture_output=True, timeout=30)
+        _time.sleep(3)
+    for cmd in (["power", "on"], ["pairable", "on"]):
+        subprocess.run(["bluetoothctl", *cmd], capture_output=True, timeout=15)
+    scan = subprocess.Popen(["bluetoothctl", "--timeout", str(wait), "scan", "on"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    found, end = None, _time.time() + wait
+    try:
+        while _time.time() < end and not found:
+            _time.sleep(2)
+            try:
+                found = next((d for d in bt_devices() if not d["paired"] and is_pad(d)), None)
+            except subprocess.TimeoutExpired:
+                pass
+    finally:
+        scan.terminate()
+        subprocess.run(["bluetoothctl", "scan", "off"], capture_output=True, timeout=15)
+    if not found:
+        die("no controller in pairing mode was found")
+    bt_pair(found["mac"])
+    print(json.dumps({"mac": found["mac"], "name": found["name"]}))
 
 
 PAD_GENERIC = Path("/etc/modprobe.d/hsef-pads.conf")
@@ -2495,6 +2534,8 @@ def main():
         bt_scan()
     elif len(a) == 2 and a[0] == "bt-pair":
         bt_pair(a[1])
+    elif a == ["bt-pair-pad"]:
+        bt_pair_pad()
     elif len(a) == 2 and a[0] == "bt-remove":
         bt_remove(a[1])
     elif a == ["pad-diag"]:

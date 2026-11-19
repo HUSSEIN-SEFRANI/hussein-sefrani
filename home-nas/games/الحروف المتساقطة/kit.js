@@ -197,12 +197,17 @@
   }
   let padMaps = {};
   try { padMaps = JSON.parse(localStorage.getItem("hsef-padmaps") || "{}"); } catch {}
+  // اللاعب 1 = اليد الأساسية في التلفاز (window.hsefPadOrder في الصفحة الأم)، فيبقى نفسه في كل الألعاب
+  const tvOrder = () => { try { return window.parent !== window && typeof window.parent.hsefPadOrder === "function" ? window.parent.hsefPadOrder() : null; } catch { return null; } };
   K.pads = () => {
     const all = [];
     try { for (const g of navigator.getGamepads ? navigator.getGamepads() : []) if (g && g.connected) all.push(padNorm(g, padMaps)); } catch {}
     for (const g of all) if (!padOrder.includes(g.index) && padTouched(g)) padOrder.push(g.index);
-    return padOrder.map((i) => all.find((g) => g.index === i)).filter(Boolean);
+    const tv = tvOrder() || [];
+    const ord = [...tv, ...padOrder].filter((i, k, x) => x.indexOf(i) === k);
+    return ord.map((i) => all.find((g) => g.index === i)).filter(Boolean);
   };
+  K.mainPad = () => K.pads()[0] || null;
   function poll(ts) {
     const pads = K.pads();
     if (!(K.mode && K.mode.poll && K.mode.poll(pads, ts)) && pads.length) {

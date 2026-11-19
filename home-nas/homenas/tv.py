@@ -1855,6 +1855,10 @@ def api_tv_admin_bt_action(action):
         helper("bt-install", timeout=1800)
     elif action == "scan":
         helper("bt-scan", timeout=60)
+    elif action == "pairpad":   # البند 49: ابحث عن يد في وضع الربط واربطها وحدك
+        r = helper("bt-pair-pad", timeout=150, as_json=True) or {}
+        log_action("بلوتوث من التلفاز", f"ربط يد {r.get('name', '')} {r.get('mac', '')}", u["username"])
+        return jsonify(available=True, paired=r, **helper("bt-status", as_json=True))
     elif action in ("pair", "remove"):
         if not re.fullmatch(r"[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}", mac):
             abort(400)
