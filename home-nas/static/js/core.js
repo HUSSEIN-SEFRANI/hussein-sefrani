@@ -73,6 +73,17 @@ const P = {
 export function icon(name, cls = '') {
   return `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${P[name] || P.file}</svg>`;
 }
+export const ICON_NAMES = Object.keys(P);
+
+// البند 44: أيقونة البرنامج كما اختارها المستخدم (رمز ولون أو صورة)، وإلا الأصلية
+export function appLook(a) {
+  const o = (ME.icons || {})[a.id] || {};
+  return { icon: o.icon || a.icon, color: o.color || a.color, img: o.img ? `/api/me/icons/${encodeURIComponent(a.id)}/image?v=${o.img}` : '' };
+}
+export function tileHTML(a, cls = '', extra = '') {
+  const l = appLook(a);
+  return `<div class="app-tile ${cls}" style="background:${l.img ? 'transparent' : l.color}">${l.img ? `<img src="${l.img}" alt="">` : icon(l.icon)}${extra}</div>`;
+}
 
 // ---------------------------------------------------------------- أدوات
 export const $ = (sel, root = document) => root.querySelector(sel);
@@ -307,7 +318,7 @@ export class Win {
   constructor(app, { title, width = 900, height = 600, key } = {}) {
     this.app = app; this.key = key || app.id; this.id = ++winSeq; this.closeHandlers = [];
     const el = this.el = h(`<div class="win" tabindex="-1">
-      <div class="win-titlebar"><div class="app-tile sm" style="background:${app.color}">${icon(app.icon)}</div>
+      <div class="win-titlebar">${tileHTML(app, 'sm')}
         <div class="win-title"></div>
         <div class="win-btns"><button class="min" title="تصغير">${icon('minus')}</button><button class="max" title="تكبير">${icon('square')}</button><button class="close" title="إغلاق">${icon('x')}</button></div>
       </div><div class="win-body"></div><div class="win-resize"></div></div>`);
@@ -320,7 +331,8 @@ export class Win {
       left: Math.max(10, (area.w - width) / 2 + off - 60) + 'px', top: Math.max(54, 44 + (area.h - height) / 2 + off - 40) + 'px' });
     $('#desktop').appendChild(el);
     windows.add(this);
-    this.tb = h(`<button class="tb-btn"><span class="mini" style="background:${app.color}">${icon(app.icon)}</span><span></span></button>`);
+    const lk = appLook(app);
+    this.tb = h(`<button class="tb-btn"><span class="mini" style="background:${lk.img ? 'transparent' : lk.color}">${lk.img ? `<img src="${lk.img}" alt="">` : icon(lk.icon)}</span><span></span></button>`);
     $('span:last-child', this.tb).textContent = this.title;
     this.tb.onclick = () => (this.focused && !el.classList.contains('minimized')) ? this.minimize() : this.focus();
     $('#tb-windows').appendChild(this.tb);

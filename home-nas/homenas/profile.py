@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+import json
+import re
 import time
 from pathlib import Path
 
@@ -42,10 +44,42 @@ def wall_file(uid: int) -> Path:
 
 
 def look(u) -> dict:
-    """ما تحتاجه الواجهة: رقم نسخة الصورة (0 = لا صورة) والخلفية."""
+    """ما تحتاجه الواجهة: رقم نسخة الصورة (0 = لا صورة) والخلفية، وأيقونات البرامج التي غيّرها (البند 44)."""
     w = u["wallpaper"] if "wallpaper" in u.keys() else None
     return {"photo_v": (u["photo_v"] if "photo_v" in u.keys() else 0) or 0, "wallpaper": w or "preset:default",
-            "wallpaper_css": wall_css(u)}
+            "wallpaper_css": wall_css(u), "icons": get_icons(u["id"])}
+
+
+# ------------------------------------------------------------------ البند 44: أيقونات البرامج لكل مستخدم
+# زر أيمن على أيقونة في سطح المكتب ← «تغيير الأيقونة»: رمز ولون، أو صورة. لكل مستخدم أيقوناته.
+ICON_KEY = re.compile(r"^[a-z0-9][a-z0-9_-]{0,47}$")      # appstore، files، x-frigate، phone …
+ICON_NAME = re.compile(r"^[a-z0-9-]{1,20}$")
+ICON_COLOR = re.compile(r"^[a-z0-9#(),.% -]{3,160}$", re.I)   # لون أو تدرج، بلا ; ولا " ولا :
+MAX_ICONS = 200
+
+
+def get_icons(uid: int) -> dict:
+    from .core import get_setting
+    try:
+        d = json.loads(get_setting(f"icons_{uid}") or "{}")
+    except ValueError:
+        return {}
+    return d if isinstance(d, dict) else {}
+
+
+def put_icons(uid: int, d: dict):
+    from .core import set_setting
+    set_setting(f"icons_{uid}", json.dumps(d, separators=(",", ":")))
+
+
+def icon_file(uid: int, key: str) -> Path:
+    return folder() / f"icon-{uid}-{key}.jpg"
+
+
+def _key(key: str) -> str:
+    if not ICON_KEY.match(key or ""):
+        abort(400, "برنامج غير صالح")
+    return key
 
 
 def wall_css(u) -> str | None:
@@ -166,6 +200,62 @@ def api_me_wallpaper():
     db.execute("UPDATE users SET wallpaper=? WHERE id=?", (val, uid))
     db.commit()
     return jsonify(ok=True, **look(user_row(uid)))
+
+
+@bp.put("/api/me/icons/<key>")
+@login_required
+def api_icon_set(key):
+    """رمز ولون (أو أحدهما). الصورة المرفوعة تُحذف إن اختار رمزاً."""
+    uid, key = current_user()["id"], _key(key)
+    d = body()
+    name, color = str(d.get("icon") or ""), str(d.get("color") or "")
+    if name and not ICON_NAME.match(name):
+        abort(400, "رمز غير صالح")
+    if color and (not ICON_COLOR.match(color) or re.search(r"url|expression|var|attr|image", color, re.I)):
+        abort(400, "لون غير صالح")
+    if not name and not color:
+        abort(400, "اختر رمزاً أو لوناً")
+    icons = get_icons(uid)
+    if key not in icons and len(icons) >= MAX_ICONS:
+        abort(400, "أيقونات كثيرة")
+    icons[key] = {k: v for k, v in (("icon", name), ("color", color)) if v}
+    icon_file(uid, key).unlink(missing_ok=True)
+    put_icons(uid, icons)
+    return jsonify(ok=True, icons=icons)
+
+
+@bp.post("/api/me/icons/<key>/image")
+@login_required
+def api_icon_image(key):
+    uid, key = current_user()["id"], _key(key)
+    icons = get_icons(uid)
+    if key not in icons and len(icons) >= MAX_ICONS:
+        abort(400, "أيقونات كثيرة")
+    save_image(request.files.get("image"), icon_file(uid, key), square=256)
+    icons[key] = {"img": int(time.time())}
+    put_icons(uid, icons)
+    return jsonify(ok=True, icons=icons)
+
+
+@bp.get("/api/me/icons/<key>/image")
+@login_required
+def api_icon_image_get(key):
+    f = icon_file(current_user()["id"], _key(key))
+    if not f.exists():
+        abort(404)
+    return send_file(f, mimetype="image/jpeg", max_age=86400 * 30)
+
+
+@bp.delete("/api/me/icons/<key>")
+@login_required
+def api_icon_reset(key):
+    """«الأيقونة الأصلية»."""
+    uid, key = current_user()["id"], _key(key)
+    icons = get_icons(uid)
+    icons.pop(key, None)
+    icon_file(uid, key).unlink(missing_ok=True)
+    put_icons(uid, icons)
+    return jsonify(ok=True, icons=icons)
 
 
 @bp.get("/api/me/wallpaper/image")
