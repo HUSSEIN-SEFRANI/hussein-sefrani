@@ -127,6 +127,56 @@ def games_share_dir(db, data_paths) -> Path:
     return share_dir(db, data_paths, "games")
 
 
+# ----------------------------------------------------------------------------- تطبيقات تُثبَّت مع النظام (مثل «الرسائل»)
+# builtin-apps/games/<اسم> و builtin-apps/learn/<اسم> تأتي مع التنصيب والتحديث (games/ لا تأتي).
+# تُنسخ إلى «الألعاب» أو «التعليم» عند تشغيل السيرفر إن لم تُثبَّت من قبل أو كان رقم version في app.json أحدث.
+# إن حذفها المدير لا تعود إلا مع رقم أحدث (السجل في الإعداد builtin_apps).
+BUILTIN_DIR = Path(__file__).resolve().parent.parent / "builtin-apps"
+
+
+def _app_version(d: Path) -> int:
+    try:
+        return int(json.loads((d / "app.json").read_text(encoding="utf-8")).get("version") or 0)
+    except (OSError, ValueError, TypeError, AttributeError):
+        return 0
+
+
+def install_builtin_apps(data_paths, src: Path | None = None) -> list[str]:
+    """يرجع أسماء التطبيقات التي نُسخت الآن."""
+    from .core import connect
+    src = src or BUILTIN_DIR
+    done = []
+    db = connect(data_paths.db)
+    try:
+        row = db.execute("SELECT value FROM settings WHERE key='builtin_apps'").fetchone()
+        try:
+            seen = json.loads(row["value"]) if row else {}
+        except ValueError:
+            seen = {}
+        for kind in ("games", "learn"):
+            base = src / kind
+            if not base.is_dir():
+                continue
+            for app in sorted(p for p in base.iterdir() if p.is_dir() and (p / "index.html").is_file()):
+                key, ver = f"{kind}/{app.name}", _app_version(app)
+                if key in seen and seen[key] >= ver:
+                    continue
+                dest = share_dir(db, data_paths, kind) / app.name
+                try:
+                    shutil.copytree(app, dest, dirs_exist_ok=True)
+                except OSError:
+                    continue
+                seen[key] = ver
+                done.append(key)
+        if done:
+            db.execute("INSERT INTO settings(key, value) VALUES ('builtin_apps', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                       (json.dumps(seen, ensure_ascii=False),))
+            db.commit()
+    finally:
+        db.close()
+    return done
+
+
 def app_type(d: Path) -> str | None:
     """النوع المكتوب في app.json داخل مجلد التطبيق: "game" أو "education" (أو None إن لم يوجد)."""
     for f in (d / "app.json", *(x / "app.json" for x in _only_sub(d))):

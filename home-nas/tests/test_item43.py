@@ -60,4 +60,20 @@ res.append(ok(sara.get("/api/tv/letters?box=zz").status_code == 400, "صندوق
 big = b"%PDF-" + b"0" * (kids.PDF_MAX + 1)
 res.append(ok(send(sara, {"to": 3}, pdf=big).status_code == 413, "ملف كبير: 413"))
 res.append(ok("/api/tv/letters/send" in (APP / "games/_kit/API.txt").read_text(encoding="utf-8"), "موثّقة في API.txt"))
+# «الرسائل» تُثبَّت مع النظام: builtin-apps/games ← «الألعاب»
+import shutil
+from homenas import tv
+res.append(ok((APP / "builtin-apps/games/الرسائل/index.html").is_file() and not (APP / "games/الرسائل").exists(), "اللعبة في builtin-apps (تأتي مع التحديث)"))
+with app.app_context():
+    from homenas.core import get_db
+    gdir = tv.share_dir(get_db(), P, "games")
+done = tv.install_builtin_apps(P)
+res.append(ok("games/الرسائل" in done and (gdir / "الرسائل" / "game.js").is_file(), f"نُسخت إلى «الألعاب»: {done}"))
+res.append(ok(tv.install_builtin_apps(P) == [], "المرة الثانية: لا شيء"))
+shutil.rmtree(gdir / "الرسائل")
+res.append(ok(tv.install_builtin_apps(P) == [] and not (gdir / "الرسائل").exists(), "حذفها المدير: لا تعود بنفس الرقم"))
+src = tmp / "bi"; shutil.copytree(APP / "builtin-apps", src)
+aj = src / "games/الرسائل/app.json"; d = json.loads(aj.read_text(encoding="utf-8")); d["version"] = int(d.get("version", 0)) + 1
+aj.write_text(json.dumps(d), encoding="utf-8")
+res.append(ok(tv.install_builtin_apps(P, src) == ["games/الرسائل"] and (gdir / "الرسائل").is_dir(), "رقم أحدث ← تُثبَّت من جديد"))
 print(f"\n{sum(res)}/{len(res)} نجح"); sys.exit(0 if all(res) else 1)

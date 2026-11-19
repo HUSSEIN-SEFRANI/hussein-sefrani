@@ -80,7 +80,11 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
         fc.start()
         iph.start()
         cams.start()
-        from .tv import start_tv_prep
+        from .tv import install_builtin_apps, start_tv_prep
+        try:
+            install_builtin_apps(data_paths)   # تطبيقات تأتي مع النظام (مثل «الرسائل»)
+        except Exception as e:   # لا يمنع تشغيل السيرفر
+            print("builtin apps:", e)
         start_tv_prep(data_paths)   # تجهيز الفيديو للتلفاز في الخلفية
         from .cpuinfo import start_sampler
         start_sampler()             # حرارة المعالج واستعماله لرسم آخر ساعة
