@@ -1,6 +1,8 @@
 """HOME ANAB - نظام تخزين منزلي شخصي يعمل على جهاز الكمبيوتر."""
 from __future__ import annotations
 
+import os
+
 from datetime import timedelta
 
 from flask import Flask, g, jsonify, request
@@ -39,6 +41,9 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
     _tv.migrate(_db)
     _tv.games_migrate(_db, data_paths)
     _tv.learn_migrate(_db, data_paths)   # v1.9.6: مجلد «التعليم» المشترك
+    if cfg.get("seed_apps", os.environ.get("HOMENAS_APPLIANCE") == "1"):   # البند 47: الألعاب والتعليم مع النظام
+        from .bundled import start as _seed_apps
+        _seed_apps(cfg["data_dir"])
     from . import stars as _stars
     _stars.migrate(_db)
     from . import cameras as _cams

@@ -96,7 +96,7 @@ in_root apt-get install -y --no-install-recommends \
 log "HOME ANAB"
 mkdir -p "$ROOT/opt/homenas-src"
 tar -C "$HERE" --exclude=./installer/build --exclude=./iso/build --exclude=./data --exclude=./.venv \
-    --exclude='__pycache__' --exclude='*.iso' --exclude=./games -cf - . | tar -C "$ROOT/opt/homenas-src" -xf -
+    --exclude='__pycache__' --exclude='*.iso' --exclude='./games/*.zip' -cf - . | tar -C "$ROOT/opt/homenas-src" -xf -
 in_root bash /opt/homenas-src/appliance/install.sh --appliance
 # شاشة التلفاز جاهزة من البداية
 in_root /usr/local/sbin/hsef-extras tv-write --create
