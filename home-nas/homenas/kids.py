@@ -935,6 +935,12 @@ def extra_tiles(db, u) -> list[dict]:
     def add(tid, title, kind, icon, color):
         out.append({"id": tid, "user_id": u["id"], "title": title, "kind": kind, "path": None, "icon": icon,
                     "color": color, "position": 900 + len(out), "enabled": 1})
+    try:   # البند 46: «الرسائل» لكل فرد في القائمة الرئيسية، وعليه عدد الرسائل الجديدة
+        from .letters import unread
+        add("letters", "الرسائل", "messages", "mail", "#a855f7,#ec4899")
+        out[-1]["count"] = unread(db, u["id"])
+    except Exception:
+        pass
     try:
         if _is_kid(u) and db.execute("SELECT 1 FROM chores WHERE user_id=? AND active=1 LIMIT 1", (u["id"],)).fetchone():
             add("chores", "مهامي اليوم", "chores", "star", "#f59e0b,#ef4444")

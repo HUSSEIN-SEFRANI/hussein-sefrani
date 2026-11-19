@@ -700,7 +700,7 @@ function adultHome(d) {
   const bgCls = { photos: "bg-photos", dark: "bg-night", cars: "bg-cars", islamic: "bg-islamic", custom: "bg-custom" }[wp] || "bg-sky";
   const bgHtml = wp === "photos" ? `<div class="layer photolayer"></div>` : wp === "dark" ? nightBg() : wp === "cars" ? carsBg()
     : wp === "islamic" ? islamicBg() : wp === "custom" ? customBg("adult") : skyBg();
-  const dock = d.tiles.length ? d.tiles.map((t) => `<button class="dk f" data-id="${t.id}"><div class="ic" style="background:${A.gradient(t.color)}">${A.icon(t.icon)}</div><span>${esc(t.title)}</span></button>`).join("")
+  const dock = d.tiles.length ? d.tiles.map((t) => `<button class="dk f" data-id="${t.id}"><div class="ic" style="background:${A.gradient(t.color)}">${A.icon(t.icon)}${t.count ? `<b class="tcount">${t.count}</b>` : ""}</div><span>${esc(t.title)}</span></button>`).join("")
     : `<div class="dock-empty">أضف مربعات لهذا الحساب من لوحة التحكم ← وضع التلفاز</div>`;
   const setTile = `<button class="dk f js-stars"><div class="ic emo" style="background:linear-gradient(135deg,#fef3c7,#f59e0b)">⭐</div><span>النجوم <b class="js-sb"></b></span></button>`
     + `<button class="dk f js-chk"><div class="ic emo" style="background:linear-gradient(135deg,#dcfce7,#22c55e)">✅</div><span>مهام الأطفال <b class="js-chn"></b></span></button>`
@@ -786,7 +786,7 @@ function kidsHome(d) {
   const rowH = Math.min(210, (avail - (rows - 1) * 14) / rows);
   const boxH = Math.round(rowH - 40);
   const boxW = Math.round(Math.min(250, (1200 - (perRow - 1) * 26) / perRow, boxH * 1.75));
-  const tiles = n ? d.tiles.map((t) => `<button class="kt f" data-id="${t.id}"><div class="box" style="--w:${boxW}px;--h:${boxH}px;background:${A.gradient(t.color)}">${A.icon(t.icon)}</div>
+  const tiles = n ? d.tiles.map((t) => `<button class="kt f" data-id="${t.id}"><div class="box" style="--w:${boxW}px;--h:${boxH}px;background:${A.gradient(t.color)}">${A.icon(t.icon)}${t.count ? `<b class="tcount">${t.count}</b>` : ""}</div>
       <div class="lb">${esc(t.title)}</div></button>`).join("")
     : `<div style="font-size:24px;font-weight:700;color:#1e3a8a;text-align:center">لا يوجد شيء هنا بعد.<br>اطلب من ماما أو بابا إضافة المربعات.</div>`;
   let bday = "";
@@ -840,6 +840,7 @@ function openTile(t) {
   else if (t.kind === "ramadan") ramadanScreen(t);
   else if (t.kind === "stories") storiesScreen(t);
   else if (t.kind === "onthisday") onThisDayScreen(t);
+  else if (t.kind === "messages") appScreen("/tv/letters/", "الرسائل");   // البند 46
   else browseScreen(t, "");
 }
 const isKid = () => me && me.user.role !== "adult";
@@ -1465,6 +1466,21 @@ async function gameScreen(t, path) {
     destroy() { clearInterval(beat); },
     key(e) { if (e.key === "Escape" || BACK_KEYS.has(e.key)) { pop(); return true; } return false; },
   });
+  setTimeout(() => { try { fr.contentWindow.focus(); } catch { /* */ } }, 300);
+}
+
+// البند 46: تطبيق مدمج في النظام (مثل «الرسائل») داخل إطار، و«رجوع» يخرج منه ويحدّث الشاشة الرئيسية
+function appScreen(url, title) {
+  const el = h(`<div class="game"><iframe src="${url}" allow="autoplay; fullscreen; gamepad" title="${esc(title)}"></iframe>
+    <div class="exit">للخروج اضغط «رجوع» (Esc)</div></div>`);
+  const fr = el.querySelector("iframe");
+  const onKey = (e) => { activity(); if (e.key === "Escape" || e.key === "BrowserBack" || e.key === "GoBack") { e.preventDefault(); pop(); } };
+  fr.addEventListener("load", () => {
+    shareGamepads(fr);
+    try { fr.contentWindow.addEventListener("keydown", onKey); fr.contentWindow.addEventListener("mousemove", activity); fr.contentWindow.focus(); } catch { /* */ }
+  });
+  setTimeout(() => { const x = el.querySelector(".exit"); if (x) x.style.opacity = 0; }, 5000);
+  push({ el, busy: () => true, isGame: true, key(e) { if (e.key === "Escape" || BACK_KEYS.has(e.key)) { pop(); return true; } return false; } });
   setTimeout(() => { try { fr.contentWindow.focus(); } catch { /* */ } }, 300);
 }
 
