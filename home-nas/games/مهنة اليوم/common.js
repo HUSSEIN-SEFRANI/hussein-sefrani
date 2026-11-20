@@ -13,9 +13,15 @@
   // المهن بترتيب فتحها: مهنة جديدة كل يوم
   Jobs.list = [
     { id: "driver", name: "السائق", emo: "🚕", who: "🚖", color: "#f59e0b", tools: "🚕 🗺️ ⛽ 💰", goal: "وصّل الركاب إلى أماكنهم" },
-    { id: "chef", name: "الطباخ", emo: "🍳", who: "👨‍🍳", color: "#ef4444", tools: "🍳 🔪 🥕 🍔", goal: "حضّر طلبات الزبائن بسرعة" },
+    { id: "chef", name: "الطباخ", emo: "🍳", who: "👨‍🍳", color: "#ef4444", tools: "🍳 🔥 🍔 🧾", goal: "حضّر طلبات الزبائن بسرعة" },
     { id: "pilot", name: "الطيار", emo: "✈️", who: "👩‍✈️", color: "#0ea5e9", tools: "✈️ 🕒 🧭 🛫", goal: "أقلع بكل رحلة في موعدها" },
     { id: "teacher", name: "المعلم", emo: "🏫", who: "👩‍🏫", color: "#8b5cf6", tools: "📚 ✏️ 🔔 🧮", goal: "أدِر الصف وساعد الطلاب" },
+    { id: "fire", name: "الإطفائي", emo: "🚒", who: "🧑‍🚒", color: "#dc2626", tools: "🚒 🧯 💧 🪜", goal: "أطفئ الحرائق وأنقذ الناس" },
+    { id: "doctor", name: "الطبيب", emo: "🩺", who: "👨‍⚕️", color: "#14b8a6", tools: "🩺 🌡️ 💊 🩹", goal: "افحص المرضى وعالجهم" },
+    { id: "mail", name: "ساعي البريد", emo: "📮", who: "🧑‍💼", color: "#e11d48", tools: "📮 ✉️ 📦 🗺️", goal: "وزّع الرسائل والطرود" },
+    { id: "police", name: "المحقق", emo: "🔎", who: "🕵️", color: "#1d4ed8", tools: "🔎 📋 👣 🗂️", goal: "اجمع الأدلة واكشف الفاعل" },
+    { id: "mechanic", name: "الميكانيكي", emo: "🔧", who: "🧑‍🔧", color: "#64748b", tools: "🔧 🔩 🛞 🔋", goal: "اكتشف العطل وأصلح السيارات" },
+    { id: "farmer", name: "المزارع", emo: "🌾", who: "🧑‍🌾", color: "#65a30d", tools: "🌱 💧 🧺 🚜", goal: "ازرع واسقِ واحصد وبِع" },
   ];
   Jobs.play = {};   // id ← function(screen helpers) تسجلها ملفات المهن
   Jobs.register = (id, fn) => { Jobs.play[id] = fn; };
@@ -49,12 +55,20 @@
     d.innerHTML = `<div class="ovbox ${opt.cls || ""}">${html}<div class="ovbtns ${opt.btnCls || ""}">${buttons.map((b, i) =>
       `<button class="btn f ${b.cls || ""}" ${K.act(id + i, () => { if (!b.keep) Jobs.closeOverlay(); b.fn && b.fn(); })}>${b.label}</button>`).join("")}</div></div>`;
     sc.appendChild(d);
-    Jobs.ov = { el: d, back: opt.back || null };
+    Jobs.ov = { el: d, back: opt.back || null, prev: K.current() };
     Jobs.guard = true;
     K.focus(d.querySelector(`.f[data-k="${id + (opt.focus || 0)}"]`));
     return d;
   };
-  Jobs.closeOverlay = () => { if (Jobs.ov) { Jobs.ov.el.remove(); Jobs.ov = null; } };
+  Jobs.closeOverlay = () => {
+    if (!Jobs.ov) return;
+    const { el, prev } = Jobs.ov;
+    el.remove(); Jobs.ov = null;
+    // التركيز يرجع إلى الزر الذي كان قبل النافذة (في الشاشات المصنوعة من أزرار)
+    const k = prev && prev.dataset.k;
+    const f = (prev && K.app.contains(prev) && prev) || (k && K.app.querySelector(`.f[data-k="${k}"]`)) || K.app.querySelector(".f");
+    if (f) K.focus(f);
+  };
   Jobs.toast = (text, cls = "", ms = 2600) => {
     const sc = K.app.querySelector(".screen");
     if (!sc) return;
@@ -124,6 +138,37 @@
     addEventListener("blur", c.clear);
     return c;
   };
+
+  // شاشات من أزرار (الطباخ، الطيار…): الأسهم وEnter كالعادة، وBackspace يفتح الاستراحة بدل الخروج
+  Jobs.domMode = (onBack) => ({
+    key(e) {
+      if (Jobs.ov) {
+        if (e.key === "Backspace") { if (Jobs.ov.back) { const b = Jobs.ov.back; Jobs.closeOverlay(); b(); } return true; }
+        return false;
+      }
+      if (e.key === "Backspace") { onBack(); return true; }
+      return false;
+    },
+  });
+  // يعيد رسم جزء من الشاشة ويبقي التركيز على الزر نفسه (حسب data-k)
+  Jobs.fill = (el, html) => {
+    if (!el) return;
+    const c = K.current(), k = c && c.dataset.k;
+    el.innerHTML = html;
+    if (Jobs.ov) return;
+    if (c && K.app.contains(c)) return;
+    const f = (k && K.app.querySelector(`.f[data-k="${k}"]`)) || el.querySelector(".f") || K.app.querySelector(".f");
+    if (f) K.focus(f);
+  };
+  // نافذة الاستراحة المشتركة
+  Jobs.pause = (api, run, text) => {
+    Jobs.overlay(`<h2>⏸ استراحة</h2><div class="sub">${text}</div>`, [
+      { label: "▶ تابع", cls: "go" },
+      { label: "🏠 احفظ واخرج", fn: () => { api.keep(run); api.exit(); } },
+    ], { back: () => {} });
+  };
+  // نجوم الوردية من نسبة الصواب والأخطاء
+  Jobs.grade = (ok, total, bad = 0) => (ok >= total * 0.85 && bad <= 1 ? 3 : ok >= total * 0.6 ? 2 : 1);
 
   // حلقة رسم: dt بالثواني، 30 إطاراً على الأجهزة الضعيفة. يعيد دالة الإيقاف.
   Jobs.loop = (fn) => {

@@ -19,7 +19,7 @@
       <div class="title"><span class="mascot emo">${f.who}</span><div><h1>${GAME}</h1><div class="sub">جرّب مهنة جديدة كل يوم!</div></div></div>
       <button class="today f" style="--c:${f.color}" ${K.act("today", () => K.show(jobScreen, f.id))}>
         <span class="emo">${f.emo}</span><div><small>${fresh ? "✨ مهنة جديدة اليوم" : "⭐ مهنة اليوم"}</small><b>${f.name}</b><i>${f.goal}</i></div><span class="go">ابدأ ←</span></button>
-      <div class="modes sm">${Jobs.list.map(card).join("")}</div>
+      <div class="modes jobs">${Jobs.list.map(card).join("")}</div>
       ${K.HELP}`, "today");
   }
   const dayWord = (n) => (n <= 1 ? "يوم" : n === 2 ? "يومين" : n <= 10 ? `${n} أيام` : `${n} يوماً`);

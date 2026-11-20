@@ -60,3 +60,40 @@ body { background: linear-gradient(#bfe6ff 0%, #e8f7d4 60%, #8fcf5a 100%); }
 .dpad { position: fixed; left: 2vw; bottom: 3vh; width: 30vh; height: 30vh; display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); z-index: 10; touch-action: none; direction: ltr; }
 .dpad b { background: rgba(255,255,255,.8); border-radius: 2vh; display: flex; align-items: center; justify-content: center; font-size: 4vh; color: #1e3a8a; box-shadow: 0 .6vh 1.2vh rgba(0,0,0,.25); }
 .dpad [data-d=up] { grid-area: 1 / 2; } .dpad [data-d=left] { grid-area: 2 / 1; } .dpad [data-d=right] { grid-area: 2 / 3; } .dpad [data-d=down] { grid-area: 3 / 2; }
+
+/* الطباخ */
+.seats { display: flex; gap: 2vw; margin-top: 1.5vh; min-height: 27vh; }
+.seat { width: 24vw; height: 26vh; border: 0; border-radius: 3vh; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 1vh;
+  box-shadow: 0 1vh 2vh rgba(30,58,138,.25); }
+.seat.empty { background: rgba(255,255,255,.4); justify-content: center; font-size: 8vh; }
+.seat .who { font-size: 9vh; }
+.ticket { background: #fef9c3; border-radius: 1.5vh; padding: .5vh 1.5vh; display: flex; gap: 1.2vh; flex-wrap: wrap; justify-content: center; font-size: 5vh; border: .3vh dashed #ca8a04; }
+.ticket b { font-size: 3vh; color: #be185d; }
+.pat { width: 90%; height: 1.6vh; background: #e2e8f0; border-radius: 1vh; overflow: hidden; }
+.pat u { display: block; height: 100%; }
+.kitchen { display: flex; gap: 2vw; margin-top: 2vh; flex: 1; min-height: 0; }
+.kbox { background: rgba(255,255,255,.85); border-radius: 3vh; padding: 1vh 1.5vw; display: flex; flex-direction: column; align-items: center; }
+.kbox h3 { margin: .3vh 0; font-size: 3vh; }
+.menu { display: grid; grid-template-columns: repeat(6, auto); gap: 1.2vh; }
+.mi { width: 11vh; height: 13vh; border: 0; border-radius: 2vh; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 .6vh 1.2vh rgba(30,58,138,.2); padding: 0; }
+.mi .emo { font-size: 6vh; } .mi small { font-size: 2vh; font-weight: 700; } .mi i { font-style: normal; font-size: 1.9vh; color: #92400e; }
+.stoves { display: flex; gap: 1.2vw; }
+.stove { width: 11vh; height: 11vh; border: 0; border-radius: 50%; background: #334155; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .5vh; }
+.stove .emo { font-size: 5vh; }
+.stove u { width: 70%; height: 1vh; background: #475569; border-radius: 1vh; overflow: hidden; } .stove u i { display: block; height: 100%; background: #f59e0b; }
+.stove.on { background: #7c2d12; box-shadow: 0 0 2vh #f97316; }
+.stove.ready { background: #15803d; box-shadow: 0 0 2.5vh #22c55e; animation: blink .8s infinite; }
+.stove.burnt { background: #111827; }
+.tray { display: flex; gap: 1vw; align-items: center; }
+#tray { min-width: 30vh; min-height: 9vh; background: #e2e8f0; border-radius: 4vh; display: flex; align-items: center; justify-content: center; gap: .6vh; padding: 0 2vh; font-size: 5vh; }
+#tray small { font-size: 2.6vh; opacity: .6; }
+/* القائمة: 10 مهن في صفين */
+.modes.jobs { gap: 1.6vh 1.6vw; margin-top: 2.5vh; }
+.modes.jobs .mode { width: 15vw; height: 17vh; border-radius: 3vh; gap: .3vh; }
+.modes.jobs .mode .big { font-size: 7vh; }
+.modes.jobs .mode b { font-size: 3vh; }
+.modes.jobs .mode small { font-size: 2.2vh; }
+.today { padding: 1.2vh 4vw; }
+.today > .emo { font-size: 12vh; }
+.today b { font-size: 6.5vh; }
+.kitchen { flex: none; align-items: flex-start; }
