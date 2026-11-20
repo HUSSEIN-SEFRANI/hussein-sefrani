@@ -179,17 +179,15 @@ def _safe_members(tar: tarfile.TarFile):
         yield m
 
 
-@bp.post("/api/admin/transfer/import")
-@admin_required
-def api_import():
-    f = request.files.get("file")
-    pw = request.form.get("password") or ""
+def _stage_upload(f, pw: str, by: str) -> dict:
+    """يفك ملف ‎.anab المرفوع إلى «import-pending» (يُطبَّق عند إعادة التشغيل). يرجع manifest الملف."""
     if not f or not pw:
         abort(400, "اختر ملف ‎.anab واكتب كلمة سره")
     p = paths()
     pend = p.system / PENDING
     shutil.rmtree(pend, ignore_errors=True)
     pend.mkdir(parents=True)
+    p.tmp.mkdir(parents=True, exist_ok=True)
     src = p.tmp / f"import-{int(time.time())}.anab"
     f.save(src)
     try:
@@ -214,13 +212,39 @@ def api_import():
             abort(400, "الملف ليس ملف تصدير من HOME ANAB")
         if _version_tuple(man.get("version")) > _version_tuple(__version__):
             abort(400, f"الملف من إصدار أحدث ({man.get('version')}). حدّث هذا الجهاز أولاً ثم استورد.")
-        (pend / "ready").write_text(json.dumps({"by": current_user()["username"], "at": datetime.now().isoformat(timespec="seconds")}))
+        (pend / "ready").write_text(json.dumps({"by": by, "at": datetime.now().isoformat(timespec="seconds")}))
     except BaseException:
         shutil.rmtree(pend, ignore_errors=True)
         raise
     finally:
         src.unlink(missing_ok=True)
+    return man
+
+
+@bp.post("/api/admin/transfer/import")
+@admin_required
+def api_import():
+    man = _stage_upload(request.files.get("file"), request.form.get("password") or "", current_user()["username"])
     log_action("استيراد النظام", f"ملف من {man.get('created')} ({man.get('server_name')})، يُطبَّق عند إعادة التشغيل")
+    return jsonify(ok=True, manifest={k: man.get(k) for k in ("version", "created", "server_name", "files", "users")},
+                   restart=_restart_soon())
+
+
+# البند 6: الاستيراد من شاشة الإعداد الأول (جهاز جديد بلا أي حساب بعد): تنقل كل شيء من الجهاز القديم بدل إنشاء المدير
+_setup_tries: list[float] = []
+
+
+@bp.post("/api/setup/import")
+def api_setup_import():
+    if get_db().execute("SELECT COUNT(*) FROM users").fetchone()[0] > 0:
+        abort(403, "الجهاز مُعدّ من قبل: الاستيراد من لوحة التحكم ← التصدير والاستيراد")
+    now = time.time()
+    _setup_tries[:] = [t for t in _setup_tries if now - t < 600]
+    if len(_setup_tries) >= 10:
+        abort(429, "محاولات كثيرة. انتظر 10 دقائق.")
+    _setup_tries.append(now)
+    man = _stage_upload(request.files.get("file"), request.form.get("password") or "", "الإعداد الأول")
+    _setup_tries.clear()
     return jsonify(ok=True, manifest={k: man.get(k) for k in ("version", "created", "server_name", "files", "users")},
                    restart=_restart_soon())
 
