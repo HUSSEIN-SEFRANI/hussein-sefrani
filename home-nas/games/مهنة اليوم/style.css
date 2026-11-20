@@ -97,3 +97,39 @@ body { background: linear-gradient(#bfe6ff 0%, #e8f7d4 60%, #8fcf5a 100%); }
 .today > .emo { font-size: 12vh; }
 .today b { font-size: 6.5vh; }
 .kitchen { flex: none; align-items: flex-start; }
+
+/* الطيار */
+.airport { display: flex; gap: 3vw; margin-top: 2vh; align-items: flex-start; }
+.clockbox { background: rgba(255,255,255,.85); border-radius: 4vh; padding: 2vh 2vw; display: flex; flex-direction: column; align-items: center; gap: 1.5vh; }
+#clk { width: 42vh; height: 42vh; }
+.digi { font-size: 6vh; font-weight: 800; background: #0f172a; color: #4ade80; border-radius: 2vh; padding: 0 3vh; direction: ltr; font-family: monospace; min-width: 22vh; text-align: center; }
+#ffb.on { background: #f59e0b; color: #fff; }
+.boardx { background: #0f172a; border-radius: 4vh; padding: 1.5vh 1.5vw; min-width: 48vw; color: #fff; }
+.boardx h3 { margin: 0 0 1vh; font-size: 3.6vh; color: #fde047; text-align: center; }
+#fl { display: flex; flex-direction: column; gap: 1.2vh; }
+.flight { border: 0; border-radius: 2vh; background: #1e293b; color: #fff; display: grid; grid-template-columns: 7vh 1fr auto 16vh; align-items: center; gap: 1.5vw; padding: 1vh 2vw; font-size: 3.6vh; text-align: right; }
+.flight .emo { font-size: 5vh; }
+.flight .tm { font-family: monospace; direction: ltr; color: #fde047; font-weight: 800; font-size: 4vh; }
+.flight small { font-size: 2.6vh; }
+.flight.board { background: #92400e; } .flight.ready { background: #166534; }
+.boardx .sub { color: #fff; }
+
+/* المعلم */
+.classroom { display: flex; flex-direction: column; align-items: center; gap: 1.5vh; margin-top: 1vh; }
+.blackboard { background: #14532d; border: 1vh solid #92400e; border-radius: 2vh; color: #fff; font-size: 4vh; font-weight: 800; padding: .5vh 4vw; display: flex; flex-direction: column; align-items: center; min-width: 50vw; }
+.blackboard i { width: 100%; height: 1vh; background: rgba(255,255,255,.2); border-radius: 1vh; overflow: hidden; margin: .5vh 0; }
+.blackboard u { display: block; height: 100%; background: #fde047; }
+.desks { display: grid; grid-template-columns: repeat(5, 14vh); gap: 1.4vh 2.2vw; }
+.desk { width: 14vh; height: 12vh; border: 0; border-radius: 2vh; background: #d6a76c; box-shadow: inset 0 -1.4vh 0 #a16207, 0 .6vh 1.2vh rgba(0,0,0,.2); position: relative; display: flex; align-items: center; justify-content: center; padding: 0; }
+.desk .kid { font-size: 7vh; margin-top: -2vh; }
+.desk.empty { background: rgba(214,167,108,.35); box-shadow: inset 0 -1.4vh 0 rgba(161,98,7,.3); }
+.desk .badge { position: absolute; top: -1.5vh; left: -1vh; font-size: 4.5vh; animation: bob 1s ease-in-out infinite; }
+.desk.ev.noisy { animation: shake .5s infinite; }
+.noise i { display: inline-block; width: 14vw; height: 2.4vh; background: #e2e8f0; border-radius: 2vh; overflow: hidden; }
+.noise u { display: block; height: 100%; transition: width .3s; }
+.hwq { font-size: 6vh; font-weight: 800; background: #f1f5f9; border-radius: 3vh; padding: 1vh 4vh; direction: rtl; }
+.ovbtns .opt.txt { font-size: 4.5vh; height: 11vh; min-width: 20vw; padding: 0 3vh; }
+.ov:has(.ovbox.low) { justify-content: flex-start; align-items: center; padding: 0 1.5vw; background: transparent; }
+.ovbox.low { max-width: 22vw; padding: 2vh 1vw; }
+.ovbox.low h2 { font-size: 4.5vh; } .ovbox.low .sub { font-size: 2.8vh; }
+.ovbox.low .ovbtns { gap: 1vw; } .ovbox.low .ovbtns .opt { min-width: 9vh; height: 10vh; font-size: 5vh; }
