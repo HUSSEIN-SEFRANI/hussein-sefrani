@@ -1019,6 +1019,46 @@ def api_admin_tv_screen():
     return jsonify(ok=True)
 
 
+# البند 11: نفس اختيار الشاشة والدقة من إعدادات التلفاز نفسه (للمدير على التلفاز)
+@bp.get("/api/tv/admin/display")
+def api_tv_admin_display():
+    tv_admin()
+    ok, out = kiosk_helper("tv-modes", timeout=60)
+    return jsonify(json.loads(out)) if ok else jsonify(error=out)
+
+
+@bp.post("/api/tv/admin/display")
+def api_tv_admin_display_set():
+    u = tv_admin()
+    d = body()
+    mode, screen = str(d.get("mode") or ""), str(d.get("screen") or "")
+    if mode and not re.fullmatch(r"\d{3,4}x\d{3,4}", mode):
+        abort(400)
+    if screen and not re.fullmatch(r"[A-Za-z0-9_.-]{1,40}", screen):
+        abort(400)
+    ok, out = kiosk_helper("tv-mode-set", mode, screen, timeout=900) if screen else \
+        kiosk_helper("tv-mode-set", *([mode] if mode else []), timeout=900)
+    if not ok:
+        abort(400, out or "error")
+    log_action("دقة شاشة التلفاز (من التلفاز)", f"{screen or ''} {mode or 'تلقائي'}".strip(), u["username"])
+    return jsonify(ok=True)
+
+
+@bp.post("/api/tv/admin/screen")
+def api_tv_admin_screen():
+    u = tv_admin()
+    d = body()
+    name = str(d.get("name") or "auto")
+    if name != "auto" and not re.fullmatch(r"[A-Za-z0-9_.-]{1,40}", name):
+        abort(400)
+    ok, out = kiosk_helper("tv-screen-set", name, *(["20"] if d.get("try") else []), timeout=30)
+    if not ok:
+        abort(400, out or "error")
+    if not d.get("try"):
+        log_action("شاشة التلفاز (من التلفاز)", "تلقائي" if name == "auto" else name, u["username"])
+    return jsonify(ok=True)
+
+
 @bp.get("/api/admin/tv/audio")
 @admin_required
 def api_admin_tv_audio():

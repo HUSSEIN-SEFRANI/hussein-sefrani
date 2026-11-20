@@ -2391,21 +2391,27 @@ function oskScreen(opt, done) {
 }
 
 // ============================================================== إعدادات التلفاز (للمدير فقط)
+// البند 12: إعدادات التلفاز في مجموعات مثل لوحة التحكم
+const SET_GROUPS = [
+  ["التلفاز", [["screen", "الشاشة", "أي شاشة، والدقة", "#10b981,#0ea5e9"], ["audio", "الصوت", "مخرج الصوت وتجربته", "#f59e0b,#ea580c"],
+    ["saver", "التوقف", "مواقيت، نار، نجوم…", "#0ea5e9,#6366f1"]]],
+  ["الألعاب", [["pad", "يد التحكم", "اللاعبون، البطارية، الأزرار", "#a855f7,#ec4899"], ["bt", "البلوتوث", "ربط يد جديدة، وسماعات", "#8b5cf6,#06b6d4"]]],
+  ["الشبكة", [["wifi", "الوايفاي", "الاتصال بشبكة لاسلكية", "#06b6d4,#2563eb"]]],
+];
 function settingsScreen() {
-  const items = [["wifi", "الوايفاي", "الاتصال بشبكة لاسلكية", "#06b6d4,#2563eb"], ["bt", "البلوتوث", "يد بلايستيشن وأجهزة أخرى", "#8b5cf6,#06b6d4"],
-    ["pad", "يد التحكم", "الأزرار والاهتزاز وتجربتها", "#a855f7,#ec4899"], ["audio", "الصوت", "مخرج الصوت وتجربته", "#f59e0b,#ea580c"],
-    ["saver", "شاشة التوقف", "مواقيت، نار، أمطار، نجوم…", "#0ea5e9,#6366f1"]];
+  const card = ([k, t, s, c]) => `<button class="set-card f" data-k="${k}"><div class="ic" style="background:${A.gradient(c)}">${SET_ICON[k]}</div>
+      <b>${t}</b><span>${s}</span></button>`;
   const el = h(`<div class="bg-dark"><div class="bhead"><button class="back f js-back">${A.CHEVRON}<span>الرئيسية</span></button>
     <div class="ti" style="background:linear-gradient(135deg,#64748b,#1e293b)">${GEAR}</div><h1>الإعدادات</h1></div>
-    <div class="set-grid">${items.map(([k, t, s, c]) => `<button class="set-card f" data-k="${k}"><div class="ic" style="background:${A.gradient(c)}">${SET_ICON[k]}</div>
-      <b>${t}</b><span>${s}</span></button>`).join("")}</div>
+    <div class="set-groups">${SET_GROUPS.map(([g, items]) => `<div class="set-group" style="--n:${items.length}"><h2 class="set-gh">${g}</h2><div class="set-grid">${items.map(card).join("")}</div></div>`).join("")}</div>
     ${hints([["موافق", "فتح"], ["رجوع", "الرئيسية"]])}</div>`);
   el.querySelector(".js-back").addEventListener("click", pop);
-  el.querySelectorAll(".set-card").forEach((b) => b.addEventListener("click", () => ({ wifi: wifiScreen, bt: btScreen, pad: padScreen, audio: soundSetScreen, saver: saverSetScreen })[b.dataset.k]()));
+  el.querySelectorAll(".set-card").forEach((b) => b.addEventListener("click", () => ({ wifi: wifiScreen, bt: btScreen, pad: padScreen, audio: soundSetScreen, saver: saverSetScreen, screen: screenSetScreen })[b.dataset.k]()));
   push({ el, initial: () => el.querySelector(".set-card") });
 }
 const GEAR = `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>`;
 const SET_ICON = {
+  screen: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>`,
   saver: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/><path d="M17 3v3M15.5 4.5h3M20.5 8.5v2M19.5 9.5h2"/></svg>`,
   wifi: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1.2" fill="#fff"/></svg>`,
   bt: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7l10 10-5 5V2l5 5L7 17"/></svg>`,
@@ -2627,6 +2633,66 @@ async function btScreen() {
     catch (e) { toast(btError(e.message), 9000); }
   };
   try { draw(await api("/api/tv/admin/bt")); } catch (e) { body.innerHTML = `<p class="set-msg">${esc(e.message)}</p>`; }
+}
+
+// البند 11: الشاشة والدقة من إعدادات التلفاز نفسه (نفس لوحة التحكم)
+async function screenSetScreen() {
+  const el = subScreen("الشاشة والدقة", "screen"), body = el.querySelector(".set-body");
+  push({ el });
+  const label = (x) => (x.internal || /^(eDP|LVDS|DSI)/.test(x.name) ? "شاشة اللابتوب" : x.name.replace(/-A-/, " ").replace(/-/g, " "))
+    + (x.model ? ` — ${x.model}` : "");
+  let r, sel = "";
+  const draw = () => {
+    const screens = r.screens || [], many = screens.length > 1;
+    const cur = screens.find((x) => x.name === sel) || { modes: r.modes || [], saved: r.saved, current: r.current, name: sel };
+    body.innerHTML = `${many ? `<p class="set-msg">موصول ${screens.length} شاشات. وضع التلفاز يظهر على واحدة:</p>
+        <div class="set-list">
+          <button class="set-item f" data-s="auto"><span>${!r.preferred ? "✅" : "🖥️"}</span><b>تلقائي</b><span class="muted">HDMI أولاً</span></button>
+          ${screens.map((x) => `<button class="set-item f" data-s="${esc(x.name)}"><span>${r.preferred === x.name ? "✅" : "🖥️"}</span><b class="ltr">${esc(label(x))}</b>
+            ${x.name === r.shown ? `<span class="ok">معروضة الآن</span>` : ""}</button>`).join("")}
+        </div>
+        <p class="set-msg">اختيار شاشة أخرى ينقل وضع التلفاز إليها 20 ثانية للتجربة، ثم يسألك: «حفظ» أو يرجع وحده.</p>` : ""}
+      <p class="set-msg">الدقة${many ? ` لـ <b class="ltr">${esc(label(cur))}</b>` : ""} — الحالية: <b class="ltr">${esc(cur.current || "—")}</b></p>
+      <div class="set-list">
+        <button class="set-item f" data-m=""><span>${!cur.saved ? "✅" : "▫️"}</span><b>تلقائي (أفضل دقة)</b></button>
+        ${(cur.modes || []).slice(0, 12).map((m) => `<button class="set-item f" data-m="${esc(m)}"><span>${m === cur.saved ? "✅" : "▫️"}</span><b class="ltr">${esc(m)}</b>
+          ${m === "1920x1080" ? `<span class="muted">أنعم للفيديو</span>` : ""}</button>`).join("")}
+      </div>
+      <p class="set-msg">تغيير الدقة يعيد تشغيل الشاشة ثوانٍ قليلة.</p>`;
+    body.querySelectorAll("[data-s]").forEach((b) => b.addEventListener("click", () => pickScreen(b.dataset.s)));
+    body.querySelectorAll("[data-m]").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.m)));
+    setFocus(body.querySelector(".f") || el.querySelector(".js-back"));
+  };
+  const load = async () => {
+    body.innerHTML = `<p class="set-msg">جارٍ قراءة الشاشات…</p>`;
+    try { r = await api("/api/tv/admin/display"); } catch (e) { body.innerHTML = `<p class="set-msg">${esc(e.message)}</p>`; return; }
+    if (r.error) { body.innerHTML = `<p class="set-msg">تعذرت قراءة الشاشة.</p>`; return; }
+    sel = r.preferred || r.shown || ((r.screens || [])[0] || {}).name || "";
+    draw();
+  };
+  const pickScreen = async (name) => {
+    if (name === "auto" || name === r.shown) {
+      try { await api("/api/tv/admin/screen", { json: { name } }); toast("تم ✓", 3000); } catch (e) { toast(e.message, 5000); }
+      return load();
+    }
+    // تجربة 20 ثانية: هذه الشاشة قد تفرغ. إن ظهر وضع التلفاز على الأخرى ووافق المدير هناك، يُحفظ
+    try {
+      await api("/api/tv/admin/screen", { json: { name, try: true } });
+      toast("وضع التلفاز ينتقل إلى الشاشة المختارة 20 ثانية… إن أعجبتك ارجع إلى هنا واضغط «حفظ»", 8000);
+      sel = name; draw();
+      body.insertAdjacentHTML("afterbegin", `<div class="set-row"><button class="btn gold f js-keep">💾 حفظ هذه الشاشة</button></div>`);
+      const k = body.querySelector(".js-keep");
+      k.addEventListener("click", async () => { try { await api("/api/tv/admin/screen", { json: { name } }); toast("حُفظت الشاشة ✓", 4000); } catch (e) { toast(e.message, 5000); } load(); });
+      setFocus(k);
+    } catch (e) { toast(e.message, 5000); }
+  };
+  const setMode = async (mode) => {
+    try {
+      await api("/api/tv/admin/display", { json: { mode, ...((r.screens || []).length > 1 ? { screen: sel } : {}) } });
+      toast("تم — تُعاد تشغيل الشاشة", 5000);
+    } catch (e) { toast(e.message, 6000); }
+  };
+  load();
 }
 
 async function soundSetScreen() {
