@@ -133,3 +133,9 @@ body { background: linear-gradient(#bfe6ff 0%, #e8f7d4 60%, #8fcf5a 100%); }
 .ovbox.low { max-width: 22vw; padding: 2vh 1vw; }
 .ovbox.low h2 { font-size: 4.5vh; } .ovbox.low .sub { font-size: 2.8vh; }
 .ovbox.low .ovbtns { gap: 1vw; } .ovbox.low .ovbtns .opt { min-width: 9vh; height: 10vh; font-size: 5vh; }
+
+/* الإطفائي وساعي البريد */
+.ovbtns.col { flex-direction: column; width: 70vw; gap: 1.4vh; }
+.ovbtns.col .opt.txt { width: 100%; height: 9vh; font-size: 4vh; }
+.msg .addr { display: inline-block; background: #e0f2fe; border-radius: 2vh; padding: 0 1.5vh; margin: 0 .5vh; }
+.baglist { display: flex; flex-direction: column; gap: .8vh; font-size: 3.6vh; background: #fef3c7; border-radius: 3vh; padding: 1.5vh 3vw; }
