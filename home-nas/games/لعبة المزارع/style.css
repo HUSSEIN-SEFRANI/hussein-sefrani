@@ -63,3 +63,8 @@ h2.q { max-width: 80vw; margin-top: 2vh; }
 /* أجهزة ضعيفة: بلا حركات مستمرة */
 .lite .mascot, .lite #sky i { animation: none; }
 .lite .bar b { transition: none; }
+.cards.mid { gap: 1.6vh 1.2vw; }
+.cards.mid .card { width: 13.5vw; min-height: 19vh; padding: 1vh .6vw; }
+.cards.mid .card .big { font-size: 7vh; }
+.cards.mid .card b { font-size: 2.7vh; }
+.cards.mid .card small { font-size: 2.1vh; }

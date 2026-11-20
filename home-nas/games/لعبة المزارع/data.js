@@ -6,11 +6,15 @@ window.FD = {
   START_PLOTS: [[3, 2], [4, 2], [5, 2], [3, 3], [4, 3], [5, 3], [3, 4], [4, 4], [5, 4]], // [عمود، صف]
   landPrice: (owned) => 10 + 5 * Math.max(0, owned - 9),
   CROPS: [
+    // long = «محصول الغد»: يحتاج أكثر من 8 ساعات وتعطي نقوداً كثيرة، يزرعها الطفل ويعود في اليوم التالي
     { id: "corn", e: "🌽", buy: 4, sell: 10, t: 30, need: 0 },
     { id: "clover", e: "☘️", buy: 2, sell: 6, t: 20, need: 0, afterHarvest: true },
+    { id: "pineapple", e: "🍍", buy: 30, sell: 320, t: 8 * 3600, need: 11, long: true },
     { id: "wheat", e: "🌾", buy: 6, sell: 15, t: 45, need: 12 },
+    { id: "grapes", e: "🍇", buy: 50, sell: 560, t: 10 * 3600, need: 14, long: true },
     { id: "carrot", e: "🥕", buy: 8, sell: 20, t: 60, need: 15 },
     { id: "tomato", e: "🍅", buy: 10, sell: 25, t: 75, need: 18 },
+    { id: "banana", e: "🍌", buy: 80, sell: 900, t: 12 * 3600, need: 18, long: true },
     { id: "strawberry", e: "🍓", buy: 14, sell: 34, t: 90, need: 22 },
     { id: "sunflower", e: "🌻", buy: 12, sell: 30, t: 80, need: 26 },
     { id: "watermelon", e: "🍉", buy: 20, sell: 50, t: 120, need: 32 },

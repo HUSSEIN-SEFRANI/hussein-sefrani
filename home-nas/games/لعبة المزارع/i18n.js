@@ -4,6 +4,7 @@
   "use strict";
   const S = {
     ar: {
+      day: "اليوم {0}", welcome: "أهلاً بعودتك! 🌞 {0} جاهز للحصاد ✨", welcome0: "أهلاً بعودتك! 🌞 مزرعتك بانتظارك", tomorrow: "🌙 هذا المحصول يحتاج وقتاً طويلاً — تعال غداً لتحصده!", longTag: "🌙 محصول الغد", hr: "س", mn: "د",
       lang: "العربية", title: "لعبة المزارع", by: "تمت برمجتها بواسطة ( حسين سفراني )", tag: "ازرع واحصد وكبّر مزرعتك 🌱",
       newFarm: "مزرعة جديدة", del: "حذف", delQ: "نحذف هذه المزرعة؟ لا يمكن إرجاعها.", yes: "نعم", no: "لا", back: "→ رجوع",
       choose: "اختر المزارع", market: "السوق", shop: "المتجر", seeds: "البذور", animals: "الحيوانات", decor: "الزينة",
@@ -20,6 +21,7 @@
       start: "ازرع الذرة 🌽: اختر أرضاً واضغط Enter", have: "عندك {0}", plots: "الأرض",
       help: "<b>الأسهم</b> للتنقل · <b>Enter</b> أو <b>✕</b> للاختيار · <b>Backspace</b> أو <b>○</b> للرجوع",
       n: {
+        pineapple: "الأناناس", grapes: "العنب", banana: "الموز",
         corn: "الذرة", clover: "البرسيم", wheat: "القمح", carrot: "الجزر", tomato: "الطماطم", strawberry: "الفراولة", sunflower: "دوار الشمس",
         watermelon: "البطيخ", pumpkin: "اليقطين", chicken: "الدجاجة", sheep: "الخروف", cow: "البقرة", egg: "البيض", wool: "الصوف", milk: "الحليب",
         flowers: "الزهور", mushroom: "الفطر", rock: "الصخرة", balloon: "البالون", pine: "الصنوبرة", tree: "الشجرة", lantern: "الفانوس",
@@ -27,6 +29,7 @@
       },
     },
     en: {
+      day: "Day {0}", welcome: "Welcome back! 🌞 {0} ready to harvest ✨", welcome0: "Welcome back! 🌞 Your farm is waiting", tomorrow: "🌙 This crop takes a long time — come back tomorrow to harvest it!", longTag: "🌙 Tomorrow crop", hr: "h", mn: "m",
       lang: "English", title: "The Farm Game", by: "Programmed by ( Hussein Sefrani )", tag: "Plant, harvest and grow your farm 🌱",
       newFarm: "New farm", del: "Delete", delQ: "Delete this farm? It cannot be undone.", yes: "Yes", no: "No", back: "← Back",
       choose: "Choose your farmer", market: "Market", shop: "Shop", seeds: "Seeds", animals: "Animals", decor: "Decorations",
@@ -43,6 +46,7 @@
       start: "Plant corn 🌽: pick a field and press Enter", have: "you have {0}", plots: "Land",
       help: "<b>Arrows</b> to move · <b>Enter</b> or <b>✕</b> to choose · <b>Backspace</b> or <b>○</b> to go back",
       n: {
+        pineapple: "Pineapple", grapes: "Grapes", banana: "Bananas",
         corn: "Corn", clover: "Clover", wheat: "Wheat", carrot: "Carrots", tomato: "Tomatoes", strawberry: "Strawberries", sunflower: "Sunflowers",
         watermelon: "Watermelon", pumpkin: "Pumpkin", chicken: "Chicken", sheep: "Sheep", cow: "Cow", egg: "Eggs", wool: "Wool", milk: "Milk",
         flowers: "Flowers", mushroom: "Mushroom", rock: "Rock", balloon: "Balloon", pine: "Pine tree", tree: "Tree", lantern: "Lantern",
@@ -50,6 +54,7 @@
       },
     },
     fr: {
+      day: "Jour {0}", welcome: "Bon retour ! 🌞 {0} prêt à récolter ✨", welcome0: "Bon retour ! 🌞 Ta ferme t'attend", tomorrow: "🌙 Cette culture prend du temps — reviens demain pour la récolter !", longTag: "🌙 Pour demain", hr: "h", mn: "min",
       lang: "Français", title: "Le jeu de la ferme", by: "Programmé par ( Hussein Sefrani )", tag: "Plante, récolte et agrandis ta ferme 🌱",
       newFarm: "Nouvelle ferme", del: "Supprimer", delQ: "Supprimer cette ferme ? C'est définitif.", yes: "Oui", no: "Non", back: "← Retour",
       choose: "Choisis ton fermier", market: "Marché", shop: "Boutique", seeds: "Graines", animals: "Animaux", decor: "Décorations",
@@ -66,6 +71,7 @@
       start: "Plante du maïs 🌽 : choisis un champ et appuie sur Enter", have: "tu en as {0}", plots: "Terrain",
       help: "<b>Flèches</b> pour bouger · <b>Enter</b> ou <b>✕</b> pour choisir · <b>Backspace</b> ou <b>○</b> pour revenir",
       n: {
+        pineapple: "Ananas", grapes: "Raisin", banana: "Bananes",
         corn: "Maïs", clover: "Trèfle", wheat: "Blé", carrot: "Carottes", tomato: "Tomates", strawberry: "Fraises", sunflower: "Tournesols",
         watermelon: "Pastèque", pumpkin: "Citrouille", chicken: "Poule", sheep: "Mouton", cow: "Vache", egg: "Œufs", wool: "Laine", milk: "Lait",
         flowers: "Fleurs", mushroom: "Champignon", rock: "Rocher", balloon: "Ballon", pine: "Sapin", tree: "Arbre", lantern: "Lanterne",
@@ -73,6 +79,7 @@
       },
     },
     tr: {
+      day: "{0}. gün", welcome: "Tekrar hoş geldin! 🌞 {0} hasada hazır ✨", welcome0: "Tekrar hoş geldin! 🌞 Çiftliğin seni bekliyor", tomorrow: "🌙 Bu ürün uzun sürer — hasat için yarın gel!", longTag: "🌙 Yarının ürünü", hr: "sa", mn: "dk",
       lang: "Türkçe", title: "Çiftlik Oyunu", by: "Programlayan: ( Hussein Sefrani )", tag: "Ek, hasat et ve çiftliğini büyüt 🌱",
       newFarm: "Yeni çiftlik", del: "Sil", delQ: "Bu çiftlik silinsin mi? Geri alınamaz.", yes: "Evet", no: "Hayır", back: "← Geri",
       choose: "Çiftçini seç", market: "Pazar", shop: "Dükkân", seeds: "Tohumlar", animals: "Hayvanlar", decor: "Süsler",
@@ -89,6 +96,7 @@
       start: "Mısır ek 🌽: bir tarla seç ve Enter'a bas", have: "{0} var", plots: "Arazi",
       help: "<b>Oklar</b> ile gez · <b>Enter</b> veya <b>✕</b> seç · <b>Backspace</b> veya <b>○</b> geri",
       n: {
+        pineapple: "Ananas", grapes: "Üzüm", banana: "Muz",
         corn: "Mısır", clover: "Yonca", wheat: "Buğday", carrot: "Havuç", tomato: "Domates", strawberry: "Çilek", sunflower: "Ayçiçeği",
         watermelon: "Karpuz", pumpkin: "Balkabağı", chicken: "Tavuk", sheep: "Koyun", cow: "İnek", egg: "Yumurta", wool: "Yün", milk: "Süt",
         flowers: "Çiçekler", mushroom: "Mantar", rock: "Kaya", balloon: "Balon", pine: "Çam", tree: "Ağaç", lantern: "Fener",
@@ -96,6 +104,7 @@
       },
     },
     nl: {
+      day: "Dag {0}", welcome: "Welkom terug! 🌞 {0} klaar om te oogsten ✨", welcome0: "Welkom terug! 🌞 Je boerderij wacht op je", tomorrow: "🌙 Dit gewas duurt lang — kom morgen terug om te oogsten!", longTag: "🌙 Voor morgen", hr: "u", mn: "min",
       lang: "Nederlands", title: "Het Boerderijspel", by: "Geprogrammeerd door ( Hussein Sefrani )", tag: "Zaai, oogst en laat je boerderij groeien 🌱",
       newFarm: "Nieuwe boerderij", del: "Wissen", delQ: "Deze boerderij wissen? Dit kan niet terug.", yes: "Ja", no: "Nee", back: "← Terug",
       choose: "Kies je boer", market: "Markt", shop: "Winkel", seeds: "Zaden", animals: "Dieren", decor: "Versiering",
@@ -112,6 +121,7 @@
       start: "Zaai maïs 🌽: kies een veld en druk op Enter", have: "je hebt {0}", plots: "Land",
       help: "<b>Pijltjes</b> om te bewegen · <b>Enter</b> of <b>✕</b> om te kiezen · <b>Backspace</b> of <b>○</b> terug",
       n: {
+        pineapple: "Ananas", grapes: "Druiven", banana: "Bananen",
         corn: "Maïs", clover: "Klaver", wheat: "Tarwe", carrot: "Wortels", tomato: "Tomaten", strawberry: "Aardbeien", sunflower: "Zonnebloemen",
         watermelon: "Watermeloen", pumpkin: "Pompoen", chicken: "Kip", sheep: "Schaap", cow: "Koe", egg: "Eieren", wool: "Wol", milk: "Melk",
         flowers: "Bloemen", mushroom: "Paddenstoel", rock: "Steen", balloon: "Ballon", pine: "Den", tree: "Boom", lantern: "Lantaarn",

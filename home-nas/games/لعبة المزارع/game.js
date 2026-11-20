@@ -21,7 +21,13 @@
   const E = (s) => `<span class="emo">${s}</span>`;
   const F = () => save.farms[save.cur];
   const owned = (f = F()) => f.tiles.filter((x) => x.o).length;
-  const mmss = (s) => { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+  // المدة: دقائق:ثوانٍ، أو ساعات ودقائق للمحاصيل الطويلة
+  const mmss = (s) => {
+    s = Math.max(0, Math.ceil(s));
+    if (s >= 3600) { const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return `${h} ${t("hr")}` + (m ? ` ${m} ${t("mn")}` : ""); }
+    return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+  };
+  const today = () => { const d = new Date(); return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); };
   const backBtn = () => `<button class="btn f" ${K.act("back", K.back)}>${t("back")}</button>`;
   const begin = () => { K.begin(); K.onFocus = null; };
 
@@ -44,7 +50,7 @@
   function newFarm(av, col) {
     const tiles = Array.from({ length: N }, () => ({ o: 0 }));
     for (const [c, r] of D.START_PLOTS) tiles[r * D.COLS + c].o = 1;
-    return { av, col, coins: D.START_COINS, tiles, inv: {}, h: 0, seen: {}, made: Date.now() };
+    return { av, col, coins: D.START_COINS, tiles, inv: {}, h: 0, seen: {}, made: Date.now(), days: 1, lastDay: today() };
   }
   const cropOpen = (c, f = F()) => (c.afterHarvest ? f.h > 0 : owned(f) >= c.need);
   // حالة المربع: lock | soil | dry | grow | ripe | hungry | make | prod | deco
@@ -97,6 +103,7 @@
     return `<div class="top fbar">${backBtn()}
       <span class="pill who" style="--c:${D.COLORS[f.col]}">${E(f.av)} ${E("🪙")} <b id="coins">${f.coins}</b></span>
       <span class="pill">${E("🟫")} <b id="plots">${owned()}</b> / ${N}</span>
+      <span class="pill">${E("☀️")} ${t("day", f.days || 1)}</span>
       <span class="sp"></span>
       <button class="btn f" ${K.act("market", () => K.show(marketScreen))}>${E("🏪")} ${t("market")} <small class="key">□</small></button>
       <button class="btn f go" ${K.act("shop", () => K.show(shopScreen))}>${E("🛒")} ${t("shop")} <small class="key">△</small></button></div>`;
@@ -108,7 +115,8 @@
     begin();
     const f = F();
     gift();
-    if (curFarm !== save.cur) { const k = f.tiles.findIndex((x) => x.o && !x.k); const i0 = k >= 0 ? k : D.START_PLOTS[4][1] * D.COLS + D.START_PLOTS[4][0]; curFarm = save.cur; cur.x = i0 % D.COLS; cur.y = (i0 / D.COLS) | 0; }
+    welcome(f);
+    if (curFarm !== save.cur) { const n0 = Date.now(), rp = f.tiles.findIndex((x) => ["ripe", "prod", "dry"].includes(state(x, n0))), k = rp >= 0 ? rp : f.tiles.findIndex((x) => x.o && !x.k); const i0 = k >= 0 ? k : D.START_PLOTS[4][1] * D.COLS + D.START_PLOTS[4][0]; curFarm = save.cur; cur.x = i0 % D.COLS; cur.y = (i0 / D.COLS) | 0; }
     K.onFocus = setHint;
     K.paint(`${topBar()}<div class="map f" ${K.act("map", () => { if (mapHit !== false) tap(curI()); mapHit = null; })}></div>
       <div class="hint" id="hint"></div>`, "map");
@@ -167,6 +175,17 @@
     };
   }
   let mapHit = null, curFarm = -1;
+  // يوم جديد: عدّاد الأيام، ورسالة بما نضج أثناء غياب الطفل
+  function welcome(f) {
+    const d = today();
+    if (f.lastDay === d) return;
+    const first = !f.lastDay;
+    f.lastDay = d; f.days = (f.days || 1) + (first ? 0 : 1); save.save();
+    if (first) return;
+    const now = Date.now(), ready = f.tiles.filter((x) => state(x, now) === "ripe" || state(x, now) === "prod");
+    const kinds = [...new Set(ready.map((x) => emo(x.id)))].join("");
+    K.later(() => { toast(ready.length ? t("welcome", E(kinds)) : t("welcome0"), 5000); if (ready.length) K.confetti(LITE ? 8 : 18, "🌞✨" + kinds); }, 500);
+  }
   function refresh() {
     const f = F();
     const c = document.getElementById("coins"); if (c) c.textContent = f.coins;
@@ -219,7 +238,7 @@
         return;
       }
       case "soil": K.show(plantScreen, i); return;
-      case "dry": x.w = now; save.save(); snd.water(); floatTile(i, "💧"); toast(t("watered"), 1200); refresh(); return;
+      case "dry": x.w = now; save.save(); snd.water(); floatTile(i, "💧"); if (it.long) toast(t("tomorrow"), 5000); else toast(t("watered"), 1200); refresh(); return;
       case "grow": K.sfx.tick(); toast(t("hGrow", E(it.e) + " " + nm(it.id), mmss(left(x, now))), 1800); return;
       case "ripe": {
         f.tiles[i] = { o: 1 }; f.inv[x.id] = (f.inv[x.id] || 0) + 1;
@@ -267,7 +286,7 @@
       const open = cropOpen(c);
       return card("c-" + c.id, {
         e: c.e, name: nm(c.id), off: !open || f.coins < c.buy,
-        lines: open ? [`${E("🪙")} ${c.buy} → ${E("🪙")} ${c.sell}`, `⏱ ${mmss(c.t)}`] : [c.afterHarvest ? t("lockHarvest") : t("lockPlots", c.need)],
+        lines: open ? [`${E("🪙")} ${c.buy} → ${E("🪙")} ${c.sell}`, `⏱ ${mmss(c.t)}`, ...(c.long ? [t("longTag")] : [])] : [c.afterHarvest ? t("lockHarvest") : t("lockPlots", c.need)],
         fn: () => {
           if (!open) { snd.no(); toast(c.afterHarvest ? t("lockHarvest") : t("lockPlots", c.need)); return; }
           if (f.coins < c.buy) { snd.no(); toast(t("noMoney")); return; }
@@ -277,7 +296,7 @@
       });
     }).join("");
     K.paint(`<div class="top">${backBtn()}<h2>${t("plantQ")}</h2><span class="pill">${E("🪙")} ${f.coins}</span></div>
-      <div class="cards">${cards}</div><div class="help">${t("help")}</div>`, "c-" + (save.lastCrop || "corn"));
+      <div class="cards mid">${cards}</div><div class="help">${t("help")}</div>`, "c-" + (save.lastCrop || "corn"));
   }
   function marketScreen() {
     begin();
@@ -378,5 +397,7 @@
       <div class="avs">${avs}</div><div class="help">${t("help")}</div>`, "av0");
   }
 
+  // إغلاق اللعبة أثناء وضع شيء اشتراه الطفل: نعيد نقوده ونحفظ
+  addEventListener("pagehide", () => { if (placing && placing.refund) { F().coins += placing.refund; placing = null; } save.save(); });
   K.start(homeScreen);
 })();
