@@ -31,6 +31,34 @@ function hsefPadNorm(g, maps) {
   const L = window.LETTERS, G = window.GROUPS;
   const app = document.getElementById("app"), fx = document.getElementById("fx");
 
+// البند 50: التقدّم في السيرفر لكل فرد (مثل K.store في kit.js)، ونسخة في المتصفح احتياطاً
+function hsefStore(name, localKey, def) {
+  let p = location.pathname, local = null, remote;
+  try { p = decodeURIComponent(p); } catch (e) { /* */ }
+  const m = p.match(/^\/tv\/game\/\d+\/(.*)$/);
+  const skey = m ? name + ":" + m[1].replace(/(\/index\.html)?\/?$/, "") : null;
+  try { local = JSON.parse(localStorage.getItem(localKey) || "null"); } catch (e) { /* */ }
+  if (skey) {
+    try {
+      const x = new XMLHttpRequest();
+      x.open("GET", "/api/tv/save?key=" + encodeURIComponent(skey), false);
+      x.send();
+      if (x.status === 200) { const r = JSON.parse(x.responseText); remote = r.found ? r.value : null; }
+    } catch (e) { /* */ }
+  }
+  try { Object.assign(def, remote || local || {}); } catch (e) { /* */ }
+  const push = (obj) => {
+    if (!skey || remote === undefined) return;
+    try {
+      const body = JSON.stringify({ key: skey, value: obj });
+      fetch("/api/tv/save", { method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+        keepalive: body.length < 60000, body }).catch(() => {});
+    } catch (e) { /* */ }
+  };
+  if (remote === null && local) push(local);
+  return { data: def, save: (obj) => { try { localStorage.setItem(localKey, JSON.stringify(obj)); } catch (e) { /* */ } push(obj); } };
+}
+
   // ------------------------------------------------------------ الحفظ (لكل طفل حسب مسار اللعبة)
   const KEY = "hurufi:" + location.pathname;
   // إن نُقل التطبيق إلى مربع آخر (من «الألعاب» إلى «التعليم») يتغير رقم المربع: نأخذ التقدّم القديم
@@ -46,11 +74,9 @@ function hsefPadNorm(g, maps) {
       }
     } catch {}
   })();
-  const save = (() => {
-    const d = { stars: {}, seen: {}, stickers: [] };
-    try { return Object.assign(d, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch { return d; }
-  })();
-  const store = () => { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch {} };
+  const HS = hsefStore("hurufi", KEY, { stars: {}, seen: {}, stickers: [] });
+  const save = HS.data;
+  const store = () => HS.save(save);
 
   // ------------------------------------------------------------ أدوات
   const range = (a, b) => Array.from({ length: b - a }, (_, i) => a + i);

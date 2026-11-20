@@ -30,12 +30,40 @@
       }
     } catch {}
   };
+  // البند 50: التقدّم يُحفظ في السيرفر لكل فرد (يدخل في النسخ الاحتياطي ولا يضيع مع إعادة التنصيب)،
+  // ونسخة في المتصفح احتياطاً. المفتاح في السيرفر بلا رقم المربع: «الاسم:مسار التطبيق».
+  K.saveKey = (name) => {
+    let p = location.pathname;
+    try { p = decodeURIComponent(p); } catch {}
+    const m = p.match(/^\/tv\/game\/\d+\/(.*)$/);
+    return m ? name + ":" + m[1].replace(/(\/index\.html)?\/?$/, "") : null;
+  };
   K.store = (name, def) => {
-    const key = name + ":" + location.pathname;
+    const key = name + ":" + location.pathname, skey = K.saveKey(name);
     K.carry(key);
-    let data = def;
-    try { data = Object.assign(def, JSON.parse(localStorage.getItem(key) || "{}")); } catch {}
-    data.save = () => { try { const { save, ...rest } = data; localStorage.setItem(key, JSON.stringify(rest)); } catch {} };
+    let local = null, remote;   // remote: undefined = السيرفر لا يحفظ (قديم أو خارج التلفاز)، null = لا شيء محفوظ بعد
+    try { local = JSON.parse(localStorage.getItem(key) || "null"); } catch {}
+    if (skey) {
+      try {
+        const x = new XMLHttpRequest();
+        x.open("GET", "/api/tv/save?key=" + encodeURIComponent(skey), false);   // مرة واحدة عند بدء اللعبة (السيرفر في البيت)
+        x.send();
+        if (x.status === 200) { const r = JSON.parse(x.responseText); remote = r.found ? r.value : null; }
+      } catch {}
+    }
+    const data = def;
+    try { Object.assign(data, remote || local || {}); } catch {}
+    const push = () => {
+      if (!skey || remote === undefined) return;
+      try {
+        const { save, ...rest } = data;
+        const body = JSON.stringify({ key: skey, value: rest });
+        fetch("/api/tv/save", { method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+          keepalive: body.length < 60000, body }).catch(() => {});
+      } catch {}
+    };
+    data.save = () => { try { const { save, ...rest } = data; localStorage.setItem(key, JSON.stringify(rest)); } catch {} push(); };
+    if (remote === null && local) push();   // تقدّم قديم على التلفاز: يُنقل إلى السيرفر مرة واحدة
     return data;
   };
 
