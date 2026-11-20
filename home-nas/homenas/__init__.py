@@ -92,10 +92,10 @@ def create_app(cfg: dict, start_indexer: bool = True) -> Flask:
         from .recycle import start_auto
         start_auto(data_paths)      # تفريغ سلة المحذوفات تلقائياً مرة كل يوم
 
-    from . import (activation, appstore, backup, cameras, cpuinfo, faces, files, health, iphone, letters, links, saves, media_cards, network, photos, profile, remote,
+    from . import (activation, appstore, backup, cameras, cpuinfo, faces, files, health, iphone, letters, links, pads, saves, media_cards, network, photos, profile, remote,
                    kids, recycle, stars, storage, sysadmin, system, transfer, tv, welcome)
     for mod in (system, files, photos, links, backup, health, network, appstore, faces, remote, tv, profile, sysadmin, iphone, stars, welcome,
-                cameras, media_cards, activation, kids, transfer, storage, cpuinfo, recycle, letters, saves):
+                cameras, media_cards, activation, kids, transfer, storage, cpuinfo, recycle, letters, saves, pads):
         app.register_blueprint(mod.bp)
 
     @app.teardown_appcontext

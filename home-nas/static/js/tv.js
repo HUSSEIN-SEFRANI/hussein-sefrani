@@ -2249,10 +2249,35 @@ function rumble(gp, ms = 40) {
   if (!padPrefs.rumble) return;
   try { gp.vibrationActuator && gp.vibrationActuator.playEffect("dual-rumble", { duration: ms, strongMagnitude: 0.4, weakMagnitude: 0.6 }); } catch { /* */ }
 }
+// البند 4: نوع اليد من رقم الشركة والمنتج (Vendor/Product) في اسمها، مع تصحيح يدوي يُحفظ باسمها
+const PAD_KINDS = { ps: "بلايستيشن", xbox: "إكس بوكس", nintendo: "نينتندو", "8bitdo": "8BitDo", generic: "عامة" };
+const PAD_VENDORS = { "054c": "ps", "0f0d": "ps", "045e": "xbox", "0e6f": "xbox", "24c6": "xbox", "046d": "xbox", "0738": "xbox", "1532": "xbox",
+  "057e": "nintendo", "20d6": "nintendo", "2dc8": "8bitdo" };
+let PADKINDS = {};
+try { PADKINDS = JSON.parse(localStorage.getItem("hsef-padtypes") || "{}"); } catch { /* */ }
+function padIds(gp) {
+  const id = (gp && gp.id) || "";
+  const m = id.match(/Vendor:\s*([0-9a-f]{4}).*?Product:\s*([0-9a-f]{4})/i) || id.match(/^([0-9a-f]{4})-([0-9a-f]{4})-/i);
+  return m ? [m[1].toLowerCase(), m[2].toLowerCase()] : ["", ""];
+}
+function padKind(gp) {
+  if (!gp) return "generic";
+  if (PADKINDS[gp.id]) return PADKINDS[gp.id];
+  const [v] = padIds(gp);
+  return PAD_VENDORS[v] || (/dualsense|dualshock|wireless controller|playstation/i.test(gp.id) ? "ps" : /xbox|x-box/i.test(gp.id) ? "xbox"
+    : /nintendo|pro controller|joy-?con/i.test(gp.id) ? "nintendo" : "generic");
+}
+function setPadKind(gp, kind) {
+  if (kind) PADKINDS[gp.id] = kind; else delete PADKINDS[gp.id];
+  try { localStorage.setItem("hsef-padtypes", JSON.stringify(PADKINDS)); } catch { /* */ }
+}
+window.hsefPadKind = (i) => padKind(livePads().find((g) => g.index === i));
 function padFire(name, gp) {
   const t = top();
   if (t && t.isGame) { if (name === "ps") padKey("Escape"); return; }  // داخل اللعبة: اليد للعبة، وزر PS للخروج
-  const okB = padPrefs.swap ? "circle" : "cross", backB = padPrefs.swap ? "cross" : "circle";
+  // نينتندو: «موافق» هو A على اليمين (الزر 1)، عكس بلايستيشن وإكس بوكس
+  const swap = padPrefs.swap !== (padKind(gp) === "nintendo");
+  const okB = swap ? "circle" : "cross", backB = swap ? "cross" : "circle";
   const map = { up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight", options: "MediaPlayPause",
     l1: "MediaTrackPrevious", r1: "MediaTrackNext", l2: "AudioVolumeDown", r2: "AudioVolumeUp", ps: "Home",
     triangle: "ContextMenu", square: "F2" };
@@ -2528,11 +2553,38 @@ function padMainScreen(done) {
 }
 
 // قائمة الأيادي الموصولة الآن بأرقام اللاعبين
+// البند 4: بطارية الأيادي (من السيرفر كل دقيقة)، وتنبيه عند ضعفها
+let PADBAT = [], batWarned = {};
+async function pollBattery() {
+  try { PADBAT = (await api("/api/tv/pads/battery")).pads || []; } catch { PADBAT = []; }
+  for (const b of PADBAT) {
+    const low = b.status !== "Charging" && ((b.capacity != null && b.capacity <= 15) || /low|critical/i.test(b.level || ""));
+    if (low && (!batWarned[b.id] || Date.now() - batWarned[b.id] > 30 * 60000)) {
+      batWarned[b.id] = Date.now();
+      toast(`🪫 بطارية ${b.model || b.name || "اليد"} ضعيفة${b.capacity != null ? ` (${b.capacity}%)` : ""}: اشحنها`, 6000);
+    }
+  }
+}
+setTimeout(pollBattery, 8000); setInterval(pollBattery, 60000);
+function batFor(g, used) {
+  const [v, p] = padIds(g), nm = g.id.replace(/\(.*\)/, "").trim().toLowerCase();
+  const b = PADBAT.find((x) => !used.has(x.id) && ((v && x.vendor === v && x.product === p) || (x.name || "").toLowerCase() === nm));
+  if (b) used.add(b.id);
+  return b;
+}
+function batHTML(b) {
+  if (!b) return "";
+  const pct = b.capacity != null ? `${b.capacity}%` : ({ Full: "ممتلئة", High: "جيدة", Normal: "متوسطة", Low: "ضعيفة", Critical: "فارغة" })[b.level] || "";
+  const ch = b.status === "Charging", full = b.status === "Full";
+  const low = !ch && ((b.capacity != null && b.capacity <= 15) || /low|critical/i.test(b.level || ""));
+  return `<span class="${low ? "bad" : "muted"}">${ch ? "⚡ يشحن" : full ? "🔋 مشحونة" : low ? "🪫" : "🔋"} ${pct}</span>`;
+}
 function playersHTML() {
-  const order = window.hsefPadOrder(), pads = livePads();
+  const order = window.hsefPadOrder(), pads = livePads(), used = new Set();
   const rest = pads.filter((g) => !order.includes(g.index));
   const row = (g, n) => `<div class="set-item"><span>${n === 1 ? "⭐" : "🎮"}</span><b>${n ? `اللاعب ${n}` : "لم تُستعمل بعد"}${n === 1 ? " (الأساسية)" : ""}</b>
-    <span class="ltr muted">${esc(g.id.replace(/\(.*\)/, "").trim() || "يد تحكم")}</span></div>`;
+    <span class="ltr muted">${esc(g.id.replace(/\(.*\)/, "").trim() || "يد تحكم")}</span> ${batHTML(batFor(g, used))}
+    <button class="btn f js-kind" data-i="${g.index}">النوع: ${PAD_KINDS[padKind(g)]}${PADKINDS[g.id] ? " ✎" : ""}</button></div>`;
   return pads.length ? order.map((i, k) => row(pads.find((g) => g.index === i), k + 1)).join("") + rest.map((g) => row(g, 0)).join("")
     : `<p class="set-msg">لا توجد يد متصلة الآن. اضغط زر PS (أو Home) في اليد لتتصل.</p>`;
 }
@@ -2676,6 +2728,18 @@ function padScreen() {
     <p class="set-msg">✕ موافق · ○ رجوع · الأسهم أو العصا للتنقل · L1/R1 السابق/التالي · L2/R2 الصوت · Options تشغيل/إيقاف · PS الرئيسية (وفي الألعاب: الخروج)</p>`;
   el.querySelector(".js-diag").addEventListener("click", () => padDiagScreen());
   el.querySelector(".js-pair").addEventListener("click", () => { pop(); padPairScreen(() => padScreen()); });
+  // تصحيح نوع اليد يدوياً: تلقائي ← بلايستيشن ← إكس بوكس ← نينتندو ← عامة ← تلقائي
+  el.querySelector(".js-players").addEventListener("click", (e) => {
+    const b = e.target.closest(".js-kind");
+    if (!b) return;
+    const g = livePads().find((x) => x.index === +b.dataset.i);
+    if (!g) return;
+    const seq = [null, "ps", "xbox", "nintendo", "generic"], cur = PADKINDS[g.id] || null;
+    setPadKind(g, seq[(seq.indexOf(cur) + 1) % seq.length]);
+    toast(`🎮 النوع: ${PAD_KINDS[padKind(g)]}${PADKINDS[g.id] ? "" : " (تلقائي)"}`, 2500);
+    const pl = el.querySelector(".js-players"); pl.dataset.h = ""; 
+  });
+  pollBattery();
   el.querySelector(".js-main").addEventListener("click", () => { pop(); padMainScreen(() => padScreen()); });
   el.querySelector(".js-setup").addEventListener("click", () => { pop(); padSetupScreen(); });
   el.querySelector(".js-reset")?.addEventListener("click", async () => {
