@@ -22,13 +22,19 @@
     { id: "police", name: "المحقق", emo: "🔎", who: "🕵️", color: "#1d4ed8", tools: "🔎 📋 👣 🗂️", goal: "اجمع الأدلة واكشف الفاعل" },
     { id: "mechanic", name: "الميكانيكي", emo: "🔧", who: "🧑‍🔧", color: "#64748b", tools: "🔧 🔩 🛞 🔋", goal: "اكتشف العطل وأصلح السيارات" },
     { id: "farmer", name: "المزارع", emo: "🌾", who: "🧑‍🌾", color: "#65a30d", tools: "🌱 💧 🧺 🚜", goal: "ازرع واسقِ واحصد وبِع" },
+    { id: "candy", name: "بائع الحلوى", emo: "🍬", who: "🧑‍🍳", color: "#ec4899", tools: "🍫 🍭 ⚖️ 💰", goal: "بِع الحلوى واحسب الحساب والعروض" },
+    { id: "factory", name: "عامل المصنع", emo: "🏭", who: "👷", color: "#ea580c", tools: "🦺 ⛑️ 📦 ⚙️", goal: "افحص المنتجات ورتّبها في الصناديق" },
+    { id: "engineer", name: "المهندس", emo: "🏗️", who: "👷‍♀️", color: "#0891b2", tools: "📐 📏 🧱 🏗️", goal: "صمّم وابنِ مبنى من الأساس إلى السطح" },
+    { id: "scientist", name: "العالِم", emo: "🔬", who: "👩‍🔬", color: "#7c3aed", tools: "🔬 🧪 🌡️ 📊", goal: "أجرِ التجارب واكتشف النتائج" },
+    { id: "programmer", name: "المبرمج", emo: "💻", who: "🧑‍💻", color: "#0f766e", tools: "💻 ⌨️ 🐞 🔁", goal: "اكتب البرامج واصطد الأخطاء" },
   ];
   Jobs.play = {};   // id ← function(screen helpers) تسجلها ملفات المهن
   Jobs.register = (id, fn) => { Jobs.play[id] = fn; };
   Jobs.byId = (id) => Jobs.list.find((j) => j.id === id);
 
   // ---------------------------------------------------------------- الحفظ وفتح المهن
-  Jobs.save = K.store("jobs", { first: null, shifts: {}, runs: {}, best: {} });
+  Jobs.save = K.store("jobs", { first: null, shifts: {}, runs: {}, best: {}, cert: {} });
+  if (!Jobs.save.cert) Jobs.save.cert = {};
   const dayNo = (d = new Date()) => Math.floor(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() / 864e5);
   if (!Jobs.save.first) { Jobs.save.first = dayNo(); Jobs.save.save(); }
   Jobs.today = () => dayNo() - Jobs.save.first;                 // اليوم كم منذ أول لعب (0 = اليوم الأول)

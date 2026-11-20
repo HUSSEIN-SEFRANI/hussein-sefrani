@@ -11,9 +11,9 @@
     const card = (j) => {
       const open = Jobs.isOpen(j), ready = !!Jobs.play[j.id];
       const done = Jobs.shift(j.id);
-      const sub = !open ? `🔒 تُفتح بعد ${dayWord(Jobs.daysLeft(j))}` : !ready ? "قريباً…" : done ? `أنهيت ${done} ${done === 1 ? "وردية" : "ورديات"}` : "جديدة!";
+      const sub = !open ? `🔒 تُفتح بعد ${dayWord(Jobs.daysLeft(j))}` : !ready ? "قريباً…" : !Jobs.hasCert(j.id) ? "🎓 تحتاج شهادة" : done ? `أنهيت ${done} ${done === 1 ? "وردية" : "ورديات"}` : "جديدة!";
       return `<button class="mode f job ${open ? "" : "locked"}" style="background:${j.color}" ${K.act(j.id, () => open && K.show(jobScreen, j.id))}>
-        <span class="big emo">${open ? j.who : "🔒"}</span><b>${j.name}</b><small>${sub}</small></button>`;
+        <span class="big emo">${open ? j.who : "🔒"}</span><span class="txt2"><b>${j.name}</b><small>${sub}</small></span>${open && Jobs.needsCert(j.id) && Jobs.hasCert(j.id) ? `<span class="emo capb">🎓</span>` : ""}</button>`;
     };
     K.paint(`
       <div class="title"><span class="mascot emo">${f.who}</span><div><h1>${GAME}</h1><div class="sub">جرّب مهنة جديدة كل يوم!</div></div></div>
@@ -35,17 +35,20 @@
     }
     const run = S.runs[id];
     const n = Jobs.shift(id);
+    const cert = Jobs.hasCert(id);
     K.paint(`
-      <div class="top">${K.backBtn()}<span class="pill">الوردية ${n + 1}</span></div>
+      <div class="top">${K.backBtn()}<span class="pill">${cert ? `الوردية ${n + 1}` : "🎓 تحتاج شهادة"}</span></div>
       <div class="intro">
         <div class="dress" style="--c:${j.color}"><span class="who emo">${j.who}</span><div class="tools emo">${j.tools}</div></div>
         <div class="note how"><h2>${j.emo} ${j.name}</h2>${P.how(n)}</div>
       </div>
+      ${Jobs.pathHTML(id)}
       <div class="nav">
-        ${run ? `<button class="btn f go" ${K.act("cont", () => K.show(playScreen, id, false))}>▶ تابع الوردية (${run.done} من ${run.total})</button>` : ""}
-        <button class="btn f ${run ? "" : "go"}" ${K.act("new", () => K.show(playScreen, id, true))}>${run ? "🔁 وردية جديدة" : "▶ ابدأ الوردية"}</button>
+        ${!cert ? `<button class="btn f go" ${K.act("exam", () => K.show(Jobs.examScreen, id, () => jobScreen(id)))}>📝 امتحان الشهادة 🎓</button><small class="why">هذه مهنة تحتاج دراسة: انجح في الامتحان لتعمل فيها</small>` : ""}
+        ${cert && run ? `<button class="btn f go" ${K.act("cont", () => K.show(playScreen, id, false))}>▶ تابع الوردية (${P.label ? P.label(run) : `${run.done} من ${run.total}`})</button>` : ""}
+        ${cert ? `<button class="btn f ${run ? "" : "go"}" ${K.act("new", () => K.show(playScreen, id, true))}>${run ? "🔁 وردية جديدة" : "▶ ابدأ الوردية"}</button>` : ""}
       </div>
-      ${K.HELP}`, run ? "cont" : "new");
+      ${K.HELP}`, !cert ? "exam" : run ? "cont" : "new");
   }
 
   function playScreen(id, fresh) {

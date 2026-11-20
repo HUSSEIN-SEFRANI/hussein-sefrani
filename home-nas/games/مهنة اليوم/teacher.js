@@ -57,6 +57,8 @@
     return Math.random() < 0.5 ? [`${p}% من ${n} = ؟`, (p * n) / 100] : (() => { const x = rnd(3, 30), b = rnd(2, 20); return [`س + ${b} = ${x + b}، س = ؟`, x]; })();
   }
 
+  Jobs.BANK = BANK; Jobs.mathQ = mathQ;   // يستعملهما امتحان الشهادة (study.js)
+
   function how(shift) {
     const v = level(shift);
     return `<p>أنت معلم الصف اليوم 👩‍🏫. التدريس ليس سهلاً: الطلبات تأتي كلها معاً!</p>
@@ -210,5 +212,5 @@
     newPeriod();
   }
 
-  Jobs.register("teacher", { how, start });
+  Jobs.register("teacher", { how, start, label: (r) => `الحصة ${r.period + 1}` });
 })();

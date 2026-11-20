@@ -160,5 +160,5 @@
     draw();
   }
 
-  Jobs.register("farmer", { how, start });
+  Jobs.register("farmer", { how, start, label: (r) => `اليوم ${r.day}` });
 })();
