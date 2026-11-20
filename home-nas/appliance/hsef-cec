@@ -57,6 +57,11 @@ def map_key(code: int) -> int | None:
 
 # ------------------------------------------------------------------ قراءة أسطر cec-client
 KEY_RE = re.compile(r"key pressed: .*?\(([0-9a-fA-F]+)\)")
+# البند 5 (سامسونغ): سطر «key pressed» يطبعه libcec في مستوى DEBUG فقط، ونحن نشغّل cec-client بـ«-d 8» (رسائل الاتصال).
+# فنقرأ الزر من رسالة الاتصال نفسها: «>> 04:44:01» = User Control Pressed، والكود بعد 44
+TRAFFIC_KEY_RE = re.compile(r">> [0-9a-fA-F]{2}:44:([0-9a-fA-F]{2})\b")
+TRAFFIC_RE = re.compile(r">> [0-9a-fA-F]{2}(:[0-9a-fA-F]{2})+")
+ACTIVE_ASK_RE = re.compile(r">> [0-9a-fA-F]f:(85|86|80|82)\b|>> 0f:(84|87)\b")   # التلفاز يسأل عن المصدر أو تغيّر المدخل
 STANDBY_RE = re.compile(r">> [0-9a-fA-F]{2}:36\b")           # رسالة Standby من التلفاز
 POWER_REL_RE = re.compile(r">> [0-9a-fA-F]{2}:44:(40|6[bBcCdD])\b")
 OSD_RE = re.compile(r"osd string:\s*(.+)$")
@@ -67,8 +72,14 @@ def parse_line(line: str) -> tuple[str, object] | None:
     """('key', code) أو ('standby', None) أو ('power', None) أو ('tv', name) أو ('connected', None)."""
     if STANDBY_RE.search(line):
         return ("standby", None)
-    if POWER_REL_RE.search(line):
-        return ("power", None)
+    m = TRAFFIC_KEY_RE.search(line)
+    if m:
+        code = int(m.group(1), 16)
+        return ("power", None) if code in POWER_CODES else ("key", code)
+    if ACTIVE_ASK_RE.search(line):
+        return ("ask", None)
+    if TRAFFIC_RE.search(line):
+        return ("traffic", None)
     m = KEY_RE.search(line)
     if m:
         code = int(m.group(1), 16)
@@ -109,7 +120,7 @@ class VirtualKeys:
 
 
 # ------------------------------------------------------------------ الحالة
-state = {"supported": False, "enabled": True, "adapter": "", "connected": False, "tv": "",
+state = {"supported": False, "enabled": True, "adapter": "", "connected": False, "tv": "", "traffic": 0, "keys": 0,
          "last_key": None, "last_at": None, "power_ignored": 0, "reason": "", "updated": None}
 
 
@@ -161,14 +172,23 @@ def run_client(port: str, keys: VirtualKeys | None):
         if not ev:
             continue
         kind, val = ev
+        if kind in ("traffic", "ask", "key", "standby", "power"):
+            state["traffic"] += 1
         if kind == "connected":
             state["connected"] = True; save()
             if not asked:
                 asked = True
-                try:
-                    p.stdin.write("osd 0\n"); p.stdin.flush()   # اسم التلفاز
-                except OSError:
-                    pass
+                # سامسونغ (Anynet+) لا ترسل أزرار الريموت إلا إلى «المصدر النشط»: نعلن أننا المصدر، ثم نسأل عن اسم التلفاز
+                for c in ("as", "osd 0"):
+                    try:
+                        p.stdin.write(c + "\n"); p.stdin.flush()
+                    except OSError:
+                        pass
+        elif kind == "ask":
+            try:
+                p.stdin.write("as\n"); p.stdin.flush()   # التلفاز شُغّل أو تغيّر المدخل: نبقى المصدر النشط
+            except OSError:
+                pass
         elif kind == "tv" and not state["tv"]:
             state["tv"] = str(val)[:40]; save()
         elif kind in ("standby", "power"):
@@ -180,6 +200,7 @@ def run_client(port: str, keys: VirtualKeys | None):
                     keys.tap(k)
                 except OSError:
                     pass
+            state["keys"] += 1
             state["last_key"] = f"{int(val):02x}"; state["last_at"] = time.strftime("%H:%M:%S"); save()
         if not enabled():
             break
