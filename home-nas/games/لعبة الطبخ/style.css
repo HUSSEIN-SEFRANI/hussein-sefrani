@@ -1,0 +1,115 @@
+/* لعبة الطبخ — مطبخ: جدار بلاط وطاولة خشب */
+:root { --sky: linear-gradient(180deg, transparent 0 74%, #b7794a 74% 76%, #d39a68 76% 100%),
+  repeating-linear-gradient(90deg, rgba(255,255,255,.55) 0 .4vh, transparent .4vh 9vh),
+  repeating-linear-gradient(0deg, rgba(255,255,255,.55) 0 .4vh, transparent .4vh 9vh), #fde7c8; }
+#sky i, #sky .sun { display: none; }
+body { color: #7c2d12; }
+h1 { -webkit-text-stroke-color: #c2410c; }
+h2 { color: #9a3412; }
+.sub { color: #9a3412; }
+.credit { margin-top: 1vh; font-size: 2.6vh; font-weight: 700; color: #7c2d12; background: rgba(255,255,255,.8); border-radius: 3vh; padding: .3vh 3vh; }
+.mode.locked { filter: grayscale(.7); opacity: .75; }
+.mode .st { font-size: 3vh; min-height: 3.6vh; }
+
+/* قواعد النظافة */
+.rules { display: grid; grid-template-columns: 1fr 1fr; gap: 1.6vh 2vw; margin-top: 2vh; width: 88vw; }
+.rule { border: 0; background: #fff; border-radius: 3vh; display: flex; align-items: center; gap: 2vw; padding: 1.2vh 2vw; font-size: 3.2vh; font-weight: 700; color: #7c2d12; text-align: right; box-shadow: 0 .8vh 1.6vh rgba(124,45,18,.2); }
+.rule .emo { font-size: 6vh; }
+
+/* المقدمة */
+.chips { display: flex; flex-wrap: wrap; gap: 1.4vh 1.4vw; justify-content: center; max-width: 86vw; }
+.chip { background: #fff; border-radius: 3vh; padding: 1vh 1.6vw; display: flex; flex-direction: column; align-items: center; box-shadow: 0 .6vh 1.2vh rgba(124,45,18,.18); }
+.chip .emo { font-size: 6.5vh; }
+.chip small { font-size: 2.4vh; font-weight: 700; }
+
+/* شاشة الطبخ */
+.top .dots { flex: 1; }
+.dots i.now { background: #f97316; }
+.meter { display: flex; align-items: center; gap: 1vh; }
+.meter i { display: block; width: 14vh; height: 2.2vh; border-radius: 2vh; background: #e5e7eb; overflow: hidden; }
+.meter b { display: block; height: 100%; transition: width .4s; }
+.clock.hot { background: #fecaca; color: #b91c1c; animation: beat .6s infinite alternate; }
+@keyframes beat { to { transform: scale(1.08) } }
+.kitchen { display: flex; gap: 3vw; width: 100%; margin-top: 1.5vh; height: 36vh; align-items: stretch; }
+.task { flex: 1.25; background: #fff; border-radius: 4vh; display: flex; align-items: center; gap: 2vw; padding: 2vh 2.5vw; box-shadow: 0 1.2vh 2.4vh rgba(124,45,18,.2); position: relative; }
+.task .temo { font-size: 15vh; }
+.task .ttext { font-size: 4.8vh; font-weight: 800; line-height: 1.3; color: #9a3412; flex: 1; }
+.task .say { position: absolute; left: 1.5vh; top: 1.5vh; padding: .8vh 2vh; }
+.counter { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; }
+.acts { margin-top: 2.5vh; display: flex; flex-direction: column; align-items: center; gap: 1.5vh; min-height: 26vh; width: 100%; }
+.cheer { min-height: 6vh; margin-top: 1vh; font-size: 4.6vh; -webkit-text-stroke-color: #c2410c; }
+
+.cards { display: flex; gap: 2vw; flex-wrap: wrap; justify-content: center; }
+.card { border: 0; background: #fff; border-radius: 3.5vh; width: 19vh; min-height: 22vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1vh; padding: 1vh;
+  box-shadow: 0 1vh 2vh rgba(124,45,18,.22); color: #7c2d12; }
+.card .emo { font-size: 10vh; }
+.card small { font-size: 2.6vh; font-weight: 800; line-height: 1.2; text-align: center; }
+.cards.wide .card { width: 26vw; min-height: 20vh; }
+.cards.wide .card small { font-size: 3vh; }
+.card.ok { background: #bbf7d0; box-shadow: 0 0 0 .8vh #16a34a !important; }
+.card.bad { background: #fecaca; animation: shake .45s; opacity: .7; }
+
+.tapbtn { border: 0; border-radius: 50%; width: 24vh; height: 24vh; background: #f97316; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 1.4vh 0 #c2410c, 0 2vh 3vh rgba(124,45,18,.3); }
+.tapbtn:active { transform: translateY(1vh); }
+.tapbtn .emo { font-size: 10vh; }
+.tapbtn b { font-size: 4vh; }
+.tapbtn small { font-size: 2.6vh; font-weight: 700; }
+.bar, .track { width: 50vw; height: 3vh; background: #fff; border-radius: 3vh; overflow: hidden; box-shadow: inset 0 .3vh .6vh rgba(0,0,0,.15); }
+.bar b { display: block; height: 100%; background: linear-gradient(90deg, #fb923c, #22c55e); transition: width .2s; }
+
+.gauge { display: flex; align-items: center; gap: 1.5vw; font-size: 3vh; font-weight: 800; }
+.track { position: relative; height: 6vh; overflow: visible; background: linear-gradient(270deg, #fde68a, #fb923c 70%, #7f1d1d); }
+.zone { position: absolute; top: 0; bottom: 0; background: #22c55e; border-radius: 1vh; box-shadow: 0 0 0 .4vh #fff inset; }
+.needle { position: absolute; top: -1.4vh; bottom: -1.4vh; width: 1.2vh; margin-right: -.6vh; background: #1e293b; border-radius: 1vh; }
+.stopbtn { font-size: 4vh; padding: 1.6vh 5vh; }
+.hint { font-size: 2.6vh; font-weight: 700; opacity: .85; }
+
+/* الطبق من الأعلى */
+.vessel { position: relative; width: 32vh; height: 32vh; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.vessel.bowl { background: #60a5fa; box-shadow: inset 0 0 0 1.8vh #3b82f6, 0 1.5vh 2.5vh rgba(0,0,0,.25); }
+.vessel.pot { background: #475569; box-shadow: inset 0 0 0 1.6vh #334155, 0 1.5vh 2.5vh rgba(0,0,0,.3); }
+.vessel.pot::before, .vessel.pot::after { content: ""; position: absolute; top: 45%; width: 4vh; height: 3vh; background: #334155; border-radius: 1vh; }
+.vessel.pot::before { left: -3vh; } .vessel.pot::after { right: -3vh; }
+.vessel.pan { background: #1f2937; box-shadow: inset 0 0 0 1.2vh #111827, 0 1.5vh 2.5vh rgba(0,0,0,.3); }
+.vessel.pan::after { content: ""; position: absolute; left: -9vh; top: 46%; width: 10vh; height: 3vh; background: #111827; border-radius: 1vh; }
+.vessel.pizza { background: #cbd5e1; box-shadow: inset 0 0 0 1vh #94a3b8, 0 1.5vh 2.5vh rgba(0,0,0,.2); }
+.vessel.cake { background: #f1f5f9; box-shadow: inset 0 0 0 1.2vh #cbd5e1, 0 1.5vh 2.5vh rgba(0,0,0,.2); }
+.vessel.dome { background: #fff; box-shadow: inset 0 0 0 1.2vh #e2e8f0, 0 1.5vh 2.5vh rgba(0,0,0,.2); }
+.vessel.cups { background: #e2e8f0; border-radius: 3vh; width: 40vh; height: 22vh; gap: 1.5vh; }
+.cup { width: 11vh; height: 11vh; border-radius: 50%; position: relative; box-shadow: 0 0 0 .9vh #f9a8d4, 0 0 0 1.3vh #fff; background: #fbcfe8; }
+.food { position: absolute; inset: 13%; border-radius: 50%; }
+.cups .food { inset: 0; }
+.vessel.pizza .food, .vessel.cake .food, .vessel.dome .food { inset: 9%; }
+.food b { position: absolute; border-radius: 50%; }
+.vessel.pizza .food b:first-child { box-shadow: inset 0 0 0 1.4vh #d9a35c; }
+.vessel.dome .food b:first-child { box-shadow: inset 0 0 2vh rgba(120,53,15,.5); }
+.food i { position: absolute; transform: translate(-50%, -50%); font-style: normal; font-size: 4.2vh; line-height: 1; font-family: "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif; }
+.cups .food i { font-size: 3vh; }
+.food.baked b { filter: sepia(.35) saturate(1.25) brightness(.93); }
+.food.cut::after { content: ""; position: absolute; inset: 0; border-radius: 50%;
+  background: linear-gradient(0deg, transparent 49.3%, rgba(120,53,15,.55) 49.5% 50.5%, transparent 50.7%), linear-gradient(90deg, transparent 49.3%, rgba(120,53,15,.55) 49.5% 50.5%, transparent 50.7%),
+    linear-gradient(45deg, transparent 49.3%, rgba(120,53,15,.55) 49.5% 50.5%, transparent 50.7%), linear-gradient(-45deg, transparent 49.3%, rgba(120,53,15,.55) 49.5% 50.5%, transparent 50.7%); }
+.vessel.wob { animation: wob .25s; }
+@keyframes wob { 30% { transform: rotate(-4deg) scale(1.03) } 70% { transform: rotate(3deg) } }
+.vessel.inoven::before { content: ""; position: absolute; inset: -2vh; border-radius: 3vh; background: rgba(251,146,60,.35); box-shadow: 0 0 6vh #fb923c; animation: glow 1s infinite alternate; z-index: 3; }
+.vessel.onfire { box-shadow: 0 2vh 4vh #f97316, 0 0 6vh #fb923c; animation: glow 1s infinite alternate; }
+@keyframes glow { to { opacity: .6 } }
+.drop { position: absolute; top: -4vh; left: 50%; font-size: 9vh; animation: drop .8s ease-in forwards; z-index: 4; }
+@keyframes drop { 0% { transform: translate(-50%, -6vh) scale(1.2) } 80% { transform: translate(-50%, 14vh) scale(.8); opacity: 1 } 100% { transform: translate(-50%, 16vh) scale(.5); opacity: 0 } }
+
+/* التقديم */
+.served { margin: 2vh 0; display: flex; align-items: center; justify-content: center; padding: 3vh; animation: pop .6s ease; }
+.served .vessel { width: 40vh; height: 40vh; box-shadow: none; background: transparent; }
+.served .vessel.cups { width: 46vh; height: 24vh; background: transparent; }
+.served .vessel::before, .served .vessel::after { display: none; }
+.serve-board { background: #b7794a; border-radius: 4vh; box-shadow: inset 0 0 0 1vh #9a5b2e, 0 2vh 3vh rgba(0,0,0,.25); }
+.serve-plate { background: #fff; border-radius: 50%; box-shadow: inset 0 0 0 2vh #f1f5f9, 0 2vh 3vh rgba(0,0,0,.2); }
+.serve-bowl { background: #fff; border-radius: 50%; box-shadow: inset 0 0 0 2.4vh #fb923c, 0 2vh 3vh rgba(0,0,0,.2); }
+.serve-stand { background: #fff; border-radius: 50%; box-shadow: inset 0 0 0 1.4vh #fde68a, 0 0 0 1vh #facc15, 0 2vh 3vh rgba(0,0,0,.2); }
+.served.serve-plate .vessel.cups { width: 38vh; }
+
+.toast { position: absolute; top: 14vh; left: 50%; transform: translateX(-50%); background: #fff; color: #b91c1c; font-size: 4vh; font-weight: 800; padding: 1.5vh 4vh; border-radius: 3vh; box-shadow: 0 1vh 3vh rgba(0,0,0,.25); animation: pop .3s ease; }
+
+/* الأجهزة الضعيفة: بلا حركة زائدة */
+.lite .mascot, .lite .clock.hot, .lite .vessel.inoven::before, .lite .vessel.onfire { animation: none !important; }
+.lite .f { transition: none; }
