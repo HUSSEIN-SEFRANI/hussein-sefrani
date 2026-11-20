@@ -72,26 +72,61 @@ window.FA = (() => {
     c.fillStyle = col[2];
     for (let i = 0; i < 5; i++) { c.beginPath(); c.arc(px + (r() - 0.5) * k * 0.9, py - k * (0.65 + r() * 0.6), k * 0.05, 0, 7); c.fill(); }
   }
-  function barn(c, x, y, w, d, h) {
-    const T = (p) => up(p, TH * h * 2), rh = TH * 1.1;
+  const BARN = { front: "#dc2626", side: "#b91c1c", line: "#7f1d1d", door: "#fef3c7", cross: "#dc2626", gable: "#991b1b", roof: "#57534e", win: "#fde68a" };
+  const HOUSE = { front: "#fef3c7", side: "#fde68a", line: "#a16207", door: "#92400e", cross: null, gable: "#c2410c", roof: "#ea580c", win: "#7dd3fc", chimney: true };
+  function barn(c, x, y, w, d, h, K = BARN) {
+    const T = (p) => up(p, TH * h * 2), rh = TH * (K.chimney ? 0.9 : 1.1);
     const A = P(x, y), B = P(x + w, y), Cc = P(x + w, y + d), Dd = P(x, y + d);
     c.fillStyle = "rgba(0,0,0,.2)"; poly(c, [P(x + 0.2, y + d + 0.25), P(x + w + 0.3, y + d + 0.25), P(x + w + 0.3, y + 0.2), Cc, Dd], "rgba(0,0,0,.18)");
-    poly(c, [Dd, Cc, T(Cc), T(Dd)], "#dc2626", "#7f1d1d", 2);         // الواجهة
-    poly(c, [Cc, B, T(B), T(Cc)], "#b91c1c", "#7f1d1d", 2);           // الجانب
+    poly(c, [Dd, Cc, T(Cc), T(Dd)], K.front, K.line, 2);         // الواجهة
+    poly(c, [Cc, B, T(B), T(Cc)], K.side, K.line, 2);           // الجانب
     // الباب
     const d0 = P(x + w * 0.35, y + d), d1 = P(x + w * 0.65, y + d), dh = TH * h * 1.3;
-    poly(c, [d0, d1, up(d1, dh), up(d0, dh)], "#fef3c7", "#fff", 2);
-    c.strokeStyle = "#dc2626"; c.lineWidth = Math.max(2, TW * 0.03);
-    c.beginPath(); c.moveTo(...d0); c.lineTo(...up(d1, dh)); c.moveTo(...d1); c.lineTo(...up(d0, dh)); c.stroke();
+    poly(c, [d0, d1, up(d1, dh), up(d0, dh)], K.door, "#fff", 2);
+    if (K.cross) {
+      c.strokeStyle = K.cross; c.lineWidth = Math.max(2, TW * 0.03);
+      c.beginPath(); c.moveTo(...d0); c.lineTo(...up(d1, dh)); c.moveTo(...d1); c.lineTo(...up(d0, dh)); c.stroke();
+    } else {
+      // نافذتان في الواجهة للبيت
+      for (const u of [0.12, 0.72]) { const a = P(x + w * u, y + d), b = P(x + w * (u + 0.16), y + d); poly(c, [up(a, TH * h * 0.9), up(b, TH * h * 0.9), up(b, TH * h * 1.5), up(a, TH * h * 1.5)], K.win, "#fff", 2); }
+    }
     // نافذة في الجانب
     const w0 = P(x + w, y + d * 0.35), w1 = P(x + w, y + d * 0.65);
-    poly(c, [up(w0, TH * h * 1.1), up(w1, TH * h * 1.1), up(w1, TH * h * 1.6), up(w0, TH * h * 1.6)], "#fde68a", "#fff", 2);
+    poly(c, [up(w0, TH * h * 1.1), up(w1, TH * h * 1.1), up(w1, TH * h * 1.6), up(w0, TH * h * 1.6)], K.win, "#fff", 2);
     // السقف
     const R1 = up(P(x, y + d / 2), TH * h * 2 + rh), R2 = up(P(x + w, y + d / 2), TH * h * 2 + rh);
-    poly(c, [T(B), T(Cc), R2], "#991b1b", "#fff", 2);
-    poly(c, [T(Dd), T(Cc), R2, R1], "#57534e", "#fff", 2.5);
+    poly(c, [T(B), T(Cc), R2], K.gable, "#fff", 2);
+    if (K.chimney) { const q = P(x + w * 0.25, y + d * 0.3), ch = TH * h * 2 + rh * 1.2; poly(c, [up(q, TH * h * 2), up([q[0] + TW * 0.12, q[1]], TH * h * 2), up([q[0] + TW * 0.12, q[1]], ch), up(q, ch)], "#9ca3af", "#6b7280", 2); }
+    poly(c, [T(Dd), T(Cc), R2, R1], K.roof, "#fff", 2.5);
     c.strokeStyle = "rgba(255,255,255,.25)"; c.lineWidth = 1;
     for (let i = 1; i < 6; i++) { const a = P(x + (w * i) / 6, y + d), b = P(x + (w * i) / 6, y + d / 2); c.beginPath(); c.moveTo(...up(a, TH * h * 2)); c.lineTo(...up(b, TH * h * 2 + rh)); c.stroke(); }
+  }
+  // الطاحونة: البرج في الخلفية، والأجنحة تدور في كل إطار
+  let MILL = null;
+  function millTower(c, x, y) {
+    const [px, py] = P(x, y), w = TW * 0.42, h = TW * 1.25;
+    c.fillStyle = "rgba(0,0,0,.18)"; c.beginPath(); c.ellipse(px, py, w * 0.9, w * 0.4, 0, 0, 7); c.fill();
+    poly(c, [[px - w / 2, py], [px + w / 2, py], [px + w * 0.32, py - h], [px - w * 0.32, py - h]], "#f8fafc", "#cbd5e1", 2);
+    poly(c, [[px, py], [px + w / 2, py], [px + w * 0.32, py - h], [px, py - h]], "#e2e8f0");
+    for (const k of [0.35, 0.7]) { c.fillStyle = "#93c5fd"; c.fillRect(px - w * 0.08, py - h * k - w * 0.12, w * 0.16, w * 0.2); }
+    c.fillStyle = "#92400e"; c.fillRect(px - w * 0.12, py - w * 0.36, w * 0.24, w * 0.36);
+    poly(c, [[px - w * 0.42, py - h], [px + w * 0.42, py - h], [px, py - h - w * 0.75]], "#dc2626", "#fff", 2);
+    MILL = [px, py - h - w * 0.05, TW * 0.75];
+  }
+  function millBlades(T) {
+    if (!MILL) return;
+    const [hx, hy, L] = MILL, a0 = T * (lite ? 0.6 : 1.1);
+    ctx.save(); ctx.translate(hx, hy);
+    for (let k = 0; k < 4; k++) {
+      ctx.save(); ctx.rotate(a0 + (k * Math.PI) / 2);
+      ctx.fillStyle = "#a16207"; ctx.fillRect(-L * 0.025, 0, L * 0.05, L);
+      ctx.fillStyle = "rgba(255,255,255,.92)"; ctx.fillRect(L * 0.03, L * 0.22, L * 0.2, L * 0.76);
+      ctx.strokeStyle = "#d6d3d1"; ctx.lineWidth = 1;
+      for (let j = 1; j < 5; j++) { ctx.beginPath(); ctx.moveTo(L * 0.03, L * (0.22 + j * 0.15)); ctx.lineTo(L * 0.23, L * (0.22 + j * 0.15)); ctx.stroke(); }
+      ctx.restore();
+    }
+    ctx.fillStyle = "#78350f"; ctx.beginPath(); ctx.arc(0, 0, L * 0.07, 0, 7); ctx.fill();
+    ctx.restore();
   }
   function pond(c, x, y, rx, ry) {
     const [px, py] = P(x, y);
@@ -120,7 +155,7 @@ window.FA = (() => {
       c.beginPath(); c.ellipse(r() * W, r() * H, 3 + r() * 10, 2 + r() * 4, 0, 0, 7); c.fill();
     }
     // البركة على اليسار
-    pond(c, -2.6, R * 0.55, 2.2, 1.6);
+    pond(c, 1.4, R + M + 1.7, 2.2, 1.4);
     // الممر الحجري حول الحقل
     poly(c, quad(-M, -M, C + M, R + M), "#e9c99b", "#c79f6a", 2);
     c.strokeStyle = "rgba(160,110,60,.45)"; c.lineWidth = 1;
@@ -136,16 +171,22 @@ window.FA = (() => {
     const bx = C - 3.2, by = -M - 2.4;
     things.push({ d: bx + by + 3.5, f: () => barn(c, bx, by, 2.4, 1.6, 0.85) });
     const COLS = [["#f59e0b", "#fcd34d", "#b45309"], ["#a855f7", "#d8b4fe", "#7e22ce"], ["#22c55e", "#86efac", "#ef4444"], ["#ec4899", "#f9a8d4", "#fff"], ["#84cc16", "#d9f99d", "#f97316"]];
-    const free = (x, y) => !(x > bx - 1.2 && x < bx + 3.4 && y > by - 1.2 && y < by + 2.6);
+    // بيتنا (يسار الحقل) والطاحونة (خلفه)
+    const hx = -M - 2.7, hy = 1.9, mx = C + M + 1.7, my = R * 0.45;
+    things.push({ d: hx + hy + 3, f: () => barn(c, hx, hy, 2, 1.6, 0.7, HOUSE) });
+    const near = (x, y, ax, ay, w, d) => x > ax - 1.2 && x < ax + w + 0.8 && y > ay - 1.2 && y < ay + d + 0.8;
+    const free = (x, y) => !near(x, y, bx, by, 2.4, 1.6) && !near(x, y, hx, hy, 2, 1.6) && !near(x, y, mx - 0.5, my - 0.5, 1, 1);
     for (let x = -M - 1.5; x < C + 2.5; x += 1.15 + r() * 0.5) { const y = -M - 1 - r() * 2.4; if (free(x, y)) things.push({ d: x + y, f: ((x, y, k) => () => tree(c, x, y, COLS[k], 0.62 + r() * 0.25, r))(x, y, (r() * 5) | 0) }); }
-    for (let y = -M - 0.4; y < R + 1; y += 1.2 + r() * 0.5) { if (y > R * 0.55 - 1.8 && y < R * 0.55 + 1.8) continue; const x = -M - 1 - r() * 2.2; things.push({ d: x + y, f: ((x, y, k) => () => tree(c, x, y, COLS[k], 0.6 + r() * 0.25, r))(x, y, (r() * 5) | 0) }); }
+    for (let y = -M - 0.4; y < R + 1; y += 1.2 + r() * 0.5) { const x = -M - 1 - r() * 2.2; if (!free(x, y)) continue; things.push({ d: x + y, f: ((x, y, k) => () => tree(c, x, y, COLS[k], 0.6 + r() * 0.25, r))(x, y, (r() * 5) | 0) }); }
     things.sort((a, b) => a.d - b.d).forEach((o) => o.f());
     // السياج الأبيض أمام الحقل
     fence(c, C + M + 0.25, -M - 0.3, C + M + 0.25, R + M + 0.25);
     fence(c, -M - 0.3, R + M + 0.25, C + M + 0.25, R + M + 0.25);
+    millTower(c, mx, my);
     // شجيرات وزهور في الأمام
     for (let i = 0; i < 9; i++) {
       const x = C + M + 0.9 + r() * 2.5, y = -M + r() * (R + 2 * M);
+      if (Math.abs(x - mx) < 1 && Math.abs(y - my) < 1) continue;
       const [px, py] = P(x, y); c.fillStyle = "#16a34a"; c.beginPath(); c.arc(px, py - TH * 0.25, TW * 0.12, 0, 7); c.fill();
       c.fillStyle = ["#f472b6", "#facc15", "#fff"][i % 3]; c.beginPath(); c.arc(px + TW * 0.04, py - TH * 0.35, TW * 0.03, 0, 7); c.fill();
     }
@@ -245,6 +286,7 @@ window.FA = (() => {
         if (cur && cur.x === x && cur.y === y) tops.push(() => cursor(x, y, cur, T));
       }
     }
+    millBlades(T);
     tops.forEach((fn) => fn());
   }
   function cursor(x, y, cur, T) {
