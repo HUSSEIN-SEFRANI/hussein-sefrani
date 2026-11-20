@@ -165,11 +165,49 @@
   // ---------------------------------------------------------------- الرسم: ذاكرة الصور
   let SR = 1, Z = 1;
   const SPR = new Map(), GSP = new Map();
-  function sprite(key, draw) {
+  // حدّ ناعم حول الرسم (مرة واحدة لكل صورة) ليبدو أوضح وأجمل
+  function outlined(src, px, col = "rgba(74,44,58,.55)") {
+    const w = src.width, h = src.height, sil = document.createElement("canvas"); sil.width = w; sil.height = h;
+    const sg = sil.getContext("2d"); sg.drawImage(src, 0, 0); sg.globalCompositeOperation = "source-in"; sg.fillStyle = col; sg.fillRect(0, 0, w, h);
+    const out = document.createElement("canvas"); out.width = w; out.height = h; const og = out.getContext("2d");
+    for (let k = 0; k < 8; k++) { const a = (k * Math.PI) / 4; og.drawImage(sil, Math.cos(a) * px, Math.sin(a) * px); }
+    og.drawImage(src, 0, 0);
+    return out;
+  }
+  const OUTW = () => (LITE ? 1 : 1.3) * SR;
+  function sprite(key, draw, plain) {
     let s = SPR.get(key);
     if (!s) {
       s = document.createElement("canvas"); s.width = Math.ceil(TS * SR); s.height = Math.ceil(TS * 2 * SR);
-      const c = s.getContext("2d"); c.scale(SR, SR); c.translate(0, TS); draw(c); SPR.set(key, s);
+      const c = s.getContext("2d"); c.scale(SR, SR); c.translate(0, TS); draw(c);
+      if (!plain) s = outlined(s, OUTW());
+      SPR.set(key, s);
+    }
+    return s;
+  }
+  // الشخصية والحيوانات: صور محفوظة لكل اتجاه وخطوة
+  const CSP = new Map();
+  let charKey = "";
+  function charSprite(dir, f) {
+    const ck = JSON.stringify(save.char) + SR;
+    if (ck !== charKey) { charKey = ck; CSP.clear(); }
+    const key = dir + ":" + f;
+    let s = CSP.get(key);
+    if (!s) {
+      s = document.createElement("canvas"); s.width = Math.ceil(80 * SR); s.height = Math.ceil(96 * SR);
+      const c = s.getContext("2d"); c.scale(SR, SR);
+      A.char(c, 40, 90, dir, [0, 1.5708, 3.1416, 4.7124][f], save.char, 1, D);
+      s = outlined(s, OUTW()); CSP.set(key, s);
+    }
+    return s;
+  }
+  function animSprite(k, face, swim) {
+    const key = `an:${k}:${face}:${swim ? 1 : 0}`;
+    let s = CSP.get(key);
+    if (!s) {
+      s = document.createElement("canvas"); s.width = Math.ceil(48 * SR); s.height = Math.ceil(56 * SR);
+      const c = s.getContext("2d"); c.scale(SR, SR); A.animal(c, k, 24, 50, face, 0, swim);
+      s = outlined(s, OUTW()); CSP.set(key, s);
     }
     return s;
   }
@@ -183,7 +221,7 @@
     const t = o.t, d = OBJ[t];
     if (d.wall) {
       const below = isWallish(x, y + 1) ? 1 : 0, wc = WALLC[save.wall][1];
-      return sprite(`${t}:${save.wall}:${below}`, (c) => A.obj[t](c, o, x, y, wc, below));
+      return sprite(`${t}:${save.wall}:${below}`, (c) => A.obj[t](c, o, x, y, wc, below), true);
     }
     let v = "";
     if (t === "tree" || t === "rock" || t === "bigtree" || t === "goldrock" || t === "wflower") v = ((A.hash(x, y) * 3) | 0) + ":" + (o.v || 0);
@@ -193,7 +231,7 @@
     if (t === "tv") v = o.on ? 1 : 0;
     if (t === "asapling") v = "a";
     const hx = (A.hash(x, y) * 3) | 0, hy = 1;
-    return sprite(`${t}:${v}`, (c) => A.obj[t](c, o, t === "tree" || t === "rock" || t === "bigtree" || t === "goldrock" || t === "wflower" ? hx : 3, hy, WALLC[save.wall][1], 0));
+    return sprite(`${t}:${v}`, (c) => A.obj[t](c, o, t === "tree" || t === "rock" || t === "bigtree" || t === "goldrock" || t === "wflower" ? hx : 3, hy, WALLC[save.wall][1], 0), d.flat);
   }
   // تنويع الأشجار: نستعمل x=hx و y=1 داخل الرسم
   function gMask(x, y, g) {
@@ -210,7 +248,7 @@
   }
 
   // ---------------------------------------------------------------- اللاعب والحالة
-  let P = null, held = [], padDir = null, path = null, pendingAct = null;
+  let P = null, held = [], padDir = null, padAlt = null, blockT = 0, path = null, pendingAct = null;
   let ov = null, ovGuard = false, placing = null, sleeping = 0, sleepNight = false, running = false;
   let raf = 0, lastT = 0, acc30 = 0, T = 0, hudT = 0, saveT = 0, warnT = 0, nightWarned = -1, music = null;
   const parts = [], floats = [], shake = new Map();
@@ -224,8 +262,17 @@
     const o = O[i];
     if (o && OBJ[o.t].solid) return false;
     if (who !== P && P && P.x === x && P.y === y) return false;
-    const a = animalAt(x, y); if (a && a !== who) return false;
+    const a = animalAt(x, y); if (a && a !== who && who !== P) return false;
     return true;
+  }
+  // الحيوان لا يسدّ الطريق أبداً: يقفز جانباً أو يبادل اللاعب مكانه
+  const isDoorish = (x, y) => (inb(x, y) && O[I(x, y)] && O[I(x, y)].t === "door") || (inb(x, y - 1) && O[I(x, y - 1)] && O[I(x, y - 1)].t === "door") || (inb(x, y + 1) && O[I(x, y + 1)] && O[I(x, y + 1)].t === "door");
+  function nudge(a) {
+    for (const d of [0, 1, 2, 3].sort(() => rnd() - 0.5)) {
+      const nx = a.x + DX[d], ny = a.y + DY[d];
+      if (passable(nx, ny, a) && !(nx === P.x && ny === P.y)) { a.fx = a.x; a.fy = a.y; a.x = nx; a.y = ny; a.mt = 0; a.tm = 2; return; }
+    }
+    a.fx = a.x; a.fy = a.y; a.x = P.x; a.y = P.y; a.mt = 0; a.tm = 2;
   }
 
   // ---------------------------------------------------------------- الأصوات
@@ -271,14 +318,25 @@
   }
 
   // ---------------------------------------------------------------- التفاعل
+  // ما يفعله ✕: الشيء الذي أمامه، وإلا أقرب شيء بجانبه (فلا يحتاج الطفل أن يلتفت بدقة)
+  const useful = (x, y) => { if (!inb(x, y)) return false; if (animalAt(x, y)) return true; const o = O[I(x, y)]; if (!o) return false; const k = OBJ[o.t].k; return !(k === "big" || k === "stump" || k === "grow" || OBJ[o.t].wall); };
+  function target() {
+    if (!P) return null;
+    const [fx, fy] = front();
+    if (placing || P.t < 1) return [fx, fy, P.dir];
+    if (useful(fx, fy) || (inb(fx, fy) && (O[I(fx, fy)] || G[I(fx, fy)] === 3))) return [fx, fy, P.dir];
+    for (const d of [P.dir, 0, 2, 3, 1]) { const x = P.x + DX[d], y = P.y + DY[d]; if (useful(x, y)) return [x, y, d]; }
+    return [fx, fy, P.dir];
+  }
   function act() {
     if (placing) return place(...front());
+    const tg = target(); P.dir = tg[2];
     const [fx, fy] = front();
     const a = animalAt(fx, fy);
     if (a) return pet(a);
-    if (!inb(fx, fy)) return openMenu();
+    if (!inb(fx, fy)) return;
     const i = I(fx, fy), o = O[i];
-    if (!o) { if (G[i] === 3) { toast("ماء البحيرة صافٍ 💧"); burst(fx, fy, "#bae6fd", 6); K.tone(700, 0.1, "sine", 0.08); return; } return openMenu(); }
+    if (!o) { if (G[i] === 3) { toast("ماء البحيرة صافٍ 💧"); burst(fx, fy, "#bae6fd", 6); K.tone(700, 0.1, "sine", 0.08); return; } toast("اقترب من شجرة 🌳 أو صخرة 🪨 أو ثمرة 🍎 · <b>○</b> القائمة", 2200); return; }
     const d = OBJ[o.t];
     const tired = () => { if (save.energy <= 3) { toast(gw("أنا متعبة جداً 😴 حان وقت النوم", "أنا متعب جداً 😴 حان وقت النوم")); return true; } return false; };
     switch (d.k) {
@@ -472,9 +530,21 @@
         <button class="mtile f" style="--c:#8b5cf6" ${K.act("me", () => { closeOv(); K.show(charScreen, true); })}><span class="emo">👧</span><b>شخصيتي</b></button>
         <button class="mtile f" style="--c:#0ea5e9" ${K.act("help", sub(openHelp))}><span class="emo">❓</span><b>كيف ألعب؟</b></button>
         ${ctxBtn}
+        <button class="mtile f" style="--c:#14b8a6" ${K.act("homego", goHome)}><span class="emo">🏡</span><b>إلى البيت</b></button>
         <button class="mtile f" style="--c:#64748b" ${K.act("exit", () => { closeOv(); persist(); K.home(); })}><span class="emo">🚪</span><b>الخروج</b></button>
         <button class="mtile f go" ${K.act("resume", closeOv)}><span class="emo">▶️</span><b>متابعة</b></button>
       </div></div>`, "resume");
+  }
+  // إن علقت الشخصية في مكان ما: ترجع أمام باب البيت
+  function goHome() {
+    closeOv();
+    let s = null;
+    for (let i = 0; i < O.length && !s; i++) if (O[i] && O[i].t === "door") { const x = i % W, y = (i / W) | 0; if (passable(x, y + 1, P)) s = [x, y + 1]; }
+    s = s || (passable(HX, 20, P) ? [HX, 20] : freeSpot((x, y) => Math.abs(x - HX) < 8 && Math.abs(y - HY) < 10));
+    if (!s) return;
+    P.x = P.fx = s[0]; P.y = P.fy = s[1]; P.t = 1; P.dir = 0; path = null;
+    const an = animalAt(P.x, P.y); if (an) nudge(an);
+    burst(P.x, P.y, "#fde68a", 10); snd.place(); toast("🏡 وصلنا إلى البيت!"); persist();
   }
   function removeFloor(x, y) {
     const g = G[I(x, y)], back = { 4: null, 5: "path", 6: "floor_wood", 7: "floor_tile", 8: "floor_carpet" }[g];
@@ -580,12 +650,12 @@
       const it = ITEMS[placing.id], n = placing.moved ? "" : ` (${inv(placing.id)})`;
       return `<b>${it.n}${n}</b> · <b>✕</b> ضع هنا · <b>○</b> انتهيت`;
     }
-    const [fx, fy] = front();
+    const [fx, fy] = target();
     const a = animalAt(fx, fy);
     if (a) return `<b>✕</b> ${a.home ? "ربّت على" : "سلّم على"} ${ANIMALS[a.k].n}`;
     if (!inb(fx, fy)) return "";
     const o = O[I(fx, fy)];
-    if (!o) return G[I(fx, fy)] === 3 ? "الماء 💧" : `<b>✕</b> أو <b>○</b> القائمة`;
+    if (!o) return G[I(fx, fy)] === 3 ? "الماء 💧" : `<b>○</b> القائمة · <b>□</b> الحقيبة · <b>△</b> الصنع`;
     const WD = { chop: "قطع الشجرة 🪓", apple: o.r ? "قطف التفاح" : "شجرة تفاح", bush: o.r ? "قطف التوت" : "شجيرة توت", cotton: o.r ? "قطف القطن" : "نبتة قطن", crop: o.r ? "قطف " + CROPS[o.v][1] : "نبتة صغيرة",
       mine: "كسر " + OBJ[o.t].n, wild: "قطف الزهرة", egg: "التقاط البيضة", wool: "التقاط الصوف", big: "شجرة كبيرة", stump: "جذع شجرة", grow: "شتلة صغيرة" };
     const k = OBJ[o.t].k;
@@ -593,7 +663,7 @@
     return (k === "big" || k === "stump" || k === "grow" || (!o.r && (k === "apple" || k === "bush" || k === "cotton" || k === "crop")) ? "" : "<b>✕</b> ") + WD[k];
   }
   function hud(force) {
-    const key = [hint(), Math.floor(save.time / 10), Math.round(save.energy / 4), Math.round(save.food / 4), placing ? placing.id + inv(placing.id) : ""].join("|");
+    const key = [hint(), P ? P.x + "," + P.y + "," + P.dir : "", Math.floor(save.time / 10), Math.round(save.energy / 4), Math.round(save.food / 4), placing ? placing.id + inv(placing.id) : ""].join("|");
     if (!force && key === hudKey) return;
     hudKey = key;
     const h = Math.floor(hour()), m = Math.floor(save.time % 60 / 10) * 10;
@@ -610,9 +680,9 @@
     ensureWorld();
     if (!save.char) { K.replace(charScreen, false); return; }
     const sp = save.p || { x: HX, y: 20, dir: 0 };
-    P = { x: sp.x, y: sp.y, dir: sp.dir || 0, fx: sp.x, fy: sp.y, t: 1, ph: 0, turn: 0, moving() { return this.t < 1; } };
+    P = { x: sp.x, y: sp.y, dir: sp.dir || 0, fx: sp.x, fy: sp.y, t: 1, ph: 0, turn: 0, idle: 1, moving() { return this.t < 1; } };
     if (!passable(P.x, P.y, P) && O[I(P.x, P.y)]) { const s = freeSpot((x, y) => Math.abs(x - HX) < 6 && y > 19); if (s) { P.x = P.fx = s[0]; P.y = P.fy = s[1]; } }
-    held = []; path = null; placing = null; ov = null; sleeping = 0;
+    held = []; path = null; placing = null; ov = null; sleeping = 0; padDir = padAlt = null; blockT = 0;
     document.body.classList.add("playing");
     K.paint(`<div id="hud"><div id="htop"></div>
         <button id="hbag" class="hb" aria-label="القائمة"><span class="emo">🎒</span></button>
@@ -625,7 +695,7 @@
     if (!save.tip) K.later(() => toast(gw("مرحباً! اخرجي إلى الغابة 🌳 واجمعي الخشب والحجارة، ثم اصنعي أثاث بيتك 🔨", "مرحباً! اخرج إلى الغابة 🌳 واجمع الخشب والحجارة، ثم اصنع أثاث بيتك 🔨"), 5000), 600);
 
     const KEYDIR = { ArrowDown: 0, ArrowUp: 1, ArrowLeft: 2, ArrowRight: 3 };
-    const pad = { prev: [], dir: null };
+    const pad = { prev: null, dir: null, rep: 0 }; let keyRep = 0;
     K.mode = {
       key(e) {
         if (ov) { if (e.key === "Backspace") { ovBack(); return true; } return false; }
@@ -633,29 +703,47 @@
         const d = KEYDIR[e.key];
         if (d != null) { if (e.pad) return true; if (!held.includes(d)) { held.push(d); pressDir(d); } path = null; return true; }
         if (e.pad) return true;
-        if (e.key === "Enter" || e.key === " ") { if (!e.repeat) act(); return true; }
+        if (e.key === "Enter" || e.key === " ") {
+          const now = performance.now();
+          if (!e.repeat) { keyRep = now; act(); }
+          else if (!placing && now - keyRep > 330) { keyRep = now; const t = target(), o = t && inb(t[0], t[1]) && O[I(t[0], t[1])]; if (o && (OBJ[o.t].k === "chop" || OBJ[o.t].k === "mine")) act(); }
+          return true;
+        }
         if (e.key === "Backspace") { if (placing) stopPlace(); else openMenu(); return true; }
         if (e.key === "b" || e.key === "i") { ovStack = [openMenu]; openBag(); return true; }
         if (e.key === "c") { ovStack = [openMenu]; openCraft(); return true; }
         return false;
       },
       keyup(e) { const d = KEYDIR[e.key]; if (d != null) held = held.filter((x) => x !== d); },
-      poll(pads) {
-        if (!pads.length) { pad.prev = []; padDir = null; return false; }
-        const g = pads[0], b = (i) => !!(g.buttons[i] && g.buttons[i].pressed), prev = pad.prev;
-        const edge = (i) => b(i) && !prev[i];
-        pad.prev = g.buttons.map((x) => x.pressed);
-        if (ov) { padDir = null; if (ovGuard) { if (b(0) || b(1) || b(2) || b(3) || b(9)) return true; ovGuard = false; } return false; }
+      poll(pads, ts) {
+        if (!pads.length) { pad.prev = null; padDir = padAlt = null; return false; }
+        // كل الأيادي معاً: أي يد يضغطها الطفل تعمل
+        const btn = []; let ax = 0, ay = 0;
+        for (const g of pads) {
+          g.buttons.forEach((x, i) => { if (x && x.pressed) btn[i] = true; });
+          const gx = g.axes[0] || 0, gy = g.axes[1] || 0;
+          if (Math.abs(gx) > Math.abs(ax)) ax = gx; if (Math.abs(gy) > Math.abs(ay)) ay = gy;
+        }
+        // أول قراءة بعد فتح الشاشة: الأزرار المضغوطة من الشاشة السابقة ليست ضغطة جديدة
+        if (!pad.prev) { pad.prev = btn.slice(); return true; }
+        const b = (i) => !!btn[i], prev = pad.prev, edge = (i) => b(i) && !prev[i];
+        pad.prev = btn.slice();
+        if (ov) { padDir = padAlt = null; if (ovGuard) { if (b(0) || b(1) || b(2) || b(3) || b(9)) return true; ovGuard = false; } return false; }
         if (sleeping) return true;
-        const ax = g.axes[0] || 0, ay = g.axes[1] || 0;
-        const d = b(13) || ay > 0.5 ? 0 : b(12) || ay < -0.5 ? 1 : b(14) || ax < -0.5 ? 2 : b(15) || ax > 0.5 ? 3 : null;
+        // الأزرار أولاً، ثم العصا (المحور الأقوى هو الاتجاه، والآخر للالتفاف حول العوائق)
+        let d = b(13) ? 0 : b(12) ? 1 : b(14) ? 2 : b(15) ? 3 : null, alt = null;
+        if (d == null && Math.hypot(ax, ay) > 0.4) {
+          if (Math.abs(ax) > Math.abs(ay)) { d = ax < 0 ? 2 : 3; if (Math.abs(ay) > 0.3) alt = ay < 0 ? 1 : 0; }
+          else { d = ay < 0 ? 1 : 0; if (Math.abs(ax) > 0.3) alt = ax < 0 ? 2 : 3; }
+        }
         if (d != null && d !== padDir) { pressDir(d); path = null; }
-        padDir = d;
+        padDir = d; padAlt = alt;
         const opened = () => { ovGuard = true; };
-        if (edge(0)) { act(); if (ov) opened(); }
+        if (b(0) && !edge(0) && !placing && ts > pad.rep) { pad.rep = ts + 330; const t = target(); const o = t && inb(t[0], t[1]) && O[I(t[0], t[1])]; if (o && (OBJ[o.t].k === "chop" || OBJ[o.t].k === "mine")) act(); }
+        if (edge(0)) { pad.rep = ts + 420; act(); if (ov) opened(); }
         else if (edge(1) || edge(9)) { if (placing) stopPlace(); else { openMenu(); opened(); } }
-        else if (edge(2)) { ovStack = [openMenu]; openBag(); opened(); }
-        else if (edge(3)) { ovStack = [openMenu]; openCraft(); opened(); }
+        else if (edge(2)) { ovStack = []; openBag(); opened(); }
+        else if (edge(3)) { ovStack = []; openCraft(); opened(); }
         return true;
       },
       stop() {
@@ -671,7 +759,8 @@
     cv.addEventListener("pointerdown", onTap);
     running = true; lastT = 0; raf = requestAnimationFrame(loop);
   }
-  function pressDir(d) { if (!P.moving() && P.dir !== d) { P.dir = d; P.turn = 0.13; hud(); } }
+  // ضغطة قصيرة تلفّت فقط، والضغط المستمر يمشي (مهلة قصيرة جداً)
+  function pressDir(d) { if (!P.moving() && P.dir !== d && P.idle > 0.08) { P.dir = d; P.turn = 0.09; hud(); } }
   window.addEventListener("pagehide", () => persist());
 
   // ---------------------------------------------------------------- اللمس: المس مكاناً لتمشي إليه
@@ -717,8 +806,8 @@
     cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
     cv.style.width = w + "px"; cv.style.height = h + "px";
     Z = Math.min(w, h) * dpr / (TS * (w > h ? 11 : 8.5));
-    const nsr = Math.max(1, Math.round(Z * 4) / 4);
-    if (nsr !== SR) { SR = nsr; SPR.clear(); GSP.clear(); }
+    const nsr = Math.max(1, Math.ceil(Z * 4) / 4);
+    if (nsr !== SR) { SR = nsr; SPR.clear(); GSP.clear(); CSP.clear(); }
     ctx.imageSmoothingEnabled = true;
   }
   function loop(now) {
@@ -753,19 +842,35 @@
       P.t = Math.min(1, P.t + dt * speed()); P.ph += dt * speed() * Math.PI;
       if (P.t >= 1) { hud(); if (path && !path.length) { path = null; if (pendingAct) { const d = faceTo(...pendingAct); if (d != null) P.dir = d; pendingAct = null; act(); } } }
     }
+    if (P.turn > 0) P.turn -= dt;
     if (P.t >= 1 && !ov && !sleeping) {
-      let d = padDir != null ? padDir : held.length ? held[held.length - 1] : null, fromPath = false;
+      let d = padDir != null ? padDir : held.length ? held[held.length - 1] : null, fromPath = false, alt = padDir != null ? padAlt : null;
+      if (padDir == null && held.length > 1) { const h2 = held[held.length - 2]; if ((h2 < 2) !== (d < 2)) alt = h2; }
       if (d == null && path && path.length) { d = path[0]; fromPath = true; }
-      if (P.turn > 0) P.turn -= dt;
-      if (d != null && P.turn <= 0) {
-        if (P.dir !== d && !fromPath) { P.dir = d; P.turn = 0.13; hud(); }
+      if (d == null) { P.idle += dt; P.ph = 0; blockT = 0; }
+      else if (P.turn <= 0) {
+        P.dir = d;
+        const step = (sd) => {
+          const nx = P.x + DX[sd], ny = P.y + DY[sd];
+          if (!passable(nx, ny, P)) return false;
+          const an = animalAt(nx, ny); if (an) nudge(an);
+          P.fx = P.x; P.fy = P.y; P.x = nx; P.y = ny; P.t = 0; P.idle = 0; blockT = 0; return true;
+        };
+        if (step(d)) { if (fromPath) path.shift(); }
+        else if (fromPath) { path = null; pendingAct = null; hud(); }
+        else if (alt != null && step(alt)) { /* التفاف بالعصا المائلة */ }
         else {
-          P.dir = d;
-          const nx = P.x + DX[d], ny = P.y + DY[d];
-          if (passable(nx, ny, P)) { P.fx = P.x; P.fy = P.y; P.x = nx; P.y = ny; P.t = 0; if (fromPath) path.shift(); }
-          else { if (fromPath) { path = null; pendingAct = null; } hud(); }
+          blockT += dt;
+          // مساعدة عند الزوايا: إن كان بجانب العائق طريق مفتوح نمشي إليه وحدنا
+          if (blockT > 0.45) {
+            const side = d < 2 ? [2, 3] : [0, 1];
+            const ok = side.filter((sd) => passable(P.x + DX[sd], P.y + DY[sd], P) && passable(P.x + DX[sd] + DX[d], P.y + DY[sd] + DY[d], P));
+            if (ok.length === 1 || ok.length === 2) { const sd = ok[0]; step(sd); P.dir = d; }
+            else if (blockT > 0.9 && blockT - dt <= 0.9) { const [bx, by] = [P.x + DX[d], P.y + DY[d]]; if (inb(bx, by)) shake.set(I(bx, by), 0.2); K.tone(200, 0.06, "sine", 0.06); }
+          }
+          hud();
         }
-      } else if (d == null) P.ph = 0;
+      }
     }
     // الحيوانات
     for (const a of AN) {
@@ -777,7 +882,7 @@
       if (dist > lim) { a.tm = 0.35; dirs.sort((p, q) => (Math.abs(a.x + DX[p] - a.hx) + Math.abs(a.y + DY[p] - a.hy)) - (Math.abs(a.x + DX[q] - a.hx) + Math.abs(a.y + DY[q] - a.hy))); }
       for (const d of dirs.slice(0, dist > lim ? 3 : 1)) {
         const nx = a.x + DX[d], ny = a.y + DY[d];
-        if (!passable(nx, ny, a)) continue;
+        if (!passable(nx, ny, a) || isDoorish(nx, ny)) continue;
         if (a.k === "duck" && !a.home && G[I(nx, ny)] !== 3 && G[I(nx, ny)] !== 2) continue;
         if (Math.abs(nx - a.hx) + Math.abs(ny - a.hy) > lim && dist <= lim) continue;
         a.fx = a.x; a.fy = a.y; a.x = nx; a.y = ny; a.mt = 0; if (DX[d]) a.face = DX[d];
@@ -823,14 +928,27 @@
     for (const [, kind, x, y, e] of list) {
       if (kind === 0) {
         const s = shake.get(I(x, y)), off = s ? Math.sin(s * 60) * 2.5 : 0;
+        const fade = y > ry && y - ry < 1.6 && Math.abs(x - rx) < 1.3 && !OBJ[e.t].flat;
+        if (fade) ctx.globalAlpha = 0.5;
         ctx.drawImage(objSprite(e, x, y), x * TS + off, y * TS - TS, TS, TS * 2);
+        ctx.globalAlpha = 1;
         const dy = A.dyn[e.t]; if (dy && !(LITE && e.t === "fountain")) dy(ctx, x * TS, y * TS, T, e);
         if (e.w && !LITE) { const tw = (Math.sin(T * 4 + x) + 1) / 2; ctx.globalAlpha = tw; A.ci(ctx, x * TS + 40, y * TS + 6, 2.5, "#fff"); A.ci(ctx, x * TS + 8, y * TS + 14, 1.6, "#fde68a"); ctx.globalAlpha = 1; }
       } else if (kind === 1) {
         const hop = e.mt < 1 ? Math.sin(e.mt * Math.PI) * 4 : 0, swim = G[I(e.x, e.y)] === 3 && e.k === "duck";
-        A.animal(ctx, e.k, x * TS + TS / 2, y * TS + TS - 6 + (swim ? 4 : 0), e.face, hop, swim);
+        ctx.drawImage(animSprite(e.k, e.face, swim), x * TS, y * TS + TS - 6 + (swim ? 4 : 0) - hop - 50, 48, 56);
       } else {
-        A.char(ctx, x * TS + TS / 2, y * TS + TS - 4, P.dir, P.t < 1 ? P.ph : 0, save.char, 1, D);
+        const f = P.t < 1 || P.ph ? Math.floor(P.ph / (Math.PI / 2) + 1) % 4 : 0;
+        ctx.drawImage(charSprite(P.dir, f), x * TS + TS / 2 - 40, y * TS + TS - 4 - 90, 80, 96);
+      }
+    }
+    // علامة ما سيفعله ✕
+    if (!placing && !ov && !sleeping && P.t >= 1) {
+      const [tx, ty] = target();
+      if (useful(tx, ty)) {
+        const p = (Math.sin(T * 5) + 1) / 2;
+        ctx.lineWidth = 3; ctx.strokeStyle = `rgba(255,255,255,${0.55 + p * 0.4})`;
+        A.rr(ctx, tx * TS + 3 - p * 2, ty * TS + 3 - p * 2, TS - 6 + p * 4, TS - 6 + p * 4, 12); ctx.stroke();
       }
     }
     // مكان الوضع
@@ -986,6 +1104,7 @@
   }
 
   K.onFocus = (el) => { try { el.scrollIntoView({ block: "nearest", inline: "nearest" }); } catch {} };
-  window.__home = { get P() { return P; }, get O() { return O; }, get G() { return G; }, save, I, act, openMenu, openBag, openCraft, morning, setTime: (h) => { save.time = (save.day - 1) * 1440 + h * 60; } };
+  window.__an = () => AN;
+  window.__home = { get dbg() { return { ov, sleeping, padDir, placing: !!placing, turn: P && P.turn, t: P && P.t, idle: P && P.idle, mode: !!K.mode, top: K.top() && K.top().fn.name }; }, get P() { return P; }, get O() { return O; }, get G() { return G; }, save, I, act, openMenu, openBag, openCraft, morning, setTime: (h) => { save.time = (save.day - 1) * 1440 + h * 60; } };
   K.start(home);
 })();

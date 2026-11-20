@@ -35,6 +35,8 @@ window.ART = (() => {
     const v = hash(x, y);
     if (g === 0 || g === 1) {
       c.fillStyle = g ? FG[0] : GR[0]; c.fillRect(0, 0, 48, 48);
+      // تدرّج خفيف يعطي الأرض عمقاً
+      el(c, 12 + v * 24, 14 + hash(y, x) * 20, 8, 4, g ? "rgba(140,210,110,.3)" : "rgba(196,242,158,.35)");
       tufts(c, x, y, g ? FG[1] : GR[1], 2 + ((v * 3) | 0), x * 7 + y);
       if (!g && v > 0.86) { ci(c, 12 + v * 20, 30, 2, "#fff"); ci(c, 12 + v * 20, 30, 0.9, "#facc15"); ci(c, 30 - v * 10, 14, 1.8, "#fbcfe8"); }
     } else if (g === 2) {
