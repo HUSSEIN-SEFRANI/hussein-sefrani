@@ -8,7 +8,7 @@ const hsefPad = (() => {
     let all = [];
     let maps = {};
     try { maps = JSON.parse(localStorage.getItem("hsef-padmaps") || "{}"); } catch { /* */ }
-    try { all = [...(navigator.getGamepads ? navigator.getGamepads() : [])].filter((g) => g && g.connected).map((g) => hsefPadNorm(g, maps)); } catch { /* */ }
+    try { all = [...(navigator.getGamepads ? navigator.getGamepads() : [])].filter((g) => g && g.connected && !/motion sensors|touchpad|accelerometer|gyro/i.test(g.id || "")).map((g) => hsefPadNorm(g, maps)); } catch { /* */ }
     for (const g of all) if (!order.includes(g.index) && touched(g)) order.push(g.index);
     return order.map((i) => all.find((g) => g.index === i)).find(Boolean) || null;
   };

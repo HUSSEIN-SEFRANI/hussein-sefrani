@@ -227,11 +227,15 @@
   try { padMaps = JSON.parse(localStorage.getItem("hsef-padmaps") || "{}"); } catch {}
   // اللاعب 1 = اليد الأساسية في التلفاز (window.hsefPadOrder في الصفحة الأم)، فيبقى نفسه في كل الألعاب
   const tvOrder = () => { try { return window.parent !== window && typeof window.parent.hsefPadOrder === "function" ? window.parent.hsefPadOrder() : null; } catch { return null; } };
+  // مستشعر الحركة ولوحة اللمس في يد PS4/PS5 يظهران في لينكس كـ«يد» ثانية تتحرك أرقامها وحدها: ليست لاعباً
+  const NOT_PAD = /motion sensors|touchpad|accelerometer|gyro/i;
   K.pads = () => {
     const all = [];
-    try { for (const g of navigator.getGamepads ? navigator.getGamepads() : []) if (g && g.connected) all.push(padNorm(g, padMaps)); } catch {}
+    try { for (const g of navigator.getGamepads ? navigator.getGamepads() : []) if (g && g.connected && !NOT_PAD.test(g.id || "")) all.push(padNorm(g, padMaps)); } catch {}
     for (const g of all) if (!padOrder.includes(g.index) && padTouched(g)) padOrder.push(g.index);
-    const tv = tvOrder() || [];
+    // اللاعبون = الأيادي التي ضُغط فيها شيء في هذه اللعبة فقط. ترتيب التلفاز (اليد الأساسية أولاً) يرتّبها فيما بينها،
+    // فيد موضوعة جانباً (ولو كانت «الأساسية» في الشاشة الرئيسية) لا تأخذ مكان من يلعب فعلاً
+    const tv = (tvOrder() || []).filter((i) => padOrder.includes(i));
     const ord = [...tv, ...padOrder].filter((i, k, x) => x.indexOf(i) === k);
     return ord.map((i) => all.find((g) => g.index === i)).filter(Boolean);
   };
@@ -239,9 +243,10 @@
   function poll(ts) {
     const pads = K.pads();
     if (!(K.mode && K.mode.poll && K.mode.poll(pads, ts)) && pads.length) {
-      const g = pads[0];
-      const b = (i) => !!(g.buttons[i] && g.buttons[i].pressed);
-      const ax = g.axes[0] || 0, ay = g.axes[1] || 0;
+      // القوائم تتحرك بأي يد يلعب بها أحد (لا اليد الأولى وحدها)
+      const b = (i) => pads.some((g) => g.buttons[i] && g.buttons[i].pressed);
+      const big = (k) => pads.reduce((m, g) => (Math.abs(g.axes[k] || 0) > Math.abs(m) ? g.axes[k] || 0 : m), 0);
+      const ax = big(0), ay = big(1);
       const dir = b(12) || ay < -0.6 ? "up" : b(13) || ay > 0.6 ? "down" : b(14) || ax < -0.6 ? "left" : b(15) || ax > 0.6 ? "right" : null;
       if (dir && (dir !== pad.dir || ts > pad.next)) {
         if (!(K.mode && K.mode.key && K.mode.key({ key: "Arrow" + dir[0].toUpperCase() + dir.slice(1), pad: true }))) K.move(dir);
