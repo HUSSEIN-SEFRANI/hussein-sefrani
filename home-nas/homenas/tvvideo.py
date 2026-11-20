@@ -26,6 +26,25 @@ OK_VIDEO = {"h264", "vp8", "vp9", "av1"}
 OK_AUDIO = {"aac", "mp3", "opus", "vorbis", "flac"}
 OK_CONTAINER = {".mp4", ".m4v", ".mov", ".webm"}
 HDR = {"arib-std-b67", "smpte2084"}
+
+_VAAPI: list = []   # [node أو ""] بعد أول فحص
+
+
+def vaapi_node() -> str:
+    """البند 8: كرت شاشة يرمّز H.264 (VA-API) ← تجهيز الفيديو أسرع بكثير وأخف على المعالج. "" = لا."""
+    if _VAAPI:
+        return _VAAPI[0]
+    node = ""
+    try:
+        cand = sorted(Path("/dev/dri").glob("renderD*"))
+        if cand and os.access(cand[0], os.R_OK | os.W_OK) and shutil.which("vainfo"):
+            r = subprocess.run(["vainfo", "--display", "drm", "--device", str(cand[0])], capture_output=True, text=True, timeout=20)
+            if "VAProfileH264" in r.stdout and "VAEntrypointEncSlice" in r.stdout:
+                node = str(cand[0])
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    _VAAPI.append(node)
+    return node
 CACHE_LIMIT = 5 * 1024 ** 3   # أقل حد لمساحة النسخ المحوّلة: الأقدم يُحذف أولاً
 DEFAULT_SHARE = 0.10          # v1.9.8 (البند 21): الحد التلقائي 10% من القرص (كان 40%)
 IDLE_SECS = 15 * 60           # التلفاز «غير مستعمل» بعد 15 دقيقة بلا مشاهدة أو تصفح
@@ -212,6 +231,11 @@ class TvVideo:
         if (v.get("codec_name") == "h264" and v.get("pix_fmt") in (None, "yuv420p", "yuvj420p")
                 and int(v.get("width") or 0) <= 1920 and v.get("color_transfer") not in HDR):
             attempts.append(head + ["-c:v", "copy"] + audio + tail)
+        va = vaapi_node() if v.get("color_transfer") not in HDR else ""
+        if va:   # كرت الشاشة أولاً، وإن فشل نرجع إلى المعالج (libx264) في المحاولة التالية
+            attempts.append(head[:head.index("-i")] + ["-vaapi_device", va] + head[head.index("-i"):]
+                            + ["-vf", scale + ",format=nv12,hwupload", "-c:v", "h264_vaapi", "-qp", "23", "-profile:v", "high",
+                               "-c:a", "aac", "-b:a", "160k", "-ac", "2"] + tail)
         for vf in filters:
             attempts.append(head + ["-vf", vf, "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p",
                                     "-profile:v", "high", "-c:a", "aac", "-b:a", "160k", "-ac", "2"] + tail)
