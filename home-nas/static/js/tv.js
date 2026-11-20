@@ -1381,6 +1381,55 @@ async function camRecScreen(c) {
 
 // ============================================================== الألعاب
 // اليد داخل اللعبة: إذا لم يرَ إطار اللعبة يد التحكم بنفسه (يحدث في بعض الأجهزة)، نعطيه ما تراه شاشة التلفاز
+// البند 51: الخروج من اللعبة بزر PS (أو «رجوع» في الريموت) بعد رسالة تأكيد، واللعبة متوقفة خلفها
+let padsBlocked = false;   // أثناء رسالة الخروج: اللعبة لا ترى الأيادي
+window.hsefPadSwap = (g) => { try { return padPrefs.swap !== (padKind(g) === "nintendo"); } catch { return false; } };   // للألعاب (kit.js)
+function freezeGame(fr, on) {   // نوقف رسم اللعبة (requestAnimationFrame) ثم نكمله من حيث توقف
+  try {
+    const w = fr.contentWindow;
+    if (on && !w.__hsefRaf) {
+      const real = w.requestAnimationFrame.bind(w), held = [];
+      w.__hsefRaf = { real, held };
+      w.requestAnimationFrame = (cb) => { held.push(cb); return 0; };
+      w.document.querySelectorAll("video, audio").forEach((m) => { if (!m.paused) { m.pause(); m.dataset.hsefPaused = "1"; } });
+    } else if (!on && w.__hsefRaf) {
+      const { real, held } = w.__hsefRaf;
+      w.requestAnimationFrame = real; w.__hsefRaf = null;
+      held.splice(0).forEach((cb) => real(cb));
+      w.document.querySelectorAll("[data-hsef-paused]").forEach((m) => { delete m.dataset.hsefPaused; m.play().catch(() => {}); });
+    }
+  } catch { /* لعبة من مصدر آخر */ }
+}
+function whenPadsReleased(fn, t0 = performance.now()) {   // لا تصل ضغطة «أكمل» نفسها إلى اللعبة
+  let held = false;
+  try { held = [...(navigator.getGamepads ? navigator.getGamepads() : [])].some((g) => g && g.connected && g.buttons.some((x) => x && x.pressed)); } catch { /* */ }
+  if (!held || performance.now() - t0 > 1500) fn(); else requestAnimationFrame(() => whenPadsReleased(fn, t0));
+}
+function askGameExit(scr, fr) {
+  if (scr.asking) return;
+  scr.asking = true; padsBlocked = true;
+  freezeGame(fr, true);
+  fr.inert = true;
+  try { fr.contentWindow.blur(); } catch { /* */ }
+  window.focus();
+  const box = h(`<div class="gexit"><div class="gx-card"><div class="gx-ic">🚪</div><b>الخروج من اللعبة؟</b>
+    <div class="gx-row"><button class="gx-btn f js-stay">▶️ أكمل اللعب</button><button class="gx-btn out f js-out">نعم، اخرج</button></div>
+    <small><b dir="ltr">PS</b> <span>للخروج</span> · <b>○</b> <span>للعودة إلى اللعبة</span></small></div></div>`);
+  scr.el.appendChild(box);
+  scr.closeAsk = (out) => {
+    if (!scr.asking) return;
+    box.remove(); scr.asking = false; scr.closeAsk = null;
+    if (out) { padsBlocked = false; pop(); return; }
+    fr.inert = false;
+    freezeGame(fr, false);
+    whenPadsReleased(() => { padsBlocked = false; });
+    try { fr.contentWindow.focus(); } catch { /* */ }
+  };
+  box.querySelector(".js-stay").addEventListener("click", () => scr.closeAsk?.(false));
+  box.querySelector(".js-out").addEventListener("click", () => scr.closeAsk?.(true));
+  setFocus(box.querySelector(".js-stay"));
+}
+
 function shareGamepads(fr) {
   try {
     const nav = fr.contentWindow.navigator;
@@ -1388,6 +1437,7 @@ function shareGamepads(fr) {
     Object.defineProperty(nav, "getGamepads", {
       configurable: true,
       value: () => {
+        if (padsBlocked) return [];
         let a = [];
         try { a = [...own()]; } catch { /* */ }
         if (a.some((g) => g && g.connected)) return a;
@@ -1441,9 +1491,10 @@ async function gameScreen(t, path) {
     if (c && !c.allowed) { blockedScreen(t, c); return; }
   }
   const el = h(`<div class="game"><iframe src="/tv/game/${t.id}/${path ? `${encPath(path)}/` : ""}" allow="autoplay; fullscreen; gamepad" title="${esc(path)}"></iframe>
-    <div class="exit">للخروج من اللعبة اضغط «رجوع» (Esc)</div></div>`);
+    <div class="exit">للخروج من اللعبة: <b dir="ltr">PS</b> · زر «رجوع» في الريموت</div></div>`);
   const fr = el.querySelector("iframe");
-  const onKey = (e) => { activity(); if (e.key === "Escape" || e.key === "BrowserBack" || e.key === "GoBack") { e.preventDefault(); pop(); } };
+  let scr = null;
+  const onKey = (e) => { activity(); if (e.key === "Escape" || e.key === "BrowserBack" || e.key === "GoBack") { e.preventDefault(); if (scr) askGameExit(scr, fr); } };
   fr.addEventListener("load", () => {
     shareGamepads(fr);
     try {
@@ -1459,13 +1510,19 @@ async function gameScreen(t, path) {
       if (r.stop && top() && top().el === el) { pop(); blockedScreen(t, r); }
     } catch { /* */ }
   }, 30000);
-  push({
+  scr = {
     el,
     busy: () => true,
     isGame: true,
-    destroy() { clearInterval(beat); },
-    key(e) { if (e.key === "Escape" || BACK_KEYS.has(e.key)) { pop(); return true; } return false; },
-  });
+    askExit: () => askGameExit(scr, fr),
+    destroy() { clearInterval(beat); padsBlocked = false; },
+    key(e) {
+      if (scr.asking) { if (BACK_KEYS.has(e.key)) { scr.closeAsk(false); return true; } return false; }   // الأسهم وموافق للرسالة
+      if (e.key === "Escape" || BACK_KEYS.has(e.key)) { askGameExit(scr, fr); return true; }
+      return false;
+    },
+  };
+  push(scr);
   setTimeout(() => { try { fr.contentWindow.focus(); } catch { /* */ } }, 300);
 }
 
@@ -2274,7 +2331,8 @@ function setPadKind(gp, kind) {
 window.hsefPadKind = (i) => padKind(livePads().find((g) => g.index === i));
 function padFire(name, gp) {
   const t = top();
-  if (t && t.isGame) { if (name === "ps") padKey("Escape"); return; }  // داخل اللعبة: اليد للعبة، وزر PS للخروج
+  if (t && t.isGame && t.asking) { if (name === "ps") { t.closeAsk(true); return; } }   // البند 51: PS مرة ثانية = خروج
+  else if (t && t.isGame) { if (name === "ps") { if (t.askExit) t.askExit(); else padKey("Escape"); } return; }  // داخل اللعبة: اليد للعبة، وزر PS للخروج
   // نينتندو: «موافق» هو A على اليمين (الزر 1)، عكس بلايستيشن وإكس بوكس
   const swap = padPrefs.swap !== (padKind(gp) === "nintendo");
   const okB = swap ? "circle" : "cross", backB = swap ? "cross" : "circle";

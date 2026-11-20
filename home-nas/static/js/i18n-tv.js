@@ -480,4 +480,11 @@ Object.assign(window.I18N_DICT = window.I18N_DICT || {}, {
 "اضغط الزر، ثم افصل اليد وأعد ربطها، ثم «إعداد يد جديدة»": ["press the button, disconnect and re-pair the controller, then «Set up a new controller»", "appuyez sur le bouton, déconnectez puis réassociez la manette, puis «Configurer une nouvelle manette»", "düğmeye basın, kumandayı ayırıp yeniden eşleyin, sonra «Yeni kumanda ayarla»", "druk op de knop, koppel de controller los en opnieuw, dan «Nieuwe controller instellen»"],
 "عاد تعريف نينتندو الأصلي": ["Original Nintendo driver restored", "Pilote Nintendo d'origine rétabli", "Orijinal Nintendo sürücüsü geri geldi", "Origineel Nintendo-stuurprogramma hersteld"],
 "تم. افصل اليد وأعد ربطها، ثم «إعداد يد جديدة»": ["Done. Disconnect and re-pair the controller, then «Set up a new controller»", "Fait. Déconnectez et réassociez la manette, puis «Configurer une nouvelle manette»", "Tamam. Kumandayı ayırıp yeniden eşleyin, sonra «Yeni kumanda ayarla»", "Klaar. Koppel de controller los en opnieuw, dan «Nieuwe controller instellen»"],
+"الخروج من اللعبة؟": ["Leave the game?", "Quitter le jeu ?", "Oyundan çıkılsın mı?", "Het spel verlaten?"],
+"أكمل اللعب": ["Keep playing", "Continuer à jouer", "Oynamaya devam et", "Verder spelen"],
+"نعم، اخرج": ["Yes, leave", "Oui, quitter", "Evet, çık", "Ja, verlaten"],
+"للخروج": ["to leave", "pour quitter", "çıkmak için", "om te verlaten"],
+"للعودة إلى اللعبة": ["back to the game", "retour au jeu", "oyuna dön", "terug naar het spel"],
+"للخروج من اللعبة": ["To leave the game", "Pour quitter le jeu", "Oyundan çıkmak için", "Om het spel te verlaten"],
+"زر «رجوع» في الريموت": ["the «Back» button on the remote", "la touche «Retour» de la télécommande", "kumandadaki «Geri» tuşu", "de knop «Terug» op de afstandsbediening"],
 });

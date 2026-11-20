@@ -688,3 +688,14 @@ html[dir=ltr] .crescent { right: auto; left: 150px; }
 .set-gh { margin: 0 6px; padding-bottom: 8px; font-size: 24px; color: #fde68a; border-bottom: 2px solid rgba(253,230,138,.35); }
 .set-groups .set-card { padding: 28px 14px; }
 .set-groups .set-card b { font-size: 27px; white-space: nowrap; }
+
+/* البند 51: رسالة الخروج من اللعبة */
+.game .gexit { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; background: rgba(5,10,25,.62); backdrop-filter: blur(3px); }
+.game .gx-card { background: #1e293b; border-radius: 28px; padding: 30px 40px 22px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.5); min-width: 520px; }
+.game .gx-ic { font-size: 56px; line-height: 1; }
+.game .gx-card > b { display: block; font-size: 34px; margin: 10px 0 22px; }
+.game .gx-row { display: flex; gap: 18px; justify-content: center; }
+.game .gx-btn { font: inherit; font-size: 24px; color: #fff; background: #334155; border: 0; border-radius: 18px; padding: 14px 28px; cursor: pointer; }
+.game .gx-btn.out { background: #b91c1c; }
+.game .gx-btn.focus { outline: 4px solid #fde68a; transform: scale(1.06); }
+.game .gx-card small { display: block; margin-top: 18px; opacity: .75; font-size: 16px; }
