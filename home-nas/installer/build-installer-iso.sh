@@ -90,6 +90,7 @@ in_root apt-get install -y --no-install-recommends \
     firmware-intel-graphics firmware-amd-graphics firmware-intel-sound amd64-microcode intel-microcode \
     firmware-intel-misc firmware-cirrus firmware-nvidia-graphics firmware-nvidia-gsp firmware-ti-connectivity \
     firmware-bnx2 firmware-bnx2x bluez-firmware atmel-firmware alsa-ucm-conf alsa-topology-conf \
+    intel-media-va-driver-non-free i965-va-driver mesa-va-drivers vainfo pciutils \
     cage chromium fonts-noto-core fonts-noto-color-emoji pipewire-audio wireplumber pulseaudio-utils wlr-randr cec-utils \
     python3-opencv usbmuxd libimobiledevice-utils ifuse fuse3 less nano
 

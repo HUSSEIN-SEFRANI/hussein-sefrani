@@ -393,7 +393,10 @@ def hw_diag():
                                   {"id": "0bda:c820", "name": "Realtek 802.11ac WLAN Adapter", "drivers": ["rtw88_8821cu", "btusb"]}],
                           "net": [{"name": "enp0s31f6", "state": "UP", "wireless": False}], "bt": [], "rfkill": [],
                           "sound": "0 [PCH]: HDA-Intel - HDA Intel PCH", "monitors": [{"card": 0, "pin": "eld#2.0", "name": "TV"}],
-                          "audio": None, "firmware": ["rtw88_8821cu: failed to request firmware"], "modeswitch": False}))
+                          "audio": None, "firmware": ["rtw88_8821cu: failed to request firmware"], "modeswitch": False,
+                          "gpu": [{"id": "8086:46d1", "name": "Intel UHD Graphics", "driver": "i915"}],
+                          "vaapi": {"driver": "Intel iHD driver", "decode": ["H264", "HEVC", "VP9", "AV1"], "encode": ["H264", "HEVC"]},
+                          "nodriver": [{"id": "8086:272b", "kind": "wifi", "name": "Wi-Fi 7"}], "cameras": ["HD Webcam"]}))
         return
     out = {"usb": [], "net": [], "bt": [], "rfkill": [], "sound": "", "monitors": [], "audio": None, "firmware": [],
            "modeswitch": bool(shutil.which("usb_modeswitch"))}
@@ -444,7 +447,82 @@ def hw_diag():
         pass
     out["sof_missing"] = any("sof" in l.lower() for l in out["firmware"]) and "no soundcards" in out["sound"]
     out["missing"] = fw_missing()
+    out.update(gpu=pci_list("03"), vaapi=vaapi_info(), nodriver=[x for x in pci_list("02", "03") if not x["driver"]], cameras=cameras())
     print(json.dumps(out, ensure_ascii=False))
+
+
+# البند 8: كرت الشاشة وتسريع الفيديو (VA-API)، وأجهزة PCI بلا تعريف (وايفاي 6/7 الحديث، كروت الشبكة)، والكاميرات
+PCI_KIND = {"0200": "ethernet", "0280": "wifi", "0300": "gpu", "0302": "gpu", "0380": "gpu"}
+
+
+def pci_list(*classes) -> list:
+    out = []
+    for d in sorted(Path("/sys/bus/pci/devices").glob("*")):
+        try:
+            cls = (d / "class").read_text().strip()[2:6]
+            if not cls.startswith(classes):
+                continue
+            vid, pid = (d / "vendor").read_text().strip()[2:], (d / "device").read_text().strip()[2:]
+        except OSError:
+            continue
+        drv = (d / "driver").resolve().name if (d / "driver").exists() else ""
+        name = ""
+        if shutil.which("lspci"):
+            try:
+                name = subprocess.run(["lspci", "-mm", "-s", d.name], capture_output=True, text=True, timeout=5).stdout.split('"')[5]
+            except (IndexError, OSError, subprocess.TimeoutExpired):
+                pass
+        out.append({"id": f"{vid}:{pid}", "slot": d.name, "kind": PCI_KIND.get(cls, cls), "name": name, "driver": drv})
+    return out
+
+
+VA_CODECS = ("H264", "HEVC", "VP9", "AV1", "VP8", "MPEG2", "VC1", "JPEG")
+
+
+def vaapi_info() -> dict | None:
+    """ما يستطيع كرت الشاشة فكّه وترميزه من الفيديو (بلا المعالج). None = لا كرت أو لا تعريف."""
+    node = next(iter(sorted(Path("/dev/dri").glob("renderD*"))), None) if Path("/dev/dri").exists() else None
+    if not node:
+        return None
+    if not shutil.which("vainfo"):
+        return {"driver": "", "decode": [], "encode": [], "tool": False}
+    try:
+        txt = subprocess.run(["vainfo", "--display", "drm", "--device", str(node)], capture_output=True, text=True, timeout=20)
+        txt = txt.stdout + txt.stderr
+    except (OSError, subprocess.TimeoutExpired):
+        return {"driver": "", "decode": [], "encode": [], "error": True}
+    dec, enc = set(), set()
+    for prof, ep in _re.findall(r"VAProfile(\w+)\s*:\s*VAEntrypoint(\w+)", txt):
+        codec = next((c for c in VA_CODECS if prof.upper().startswith(c)), None)
+        if codec:
+            (dec if ep == "VLD" else enc if ep.startswith("Enc") else set()).add(codec)
+    drv = (_re.search(r"Driver version:\s*(.+)", txt) or [None, ""])[1].strip()
+    return {"driver": drv, "decode": [c for c in VA_CODECS if c in dec], "encode": [c for c in VA_CODECS if c in enc]}
+
+
+def cameras() -> list:
+    out = []
+    for v in sorted(Path("/sys/class/video4linux").glob("video*")):
+        try:
+            n = (v / "name").read_text().strip()
+        except OSError:
+            continue
+        if n and n not in out:
+            out.append(n)
+    return out
+
+
+def va_packages() -> list:
+    """تعريفات تسريع الفيديو حسب كرت الشاشة (غير المثبتة فقط)."""
+    need = []
+    vendors = {x["id"].split(":")[0] for x in pci_list("03")}
+    if "8086" in vendors:
+        need += ["intel-media-va-driver-non-free", "i965-va-driver"]
+    if "1002" in vendors:
+        need += ["mesa-va-drivers"]
+    if need:
+        need.append("vainfo")
+    return [pk for pk in need if subprocess.run(["dpkg", "-s", pk], capture_output=True).returncode != 0]
 
 
 # مكتبة التعريفات: ملف التعريف الناقص (من سجل النظام) ← حزمة دبيان التي فيها
@@ -461,7 +539,16 @@ FW_PKGS = [
 
 
 def fw_missing() -> list:
-    """التعريفات التي طلبها النظام ولم يجدها، والحزمة التي فيها (غير المثبتة فقط)."""
+    """التعريفات التي طلبها النظام ولم يجدها، والحزمة التي فيها (غير المثبتة فقط)، وتعريفات تسريع الفيديو الناقصة."""
+    out = _fw_missing_files()
+    try:
+        out += [{"file": "VA-API", "pkg": pk} for pk in va_packages() if pk != "vainfo"]
+    except OSError:
+        pass
+    return out
+
+
+def _fw_missing_files() -> list:
     try:
         log = subprocess.run(["journalctl", "-k", "-b", "--no-pager", "-o", "cat"], capture_output=True, text=True, timeout=20).stdout
     except (OSError, subprocess.TimeoutExpired):
@@ -493,6 +580,7 @@ def fw_install():
                     need.append(pk)
     except OSError:
         pass
+    need += [pk for pk in va_packages() if pk not in need]   # البند 8: تسريع الفيديو
     done, failed = [], []
     if need:
         env = dict(os.environ, DEBIAN_FRONTEND="noninteractive")

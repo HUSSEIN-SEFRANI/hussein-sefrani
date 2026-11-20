@@ -63,6 +63,9 @@ log "Creating service user"
 id homenas >/dev/null 2>&1 || useradd --system --home-dir /var/lib/homenas --create-home \
     --shell /usr/sbin/nologin homenas
 
+# البند 8: برنامج السيرفر يستعمل كرت الشاشة لتجهيز الفيديو (VA-API) ← مجموعة render
+for g in render video; do getent group $g >/dev/null && usermod -aG $g homenas 2>/dev/null || true; done
+
 log "Installing application to $APP"
 mkdir -p /opt/homenas
 # نسخة جديدة نظيفة من البرنامج (البيانات والإعدادات في أماكن أخرى ولا تتأثر)

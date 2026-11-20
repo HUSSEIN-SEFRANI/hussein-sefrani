@@ -104,6 +104,14 @@ function diagCard() {
       ${cd.length ? `<div>⚠️ <b>بطاقة USB تظهر كقرص تعريفات</b> (<span class="ltr">${cd.map((u) => esc(u.id)).join(', ')}</span>): ${r.modeswitch ? 'أخرجها وأدخلها مرة أخرى.' : 'تحتاج أداة التحويل: حدّث النظام ثم أعد إدخالها.'}</div>` : ''}
       <div>${ok(r.monitors.length)} <b>الشاشة على منفذ الصوت (HDMI/DP):</b> ${r.monitors.length ? r.monitors.map((m) => `${esc(m.name || 'شاشة')} <span class="ltr">(${esc(m.card)} ${esc(m.pin)})</span>`).join('، ') : 'لم تُكتشف شاشة تدعم الصوت'}</div>
       <div>${ok(outs.some((o) => o.active && o.plugged))} <b>مخرج الصوت:</b> ${outs.length ? outs.map((o) => `${o.active ? '🔊' : '🔈'} ${esc(o.name)}${o.plugged ? ' (موصول)' : ''}`).join('، ') : 'لا توجد مخارج (شاشة التلفاز غير مفعّلة أو الصوت لا يعمل)'}</div>
+      ${(r.gpu || []).length ? `<div>${ok(r.gpu.some((g) => g.driver))} <b>كرت الشاشة:</b> ${r.gpu.map((g) => `<span translate="no">${esc(g.name || g.id)}</span> <span class="muted ltr">(${esc(g.driver || 'بلا تعريف')})</span>`).join('، ')}</div>` : ''}
+      ${r.vaapi !== undefined ? `<div>${ok(r.vaapi && r.vaapi.decode && r.vaapi.decode.length)} <b>تسريع الفيديو بكرت الشاشة:</b> ${!r.vaapi ? 'لا يوجد' : r.vaapi.decode && r.vaapi.decode.length
+        ? `تشغيل <span class="ltr">${esc(r.vaapi.decode.join(' '))}</span>${r.vaapi.encode.length ? ` · تجهيز الفيديو للتلفاز أسرع (<span class="ltr">${esc(r.vaapi.encode.join(' '))}</span>)` : ''}`
+        : 'تعريفه غير مثبت (زر «تثبيت التعريفات الناقصة» أدناه)'}</div>` : ''}
+      ${(r.nodriver || []).map((x) => `<div>⚠️ <b>${x.kind === 'wifi' ? 'بطاقة وايفاي' : x.kind === 'ethernet' ? 'كرت شبكة' : 'كرت شاشة'} بلا تعريف:</b>
+        <span translate="no">${esc(x.name || '')}</span> <span class="ltr muted">${esc(x.id)}</span>
+        ${x.kind === 'wifi' ? '— غالباً أحدث من نظام التشغيل (وايفاي 6E/7). الحل الأسهل: الكابل، أو قطعة وايفاي USB صغيرة مدعومة. صوّر هذه الصفحة وأرسلها.' : '— صوّر هذه الصفحة وأرسلها.'}</div>`).join('')}
+      ${r.cameras !== undefined ? `<div>${(r.cameras || []).length ? '📷' : '▫️'} <b>كاميرا USB:</b> ${(r.cameras || []).length ? r.cameras.map((x) => `<span translate="no">${esc(x)}</span>`).join('، ') : 'لا توجد (كاميرات الشبكة لا تحتاج تعريفاً)'}</div>` : ''}
       <details style="margin-top:6px"><summary>أجهزة USB (${r.usb.length})</summary>${r.usb.map((u) => `<div class="ltr" style="text-align:left">${esc(u.id)} ${esc(u.name)} → ${u.drivers.length ? esc(u.drivers.join(', ')) : '<b style="color:#dc2626">بلا تعريف</b>'}</div>`).join('')}</details>
       ${nodrv.length ? `<div>⚠️ ${nodrv.length} جهاز USB بلا تعريف</div>` : ''}
       ${r.firmware.length ? `<details open style="margin-top:6px"><summary>أخطاء التعريفات</summary>${r.firmware.map((l) => `<div class="ltr small" style="text-align:left">${esc(l)}</div>`).join('')}</details>` : ''}
