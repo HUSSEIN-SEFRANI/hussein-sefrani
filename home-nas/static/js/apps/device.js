@@ -285,6 +285,8 @@ function btCard() {
           ${dv.paired && !dv.connected ? '<button class="btn sm" data-p="pair">اتصال</button>' : ''}
           <button class="btn ghost icon sm danger" data-p="remove" title="إزالة من القائمة">${icon('trash')}</button></div>`);
         $('b', row).textContent = dv.name;
+        const bat = (window.__padBat || []).find((x) => x.mac && x.mac === (dv.mac || '').toUpperCase());   // البند 4
+        if (bat) $('.tv-tt', row).insertAdjacentHTML('beforeend', `<div class="small ${bat.status !== 'Charging' && bat.capacity != null && bat.capacity <= 15 ? 'bad' : 'muted'}">${bat.status === 'Charging' ? '⚡ يشحن' : bat.status === 'Full' ? '🔋 مشحونة' : '🔋 البطارية'} ${bat.capacity != null ? bat.capacity + '%' : esc(bat.level || '')}${bat.model ? ` · <span translate="no">${esc(bat.model)}</span>` : ''}</div>`);
         $$('[data-p]', row).forEach(x => x.onclick = async () => {
           if (x.dataset.p === 'remove' && dv.paired && !(await confirmBox(`إزالة «${dv.name}»؟ ${dv.icon === 'input-gaming' ? 'لاستعمال اليد مرة أخرى ستحتاج إلى ربطها من جديد.' : 'لاستعماله مرة أخرى ستحتاج إلى ربطه من جديد.'}`, { ok: 'إزالة', danger: true }))) return;
           act(x.dataset.p, dv.mac);
@@ -325,6 +327,7 @@ function btCard() {
     if (r) { draw(r); if (a === 'pair' || a === 'pairpad') toast(`تم ربط ${(r.paired && r.paired.name) || 'اليد'} ✓ اضغط أي زر فيها`, 'ok'); }
     else $$('button', b).forEach(x => { x.disabled = false; });
   };
-  api.get('/api/admin/bt').then(draw).catch(e => { b.textContent = e.message; });
+  api.get('/api/admin/pads/battery').then((r) => { window.__padBat = r.pads || []; }).catch(() => {})
+    .finally(() => api.get('/api/admin/bt').then(draw).catch(e => { b.textContent = e.message; }));
   return c;
 }
