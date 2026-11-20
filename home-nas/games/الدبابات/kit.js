@@ -1,5 +1,6 @@
 // kit.js — أدوات مشتركة لألعاب الأطفال على تلفاز H.SEF (نسخة في كل مجلد لعبة، تعمل بدون إنترنت)
-// التحكم: الأسهم للتنقل، Enter أو ✕ للاختيار، Backspace أو ○ للرجوع. Escape محجوز للتلفاز (الخروج من اللعبة).
+// التحكم: الأسهم للتنقل، Enter أو ✕ للاختيار، Backspace أو ○ للرجوع (أو العكس كما في إعداد التلفاز).
+// زر PS وEscape محجوزان للتلفاز: الخروج من اللعبة بعد رسالة تأكيد (البند 51).
 (() => {
   "use strict";
   const K = (window.K = {});
@@ -240,6 +241,8 @@
     return ord.map((i) => all.find((g) => g.index === i)).filter(Boolean);
   };
   K.mainPad = () => K.pads()[0] || null;
+  // البند 51: «موافق» و«رجوع» كما في التلفاز (إعداد «الموافقة بزر ○»، ويد نينتندو معكوسة)، فلا يختلط الزران بين القوائم واللعبة
+  const tvSwap = (g) => { try { return window.parent !== window && typeof window.parent.hsefPadSwap === "function" && !!window.parent.hsefPadSwap(g); } catch { return false; } };
   function poll(ts) {
     const pads = K.pads();
     if (!(K.mode && K.mode.poll && K.mode.poll(pads, ts)) && pads.length) {
@@ -253,15 +256,18 @@
         pad.next = ts + (dir !== pad.dir ? 400 : 170);
       }
       pad.dir = dir;
-      if (b(0) && !pad.a) { K.audioCtx(); if (!(K.mode && K.mode.key && K.mode.key({ key: "Enter", pad: true }))) K.press(); }
-      if (b(1) && !pad.b) { if (!(K.mode && K.mode.key && K.mode.key({ key: "Backspace", pad: true }))) K.back(); }
-      pad.a = b(0); pad.b = b(1);
+      const sw = pads.map(tvSwap);
+      const okOn = pads.some((g, k) => g.buttons[sw[k] ? 1 : 0] && g.buttons[sw[k] ? 1 : 0].pressed);
+      const backOn = pads.some((g, k) => g.buttons[sw[k] ? 0 : 1] && g.buttons[sw[k] ? 0 : 1].pressed);
+      if (okOn && !pad.a) { K.audioCtx(); if (!(K.mode && K.mode.key && K.mode.key({ key: "Enter", pad: true }))) K.press(); }
+      if (backOn && !pad.b) { if (!(K.mode && K.mode.key && K.mode.key({ key: "Backspace", pad: true }))) K.back(); }
+      pad.a = okOn; pad.b = backOn;
     }
     requestAnimationFrame(poll);
   }
   requestAnimationFrame(poll);
 
-  K.HELP = `<div class="help"><b>الأسهم</b> للتنقل · <b>Enter</b> أو <b>✕</b> للاختيار · <b>Backspace</b> أو <b>○</b> للرجوع</div>`;
+  K.HELP = `<div class="help"><b>الأسهم</b> للتنقل · <b>Enter</b> أو <b>✕</b> للاختيار · <b>Backspace</b> أو <b>○</b> للرجوع · <b>PS</b> للخروج من اللعبة</div>`;
   K.backBtn = (label = "→ رجوع") => `<button class="btn f" ${K.act("back", K.back)}>${label}</button>`;
 
   // ---------------------------------------------------------------- صور من السيرفر
