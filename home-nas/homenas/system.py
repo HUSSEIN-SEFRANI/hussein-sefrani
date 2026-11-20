@@ -332,6 +332,8 @@ def api_user_delete(uid):
     if uid == current_user()["id"]:
         abort(400, "لا يمكنك حذف حسابك")
     db.execute("DELETE FROM media WHERE library=?", (f"u:{uid}",))
+    from .saves import forget_user as _forget_saves
+    _forget_saves(db, uid)   # البند 50: تقدّم ألعابه
     db.execute("DELETE FROM users WHERE id=?", (uid,))
     if admin_count(db) == 0:
         db.rollback()

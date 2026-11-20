@@ -977,12 +977,40 @@ const QUAL = [
   { name: "عالية", pr: Math.min(2, Math.max(1.5, devicePixelRatio)), an: 8 },
 ];
 const SIZE = { car: 1, coupe: 1.03, police: 1.03, jeep: 1.15, bus: 1.75, truck: 1.4, fire: 1.5, dump: 1.4, digger: 1.3 };
+// البند 50: التقدّم في السيرفر لكل فرد (مثل K.store في kit.js)، ونسخة في المتصفح احتياطاً
+function hsefStore(name, localKey, def) {
+  let p = location.pathname, local = null, remote;
+  try { p = decodeURIComponent(p); } catch (e) { /* */ }
+  const m = p.match(/^\/tv\/game\/\d+\/(.*)$/);
+  const skey = m ? name + ":" + m[1].replace(/(\/index\.html)?\/?$/, "") : null;
+  try { local = JSON.parse(localStorage.getItem(localKey) || "null"); } catch (e) { /* */ }
+  if (skey) {
+    try {
+      const x = new XMLHttpRequest();
+      x.open("GET", "/api/tv/save?key=" + encodeURIComponent(skey), false);
+      x.send();
+      if (x.status === 200) { const r = JSON.parse(x.responseText); remote = r.found ? r.value : null; }
+    } catch (e) { /* */ }
+  }
+  try { Object.assign(def, remote || local || {}); } catch (e) { /* */ }
+  const push = (obj) => {
+    if (!skey || remote === undefined) return;
+    try {
+      const body = JSON.stringify({ key: skey, value: obj });
+      fetch("/api/tv/save", { method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+        keepalive: body.length < 60000, body }).catch(() => {});
+    } catch (e) { /* */ }
+  };
+  if (remote === null && local) push(local);
+  return { data: def, save: (obj) => { try { localStorage.setItem(localKey, JSON.stringify(obj)); } catch (e) { /* */ } push(obj); } };
+}
+
 const SAVE_KEY = "karim-race:" + location.pathname;
 const set = { v: 0, c: 0, map: 0, diff: 1, cam: 0, q: 0 };
-try { Object.assign(set, JSON.parse(localStorage.getItem(SAVE_KEY) || "{}")); } catch {}
+const HS = hsefStore("karim-race", SAVE_KEY, set);
 const clampSet = () => { set.v = (set.v | 0) % VEHICLES.length; set.c = (set.c | 0) % COLORS.length; set.map = (set.map | 0) % MAPS.length; set.diff = (set.diff | 0) % DIFF.length; set.cam = (set.cam | 0) % CAMS.length; set.q = (set.q | 0) % QUAL.length; };
 clampSet();
-const saveSet = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ ...set, v: selV, c: selC })); } catch {} };
+const saveSet = () => HS.save({ ...set, v: selV, c: selC });
 function applyQuality() {
   const q = QUAL[set.q];
   renderer.setPixelRatio(q.pr); renderer.setSize(innerWidth, innerHeight);

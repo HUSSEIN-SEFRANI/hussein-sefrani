@@ -36,10 +36,38 @@ function hsefPadNorm(g, maps) {
   const REWARDS = { [PER_LEVEL]: 1 }; // تطبيق تعليمي: نجمة واحدة عند إنهاء المستوى كاملاً (v1.9.6)
   const STORE = "sara-thinking";
 
+// البند 50: التقدّم في السيرفر لكل فرد (مثل K.store في kit.js)، ونسخة في المتصفح احتياطاً
+function hsefStore(name, localKey, def) {
+  let p = location.pathname, local = null, remote;
+  try { p = decodeURIComponent(p); } catch (e) { /* */ }
+  const m = p.match(/^\/tv\/game\/\d+\/(.*)$/);
+  const skey = m ? name + ":" + m[1].replace(/(\/index\.html)?\/?$/, "") : null;
+  try { local = JSON.parse(localStorage.getItem(localKey) || "null"); } catch (e) { /* */ }
+  if (skey) {
+    try {
+      const x = new XMLHttpRequest();
+      x.open("GET", "/api/tv/save?key=" + encodeURIComponent(skey), false);
+      x.send();
+      if (x.status === 200) { const r = JSON.parse(x.responseText); remote = r.found ? r.value : null; }
+    } catch (e) { /* */ }
+  }
+  try { Object.assign(def, remote || local || {}); } catch (e) { /* */ }
+  const push = (obj) => {
+    if (!skey || remote === undefined) return;
+    try {
+      const body = JSON.stringify({ key: skey, value: obj });
+      fetch("/api/tv/save", { method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+        keepalive: body.length < 60000, body }).catch(() => {});
+    } catch (e) { /* */ }
+  };
+  if (remote === null && local) push(local);
+  return { data: def, save: (obj) => { try { localStorage.setItem(localKey, JSON.stringify(obj)); } catch (e) { /* */ } push(obj); } };
+}
+
   // ------------------------------------------------------------ الحفظ
-  let save = { unlocked: 1, best: {}, seen: {} };
-  try { save = Object.assign(save, JSON.parse(localStorage.getItem(STORE) || "{}")); } catch (e) { /* */ }
-  const persist = () => { try { localStorage.setItem(STORE, JSON.stringify(save)); } catch (e) { /* */ } };
+  const HS = hsefStore(STORE, STORE, { unlocked: 1, best: {}, seen: {} });   // كان تقدّماً واحداً لكل الأطفال: صار لكل فرد في السيرفر
+  let save = HS.data;
+  const persist = () => HS.save(save);
 
   // ------------------------------------------------------------ نجوم الحساب
   // يضيف نجوماً لرصيد الطفل على السيرفر (انظر _kit/API.txt) ويرجع عدد ما أُضيف فعلاً.
