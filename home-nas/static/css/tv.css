@@ -681,3 +681,10 @@ html[dir=ltr] .crescent { right: auto; left: 150px; }
 .dk .ic, .kt .box { position: relative; }
 .tcount { position: absolute; top: -6px; inset-inline-end: -6px; min-width: 30px; height: 30px; padding: 0 8px; border-radius: 99px;
   background: #ef4444; color: #fff; font: 800 18px/30px Cairo, sans-serif; text-align: center; box-shadow: 0 0 0 3px #fff, 0 4px 10px rgba(0,0,0,.25); }
+/* البند 12: الإعدادات في مجموعات (التلفاز، الألعاب، الشبكة) */
+.set-groups { position: absolute; top: 140px; right: 50px; left: 50px; display: flex; gap: 26px; align-items: flex-start; }
+.set-group { flex: var(--n) 1 0; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.set-groups .set-grid { position: static; grid-template-columns: repeat(var(--n), 1fr); }
+.set-gh { margin: 0 6px; padding-bottom: 8px; font-size: 24px; color: #fde68a; border-bottom: 2px solid rgba(253,230,138,.35); }
+.set-groups .set-card { padding: 28px 14px; }
+.set-groups .set-card b { font-size: 27px; white-space: nowrap; }
