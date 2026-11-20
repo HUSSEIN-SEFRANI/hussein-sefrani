@@ -1,6 +1,6 @@
 // الإخوة + — لعبة تعاونية لأخوين: الكبير قوي (يحمل أخاه ويرميه، ويدفع الصناديق، ويمشي في الماء، ويضغط الأزرار الثقيلة)،
 // والصغير خفيف (يقفز أعلى، ويمر من الأنفاق الصغيرة). 20 مرحلة، وإذا خسر أحدهما رجعا معاً إلى آخر علم 🚩.
-// التحكم: كل لاعب بيد تحكم (✕ قفز · □/△ حمل/عتلة · ○ استراحة). بلا يد: الأسهم + Enter (والريموت)، و W A S D + F.
+// التحكم: كل لاعب بيد تحكم (✕ أو ⬆️ قفز · □ △ ○ حمل/عتلة · Options استراحة). بلا يد: الأسهم + Enter (والريموت)، و W A S D + F.
 // اللمس/الفأرة: أزرار على الشاشة لكل لاعب.
 // مفتاح الخريطة (levels.js): # أرض · - منصة تُعبر من تحت · ^ أشواك · ~ ماء عميق · X صندوق · F علم حفظ · J نابض
 //   1 الكبير · 2 الصغير · E باب النهاية (للاثنين) · * الكأس (لواحد) · الألوان: أحمر/أزرق/أخضر/أصفر
@@ -16,7 +16,7 @@
   const FONT = getComputedStyle(document.body).fontFamily || "sans-serif";
   const COL = ["#ef4444", "#3b82f6", "#22c55e", "#eab308"], COLD = ["#991b1b", "#1e40af", "#166534", "#a16207"];
   const ROLE = {
-    big: { w: 0.8, h: 1.75, speed: 5, jump: 10.8, shirt: "#2563eb", pants: "#1e3a8a", name: "الأخ الكبير", emo: "🟦" },
+    big: { w: 0.8, h: 1.75, speed: 5, jump: 11.3, shirt: "#2563eb", pants: "#1e3a8a", name: "الأخ الكبير", emo: "🟦" },
     small: { w: 0.66, h: 0.9, speed: 5.5, jump: 14, shirt: "#f97316", pants: "#7c2d12", name: "الأخ الصغير", emo: "🟧" },
   };
   // من يساعد في المراحل التي فيها مساعد طوال الوقت (لرسالة النهاية)
@@ -66,18 +66,24 @@
     KeyA: [1, "left"], KeyD: [1, "right"], KeyW: [1, "jump"], Space: [1, "jump"], " ": [1, "jump"], KeyS: [1, "down"], KeyF: [1, "act"], KeyE: [1, "act"], KeyQ: [1, "act"],
   };
   const held = [{}, {}], edge = [{}, {}], tHeld = [{}, {}], tEdge = [{}, {}], padPrev = {};
+  // ريموت التلفاز (HDMI-CEC) يرسل كل ضغطة «ضغطاً ورفعاً» في اللحظة نفسها، وإذا بقي الزر مضغوطاً يكررها.
+  // فالضغطة القصيرة جداً تُعدّ مستمرة قليلاً (tapUntil) حتى يمشي الأخ بالريموت.
+  const lastDown = [{}, {}], tapUntil = [{}, {}], TAP_HOLD = 280;
   function kbKey(e, down) {
     const m = KB[e.code] || KB[e.key];
     if (!m) return false;
-    const [s, a] = m;
-    if (down) { if (!held[s][a]) edge[s][a] = true; held[s][a] = true; } else held[s][a] = false;
+    const [s, a] = m, now = performance.now();
+    if (down) { if (!held[s][a]) edge[s][a] = true; held[s][a] = true; lastDown[s][a] = now; }
+    else { held[s][a] = false; if (now - (lastDown[s][a] || 0) < 45) tapUntil[s][a] = now + TAP_HOLD; }
     return true;
   }
+  const kbHeld = (s, a, now) => !!held[s][a] || now < (tapUntil[s][a] || 0);
   addEventListener("blur", () => { for (const h of [...held, ...tHeld]) for (const k in h) h[k] = false; });
   function readPad(g) {
     const b = (i) => !!(g.buttons[i] && g.buttons[i].pressed), ax = g.axes[0] || 0, ay = g.axes[1] || 0;
+    // ✕ أو ⬆️ قفز · □ △ ○ حمل/عتلة · Options استراحة
     return { left: b(14) || ax < -0.4, right: b(15) || ax > 0.4, up: b(12) || ay < -0.7, down: b(13) || ay > 0.7,
-      jump: b(0), act: b(2) || b(3) || b(4) || b(5), pause: b(1) || b(9) };
+      jump: b(0) || b(12), act: b(1) || b(2) || b(3) || b(4) || b(5), pause: b(9) || b(8), a: b(0), x: b(2) || b(3), back: b(1) };
   }
   const devName = (d) => (d === "pad0" ? "🎮 يد التحكم ١" : d === "pad1" ? "🎮 يد التحكم ٢" : d === "kb0" ? "⌨️ الأسهم + Enter" : d === "kb01" ? "⌨️ الأسهم + Enter أو WASD + F" : "⌨️ W A S D + F");
   // يرجع لكل لاعب: الأزرار المضغوطة الآن (left/right/down…) و e = ما ضُغط للتو
@@ -89,15 +95,15 @@
         const s = readPad(g), pv = padPrev[g.index] || {}, e = {};
         padPrev[g.index] = s;
         for (const k in s) e[k] = s[k] && !pv[k];
-        e.ok = e.jump || e.act;
+        e.ok = e.a || e.x;
         out[p] = { ...s, e, dev: "pad" + p };
       } else free.push(p);
     }
-    const sets = free.length === 1 ? [[0, 1]] : [[0], [1]];
+    const sets = free.length === 1 ? [[0, 1]] : [[0], [1]], now = performance.now();
     free.forEach((p, i) => {
       const ss = sets[i], s = {}, e = {};
       for (const k of ss) {
-        for (const a of ["left", "right", "down", "jump", "act"]) s[a] = s[a] || !!held[k][a];
+        for (const a of ["left", "right", "down", "jump", "act"]) s[a] = s[a] || kbHeld(k, a, now);
         for (const a in edge[k]) if (edge[k][a]) e[a] = true;
       }
       s.up = s.jump; e.up = e.jump; e.ok = e.act;
@@ -112,7 +118,7 @@
     edge[0] = {}; edge[1] = {};
     return out;
   }
-  const clearInput = () => { edge[0] = {}; edge[1] = {}; for (const h of held) for (const k in h) h[k] = false; };
+  const clearInput = () => { edge[0] = {}; edge[1] = {}; for (const h of [...held, ...tapUntil]) for (const k in h) delete h[k]; };
 
   // ---------------------------------------------------------------- رسم الأخوين
   function drawKid(g, cx, foot, s, role, face, ph, pose) {
@@ -244,10 +250,10 @@
         </div>
         <div class="col">
           <h3>🎮 الأزرار</h3>
-          ${row("✕", "قفز (الأسهم: ⬆️ · W)")}
-          ${row("□", "حمل / رمي / عتلة (Enter · F)")}
+          ${row("✕", "قفز، أو ⬆️ (الكيبورد: ⬆️ · W)")}
+          ${row("□", "حمل / رمي / عتلة، أو ○ △ (Enter · F)")}
           ${row("⬇️", "الكبير يُنزل أخاه بهدوء")}
-          ${row("○", "استراحة (Backspace)")}
+          ${row("⏸️", "استراحة: Options (Backspace)")}
           <h3>🧩 في المراحل</h3>
           ${row("🔴", "الزر يفتح الباب بلونه ما دام أحد واقفاً عليه")}
           ${row("🕹️", "العتلة تفتح الباب وتبقيه مفتوحاً")}
@@ -312,7 +318,7 @@
         if (x.e.left) step(p, -1); else if (x.e.right) step(p, 1);
         else if (x.e.up || x.e.down) swap();
         else if (x.e.ok) toggle(p);
-        else if (x.e.pause) K.back();
+        else if (x.e.pause || x.e.back) K.back();
       });
       if (ch) draw();
       raf = requestAnimationFrame(loop);
