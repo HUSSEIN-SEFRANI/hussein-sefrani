@@ -2228,7 +2228,7 @@ let padPrev = {}, padRep = {}, padState = {}, padName = "";
 // أو اليد التي يختارها المدير («اختيار اليد الأساسية»، وتُحفظ باسمها فترجع أساسية عند اتصالها من جديد)
 let PADSEEN = [], PADMAIN = null;
 const MAIN_KEY = "hsef-pad-main";
-const livePads = () => { try { return [...navigator.getGamepads()].filter((g) => g && g.connected); } catch { return []; } };
+const livePads = () => { try { return [...navigator.getGamepads()].filter((g) => g && g.connected && !/motion sensors|touchpad|accelerometer|gyro/i.test(g.id || "")); } catch { return []; } };
 function setMainPad(i, save) {
   PADMAIN = i;
   const g = livePads().find((x) => x.index === i);
