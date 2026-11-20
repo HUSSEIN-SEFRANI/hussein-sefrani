@@ -68,16 +68,16 @@
     const s = state(x, now), it = byId[x.id];
     let h = "";
     if (s === "lock") h = `<i class="lk emo">🔒</i>`;
-    else if (s === "dry") h = `<i class="pl s0 emo">🌱</i><i class="bub emo">💧</i>`;
+    else if (s === "dry") h = `<i class="pl up s0 emo">🌱</i><i class="bub up emo">💧</i>`;
     else if (s === "grow") {
       const p = frac(x, now);
-      h = p < 0.4 ? `<i class="pl s1 emo">🌱</i>` : p < 0.75 ? `<i class="pl s2 emo">🌿</i>` : `<i class="pl s3 emo">${it.e}</i>`;
+      h = p < 0.4 ? `<i class="pl up s1 emo">🌱</i>` : p < 0.75 ? `<i class="pl up s2 emo">🌿</i>` : `<i class="pl up s3 emo">${it.e}</i>`;
       h += `<i class="bar"><b style="width:${Math.round(p * 100)}%"></b></i>`;
-    } else if (s === "ripe") h = `<i class="pl s4 emo">${it.e}</i><i class="spark emo">✨</i>`;
-    else if (s === "hungry") h = `<i class="an emo">${it.e}</i><i class="bub emo">${emo(it.feed)}</i>`;
-    else if (s === "make") h = `<i class="an emo">${it.e}</i><i class="bar"><b style="width:${Math.round(frac(x, now) * 100)}%"></b></i>`;
-    else if (s === "prod") h = `<i class="an emo">${it.e}</i><i class="bub emo">${emo(it.gives)}</i>`;
-    else if (s === "deco") h = `<i class="dc emo">${it.e}</i>`;
+    } else if (s === "ripe") h = `<i class="pl up s4 emo">${it.e}</i><i class="spark up emo">✨</i>`;
+    else if (s === "hungry") h = `<i class="an up emo">${it.e}</i><i class="bub up emo">${emo(it.feed)}</i>`;
+    else if (s === "make") h = `<i class="an up emo">${it.e}</i><i class="bar"><b style="width:${Math.round(frac(x, now) * 100)}%"></b></i>`;
+    else if (s === "prod") h = `<i class="an up emo">${it.e}</i><i class="bub up emo">${emo(it.gives)}</i>`;
+    else if (s === "deco") h = `<i class="dc up emo">${it.e}</i>`;
     const cls = s === "lock" ? "lock" : x.k === "a" ? "pen " + s : x.k === "d" ? "grass" : "soil " + s + (x.w ? " wet" : "");
     return { cls, h };
   }
@@ -127,7 +127,7 @@
     K.onFocus = setHint;
     const first = f.tiles.findIndex((x) => x.o && !x.k);
     K.paint(`${topBar()}
-      <div class="field" style="--cols:${D.COLS};--rows:${D.ROWS}">${tiles}</div>
+      <div class="stage"><div class="field" style="--cols:${D.COLS};--rows:${D.ROWS}">${tiles}</div></div>
       <div class="hint" id="hint"></div>`, "t" + (first >= 0 ? first : D.START_PLOTS[4][1] * D.COLS + D.START_PLOTS[4][0]));
     setHint(K.current());
     if (!f.h && !f.tiles.some((x) => x.k)) toast(t("start"), 4500);
