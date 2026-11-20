@@ -39,13 +39,6 @@
     toastEl.innerHTML = msg; toastEl.classList.add("on");
     clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove("on"), ms);
   }
-  function floatAt(el, txt) {
-    if (!el) return;
-    const r = el.getBoundingClientRect(), d = document.createElement("div");
-    d.className = "float emo"; d.textContent = txt;
-    d.style.left = r.left + r.width / 2 + "px"; d.style.top = r.top + r.height * 0.2 + "px";
-    fx.appendChild(d); setTimeout(() => d.remove(), 1300);
-  }
 
   // ---------------------------------------------------------------- المزرعة
   function newFarm(av, col) {
@@ -64,22 +57,13 @@
   }
   const left = (x, now) => byId[x.id].t - (now - (x.k === "c" ? x.w : x.f)) / 1000;
   const frac = (x, now) => Math.min(1, 1 - left(x, now) / byId[x.id].t);
-  function tileView(x, now) {
-    const s = state(x, now), it = byId[x.id];
-    let h = "";
-    if (s === "lock") h = `<i class="lk emo">🔒</i>`;
-    else if (s === "dry") h = `<i class="pl up s0 emo">🌱</i><i class="bub up emo">💧</i>`;
-    else if (s === "grow") {
-      const p = frac(x, now);
-      h = p < 0.4 ? `<i class="pl up s1 emo">🌱</i>` : p < 0.75 ? `<i class="pl up s2 emo">🌿</i>` : `<i class="pl up s3 emo">${it.e}</i>`;
-      h += `<i class="bar"><b style="width:${Math.round(p * 100)}%"></b></i>`;
-    } else if (s === "ripe") h = `<i class="pl up s4 emo">${it.e}</i><i class="spark up emo">✨</i>`;
-    else if (s === "hungry") h = `<i class="an up emo">${it.e}</i><i class="bub up emo">${emo(it.feed)}</i>`;
-    else if (s === "make") h = `<i class="an up emo">${it.e}</i><i class="bar"><b style="width:${Math.round(frac(x, now) * 100)}%"></b></i>`;
-    else if (s === "prod") h = `<i class="an up emo">${it.e}</i><i class="bub up emo">${emo(it.gives)}</i>`;
-    else if (s === "deco") h = `<i class="dc up emo">${it.e}</i>`;
-    const cls = s === "lock" ? "lock" : x.k === "a" ? "pen " + s : x.k === "d" ? "grass" : "soil " + s + (x.w ? " wet" : "");
-    return { cls, h };
+  // ما يحتاجه الرسم لكل مربع
+  function view(i, now) {
+    const x = F().tiles[i], s = state(x, now), it = byId[x.id];
+    const q = { s, it, wet: !!x.w };
+    if (s === "grow" || s === "make") q.p = frac(x, now);
+    if (it && it.kind === "a") { q.feed = emo(it.feed); q.gives = emo(it.gives); }
+    return q;
   }
   function hintFor(i) {
     const f = F(), x = f.tiles[i], now = Date.now(), s = state(x, now), it = byId[x.id], n = it && E(it.e) + " " + nm(it.id);
@@ -98,17 +82,15 @@
   }
 
   let placing = null; // { obj, refund, from }
+  const cur = { x: 4, y: 3 };
+  const curI = () => cur.y * D.COLS + cur.x;
   function setHint(el) {
     const h = document.getElementById("hint");
     if (!h || !el) return;
-    let s = "";
     const k = el.dataset.k || "";
-    if (k[0] === "t") s = hintFor(+k.slice(1));
-    else if (k === "market") s = t("hMarket");
-    else if (k === "shop") s = t("hShop");
-    else s = t("help");
+    let s = k === "map" ? hintFor(curI()) : k === "market" ? t("hMarket") : k === "shop" ? t("hShop") : t("help");
     if (placing) s = t("hPlace", E(emo(placing.obj.id)) + " " + nm(placing.obj.id));
-    h.innerHTML = s;
+    if (h._s !== s) { h.innerHTML = s; h._s = s; }
   }
   function topBar() {
     const f = F();
@@ -116,41 +98,87 @@
       <span class="pill who" style="--c:${D.COLORS[f.col]}">${E(f.av)} ${E("🪙")} <b id="coins">${f.coins}</b></span>
       <span class="pill">${E("🟫")} <b id="plots">${owned()}</b> / ${N}</span>
       <span class="sp"></span>
-      <button class="btn f" ${K.act("market", () => K.show(marketScreen))}>${E("🏪")} ${t("market")}</button>
-      <button class="btn f go" ${K.act("shop", () => K.show(shopScreen))}>${E("🛒")} ${t("shop")}</button></div>`;
+      <button class="btn f" ${K.act("market", () => K.show(marketScreen))}>${E("🏪")} ${t("market")} <small class="key">□</small></button>
+      <button class="btn f go" ${K.act("shop", () => K.show(shopScreen))}>${E("🛒")} ${t("shop")} <small class="key">△</small></button></div>`;
   }
+  // الخريطة: Canvas خلف الواجهة، ومربع «map» شفاف يأخذ التركيز واللمس.
+  // الأسهم على المحاور المائلة: → و← على صف المربع، و↑ و↓ على عموده (يد التحكم مثلها). □ السوق، △ المتجر.
+  const MOVE = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowDown: [0, 1], ArrowUp: [0, -1] };
   function farmScreen() {
     begin();
-    const f = F(), now = Date.now();
+    const f = F();
     gift();
-    const tiles = f.tiles.map((x, i) => { const v = tileView(x, now); return `<button class="plot f ${v.cls}" ${K.act("t" + i, (el) => tap(i, el))}>${v.h}</button>`; }).join("");
+    if (curFarm !== save.cur) { const k = f.tiles.findIndex((x) => x.o && !x.k); const i0 = k >= 0 ? k : D.START_PLOTS[4][1] * D.COLS + D.START_PLOTS[4][0]; curFarm = save.cur; cur.x = i0 % D.COLS; cur.y = (i0 / D.COLS) | 0; }
     K.onFocus = setHint;
-    const first = f.tiles.findIndex((x) => x.o && !x.k);
-    K.paint(`${topBar()}
-      <div class="stage"><div class="field" style="--cols:${D.COLS};--rows:${D.ROWS}">${tiles}</div></div>
-      <div class="hint" id="hint"></div>`, "t" + (first >= 0 ? first : D.START_PLOTS[4][1] * D.COLS + D.START_PLOTS[4][0]));
+    K.paint(`${topBar()}<div class="map f" ${K.act("map", () => { if (mapHit !== false) tap(curI()); mapHit = null; })}></div>
+      <div class="hint" id="hint"></div>`, "map");
+    document.body.classList.add("farm");
+    const map = K.app.querySelector(".map"), hint = document.getElementById("hint"), bar = K.app.querySelector(".fbar");
+    const fit = () => FA.layout({ C: D.COLS, R: D.ROWS, lite: LITE, top: bar.getBoundingClientRect().bottom + 6, bottom: innerHeight - hint.getBoundingClientRect().top + 6 });
+    fit();
+    addEventListener("resize", fit);
+    // اللمس والفأرة
+    const at = (e) => FA.pick(e.clientX, e.clientY);
+    map.addEventListener("pointerdown", (e) => { const p = at(e); mapHit = !!p; if (p) { cur.x = p.x; cur.y = p.y; setHint(map); } });
+    map.addEventListener("mousemove", (e) => { const p = at(e); if (p && (p.x !== cur.x || p.y !== cur.y)) { cur.x = p.x; cur.y = p.y; setHint(map); } });
     setHint(K.current());
     if (!f.h && !f.tiles.some((x) => x.k)) toast(t("start"), 4500);
-    K.every(refresh, 1000);
+    // الرسم
+    let run = true, last = 0, T = 0, sec = 0;
+    const step = LITE ? 1000 / 12 : 1000 / 30;
+    const loop = (now) => {
+      if (!run) return;
+      requestAnimationFrame(loop);
+      if (now - last < step) return;
+      T += Math.min(0.2, (now - (last || now)) / 1000); last = now;
+      const ms = Date.now(), focus = K.current() === map;
+      const c = { x: cur.x, y: cur.y, focus };
+      if (placing) { c.ghost = emo(placing.obj.id); c.ok = state(F().tiles[curI()], ms) === "soil"; }
+      FA.frame({ f: F(), v: (i) => view(i, ms), cur: c, T });
+      if (ms - sec > 500) { sec = ms; refresh(); }
+    };
+    requestAnimationFrame(loop);
+    const prev = [];
     K.mode = {
       key(e) {
         if (placing && e.key === "Backspace") { cancelPlace(); return true; }
+        if (K.current() !== map) return false;
+        const d = MOVE[e.key];
+        if (d) {
+          const nx = cur.x + d[0], ny = cur.y + d[1];
+          if (ny < 0) { K.move("up"); return true; }   // من الصف الأول إلى الأزرار في الأعلى
+          if (nx >= 0 && nx < D.COLS && ny < D.ROWS) { cur.x = nx; cur.y = ny; K.sfx.tick(); setHint(map); }
+          return true;
+        }
+        if (e.key === "m") { K.show(marketScreen); return true; }
+        if (e.key === "s") { K.show(shopScreen); return true; }
         return false;
       },
+      poll(pads) {
+        const g = pads[0];
+        if (!g) return false;
+        const b = (i) => !!(g.buttons[i] && g.buttons[i].pressed), edge = (i) => b(i) && !prev[i];
+        const go = edge(2) ? marketScreen : edge(3) ? shopScreen : null;
+        for (const i of [2, 3]) prev[i] = b(i);
+        if (go) { K.show(go); return true; }
+        return false;   // الأسهم و✕ و○ تمر عبر kit إلى key()
+      },
+      stop() { run = false; removeEventListener("resize", fit); document.body.classList.remove("farm"); },
     };
   }
+  let mapHit = null, curFarm = -1;
   function refresh() {
-    const f = F(), now = Date.now();
-    const els = K.app.querySelectorAll(".plot");
-    f.tiles.forEach((x, i) => {
-      const el = els[i]; if (!el) return;
-      const v = tileView(x, now), cls = "plot f " + v.cls + (el.classList.contains("sel") ? " sel" : "");
-      if (el.className !== cls) el.className = cls;
-      if (el._h !== v.h) { el.innerHTML = v.h; el._h = v.h; }
-    });
+    const f = F();
     const c = document.getElementById("coins"); if (c) c.textContent = f.coins;
     const p = document.getElementById("plots"); if (p) p.textContent = owned();
     setHint(K.current());
+  }
+  // نص طائر فوق المربع
+  function floatTile(i, txt) {
+    const [x, y] = FA.center(i % D.COLS, (i / D.COLS) | 0), d = document.createElement("div");
+    d.className = "float emo"; d.textContent = txt;
+    d.style.left = x + "px"; d.style.top = y - FA.size() * 0.6 + "px";
+    fx.appendChild(d); setTimeout(() => d.remove(), 1300);
   }
   // إن لم يبق للطفل نقود ولا محصول ولا شيء يُباع: هدية صغيرة حتى لا تتوقف اللعبة
   function gift() {
@@ -162,7 +190,7 @@
     K.later(() => toast(t("gift", g)), 400);
   }
 
-  function tap(i, el) {
+  function tap(i) {
     const f = F(), x = f.tiles[i], now = Date.now(), s = state(x, now), it = byId[x.id];
     if (placing) {
       if (s !== "soil") { snd.no(); toast(t("busy")); return; }
@@ -171,7 +199,7 @@
       f.tiles[i] = Object.assign({ o: 1 }, o);
       placing = null; save.save();
       if (o.k === "a") snd.moo(); else K.sfx.pop();
-      floatAt(el, "✨"); toast(t("placed"), 1500); refresh();
+      floatTile(i, "✨"); toast(t("placed"), 1500); refresh();
       return;
     }
     switch (s) {
@@ -191,12 +219,12 @@
         return;
       }
       case "soil": K.show(plantScreen, i); return;
-      case "dry": x.w = now; save.save(); snd.water(); floatAt(el, "💧"); toast(t("watered"), 1200); refresh(); return;
+      case "dry": x.w = now; save.save(); snd.water(); floatTile(i, "💧"); toast(t("watered"), 1200); refresh(); return;
       case "grow": K.sfx.tick(); toast(t("hGrow", E(it.e) + " " + nm(it.id), mmss(left(x, now))), 1800); return;
       case "ripe": {
         f.tiles[i] = { o: 1 }; f.inv[x.id] = (f.inv[x.id] || 0) + 1;
         const firstH = !f.h; f.h++; save.save();
-        snd.harvest(); floatAt(el, "+1 " + it.e); refresh();
+        snd.harvest(); floatTile(i, "+1 " + it.e); refresh();
         if (firstH) { toast(t("firstH"), 5000); K.confetti(LITE ? 10 : 24, "🌽☘️✨🎉"); }
         return;
       }
@@ -204,12 +232,12 @@
         if (!(f.inv[it.feed] > 0)) { snd.no(); toast(t("noFeed", E(emo(it.feed)) + " " + nm(it.feed))); return; }
         f.inv[it.feed]--; x.f = now; save.save();
         if (x.id === "cow") snd.moo(); else K.sfx.pop();
-        floatAt(el, "😋"); toast(t("fed"), 1200); refresh();
+        floatTile(i, "😋"); toast(t("fed"), 1200); refresh();
         return;
       }
       case "prod": {
         f.inv[it.gives] = (f.inv[it.gives] || 0) + 1; x.f = 0; save.save();
-        snd.harvest(); floatAt(el, "+1 " + emo(it.gives)); refresh();
+        snd.harvest(); floatTile(i, "+1 " + emo(it.gives)); refresh();
         return;
       }
       case "make": case "deco": K.show(itemScreen, i); return;

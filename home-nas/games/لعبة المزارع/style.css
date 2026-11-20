@@ -23,45 +23,14 @@ h3 { margin: 1.5vh 0 .5vh; font-size: 3.6vh; color: #fff; -webkit-text-stroke: .
 .fbar .pill { font-size: 3vh; }
 .who { box-shadow: inset 0 0 0 .5vh var(--c); }
 
-/* الأرض: مائلة بشكل ثلاثي الأبعاد (كأنها طاولة أمام الطفل)، والمحاصيل والحيوانات واقفة عليها */
-.stage { --tilt: 36deg; flex: 1; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; perspective: 220vh; perspective-origin: 50% -10%; }
-.field { --ts: min(7.4vw, 10.6vh); position: relative; display: grid; grid-template-columns: repeat(var(--cols), var(--ts)); grid-auto-rows: var(--ts); gap: .8vh;
-  padding: 1.6vh; border-radius: 3vh; background: #4d7c0f; transform: rotateX(var(--tilt)); transform-style: preserve-3d; margin-top: -2vh;
-  box-shadow: inset 0 0 0 .6vh #a16207, inset 0 0 0 1.1vh #ca8a04, 0 1.6vh 0 #854d0e, 0 2.6vh 0 #713f12, 0 4vh 4vh rgba(20,83,45,.45); }
-.plot { position: relative; border: 0; padding: 0; border-radius: 1.2vh; overflow: visible; display: flex; align-items: center; justify-content: center; transform-style: preserve-3d; transform: translateZ(2px); }
-.plot i { font-style: normal; position: absolute; pointer-events: none; }
-/* الأشياء الواقفة: تدور عكس ميل الأرض فتقف منتصبة */
-.plot .up { transform-origin: 50% 90%; transform: rotateX(calc(-1 * var(--tilt))); bottom: 22%; line-height: 1; }
-.plot::before { content: ""; position: absolute; left: 18%; right: 18%; bottom: 14%; height: 18%; border-radius: 50%; background: rgba(0,0,0,.22); display: none; }
-.plot.pen::before, .plot.grass::before, .plot.ripe::before, .plot.grow::before { display: block; }
-.plot.lock { background: #65a30d; background-image: radial-gradient(circle at 30% 30%, #84cc16 0 12%, transparent 13%), radial-gradient(circle at 70% 65%, #84cc16 0 10%, transparent 11%);
-  box-shadow: 0 .8vh 0 #3f6212; opacity: .85; }
-.plot.lock .lk { font-size: calc(var(--ts) * .26); opacity: .45; }
-.plot.lock.sel { opacity: 1; }
-.plot.lock.sel .lk { opacity: 1; }
-.plot.soil { background: repeating-linear-gradient(180deg, #a0522d 0 16%, #7c3f12 16% 25%); box-shadow: inset 0 0 0 .35vh #b45309, 0 1vh 0 #5b2a0a; }
-.plot.soil.wet { background: repeating-linear-gradient(180deg, #6b3410 0 16%, #4a230a 16% 25%); }
-.plot.grass, .plot.pen { background: #86efac; background-image: radial-gradient(circle at 25% 75%, #4ade80 0 9%, transparent 10%), radial-gradient(circle at 75% 25%, #4ade80 0 8%, transparent 9%);
-  box-shadow: 0 1vh 0 #15803d; }
-.plot.pen { box-shadow: inset 0 0 0 .55vh #b45309, inset 0 0 0 .9vh #fde68a, 0 1vh 0 #15803d; }
-.pl, .an, .dc { font-size: calc(var(--ts) * .66); }
-.pl.s0, .pl.s1 { font-size: calc(var(--ts) * .42); }
-.pl.s2 { font-size: calc(var(--ts) * .54); }
-.pl.s3 { font-size: calc(var(--ts) * .56); filter: saturate(.6); }
-.pl.s4 { font-size: calc(var(--ts) * .76); animation: ripe 1.2s ease-in-out infinite; }
-.dc { font-size: calc(var(--ts) * .8); }
-.an { font-size: calc(var(--ts) * .72); animation: graze 3s ease-in-out infinite; }
-.bub { top: auto; bottom: 70%; inset-inline-end: -1vh; font-size: calc(var(--ts) * .3); background: #fff; border-radius: 50%; width: calc(var(--ts) * .44); height: calc(var(--ts) * .44);
-  display: flex; align-items: center; justify-content: center; box-shadow: 0 .4vh .8vh rgba(0,0,0,.25); animation: bob2 1.6s ease-in-out infinite; z-index: 3; }
-.spark { bottom: 75%; inset-inline-start: 6%; font-size: calc(var(--ts) * .28); animation: tw 1s ease-in-out infinite alternate; }
-.bar { bottom: 7%; left: 12%; right: 12%; height: 1vh; background: rgba(0,0,0,.35); border-radius: 1vh; overflow: hidden; }
-.bar b { display: block; height: 100%; background: #facc15; border-radius: 1vh; transition: width 1s linear; }
-/* الحركات بخصائص منفصلة (scale/rotate/translate) حتى لا تلغي دوران الوقوف */
-@keyframes ripe { 50% { scale: 1.08; rotate: -4deg } }
-@keyframes tw { from { opacity: .3 } }
-@keyframes graze { 50% { translate: .6vh 0; rotate: 3deg } }
-@keyframes bob2 { 50% { translate: 0 -1vh } }
-.field .f.sel { transform: translateZ(2px) scale(1.1); box-shadow: 0 0 0 .7vh #fff, 0 1.6vh 0 rgba(255,255,255,.6), 0 3vh 3vh rgba(0,0,0,.35) !important; z-index: 2; }
+/* الخريطة الأيزومترية (Canvas في art.js) */
+#cv { position: fixed; inset: 0; display: none; }
+body.farm #cv { display: block; }
+body.farm #sky { display: none; }
+.map { flex: 1; width: 100%; min-height: 0; }
+.map.f.sel { transform: none; box-shadow: none !important; }
+.fbar { position: relative; z-index: 2; }
+.key { font-size: 2.2vh; opacity: .7; margin-inline-start: .4vh; }
 
 .hint { margin-top: 1.4vh; min-height: 5vh; font-size: 3vh; font-weight: 800; background: rgba(255,255,255,.88); border-radius: 3vh; padding: .6vh 3vh; color: #14532d; text-align: center; max-width: 92vw; }
 .hint b { color: #be185d; }
@@ -92,6 +61,5 @@ h2.q { max-width: 80vw; margin-top: 2vh; }
 @keyframes up { to { transform: translate(-50%, -9vh); opacity: 0 } }
 
 /* أجهزة ضعيفة: بلا حركات مستمرة */
-.lite .pl.s4, .lite .bub, .lite .spark, .lite .an, .lite .mascot, .lite #sky i { animation: none; }
-.lite .plot::before { display: none !important; }
+.lite .mascot, .lite #sky i { animation: none; }
 .lite .bar b { transition: none; }
