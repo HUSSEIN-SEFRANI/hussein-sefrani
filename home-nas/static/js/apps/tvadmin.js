@@ -266,6 +266,11 @@ function cecBox() {
         ${r.tv ? ` التلفاز: <b translate="no">${esc(r.tv)}</b>` : ''} ${r.adapter ? `<span class="muted small" translate="no">(${esc(r.adapter)})</span>` : ''}</p>
       <p class="muted small" style="margin:0 0 8px">استعمل أسهم ريموت التلفاز و«موافق» و«رجوع» و«الرئيسية» في وضع التلفاز. <b>زر الإطفاء في ريموت التلفاز يطفئ التلفاز فقط، ولا يوقف HOME ANAB أبداً.</b>
         ${r.power_ignored ? ` (تجاهلنا أمر الإطفاء ${r.power_ignored} مرة.)` : ''}</p>
+      ${!off && r.supported && !r.keys ? `<div class="alert warn small" style="margin:0 0 8px"><b>لم يصل أي زر من الريموت بعد${r.traffic ? '' : '، ولا أي رسالة من التلفاز'}.</b>
+        في تلفاز <b>سامسونغ</b>: الإعدادات ← عام ← <b>مدير الأجهزة الخارجية</b> ← فعّل <b translate="no">Anynet+ (HDMI-CEC)</b>.
+        (إل جي: <span translate="no">SIMPLINK</span>، سوني: <span translate="no">BRAVIA Sync</span>.) ثم اختر مدخل HDMI الموصول بـ HOME ANAB، وأطفئ التلفاز وشغّله مرة.
+        ${r.traffic ? '' : ' إن بقي العدد صفراً فمنفذ HDMI في هذا الجهاز لا يوصل سلك CEC: يلزم محوّل USB-CEC.'}
+        <span class="muted">(رسائل من التلفاز: ${r.traffic || 0})</span></div>` : ''}
       ${r.last_key && !off ? `<p class="small" style="margin:0 0 8px">آخر زر وصل: <span class="ltr" translate="no">0x${esc(r.last_key)}</span> <span class="muted ltr">${esc(r.last_at || '')}</span> — اضغط زراً في ريموت التلفاز ثم «تحديث» لتتأكد.</p>` : ''}
       <button class="btn sm" data-a="toggle">${off ? 'تشغيل الريموت' : 'إيقاف الريموت'}</button> <button class="btn sm" data-a="re">تحديث</button>`;
     $('[data-a=re]', cb).onclick = load;
