@@ -699,3 +699,15 @@ html[dir=ltr] .crescent { right: auto; left: 150px; }
 .game .gx-btn.out { background: #b91c1c; }
 .game .gx-btn.focus { outline: 4px solid #fde68a; transform: scale(1.06); }
 .game .gx-card small { display: block; margin-top: 18px; opacity: .75; font-size: 16px; }
+
+/* البند 52: الأزرار الأربعة بالموقع */
+svg.face { vertical-align: middle; display: inline-block; }
+.hints b svg.face { margin: -4px 0; }
+.kids .hints b svg.face circle:not([r="4.8"]) { fill: rgba(20,83,45,.35); }
+.face-big { text-align: center; margin: 6px 0 2px; }
+.pad-legend { display: flex; gap: 22px; flex-wrap: wrap; margin: 10px 0; }
+.pad-legend span { display: flex; align-items: center; gap: 8px; font-size: 20px; }
+.pad-legend i { font-style: normal; opacity: .8; }
+.pad-test span svg.face { margin: -6px 0; }
+.pad-test span.on svg.face circle[r="4.8"] { fill: #1e293b; }
+.pad-test span.on svg.face circle:not([r="4.8"]) { fill: rgba(30,41,59,.35); }

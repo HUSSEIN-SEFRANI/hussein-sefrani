@@ -12,7 +12,7 @@ const K = { log: [], move(d) { this.log.push(d); }, press() { this.log.push("ok"
 const localStorage = { getItem: () => null };
 let pads = [], swapAll = false;
 const navigator = { getGamepads: () => pads };
-const window = { parent: { hsefPadOrder: () => [], hsefPadSwap: (g) => swapAll !== /Pro Controller/.test(g.id) } };
+const window = { parent: { hsefPadOrder: () => [], hsefPadSwap: () => swapAll } };
 const requestAnimationFrame = () => {};
 const mk = (i, id, b = {}) => ({ id, index: i, connected: true, mapping: "standard", axes: [0, 0], buttons: Array.from({ length: 17 }, (_, k) => ({ pressed: !!b[k], value: b[k] ? 1 : 0 })) });
 """ + kit[start:end] + r"""
@@ -26,11 +26,11 @@ out = subprocess.run(["node", "-e", sim], capture_output=True, text=True)
 v = json.loads(out.stdout) if out.returncode == 0 else {}
 res.append(ok(v.get("ps") == "ok,back", f"يد بلايستيشن: ✕ موافق و○ رجوع داخل اللعبة ← {v or out.stderr[-300:]}"))
 res.append(ok(v.get("psSwap") == "back,ok", "مع إعداد التلفاز «الموافقة بزر ○»: اللعبة تتبعه (○ موافق و✕ رجوع)"))
-res.append(ok(v.get("nin") == "back,ok", "يد نينتندو: موافق ورجوع في اللعبة كما في التلفاز (معكوسان)"))
+res.append(ok(v.get("nin") == "ok,back", "يد نينتندو: نفس الموقع (السفلي موافق والأيمن رجوع؛ البند 52)"))
 
 tv = (APP / "static/js/tv.js").read_text(encoding="utf-8")
 res.append(ok(subprocess.run(["node", "--check", str(APP / "static/js/tv.js")]).returncode == 0, "tv.js سليم"))
-res.append(ok("window.hsefPadSwap" in tv and "padPrefs.swap !== (padKind(g) === \"nintendo\")" in tv, "التلفاز يعطي الألعاب إعداد موافق/رجوع لكل يد"))
+res.append(ok("window.hsefPadSwap" in tv and "return !!padPrefs.swap;" in tv, "التلفاز يعطي الألعاب إعداد موافق/رجوع"))
 res.append(ok('if (name === "ps") { if (t.askExit) t.askExit(); else padKey("Escape"); }' in tv and 'if (name === "ps") { t.closeAsk(true); return; }' in tv,
               "زر PS في اللعبة: يسأل أولاً، ومرة ثانية يخرج"))
 gs = tv[tv.index("async function gameScreen"):tv.index("function appScreen")]

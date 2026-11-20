@@ -441,6 +441,15 @@ function themeScreen() {
   push({ el, initial: () => el.querySelector(".theme-card.on") || el.querySelector(".theme-card") });
 }
 
+// البند 52: الأزرار الأربعة اليمنى بالموقع لا بالرمز (✕○□△ في بلايستيشن، B A Y X في نينتندو، وغيرها في الأيادي غير الأصلية):
+// السفلي «موافق»، الأيمن «رجوع»، الأيسر والعلوي فعلان إضافيان. والأسهم أو العصا اليسرى للتوجيه دائماً، في كل الأيادي.
+const FACE_NAME = { down: "الزر السفلي", right: "الزر الأيمن", left: "الزر الأيسر", up: "الزر العلوي" };
+function faceIcon(pos, size = 28) {
+  const at = { up: [12, 5], left: [5, 12], right: [19, 12], down: [12, 19] };
+  return `<svg class="face" width="${size}" height="${size}" viewBox="0 0 24 24" role="img" aria-label="${FACE_NAME[pos]}">${Object.entries(at).map(([k, [x, y]]) =>
+    `<circle cx="${x}" cy="${y}" r="${k === pos ? 4.8 : 3.3}" fill="${k === pos ? "#fde68a" : "rgba(255,255,255,.32)"}"/>`).join("")}</svg>`;
+}
+const okPos = () => (padPrefs.swap ? "right" : "down"), backPos = () => (padPrefs.swap ? "down" : "right");
 function hints(list) {
   return `<div class="hints">${list.map(([k, t]) => `<span><b>${k}</b>${t}</span>`).join("")}</div>`;
 }
@@ -1006,7 +1015,7 @@ function audioScreen(t, paths, idx) {
       <div class="vbtns"><button class="btn f js-vd">${VOL_ICON(false).replace(/34/g, "24")} −</button><button class="btn f js-vm">${VOL_ICON(true).replace(/34/g, "24")}</button><button class="btn f js-vu">${VOL_ICON(false).replace(/34/g, "24")} +</button></div>
       <div class="vbtns"><button class="btn f js-view"></button><button class="btn f js-rep"></button><button class="btn f js-shuf"></button></div></div>
     <div class="list">${list}</div><audio autoplay></audio>
-    ${hints([["موافق", "تشغيل"], ["+ −", "الصوت"], ["△", "طريقة العرض"], ["□", "تكرار"], ["رجوع", "خروج"]])}</div>`);
+    ${hints([["موافق", "تشغيل"], ["+ −", "الصوت"], [faceIcon("up"), "طريقة العرض"], [faceIcon("left"), "تكرار"], ["رجوع", "خروج"]])}</div>`);
   const au = el.querySelector("audio"), bar = el.querySelector(".now .bar i"), cover = el.querySelector(".cover");
   const fmt = (x) => (isFinite(x) ? `${Math.floor(x / 60)}:${pad(Math.floor(x % 60))}` : "");
   const save = () => { try { localStorage.setItem(vkey, view); localStorage.setItem("hsef-arep", repeat); localStorage.setItem("hsef-ashuf", shuffle ? "1" : "0"); } catch { /* */ } };
@@ -1383,7 +1392,7 @@ async function camRecScreen(c) {
 // اليد داخل اللعبة: إذا لم يرَ إطار اللعبة يد التحكم بنفسه (يحدث في بعض الأجهزة)، نعطيه ما تراه شاشة التلفاز
 // البند 51: الخروج من اللعبة بزر PS (أو «رجوع» في الريموت) بعد رسالة تأكيد، واللعبة متوقفة خلفها
 let padsBlocked = false;   // أثناء رسالة الخروج: اللعبة لا ترى الأيادي
-window.hsefPadSwap = (g) => { try { return padPrefs.swap !== (padKind(g) === "nintendo"); } catch { return false; } };   // للألعاب (kit.js)
+window.hsefPadSwap = () => { try { return !!padPrefs.swap; } catch { return false; } };   // للألعاب (kit.js). البند 52: نفس الموقع في كل الأيادي
 function freezeGame(fr, on) {   // نوقف رسم اللعبة (requestAnimationFrame) ثم نكمله من حيث توقف
   try {
     const w = fr.contentWindow;
@@ -1414,7 +1423,7 @@ function askGameExit(scr, fr) {
   window.focus();
   const box = h(`<div class="gexit"><div class="gx-card"><div class="gx-ic">🚪</div><b>الخروج من اللعبة؟</b>
     <div class="gx-row"><button class="gx-btn f js-stay">▶️ أكمل اللعب</button><button class="gx-btn out f js-out">نعم، اخرج</button></div>
-    <small><b dir="ltr">PS</b> <span>للخروج</span> · <b>○</b> <span>للعودة إلى اللعبة</span></small></div></div>`);
+    <small><b dir="ltr">PS</b> <span>للخروج</span> · <b>${faceIcon(backPos(), 22)}</b> <span>للعودة إلى اللعبة</span></small></div></div>`);
   scr.el.appendChild(box);
   scr.closeAsk = (out) => {
     if (!scr.asking) return;
@@ -2276,7 +2285,7 @@ function adhanTick() {
 setInterval(adhanTick, 15000);
 
 // ============================================================== يد التحكم (بلايستيشن وغيرها)
-// ✕ موافق، ○ رجوع، الأسهم أو العصا للتنقل، L1/R1 السابق/التالي، L2/R2 الصوت، Options تشغيل/إيقاف، PS الرئيسية.
+// الزر السفلي موافق، الأيمن رجوع، الأسهم أو العصا للتنقل، L1/R1 السابق/التالي، L2/R2 الصوت، Options تشغيل/إيقاف، PS الرئيسية.
 const padPrefs = { swap: false, rumble: true };
 try { Object.assign(padPrefs, JSON.parse(localStorage.getItem("tvpad") || "{}")); } catch { /* */ }
 const savePad = () => { try { localStorage.setItem("tvpad", JSON.stringify(padPrefs)); } catch { /* */ } };
@@ -2333,8 +2342,8 @@ function padFire(name, gp) {
   const t = top();
   if (t && t.isGame && t.asking) { if (name === "ps") { t.closeAsk(true); return; } }   // البند 51: PS مرة ثانية = خروج
   else if (t && t.isGame) { if (name === "ps") { if (t.askExit) t.askExit(); else padKey("Escape"); } return; }  // داخل اللعبة: اليد للعبة، وزر PS للخروج
-  // نينتندو: «موافق» هو A على اليمين (الزر 1)، عكس بلايستيشن وإكس بوكس
-  const swap = padPrefs.swap !== (padKind(gp) === "nintendo");
+  // البند 52: «موافق» الزر السفلي و«رجوع» الأيمن في كل الأيادي (بلايستيشن ونينتندو وغير الأصلية)، إلا إن بدّلهما المستعمل
+  const swap = !!padPrefs.swap;
   const okB = swap ? "circle" : "cross", backB = swap ? "cross" : "circle";
   const map = { up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight", options: "MediaPlayPause",
     l1: "MediaTrackPrevious", r1: "MediaTrackNext", l2: "AudioVolumeDown", r2: "AudioVolumeUp", ps: "Home",
@@ -2408,7 +2417,7 @@ function oskScreen(opt, done) {
   const SYM = ["1234567890", "!#$%&*()+=", "/\\:;?,'[]{", "<>|~^`€£§}"];
   const el = h(`<div class="bg-dark osk"><div class="bhead"><button class="back f js-back">${A.CHEVRON}<span>رجوع</span></button><h1>${esc(opt.title)}</h1></div>
     <div class="osk-in ltr"><span class="v"></span><i class="caret"></i></div><div class="osk-keys ltr"></div>
-    ${hints([["موافق", "اختيار الحرف"], ["△", "حذف"], ["رجوع", "إلغاء"]])}</div>`);
+    ${hints([["موافق", "اختيار الحرف"], [faceIcon("up"), "حذف"], ["رجوع", "إلغاء"]])}</div>`);
   const draw = () => {
     el.querySelector(".v").textContent = show ? val : "•".repeat(val.length);
     const rows = (sym ? SYM : LET).map((r) => `<div class="osk-row">${[...r].map((c) => {
@@ -2589,10 +2598,10 @@ function padPairScreen(done) {
   });
 }
 
-// البند 49: اختيار اليد الأساسية: من يضغط ✕ تصير يده اللاعب 1 (في الواجهة وكل الألعاب)
+// البند 49: اختيار اليد الأساسية: من يضغط الزر السفلي تصير يده اللاعب 1 (في الواجهة وكل الألعاب)
 function padMainScreen(done) {
   const el = subScreen("اختيار اليد الأساسية", "pad"), body = el.querySelector(".set-body");
-  body.innerHTML = `<p class="set-msg" style="font-size:30px;font-weight:800;color:#fde68a">اضغط ✕ (أو A) في اليد التي تريدها أساسية</p>
+  body.innerHTML = `<p class="set-msg" style="font-size:30px;font-weight:800;color:#fde68a">اضغط ${faceIcon("down", 34)} الزر السفلي في اليد التي تريدها أساسية</p>
     <p class="set-msg">هذه اليد تصير «اللاعب 1»: تتحكم بقوائم الألعاب، وتبقى الأساسية كلما اتصلت.</p>
     <div class="set-list js-pl"></div>`;
   const prev = {};
@@ -2781,9 +2790,10 @@ async function soundSetScreen() {
 }
 
 // ============================================================== إعداد يد جديدة (أي يد تحكم، حتى بلا ماركة)
-const PAD_STEPS = [["a", "اضغط زر الموافقة (✕ أو A)"], ["b", "اضغط زر الرجوع (○ أو B)"], ["up", "اضغط السهم ↑ أعلى"], ["down", "اضغط السهم ↓ أسفل"],
+const PAD_STEPS = [["a", "اضغط الزر السفلي من الأزرار الأربعة"], ["b", "اضغط الزر الأيمن من الأزرار الأربعة"], ["up", "اضغط السهم ↑ أعلى"], ["down", "اضغط السهم ↓ أسفل"],
   ["left", "اضغط السهم ← يسار"], ["right", "اضغط السهم → يمين"], ["home", "اضغط زر الخروج من اللعبة (PS أو Home أو Start)", true],
-  ["x", "اضغط الزر □ أو X", true], ["y", "اضغط الزر △ أو Y", true], ["l1", "اضغط L1 أو LB", true], ["r1", "اضغط R1 أو RB", true], ["start", "اضغط Options أو Start", true]];
+  ["x", "اضغط الزر الأيسر من الأزرار الأربعة", true], ["y", "اضغط الزر العلوي من الأزرار الأربعة", true], ["l1", "اضغط L1 أو LB", true], ["r1", "اضغط R1 أو RB", true], ["start", "اضغط Options أو Start", true]];
+const FACE_STEP = { a: "down", b: "right", x: "left", y: "up" };
 function padSetupScreen() {
   const el = subScreen("إعداد يد جديدة", "pad"), body = el.querySelector(".set-body");
   let step = 0, padId = null, rest = null, waitRelease = true, loop = 0;
@@ -2793,8 +2803,9 @@ function padSetupScreen() {
     const [k, msg, opt] = PAD_STEPS[step];
     body.innerHTML = `<div class="set-status"><div>اليد: <b class="ltr">${esc(padId || "اضغط أي زر في اليد التي تريد إعدادها")}</b></div></div>
       <p class="set-msg" style="font-size:30px;font-weight:800;color:#fde68a">${step + 1} / ${PAD_STEPS.length}: ${esc(msg)}</p>
+      ${FACE_STEP[k] ? `<div class="face-big">${faceIcon(FACE_STEP[k], 110)}</div><p class="set-msg">بالموقع لا بالرمز: الرموز تختلف بين بلايستيشن ونينتندو والأيادي غير الأصلية.</p>` : ""}
       ${opt ? `<p class="set-msg">اختياري: إن لم يكن في يدك هذا الزر، اضغط زر الرجوع الذي اخترته للتخطي.</p>` : ""}
-      <div class="pad-test ltr">${PAD_STEPS.map(([kk]) => `<span class="${map[kk] ? "on" : ""}">${kk.toUpperCase()}</span>`).join("")}</div>
+      <div class="pad-test ltr">${PAD_STEPS.map(([kk]) => `<span class="${map[kk] ? "on" : ""}">${FACE_STEP[kk] ? faceIcon(FACE_STEP[kk], 30) : kk.toUpperCase()}</span>`).join("")}</div>
       <p class="set-msg">للإلغاء: زر «رجوع» في الريموت أو Esc.</p>`;
     void k;
   };
@@ -2840,7 +2851,7 @@ function padSetupScreen() {
 
 function padScreen() {
   const el = subScreen("يد التحكم", "pad"), body = el.querySelector(".set-body");
-  const BTN = [["cross", "✕"], ["circle", "○"], ["square", "□"], ["triangle", "△"], ["up", "↑"], ["down", "↓"], ["left", "←"], ["right", "→"],
+  const BTN = [["cross", faceIcon("down", 30)], ["circle", faceIcon("right", 30)], ["square", faceIcon("left", 30)], ["triangle", faceIcon("up", 30)], ["up", "↑"], ["down", "↓"], ["left", "←"], ["right", "→"],
     ["l1", "L1"], ["r1", "R1"], ["l2", "L2"], ["r2", "R2"], ["options", "Options"], ["create", "Create"], ["ps", "PS"]];
   body.innerHTML = `<div class="set-row"><button class="btn gold f js-pair">🎮 ربط يد جديدة</button><button class="btn gold f js-main">⭐ اختيار اليد الأساسية</button></div>
     <div class="set-list js-players">${playersHTML()}</div>
@@ -2849,7 +2860,8 @@ function padScreen() {
     <div class="set-row"><button class="btn f js-swap"></button><button class="btn f js-rum"></button><button class="btn gold f js-diag">🩺 تشخيص اليد</button></div>
     <div class="set-row"><button class="btn gold f js-setup">🎮 إعداد يد جديدة</button>${Object.keys(PADMAPS).length ? `<button class="btn f js-reset">مسح إعدادات الأيادي (${Object.keys(PADMAPS).length})</button>` : ""}</div>
     <p class="set-msg">«إعداد يد جديدة»: لأي يد لا تعمل أزرارها صحيحة (يد عامة بلا ماركة): تضغط كل زر مرة عند السؤال، فتُحفظ لهذه اليد.</p>
-    <p class="set-msg">✕ موافق · ○ رجوع · الأسهم أو العصا للتنقل · L1/R1 السابق/التالي · L2/R2 الصوت · Options تشغيل/إيقاف · PS الرئيسية (وفي الألعاب: الخروج)</p>`;
+    <div class="pad-legend js-legend"></div>
+    <p class="set-msg">الأسهم أو العصا اليسرى للتوجيه دائماً · L1/R1 السابق/التالي · L2/R2 الصوت · Options تشغيل/إيقاف · PS الرئيسية (وفي الألعاب: الخروج)</p>`;
   el.querySelector(".js-diag").addEventListener("click", () => padDiagScreen());
   el.querySelector(".js-pair").addEventListener("click", () => { pop(); padPairScreen(() => padScreen()); });
   // تصحيح نوع اليد يدوياً: تلقائي ← بلايستيشن ← إكس بوكس ← نينتندو ← عامة ← تلقائي
@@ -2871,7 +2883,9 @@ function padScreen() {
     localStorage.setItem("hsef-padmaps", JSON.stringify(PADMAPS)); toast("مُسحت إعدادات الأيادي", 3000); pop(); padScreen();
   });
   const lab = () => {
-    el.querySelector(".js-swap").textContent = padPrefs.swap ? "الموافقة بزر ○ (اضغط للتبديل)" : "الموافقة بزر ✕ (اضغط للتبديل)";
+    el.querySelector(".js-swap").textContent = padPrefs.swap ? "الموافقة بالزر الأيمن (اضغط للتبديل)" : "الموافقة بالزر السفلي (اضغط للتبديل)";
+    el.querySelector(".js-legend").innerHTML = [[okPos(), "موافق"], [backPos(), "رجوع"], ["left", "فعل إضافي"], ["up", "فعل إضافي"]]
+      .map(([pos, t]) => `<span>${faceIcon(pos, 34)}<b>${FACE_NAME[pos]}</b><i>${t}</i></span>`).join("");
     el.querySelector(".js-rum").textContent = padPrefs.rumble ? "الاهتزاز: يعمل" : "الاهتزاز: متوقف";
   };
   el.querySelector(".js-swap").addEventListener("click", () => { padPrefs.swap = !padPrefs.swap; savePad(); lab(); });
