@@ -1,6 +1,87 @@
 /* لعبة المزارع */
-body { background: linear-gradient(#bfe6ff 0%, #e8f7d4 60%, #8fcf5a 100%); }
-.title { display: flex; align-items: center; gap: 24px; justify-content: center; }
-.title .emo { font-size: 110px; }
-.title h1 { margin: 0; }
-.soon { text-align: center; font-size: 28px; margin-top: 24px; opacity: .8; }
+#sky { --sky: linear-gradient(180deg, #7dd3fc 0%, #bae6fd 45%, #a3e635 45%, #65a30d 100%); }
+#app { padding: 2.5vh 3vw 2vh; }
+h2 { font-size: 5vh; text-align: center; }
+h3 { margin: 1.5vh 0 .5vh; font-size: 3.6vh; color: #fff; -webkit-text-stroke: .3vh #166534; paint-order: stroke fill; text-align: center; }
+.sp { flex: 1; }
+.title .mascot { font-size: 14vh; }
+.credit { margin-top: 1.5vh; font-size: 2.8vh; font-weight: 800; color: #14532d; background: rgba(255,255,255,.7); border-radius: 2vh; padding: .4vh 2.4vh; }
+
+/* شاشة البداية */
+.farms { display: flex; gap: 2.5vw; margin-top: 3vh; flex-wrap: wrap; justify-content: center; }
+.fcol { display: flex; flex-direction: column; align-items: center; gap: 1.4vh; }
+.mode.farm, .mode.add, .mode.av { width: 17vw; height: 30vh; background: var(--c, #22c55e); }
+.mode.add { background: rgba(255,255,255,.55); color: #166534; border: .6vh dashed #166534; box-shadow: none; }
+.mini-del { font-size: 2.4vh; padding: .6vh 2vh; background: rgba(255,255,255,.75); }
+.avs { display: grid; grid-template-columns: repeat(3, auto); gap: 3vh 2.5vw; margin-top: 4vh; }
+.mode.av { height: 24vh; width: 15vw; }
+.mode.av .big { font-size: 14vh; }
+
+/* شريط المزرعة */
+.fbar { gap: 1.2vw; }
+.fbar .btn { font-size: 3vh; padding: 1vh 2.6vh; }
+.fbar .pill { font-size: 3vh; }
+.who { box-shadow: inset 0 0 0 .5vh var(--c); }
+
+/* الأرض */
+.field { --ts: min(8.1vw, 10.6vh); display: grid; grid-template-columns: repeat(var(--cols), var(--ts)); grid-auto-rows: var(--ts); gap: .7vh;
+  margin-top: 1.4vh; padding: 1.4vh; border-radius: 3vh; background: #4d7c0f;
+  box-shadow: inset 0 0 0 .6vh #a16207, inset 0 0 0 1.1vh #ca8a04, 0 1.5vh 3vh rgba(20,83,45,.35); }
+.plot { position: relative; border: 0; padding: 0; border-radius: 1.4vh; overflow: visible; display: flex; align-items: center; justify-content: center; }
+.plot i { font-style: normal; position: absolute; pointer-events: none; }
+.plot.lock { background: #65a30d; background-image: radial-gradient(circle at 30% 30%, #84cc16 0 12%, transparent 13%), radial-gradient(circle at 70% 65%, #84cc16 0 10%, transparent 11%); opacity: .8; }
+.plot.lock .lk { font-size: calc(var(--ts) * .26); opacity: .45; }
+.plot.lock.sel { opacity: 1; }
+.plot.lock.sel .lk { opacity: 1; }
+.plot.soil { background: repeating-linear-gradient(180deg, #92400e 0 18%, #78350f 18% 25%); box-shadow: inset 0 0 0 .4vh #a16207; }
+.plot.soil.wet { background: repeating-linear-gradient(180deg, #6b3410 0 18%, #4a230a 18% 25%); }
+.plot.grass, .plot.pen { background: #86efac; background-image: radial-gradient(circle at 25% 75%, #4ade80 0 9%, transparent 10%), radial-gradient(circle at 75% 25%, #4ade80 0 8%, transparent 9%); }
+.plot.pen { box-shadow: inset 0 0 0 .55vh #b45309, inset 0 0 0 .9vh #fde68a; }
+.pl, .an, .dc { font-size: calc(var(--ts) * .62); }
+.pl.s0, .pl.s1 { font-size: calc(var(--ts) * .38); }
+.pl.s2 { font-size: calc(var(--ts) * .5); }
+.pl.s3 { font-size: calc(var(--ts) * .5); filter: saturate(.6); }
+.pl.s4 { font-size: calc(var(--ts) * .7); animation: ripe 1.2s ease-in-out infinite; }
+.dc { font-size: calc(var(--ts) * .72); }
+.bub { top: -1.2vh; inset-inline-end: -1vh; font-size: calc(var(--ts) * .3); background: #fff; border-radius: 50%; width: calc(var(--ts) * .44); height: calc(var(--ts) * .44);
+  display: flex; align-items: center; justify-content: center; box-shadow: 0 .4vh .8vh rgba(0,0,0,.25); animation: bob 1.6s ease-in-out infinite; z-index: 3; }
+.spark { top: 2%; inset-inline-start: 6%; font-size: calc(var(--ts) * .28); animation: tw 1s ease-in-out infinite alternate; }
+.bar { bottom: 7%; left: 12%; right: 12%; height: .9vh; background: rgba(0,0,0,.35); border-radius: 1vh; overflow: hidden; }
+.bar b { display: block; height: 100%; background: #facc15; border-radius: 1vh; transition: width 1s linear; }
+.an { animation: graze 3s ease-in-out infinite; }
+@keyframes ripe { 50% { transform: scale(1.08) rotate(-4deg) } }
+@keyframes tw { from { opacity: .3 } }
+@keyframes graze { 50% { transform: translateX(.6vh) rotate(3deg) } }
+.field .f.sel { transform: scale(1.12); box-shadow: 0 0 0 .7vh #fff, 0 1.5vh 3vh rgba(0,0,0,.35) !important; }
+
+.hint { margin-top: 1.4vh; min-height: 5vh; font-size: 3vh; font-weight: 800; background: rgba(255,255,255,.88); border-radius: 3vh; padding: .6vh 3vh; color: #14532d; text-align: center; max-width: 92vw; }
+.hint b { color: #be185d; }
+
+/* البطاقات (البذور والسوق والمتجر) */
+.cards { display: flex; flex-wrap: wrap; gap: 2vh 1.6vw; justify-content: center; margin-top: 1.5vh; max-width: 94vw; }
+.card { width: 16vw; min-height: 24vh; border: 0; border-radius: 3vh; background: #fff; color: #1e3a8a; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: .6vh; padding: 1.2vh .8vw; box-shadow: 0 1vh 2vh rgba(20,83,45,.25); }
+.card .big { font-size: 9vh; }
+.card b { font-size: 3vh; line-height: 1.2; }
+.card small { font-size: 2.4vh; font-weight: 700; color: #166534; }
+.card.off { background: #e5e7eb; }
+.card.off .big { filter: grayscale(.8); opacity: .6; }
+.cards.sm .card { width: 11vw; min-height: 17vh; }
+.cards.sm .card .big { font-size: 6.5vh; }
+.cards.sm .card b { font-size: 2.4vh; }
+.scroll { width: 100%; overflow-y: auto; flex: 1; padding: 1vh 0 2vh; scrollbar-width: none; }
+.scroll::-webkit-scrollbar { display: none; }
+.big1 { font-size: 22vh; margin-top: 3vh; }
+h2.q { max-width: 80vw; margin-top: 2vh; }
+
+/* التنبيه والأرقام الطائرة */
+#toast { position: fixed; left: 50%; top: 10vh; transform: translate(-50%, -3vh); opacity: 0; pointer-events: none; z-index: 60; max-width: 86vw;
+  background: #14532d; color: #fff; font-size: 3.4vh; font-weight: 800; padding: 1.2vh 4vh; border-radius: 4vh; box-shadow: 0 1vh 3vh rgba(0,0,0,.3);
+  transition: opacity .25s, transform .25s; text-align: center; }
+#toast.on { opacity: 1; transform: translate(-50%, 0); }
+.float { position: fixed; transform: translate(-50%, 0); font-size: 5vh; font-weight: 800; animation: up 1.2s ease-out forwards; text-shadow: 0 .3vh .6vh rgba(0,0,0,.3); }
+@keyframes up { to { transform: translate(-50%, -9vh); opacity: 0 } }
+
+/* أجهزة ضعيفة: بلا حركات مستمرة */
+.lite .pl.s4, .lite .bub, .lite .spark, .lite .an, .lite .mascot, .lite #sky i { animation: none; }
+.lite .bar b { transition: none; }
