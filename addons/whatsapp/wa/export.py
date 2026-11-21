@@ -109,32 +109,34 @@ class MediaIndex:
 
 
 CSS = """
-@page { size: A4; margin: 14mm 12mm; }
+@page { size: A4; margin: 10mm 9mm; }
 * { box-sizing: border-box; }
 body { margin: 0; font-family: Arial, "Liberation Sans", "Noto Sans Arabic", "Noto Sans", "DejaVu Sans", sans-serif, "Noto Color Emoji";
-       font-size: 11pt; line-height: 1.5; color: #111827; direction: rtl; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-.head { border: 2px solid #16a34a; border-radius: 14px; padding: 14px 18px; margin-bottom: 14px; break-inside: avoid; }
-.head h1 { margin: 0 0 6px; font-size: 20pt; color: #14532d; }
-.head .row { color: #374151; font-size: 10pt; }
-.day { text-align: center; margin: 12px 0 6px; break-after: avoid; }
-.day span { background: #e5e7eb; border-radius: 9px; padding: 2px 12px; font-size: 9pt; color: #374151; }
-.msg { display: flex; margin: 3px 0; break-inside: avoid; }
+       font-size: 9.5pt; line-height: 1.35; color: #111827; direction: rtl; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.head { border: 2px solid #16a34a; border-radius: 12px; padding: 10px 14px; margin-bottom: 8px; break-inside: avoid; }
+/* الصفحة مقسومة من الوسط: عمودان، الأول على اليمين، والرسائل تكمل في العمود الثاني ثم الصفحة التالية */
+.cols { column-count: 2; column-gap: 7mm; column-rule: 1px solid #d1d5db; column-fill: auto; }
+.head h1 { margin: 0 0 4px; font-size: 16pt; color: #14532d; }
+.head .row { color: #374151; font-size: 9pt; }
+.day { text-align: center; margin: 7px 0 4px; break-after: avoid; }
+.day span { background: #e5e7eb; border-radius: 9px; padding: 1px 10px; font-size: 8pt; color: #374151; }
+.msg { display: flex; margin: 2px 0; break-inside: avoid; }
 .msg.me { justify-content: flex-end; }
-.b { max-width: 76%; padding: 5px 10px 3px; border-radius: 11px; background: #f3f4f6; border: 1px solid #e5e7eb; }
+.b { max-width: 88%; padding: 3px 8px 2px; border-radius: 9px; background: #f3f4f6; border: 1px solid #e5e7eb; }
 .me .b { background: #dcfce7; border-color: #bbf7d0; }
-.who { font-weight: bold; color: #0369a1; font-size: 9pt; }
+.who { font-weight: bold; color: #0369a1; font-size: 8pt; }
 .txt { white-space: pre-wrap; overflow-wrap: anywhere; unicode-bidi: plaintext; }
-.t { font-size: 8pt; color: #6b7280; direction: ltr; text-align: left; }
-.ph { display: block; max-width: 100%; max-height: 95mm; border-radius: 7px; margin: 2px 0; }
-.st { max-width: 38mm; max-height: 38mm; }
+.t { font-size: 7pt; color: #6b7280; direction: ltr; text-align: left; }
+.ph { display: block; max-width: 100%; max-height: 70mm; border-radius: 6px; margin: 2px 0; }
+.st { max-width: 26mm; max-height: 26mm; }
 .vid { position: relative; display: inline-block; }
 .vid .play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
-.vid .play i { width: 46px; height: 46px; border-radius: 50%; background: rgba(0,0,0,.55); position: relative; }
-.vid .play i::after { content: ""; position: absolute; left: 18px; top: 13px; border-left: 16px solid #fff; border-top: 10px solid transparent; border-bottom: 10px solid transparent; }
-.novid { width: 70mm; height: 40mm; background: #1f2937; border-radius: 7px; }
-.fname { font-weight: bold; font-size: 10pt; }
-.note { color: #6b7280; font-style: italic; font-size: 9.5pt; }
-.sys { text-align: center; color: #6b7280; font-size: 9pt; margin: 6px 0; break-inside: avoid; }
+.vid .play i { width: 34px; height: 34px; border-radius: 50%; background: rgba(0,0,0,.55); position: relative; }
+.vid .play i::after { content: ""; position: absolute; left: 13px; top: 9px; border-left: 12px solid #fff; border-top: 8px solid transparent; border-bottom: 8px solid transparent; }
+.novid { width: 60mm; height: 32mm; background: #1f2937; border-radius: 7px; }
+.fname { font-weight: bold; font-size: 9pt; }
+.note { color: #6b7280; font-style: italic; font-size: 8.5pt; }
+.sys { text-align: center; color: #6b7280; font-size: 8pt; margin: 4px 0; break-inside: avoid; }
 """
 
 
@@ -267,6 +269,12 @@ class Exporter:
         body.append(f'<div class="t">{t}</div>')
         return f'<div class="msg{" me" if it["me"] else ""}"><div class="b">{"".join(body)}</div></div>'
 
+    @staticmethod
+    def _cols(p: list) -> str:
+        """العنوان بعرض الصفحة، والرسائل في عمودين."""
+        head = p[0] if p and p[0].startswith('<div class="head">') else ""
+        return head + '<div class="cols">' + "".join(p[1:] if head else p) + "</div>"
+
     def _pdf(self, items, chat, device, tmp: Path, pdf: Path):
         fonts = arial_css(self.out_root, *self.font_dirs)   # arial.ttf في مجلد whatsapp
         chrome = find_chromium()
@@ -303,7 +311,7 @@ class Exporter:
             page.write_text(f'<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">'
                             "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; img-src file: data:; style-src 'unsafe-inline'; font-src file: data:\">"
                             f'<style>{fonts}{CSS}</style></head>'
-                            f'<body>{"".join(p)}</body></html>', encoding="utf-8")
+                            f'<body>{self._cols(p)}</body></html>', encoding="utf-8")
             out = tmp / f"part{i}.pdf"
             r = subprocess.run([chrome, "--headless", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage",
                                 "--no-pdf-header-footer", "--print-to-pdf-no-header",
