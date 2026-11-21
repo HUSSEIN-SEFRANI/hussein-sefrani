@@ -1,0 +1,6 @@
+/* مغامرات كرمو */
+body { background: linear-gradient(#bfe6ff 0%, #e8f7d4 60%, #8fcf5a 100%); }
+.title { display: flex; align-items: center; gap: 24px; justify-content: center; }
+.title .emo { font-size: 110px; }
+.title h1 { margin: 0; }
+.soon { text-align: center; font-size: 28px; margin-top: 24px; opacity: .8; }
