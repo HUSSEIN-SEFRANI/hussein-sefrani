@@ -38,9 +38,27 @@ function appsCard() {
     <div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px">
       <label class="btn primary sm" style="cursor:pointer">${icon('upload')} إضافة تطبيق (ملف ZIP)<input type="file" accept=".zip" data-up="zip" hidden></label>
       <label class="btn sm" style="cursor:pointer">${icon('folder')} إضافة تطبيق (مجلد)<input type="file" webkitdirectory multiple data-up="dir" hidden></label>
+      <button class="btn sm" data-x="dupes">${icon('copy')} إزالة الألعاب المكررة</button>
       <span class="muted small up-st"></span></div>
     <div class="tv-apps muted">جارٍ القراءة…</div></div>`);
   const box = $('.tv-apps', c);
+  // البند 53: نسخة واحدة من كل لعبة. نعرض أولاً ما نُبقي وما ينتقل إلى سلة المحذوفات، وتقدّم الأطفال يتبع اللعبة باسمها
+  $('[data-x=dupes]', c).onclick = async () => {
+    const r = await guard(() => api.get('/api/admin/tv/apps/dupes')); if (!r) return;
+    if (!r.dupes.length) { toast('لا توجد ألعاب مكررة ✓', 'ok'); return; }
+    const n = r.dupes.reduce((k, d) => k + d.remove.length, 0);
+    const list = r.dupes.map((d) => `<li><b translate="no">${esc(d.name)}</b>
+      <div class="small">✅ نُبقي: <bdi translate="no">${esc(d.keep)}</bdi></div>
+      ${d.remove.map((x) => `<div class="small muted">🗑 إلى سلة المحذوفات: <bdi translate="no">${esc(x)}</bdi></div>`).join('')}</li>`).join('');
+    const ok = await modal({ title: `ألعاب مكررة: ${r.dupes.length}`, wide: true,
+      body: `<p class="small">نُبقي نسخة واحدة من كل لعبة، وننقل ${n} نسخة إلى سلة المحذوفات (تُسترجع منها خلال مدة السلة).
+        <b>تقدّم الأطفال لا يضيع:</b> يتبع اللعبة باسمها أينما كانت.</p><ul class="dupes" style="max-height:52vh;overflow:auto;margin:0;padding-inline-start:18px">${list}</ul>`,
+      buttons: [{ label: 'إلغاء', value: false }, { label: `إزالة ${n} نسخة مكررة`, cls: 'primary', value: true }] });
+    if (!ok) return;
+    const y = await guard(() => api.post('/api/admin/tv/apps/dupes', {})); if (!y) return;
+    toast(`✓ نُقلت ${y.moved.length} نسخة مكررة إلى سلة المحذوفات`, 'ok', 6000);
+    draw(y.apps);
+  };
   // البند 28: إضافة تطبيق من الكمبيوتر (ZIP أو مجلد كامل)
   $$('[data-up]', c).forEach((inp) => (inp.onchange = async () => {
     const files = [...inp.files]; inp.value = '';
