@@ -2773,7 +2773,7 @@ async function soundSetScreen() {
     body.innerHTML = `<div class="set-status"><div>المخرج الحالي: <b>${esc(cur ? cur.name : "—")}</b></div>
         <div>المستوى: <b class="ltr">${r.volume ?? "—"}%</b>${r.muted ? " <span class='bad'>صامت</span>" : ""} · الاختيار: <b>${r.auto ? "تلقائي" : "يدوي"}</b></div></div>
       <div class="set-row"><button class="btn gold f" data-a="test">🔔 تجربة الصوت</button><button class="btn f" data-a="auto">${r.auto ? "✓ " : ""}تلقائي (HDMI التلفاز)</button></div>
-      <div class="set-list">${r.outputs.map((o, i) => `<button class="set-item f" data-o="${i}"><span>${o.active ? "🔊" : "🔈"}</span><b>${esc(o.name)}</b>${o.plugged ? `<span class="ok">موصول</span>` : o.detected === false ? `<span class="muted">غير مكتشف، جرّبه</span>` : ""}</button>`).join("")}</div>
+      <div class="set-list">${r.outputs.map((o, i) => (o.surround && !o.active ? "" : `<button class="set-item f" data-o="${i}"><span>${o.active ? "🔊" : "🔈"}</span><b>${esc(o.name)}</b>${o.surround ? `<span class="muted">5.1/7.1: أغلب التلفازات لا تُخرج صوتها</span>` : o.plugged ? `<span class="ok">موصول</span>` : o.detected === false ? `<span class="muted">غير مكتشف، جرّبه</span>` : ""}</button>`)).join("")}</div>
       <p class="set-msg">إن لم تسمع صوتاً: اختر المخرج الذي فيه <b class="ltr">HDMI</b> وعليه «موصول»، ثم «تجربة الصوت». وتأكد أن صوت التلفاز نفسه ليس صامتاً.</p>`;
     body.querySelectorAll("[data-a]").forEach((b) => b.addEventListener("click", () => act({ action: b.dataset.a })));
     body.querySelectorAll("[data-o]").forEach((b) => b.addEventListener("click", () => { const o = r.outputs[+b.dataset.o]; act({ card: o.card, profile: o.profile }); }));

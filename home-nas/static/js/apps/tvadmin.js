@@ -311,7 +311,7 @@ function audioBox() {
     if (r.error) { ab.innerHTML = `<span class="muted">تعذرت قراءة مخارج الصوت.</span> <span class="small" translate="no">${esc(r.error)}</span>`; return; }
     ab.classList.remove('muted', 'small');
     ab.innerHTML = `<label class="lbl" style="margin-top:0">مخرج الصوت</label>
-      <select class="field" style="max-width:420px"><option value="auto" ${r.auto ? 'selected' : ''}>تلقائي: HDMI الموصول بالتلفاز (موصى به)</option>${r.outputs.map((o, i) => `<option value="${i}" ${!r.auto && o.active ? 'selected' : ''}>${esc(o.name)}${o.plugged ? ' — موصول' : o.detected === false ? ' — غير مكتشف، جرّبه' : ''}</option>`).join('')}</select>
+      <select class="field" style="max-width:420px"><option value="auto" ${r.auto ? 'selected' : ''}>تلقائي: HDMI الموصول بالتلفاز (موصى به)</option>${r.outputs.map((o, i) => (o.surround && !o.active ? '' : `<option value="${i}" ${!r.auto && o.active ? 'selected' : ''}>${esc(o.name)}${o.surround ? ' — 5.1/7.1: أغلب التلفازات لا تُخرج صوتها' : o.plugged ? ' — موصول' : o.detected === false ? ' — غير مكتشف، جرّبه' : ''}</option>`)).join('')}</select>
       <p class="muted small">لصوت التلفاز اختر المخرج الذي فيه <b translate="no">HDMI</b> أو <b translate="no">DisplayPort</b>. المستوى الحالي: <span translate="no">${r.volume ?? '—'}%</span>${r.muted ? ' (صامت)' : ''}</p>
       <button class="btn primary sm" data-a="set">تطبيق</button> <button class="btn sm" data-a="test">${icon('play')} تجربة الصوت</button>`;
     $('[data-a=set]', ab).onclick = async () => {

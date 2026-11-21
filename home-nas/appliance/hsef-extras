@@ -315,6 +315,28 @@ def tv_pactl(*args, check=False):
 TV_AUDIO_CHOICE = TV_HOME / "audio-choice.json"
 
 
+def card_sinks(card: dict, sinks: list) -> list:
+    """البند 56: مخارج (sinks) كرت صوت. pactl -f json لا يكتب «card» في المخارج، فنطابق برقم كرت ALSA في الخصائص
+    أو بالاسم (alsa_card.X ← alsa_output.X.*). كان النظام لا يجدها، فيبقى المخرج الافتراضي سماعة الجهاز
+    في الأجهزة التي صوت HDMI فيها كرت منفصل (AMD مثل HP ProDesk 405 G6)."""
+    cp = card.get("properties") or {}
+    calsa = str(cp.get("alsa.card") or cp.get("api.alsa.card") or "")
+    stem = str(card.get("name") or "")
+    stem = stem[len("alsa_card."):] if stem.startswith("alsa_card.") else None
+    out = []
+    for x in sinks:
+        xp = x.get("properties") or {}
+        if x.get("card") is not None and x.get("card") == card.get("index"):
+            out.append(x)
+        elif calsa and str(xp.get("alsa.card") or xp.get("api.alsa.card") or "") == calsa:
+            out.append(x)
+        elif stem and str(x.get("name") or "").startswith(f"alsa_output.{stem}."):
+            out.append(x)
+        elif stem and xp.get("device.name") == card.get("name"):
+            out.append(x)
+    return out
+
+
 def audio_pick(pactl) -> dict:
     """يختار مخرج الصوت: اختيار المدير إن وُجد، وإلا HDMI الموصول فعلاً (التلفاز). pactl(*args) -> stdout"""
     cards = json.loads(pactl("-f", "json", "list", "cards") or "[]")
@@ -355,12 +377,19 @@ def audio_pick(pactl) -> dict:
         pactl("set-card-profile", card["name"], prof)
         changed = True
     sinks = json.loads(pactl("-f", "json", "list", "sinks") or "[]")
-    mine = [x for x in sinks if x.get("card") == card.get("index")]
+    mine = card_sinks(card, sinks)
     if mine:
         name = mine[0]["name"]
         if pactl("get-default-sink").strip() != name:
             pactl("set-default-sink", name)
             changed = True
+        # الأصوات التي تعمل الآن (المتصفح) تنتقل إلى التلفاز أيضاً، لا تبقى على سماعة الجهاز
+        try:
+            for si in json.loads(pactl("-f", "json", "list", "sink-inputs") or "[]"):
+                if str(si.get("sink")) != str(mine[0].get("index")):
+                    pactl("move-sink-input", str(si.get("index")), name)
+        except ValueError:
+            pass
         pactl("set-sink-mute", name, "0")
     return {"changed": changed, "output": (card.get("profiles") or {}).get(prof, {}).get("description") or prof}
 
@@ -384,6 +413,10 @@ def audio_watch():
             pass
         tries += 1
         _time.sleep(5 if tries < 24 else 30)
+
+
+# البند 56: رسائل لا تعني أن شيئاً ناقصاً (ملفات اختيارية أو للتصحيح، وملاحظات BIOS)، فلا تُعرض كأخطاء
+HARMLESS_FW = r"Optional firmware|iwl-debug-yoyo|_ip_discovery\.bin|\[Firmware Bug\]|regulatory\.db\.p7s"
 
 
 def hw_diag():
@@ -442,7 +475,8 @@ def hw_diag():
     try:
         log = subprocess.run(["journalctl", "-k", "-b", "--no-pager", "-o", "cat"], capture_output=True, text=True, timeout=20).stdout
         out["firmware"] = [l for l in log.splitlines() if _re.search(r"firmware|bluetooth: hci|rtw|mt7|iwlwifi|ath|brcm", l, _re.I)
-                           and _re.search(r"fail|error|not found|direct firmware|unable|timeout", l, _re.I)][-15:]
+                           and _re.search(r"fail|error|not found|direct firmware|unable|timeout", l, _re.I)
+                           and not _re.search(HARMLESS_FW, l, _re.I)][-15:]
     except Exception:
         pass
     out["sof_missing"] = any("sof" in l.lower() for l in out["firmware"]) and "no soundcards" in out["sound"]
@@ -637,6 +671,7 @@ def audio_selfheal():
 def tv_audio_status():
     if FAKE:
         print(json.dumps({"outputs": [{"card": "c0", "profile": "output:hdmi-stereo", "name": "HDMI (التلفاز)", "active": True, "plugged": True},
+                                      {"card": "c0", "profile": "output:hdmi-surround", "name": "Digital Surround 5.1 (HDMI)", "plugged": True, "surround": True},
                                       {"card": "c0", "profile": "output:analog-stereo", "name": "Analog", "plugged": False}],
                           "volume": 100, "muted": False, "auto": True, "sink": "fake"}))
         return
@@ -651,7 +686,8 @@ def tv_audio_status():
             # نعرض كل المخارج، حتى غير المكتشفة: بعض منافذ HDMI لا تُبلغ أن التلفاز موصول، فيختارها المدير ويجرّبها
             plugged = any(name in (pt.get("profiles") or []) and pt.get("availability") == "available" for pt in ports.values())
             outs.append({"card": c["name"], "profile": name, "name": prof.get("description") or name, "active": name == active,
-                         "plugged": plugged, "detected": prof.get("available") is not False})
+                         "plugged": plugged, "detected": prof.get("available") is not False,
+                         "surround": "surround" in name or "5.1" in str(prof.get("description")) or "7.1" in str(prof.get("description"))})
     vol, muted = None, None
     sink = tv_pactl("get-default-sink").stdout.strip()
     if sink:
