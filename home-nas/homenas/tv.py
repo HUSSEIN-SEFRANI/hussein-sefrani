@@ -824,6 +824,93 @@ def api_admin_apps():
                    names={k: v[0] for k, v in SHARES.items()})
 
 
+# ----------------------------------------------------------------------------- البند 53: الألعاب المكررة
+def _app_copies(db) -> dict:
+    """كل نسخ التطبيقات في «الألعاب» و«التعليم»: مباشرة، أو داخل مجلد ZIP (مثل «الألعاب-22/…»)، أو داخل مجلد يغلّفها.
+    الاسم دائماً اسم مجلد التطبيق نفسه (الذي فيه index.html). يرجع {الاسم: [{"unit": ما يُنقل إلى السلة، "kind"، "share"،
+    "rank": 2 مباشرة في المجلد المشترك، 1 مغلّفة بمجلد وحدها، 0 داخل مجلد آخر، "app": مجلد التطبيق}]}."""
+    out: dict = {}
+    def entries(d: Path) -> list[Path]:
+        try:
+            return sorted((x for x in d.iterdir() if not x.name.startswith((".", "#", "@")) and x.name != RECYCLE), key=lambda x: x.name.casefold())
+        except OSError:
+            return []
+    def scan(d: Path, kind: str, root: Path, rank: int, depth: int):
+        if (d / "index.html").is_file():
+            out.setdefault(d.name, []).append({"unit": d, "kind": kind, "share": root, "rank": rank, "app": d})
+            return
+        if depth >= 2:
+            return
+        inner = entries(d)
+        subs = [x for x in inner if x.is_dir()]
+        if len(subs) == 1 and (subs[0] / "index.html").is_file():   # مجلد يغلّف تطبيقاً واحداً (بعد فك ZIP)
+            alone = len(inner) == 1
+            out.setdefault(subs[0].name, []).append({"unit": d if alone else subs[0], "kind": kind, "share": root,
+                                                     "rank": 1 if alone and rank == 2 else 0, "app": subs[0]})
+            return
+        for x in subs:
+            scan(x, kind, root, 0, depth + 1)
+    for kind in ("games", "learn"):
+        root = share_dir(db, paths(), kind)
+        for t in entries(root):
+            if t.is_dir():
+                scan(t, kind, root, 2, 0)
+    return out
+
+
+def _dupes(db) -> list[dict]:
+    """لكل تطبيق له أكثر من نسخة: أي نسخة نُبقي، وأيها تُنقل إلى سلة المحذوفات.
+    نُبقي النسخة المباشرة في المجلد الذي يقوله نوعها (حيث يضع النظام ألعابه)، ثم أي نسخة مباشرة، ثم الأحدث."""
+    def score(c):
+        declared = app_type(c["app"]) or app_type(c["unit"])
+        right = (declared == "education") == (c["kind"] == "learn") if declared else c["kind"] == "games"
+        try:
+            mtime = (c["app"] / "index.html").stat().st_mtime
+        except OSError:
+            mtime = 0
+        return (c["rank"] == 2 and right, c["rank"], right, mtime)
+    out = []
+    for name, copies in sorted(_app_copies(db).items(), key=lambda x: x[0].casefold()):
+        if len(copies) < 2:
+            continue
+        copies = sorted(copies, key=score, reverse=True)
+        rel = lambda c: f"{SHARES[c['kind']][0]}/{c['unit'].relative_to(c['share']).as_posix()}"
+        out.append({"name": name, "keep": rel(copies[0]), "remove": [rel(c) for c in copies[1:]], "_remove": copies[1:]})
+    return out
+
+
+@bp.get("/api/admin/tv/apps/dupes")
+@admin_required
+def api_admin_apps_dupes():
+    return jsonify(dupes=[{k: v for k, v in d.items() if not k.startswith("_")} for d in _dupes(get_db())])
+
+
+@bp.post("/api/admin/tv/apps/dupes")
+@admin_required
+def api_admin_apps_dupes_apply():
+    """ينقل النسخ المكررة إلى سلة المحذوفات في مجلدها المشترك (تُسترجع خلال مدة السلة). تقدّم الأطفال يتبع اللعبة باسمها."""
+    from .bundled import _to_recycle
+    moved, emptied = [], []
+    for d in _dupes(get_db()):
+        for c in d["_remove"]:
+            parent = c["unit"].parent
+            try:
+                _to_recycle(c["share"], c["unit"])
+                moved.append(f"{SHARES[c['kind']][0]}/{c['unit'].relative_to(c['share']).as_posix()}")
+            except OSError:
+                continue
+            if parent != c["share"]:   # مجلد ZIP صار فارغاً: لا داعي لبقائه
+                try:
+                    if not any(parent.iterdir()):
+                        parent.rmdir()
+                        emptied.append(parent.name)
+                except OSError:
+                    pass
+    if moved:
+        log_action("إزالة الألعاب المكررة", f"{len(moved)} نسخة إلى سلة المحذوفات")
+    return jsonify(ok=True, moved=moved, emptied=emptied, apps=api_admin_apps().get_json())
+
+
 @bp.post("/api/admin/tv/apps/move")
 @admin_required
 def api_admin_apps_move():

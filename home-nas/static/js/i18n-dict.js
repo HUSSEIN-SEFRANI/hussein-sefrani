@@ -1203,5 +1203,12 @@ window.I18N_DICT = {
 "إظهار": ["Show", "Afficher", "Göster", "Tonen"],
 "أجهزة بلا اسم": ["unnamed devices", "appareils sans nom", "adsız cihaz", "apparaten zonder naam"],
 "لا توجد بطاقة صوت": ["No sound card", "Aucune carte son", "Ses kartı yok", "Geen geluidskaart"],
-"إصلاح الصوت": ["Fix sound", "Réparer le son", "Sesi onar", "Geluid herstellen"]
+"إصلاح الصوت": ["Fix sound", "Réparer le son", "Sesi onar", "Geluid herstellen"],
+"إزالة الألعاب المكررة": ["Remove duplicate games", "Supprimer les jeux en double", "Yinelenen oyunları kaldır", "Dubbele spellen verwijderen"],
+"لا توجد ألعاب مكررة": ["No duplicate games", "Aucun jeu en double", "Yinelenen oyun yok", "Geen dubbele spellen"],
+"ألعاب مكررة": ["Duplicate games", "Jeux en double", "Yinelenen oyunlar", "Dubbele spellen"],
+"نُبقي": ["We keep", "On garde", "Kalan", "We houden"],
+"إلى سلة المحذوفات": ["to the recycle bin", "vers la corbeille", "geri dönüşüm kutusuna", "naar de prullenbak"],
+"تقدّم الأطفال لا يضيع": ["The children's progress is not lost", "La progression des enfants n'est pas perdue", "Çocukların ilerlemesi kaybolmaz", "De voortgang van de kinderen gaat niet verloren"],
+"يتبع اللعبة باسمها أينما كانت": ["it follows the game by its name wherever it is", "elle suit le jeu par son nom, où qu'il soit", "oyunu adıyla, nerede olursa olsun takip eder", "die volgt het spel op naam, waar het ook staat"]
 };
