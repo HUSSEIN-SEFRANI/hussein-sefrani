@@ -8,7 +8,7 @@ import { mergeGeometries } from "./BufferGeometryUtils.js";
 
 const K = window.K;
 const GAME = "مغامرات كرمو";
-const save = K.store("karmo", { unlocked: 1, best: {} });
+const save = K.store("karmo", { unlocked: 1, best: {}, sound: true });
 const LITE = (() => {
   try { if (parent !== window && parent.document.documentElement.classList.contains("lite")) return true; } catch {}
   return (navigator.deviceMemory || 8) <= 2 || (navigator.hardwareConcurrency || 8) <= 2;
@@ -680,28 +680,76 @@ function readInput() {
 }
 
 // ===================================================================== الصوت
-const snd = { o: null };
+// أصوات هادئة: ضجيج مُرشَّح وموجات جيبية ناعمة (بلا موجات حادة)، وكل شيء عبر مستوى عام يمكن إيقافه
+const snd = { on: false };
+let master = null, noiseBuf = null;
+function audio() {
+  const c = K.audioCtx(); if (!c) return null;
+  if (!master) {
+    master = c.createGain(); master.gain.value = save.sound === false ? 0 : 0.8; master.connect(c.destination);
+    const n = c.sampleRate * 2, buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
+    let last = 0; for (let i = 0; i < n; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = last * 3.5; }   // ضجيج بنّي ناعم
+    noiseBuf = buf;
+  }
+  return c;
+}
+const soundOn = () => save.sound !== false;
+function setSound(on) { save.sound = on; save.save(); if (master) master.gain.value = on ? 0.8 : 0; }
+function beep(f, d = 0.15, v = 0.05, when = 0, f2 = null) {
+  const c = audio(); if (!c || !soundOn()) return;
+  try {
+    const o = c.createOscillator(), g = c.createGain(), t = c.currentTime + when;
+    o.type = "sine"; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + d);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    o.connect(g).connect(master); o.start(t); o.stop(t + d + 0.05);
+  } catch {}
+}
+const sfx = {
+  star() { beep(1318, 0.18, 0.045); beep(1760, 0.25, 0.035, 0.07); },
+  bump() { beep(170, 0.3, 0.12, 0, 60); },
+  jump() { beep(330, 0.25, 0.05, 0, 660); },
+  ok() { beep(523, 0.3, 0.05); beep(659, 0.3, 0.045, 0.1); beep(784, 0.45, 0.045, 0.2); },
+  count(go) { beep(go ? 880 : 587, go ? 0.4 : 0.18, 0.045); },
+  no() { beep(220, 0.2, 0.05, 0, 180); },
+};
+// أصوات قوائم kit بنفس الأسلوب الهادئ، وتتوقف مع زر الصوت
+Object.assign(K.sfx, { tick: () => beep(660, 0.05, 0.02), pop: () => sfx.star(), ok: () => sfx.ok(), bad: () => sfx.no(), win: () => sfx.ok() });
+const horn = () => { beep(440, 0.35, 0.05); beep(554, 0.35, 0.04); };
 function engineStart(kind) {
   engineStop();
-  const c = K.audioCtx(); if (!c) return;
+  const c = audio(); if (!c) return;
   try {
-    const o = c.createOscillator(), f = c.createBiquadFilter(), g = c.createGain(), lfo = c.createOscillator(), lg = c.createGain();
-    o.type = "sawtooth"; f.type = "lowpass"; f.frequency.value = 500; g.gain.value = 0.0;
-    lfo.frequency.value = kind === "heli" ? 14 : 30; lg.gain.value = kind === "heli" ? 0.03 : 0.005;
-    lfo.connect(lg).connect(g.gain); o.connect(f).connect(g).connect(c.destination); o.start(); lfo.start();
-    snd.o = o; snd.f = f; snd.g = g; snd.lfo = lfo; snd.kind = kind;
+    const t = c.currentTime, out = c.createGain(); out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(1, t + 0.6); out.connect(master);
+    const nz = c.createBufferSource(); nz.buffer = noiseBuf; nz.loop = true;
+    const nf = c.createBiquadFilter(), ng = c.createGain(); nz.connect(nf).connect(ng).connect(out);
+    const o = c.createOscillator(), og = c.createGain(), of = c.createBiquadFilter(); o.type = "sine"; of.type = "lowpass"; of.frequency.value = 300;
+    o.connect(of).connect(og).connect(out);
+    const S = { kind, out, nz, nf, ng, o, og, of, src: [nz, o] };
+    if (kind === "heli") {   // ضربات المروحة: ضجيج منخفض يتموّج
+      nf.type = "lowpass"; nf.frequency.value = 260; ng.gain.value = 0.02;
+      const l = c.createOscillator(), lg = c.createGain(); l.frequency.value = 12; lg.gain.value = 0.018; l.connect(lg).connect(ng.gain); l.start(); S.src.push(l);
+      o.frequency.value = 48; og.gain.value = 0.012;
+    } else if (kind === "plane") { nf.type = "bandpass"; nf.frequency.value = 700; nf.Q.value = 0.6; ng.gain.value = 0.02; o.frequency.value = 85; og.gain.value = 0.008; }
+    else if (kind === "water") { nf.type = "bandpass"; nf.frequency.value = 500; nf.Q.value = 0.8; ng.gain.value = 0.012; o.frequency.value = 42; og.gain.value = 0.012; }
+    else { nf.type = "lowpass"; nf.frequency.value = 220; ng.gain.value = 0.01; o.frequency.value = 45; og.gain.value = 0.02; }
+    nz.start(); o.start();
+    Object.assign(snd, S, { on: true });
   } catch {}
 }
 function engineSet(r) {
-  if (!snd.o) return;
-  const c = K.audioCtx(), t = c.currentTime, k = snd.kind;
-  const base = { ground: 55, water: 45, heli: 40, plane: 70 }[k] || 55;
-  snd.o.frequency.setTargetAtTime(base + r * (k === "plane" ? 60 : 90), t, 0.1);
-  snd.f.frequency.setTargetAtTime(300 + r * 900, t, 0.1);
-  snd.g.gain.setTargetAtTime(0.035 + r * 0.03, t, 0.1);
+  if (!snd.on) return;
+  const c = K.audioCtx(), t = c.currentTime, k = snd.kind; r = clamp(r, 0, 1.2);
+  try {
+    if (k === "heli") { snd.ng.gain.setTargetAtTime(0.018 + r * 0.012, t, 0.2); }
+    else if (k === "plane") { snd.nf.frequency.setTargetAtTime(600 + r * 600, t, 0.3); snd.ng.gain.setTargetAtTime(0.012 + r * 0.014, t, 0.3); }
+    else if (k === "water") { snd.nf.frequency.setTargetAtTime(400 + r * 700, t, 0.2); snd.ng.gain.setTargetAtTime(0.006 + r * 0.02, t, 0.2); snd.o.frequency.setTargetAtTime(40 + r * 30, t, 0.2); }
+    else { snd.o.frequency.setTargetAtTime(45 + r * 70, t, 0.15); snd.of.frequency.setTargetAtTime(220 + r * 380, t, 0.15); snd.og.gain.setTargetAtTime(0.014 + r * 0.016, t, 0.15); snd.ng.gain.setTargetAtTime(0.004 + r * 0.014, t, 0.2); snd.nf.frequency.setTargetAtTime(180 + r * 400, t, 0.2); }
+  } catch {}
 }
-function engineStop() { try { snd.o && snd.o.stop(); snd.lfo && snd.lfo.stop(); } catch {} snd.o = null; }
-const horn = () => { K.tone(392, 0.25, "square", 0.06); K.tone(330, 0.25, "square", 0.05); };
+function engineStop() {
+  if (!snd.on) return; snd.on = false;
+  try { const c = K.audioCtx(), t = c.currentTime; snd.out.gain.cancelScheduledValues(t); snd.out.gain.setTargetAtTime(0, t, 0.08); const src = snd.src; setTimeout(() => src.forEach((x) => { try { x.stop(); } catch {} }), 400); } catch {}
+}
 
 // ===================================================================== واجهة اللعب
 const hud = $("hud");
@@ -770,7 +818,7 @@ function hit(p, nx, nz) {
   G.hits++;
   if (p.V.kind === "plane" || p.V.kind === "heli") p.v = Math.max(p.v * 0.6, p.V.kind === "plane" ? 35 : 4);
   else p.v = -Math.sign(p.v || 1) * Math.min(Math.abs(p.v) * 0.35, 5);
-  K.sfx.bad(); showMsg(["انتبه!", "اصطدام!", "حاذر!"][G.hits % 3]);
+  sfx.bump(); showMsg(["انتبه!", "اصطدام!", "حاذر!"][G.hits % 3]);
   try { for (const g of K.pads()) g.vibrationActuator && g.vibrationActuator.playEffect("dual-rumble", { duration: 250, strongMagnitude: 0.7, weakMagnitude: 0.4 }); } catch {}
 }
 function collide(p, W) {
@@ -834,7 +882,7 @@ function updateGround(p, I, dt, W) {
   if (p.vk === "moto") {
     if (!p.air) for (const r of W.ramps) if (m.s > r.s - r.len / 2 && m.s < r.s + r.len / 2 && Math.abs(m.lat) < 3.2 && p.v > 6) {
       p.y = r.h * clamp((m.s - (r.s - r.len / 2)) / r.len, 0, 1);
-      if (m.s > r.s + r.len / 2 - 0.8) { p.air = true; p.vy = 4 + p.v * 0.28; showMsg("قفزة!", true, 900); K.sfx.pop(); }
+      if (m.s > r.s + r.len / 2 - 0.8) { p.air = true; p.vy = 4 + p.v * 0.28; showMsg("قفزة!", true, 900); sfx.jump(); }
     }
     if (p.air) { p.vy -= 20 * dt; p.y += p.vy * dt; p.pitch = clamp(-p.vy * 0.03, -0.3, 0.3); if (p.y <= 0) { p.y = 0; p.air = false; p.pitch = 0; } }
     else if (!W.ramps.some((r) => m.s > r.s - r.len / 2 && m.s < r.s + r.len / 2 && Math.abs(m.lat) < 3.2)) p.y = Math.max(0, p.y - dt * 4);
@@ -886,7 +934,7 @@ function updateAir(p, I, dt, W) {
     const m = P.near(p.x, p.z, p.idx);
     if (Math.abs(m.lat) > W.wall) { const sgn = Math.sign(m.lat), over = Math.abs(m.lat) - W.wall; p.x += W.P.tz[m.i] * sgn * over; p.z -= W.P.tx[m.i] * sgn * over; p.h = lerp(p.h, P.at(m.s + 30).h, dt * 2); }
     collide(p, W);
-    for (const r of W.rings) if (!r.taken && Math.hypot(p.x - r.x, p.y - r.y, p.z - r.z) < 12) { r.taken = true; r.m.visible = false; G.stars++; K.sfx.pop(); showMsg("+⭐", true, 600); }
+    for (const r of W.rings) if (!r.taken && Math.hypot(p.x - r.x, p.y - r.y, p.z - r.z) < 12) { r.taken = true; r.m.visible = false; G.stars++; sfx.star(); showMsg("+⭐", true, 600); }
   }
 }
 function updateTraffic(W, dt) {
@@ -905,7 +953,7 @@ function collectStars(p, W) {
   if (!W.stars.length) return;
   const o = new THREE.Object3D(), rr = W.starR || 2.2, ss = W.starS || 0.9;
   W.stars.forEach((st, i) => {
-    if (!st.taken && Math.hypot(p.x - st.x, (p.y + 1) - st.y, p.z - st.z) < rr) { st.taken = true; G.stars++; K.sfx.pop(); }
+    if (!st.taken && Math.hypot(p.x - st.x, (p.y + 1) - st.y, p.z - st.z) < rr) { st.taken = true; G.stars++; sfx.star(); }
     o.position.set(st.x, st.y + Math.sin(G.t * 3 + i) * 0.2, st.z); o.rotation.set(0, G.t * 2 + i, 0); o.scale.setScalar(st.taken ? 0 : ss); o.updateMatrix();
     W.starMesh.setMatrixAt(i, o.matrix);
   });
@@ -987,7 +1035,6 @@ function introCard() {
     <div class="go">${dia("b")} ابدأ</div>`;
   $("hIntro").classList.add("on");
   updateCamera(G.P, 0, true);
-  K.tts && K.tts(leg.title);
 }
 function beginDrive() {
   $("hIntro").classList.remove("on");
@@ -995,7 +1042,7 @@ function beginDrive() {
   engineStart(G.P.V.kind);
 }
 function legDone() {
-  G.state = "trans"; engineStop(); K.sfx.ok();
+  G.state = "trans"; engineStop(); sfx.ok();
   const L = LEVELS[G.lvl];
   if (G.leg + 1 < L.legs.length) {
     showMsg(["رائع!", "أحسنت!", "ممتاز!"][G.leg % 3], true, 1400);
@@ -1040,8 +1087,8 @@ function step(dt) {
   else if (G.state === "intro") { const I = readInput(); if (I.aHit) { K.audioCtx(); beginDrive(); } if (I.bHit) pause(); updateCamera(G.P, dt); }
   else if (G.state === "count") {
     const before = Math.ceil(G.count); G.count -= dt; const c = Math.ceil(G.count);
-    if (c !== before && c > 0) { showMsg(String(c), true, 700); K.tone(520, 0.12); }
-    if (G.count <= 0) { G.state = "play"; showMsg("انطلق!", true, 800); K.tone(880, 0.25); }
+    if (c !== before && c > 0) { showMsg(String(c), true, 700); sfx.count(false); }
+    if (G.count <= 0) { G.state = "play"; showMsg("انطلق!", true, 800); sfx.count(true); }
     updateCamera(G.P, dt); readInput();
     if (G.P.V.kind === "heli" && G.P.rotor) G.P.rotor.rotation.y += dt * 20;
   } else if (G.state === "play" || G.state === "trans") {
@@ -1096,6 +1143,7 @@ function pauseScreen() {
       <button class="btn f go" ${K.act("go", () => K.back())}>▶ أكمل</button>
       <button class="btn f" ${K.act("re", () => { G.active = false; G.paused = false; K.back(); })}>🔁 من البداية</button>
       <button class="btn f" ${K.act("home", () => { G.active = false; G.paused = false; engineStop(); disposeWorld(G.W); G.W = null; K.home(); })}>🏠 القائمة</button>
+      <button class="btn f" ${K.act("snd", () => { setSound(!soundOn()); K.render(); })}>${soundOn() ? "🔊 الصوت: يعمل" : "🔇 الصوت: متوقف"}</button>
     </div></div>${K.HELP}`, "go");
 }
 function resultScreen({ s, lvl }) {
@@ -1111,7 +1159,7 @@ function levelsScreen() {
   for (let i = 0; i < 10; i++) {
     const L = LEVELS[i], open = L && i < save.unlocked, best = save.best[String(i + 1)] || 0;
     if (L && open) cards.push(`<button class="lv f" ${K.act("l" + i, () => K.replace(playScreen, i))}><b>${i + 1}</b><span class="ic emo">${L.legs.map((l) => VEH[l.veh].ic).join("")}</span><span class="st">${"⭐".repeat(best)}${"☆".repeat(3 - best)}</span></button>`);
-    else cards.push(`<button class="lv lock f" ${K.act("l" + i, () => { K.sfx.bad(); })}><b class="emo">${L ? "🔒" : SOON[i - LEVELS.length] || "🔒"}</b><span class="st">${L ? "أنهِ المرحلة السابقة" : "قريباً"}</span></button>`);
+    else cards.push(`<button class="lv lock f" ${K.act("l" + i, () => { sfx.no(); })}><b class="emo">${L ? "🔒" : SOON[i - LEVELS.length] || "🔒"}</b><span class="st">${L ? "أنهِ المرحلة السابقة" : "قريباً"}</span></button>`);
   }
   K.paint(`<div class="top">${K.backBtn()}<span class="pill">المراحل</span><span></span></div><div class="levels">${cards.join("")}</div>${K.HELP}`, "l" + Math.min(save.unlocked - 1, LEVELS.length - 1));
 }
@@ -1127,6 +1175,7 @@ function homeScreen() {
       <div class="nav">
         <button class="btn f go" ${K.act("play", () => K.show(playScreen, next))}>▶ العب (المرحلة ${next + 1})</button>
         <button class="btn f" ${K.act("levels", () => K.show(levelsScreen))}>🗺️ المراحل</button>
+        <button class="btn f" ${K.act("snd", () => { setSound(!soundOn()); K.render(); })}>${soundOn() ? "🔊" : "🔇"}</button>
       </div>
       ${K.HELP}</div>`, "play");
 }
@@ -1142,6 +1191,7 @@ function makeShowcase() {
   sun.position.set(c.x + SUN.x * 100, SUN.y * 100, c.z + SUN.z * 100); sun.target.position.set(c.x, 0, c.z);
 }
 
+G.snd = snd;
 G.play = (l, leg = 0) => { K.show(playScreen, l); if (leg) startLeg(leg); };
 
 // ===================================================================== البدء
