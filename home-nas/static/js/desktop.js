@@ -68,6 +68,22 @@ async function loadInstalledApps() {
 loadInstalledApps();
 addEventListener('nas-apps', loadInstalledApps);
 
+// الإضافات (تطبيقات جانبية تُرفع بملف ZIP): واجهتها تُحمَّل عند أول فتح
+async function loadAddons() {
+  const r = await api.get('/api/addons').catch(() => null);
+  if (!r) return;
+  for (let i = shortcuts.length - 1; i >= 0; i--) if (shortcuts[i].addon) shortcuts.splice(i, 1);
+  for (const a of r.addons) if (a.ui) shortcuts.push({ id: 'addon-' + a.id, title: a.name, icon: a.icon, color: a.color, addon: true,
+    launch: async () => {
+      try { await import(`/addons/${a.id}/${a.ui}?v=${encodeURIComponent(a.version)}`); }
+      catch (e) { toast(`تعذر فتح «${a.name}»`, 'err'); return; }
+      openApp('addon-' + a.id);
+    } });
+  drawIcons();
+}
+loadAddons();
+addEventListener('nas-addons', loadAddons);
+
 // بطاقة الذاكرة والفلاشات (للمدير): أيقونة تظهر عند إدخالها وتختفي عند سحبها
 if (ME.is_admin) {
   let known = null, timer = 0;

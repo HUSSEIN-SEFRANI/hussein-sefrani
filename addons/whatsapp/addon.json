@@ -1,0 +1,12 @@
+{
+  "id": "whatsapp",
+  "name": "نسخ الواتساب",
+  "version": "1.0.0",
+  "summary": "صِل الآيفون بالسيرفر واختر محادثة: تُحفظ في ملفاتك (whatsapp) كملف PDF بالرسائل والصور، والفيديوهات بأسماء متسلسلة.",
+  "icon": "phone",
+  "color": "linear-gradient(135deg,#22c55e,#15803d)",
+  "entry": "addon.py",
+  "ui": "ui.js",
+  "width": 820,
+  "height": 680
+}
