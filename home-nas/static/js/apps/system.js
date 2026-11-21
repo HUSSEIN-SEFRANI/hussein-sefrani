@@ -185,6 +185,7 @@ const SECTIONS = [
   { id: 'storage', label: 'إدارة التخزين', icon: 'hdd', admin: true, keys: 'قرص اقراص هارد RAID مرآة مساحة ممتلئ SMART صحة حرارة سلة' },
   { id: 'cpu', label: 'المعالج', icon: 'cpu', admin: true, keys: 'معالج حرارة ساخن مروحة بطء استهلاك intel amd' },
   { id: 'device', label: 'الشبكة والأجهزة', icon: 'server', admin: true, keys: 'وايفاي wifi بلوتوث قبضة يد تحكم سماعة تعريفات عتاد صوت IP كابل' },
+  { id: 'addons', label: 'الإضافات', icon: 'store', admin: true, keys: 'إضافة اضافة تطبيق جانبي zip واتساب واتس' },
   { id: 'logs', label: 'سجل النشاط', icon: 'clock', admin: true, keys: 'سجل من فعل ماذا' },
 ];
 // القسم الأب لكل تبويب (لفتح الروابط القديمة على التبويب الصحيح)
@@ -1165,6 +1166,49 @@ const CP = {
       p.appendChild(pw);
       p.appendChild(updateCard());
     }
+  },
+
+  // الإضافات: تطبيقات جانبية ليست مع النظام، تُرفع بملف ZIP وتظهر على سطح المكتب
+  async addons(sc) {
+    const p = section(sc, 'الإضافات', 'تطبيقات جانبية ليست مع النظام. ترفعها بملف ZIP فتظهر أيقونتها على سطح المكتب. ارفع فقط ملفاً تثق بمن صنعه: الإضافة تعمل داخل السيرفر.',
+      `<button class="btn primary" data-a="up">${icon('upload')} رفع إضافة</button>`);
+    const box = h('<div class="muted">جارٍ القراءة…</div>');
+    p.appendChild(box);
+    const tell = () => dispatchEvent(new CustomEvent('nas-addons'));
+    const load = async () => {
+      const r = await guard(() => api.get('/api/admin/addons')); if (!r) return;
+      box.className = '';
+      box.innerHTML = r.addons.length ? r.addons.map((a) => `<div class="card addon-card" style="max-width:620px;margin-bottom:12px;display:flex;gap:14px;align-items:center">
+          <span style="background:${esc(a.color)};width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:#fff;flex:none">${icon(a.icon)}</span>
+          <div style="flex:1;min-width:0"><b>${esc(a.name)}</b> <span class="badge" translate="no">${esc(a.version)}</span>${a.admin ? ' <span class="badge">للمدير فقط</span>' : ''}
+            <div class="muted small">${esc(a.summary || '')}</div>
+            <div class="muted small">نُصّبت في ${fmtDateTime(new Date(a.installed * 1000))}</div></div>
+          <button class="btn ghost" data-del="${esc(a.id)}">${icon('trash')} حذف</button></div>`).join('')
+        : '<p class="muted">لا توجد إضافات بعد. اضغط «رفع إضافة» واختر ملف ZIP.</p>';
+      $$('[data-del]', box).forEach((b) => (b.onclick = async () => {
+        const a = r.addons.find((x) => x.id === b.dataset.del);
+        const v = await form(`حذف «${a.name}»`, [{ name: 'pw', label: 'كلمة مرور حسابك', type: 'password' }], { ok: 'حذف' });
+        if (!v) return;
+        if (await guard(() => api.post(`/api/admin/addons/${a.id}/remove`, { password: v.pw }))) { toast('حُذفت الإضافة. الملفات التي صنعتها تبقى في مجلدات أصحابها', 'ok'); tell(); load(); }
+      }));
+    };
+    $('[data-a=up]', sc).onclick = async () => {
+      const body = h(`<div><label class="lbl">ملف الإضافة (ZIP)</label><input class="field" type="file" name="f" accept=".zip">
+        <label class="lbl">كلمة مرور حسابك</label><input class="field" type="password" name="pw" autocomplete="current-password">
+        <p class="muted small">إن كانت الإضافة منصّبة من قبل تُستبدل بالإصدار الجديد.</p></div>`);
+      const ok = await modal({ title: 'رفع إضافة', body, buttons: [{ label: 'إلغاء', value: null }, {
+        label: 'رفع', cls: 'primary', value: true, validate: async (b) => {
+          const f = $('[name=f]', b).files[0];
+          if (!f) { toast('اختر ملف الإضافة', 'err'); return false; }
+          const fd = new FormData(); fd.append('file', f); fd.append('password', $('[name=pw]', b).value);
+          const r = await fetch('/api/admin/addons', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'fetch' } });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok) { toast(j.error || 'تعذر رفع الإضافة', 'err', 9000); return false; }
+          toast(`${j.upgraded ? 'حُدّثت' : 'نُصّبت'} «${j.addon.name}». أيقونتها على سطح المكتب`, 'ok'); return true;
+        } }] });
+      if (ok) { tell(); load(); }
+    };
+    load();
   },
 
   async logs(sc) {
