@@ -8,10 +8,25 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="sky"><i class="c1"></i><i class="c2"></i><i class="c3"></i><div class="sun"></div></div>
+<canvas id="cv"></canvas>
+<div id="hud" class="off">
+  <div class="hb tr"><b id="hLevel"></b><small id="hLeg"></small></div>
+  <div class="hb tc" id="hSteps"></div>
+  <div class="hb tl"><span class="emo">⭐</span> <b id="hStars">0</b></div>
+  <canvas id="map" width="200" height="200"></canvas>
+  <div class="hb dist" id="hDist"></div>
+  <div class="hb speed" dir="ltr"><b id="hSpeed">0</b><small>كم/س</small></div>
+  <div class="hb hhelp" id="hHelp"></div>
+  <div class="msg" id="hMsg"></div>
+  <div class="intro" id="hIntro"></div>
+  <div class="fade" id="hFade"></div>
+  <div class="touch" id="touch">
+    <i data-k="left">◀</i><i data-k="up">▲</i><i data-k="down">▼</i><i data-k="right">▶</i><i data-k="a">●</i><i data-k="pause">⏸</i>
+  </div>
+</div>
 <main id="app"></main>
 <div id="fx"></div>
 <script src="kit.js"></script>
-<script src="game.js"></script>
+<script type="module" src="game.js"></script>
 </body>
 </html>
