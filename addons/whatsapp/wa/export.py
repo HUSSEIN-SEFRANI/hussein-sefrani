@@ -315,7 +315,7 @@ class Exporter:
             out = tmp / f"part{i}.pdf"
             r = subprocess.run([chrome, "--headless", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage",
                                 "--no-pdf-header-footer", "--print-to-pdf-no-header",
-                                "--allow-file-access-from-files", f"--user-data-dir={tmp / 'chrome'}",
+                                "--allow-file-access-from-files",   # بلا --user-data-dir: يعلق الطباعة (ملف تعريف كامل)، والوضع الخفي يستعمل ملفاً مؤقتاً وحده
                                 f"--print-to-pdf={out}", page.as_uri()], capture_output=True, timeout=900)
             if not out.is_file() or out.stat().st_size < 100:
                 raise RuntimeError("تعذر صنع ملف PDF: " + r.stderr.decode("utf-8", "replace")[-300:])
