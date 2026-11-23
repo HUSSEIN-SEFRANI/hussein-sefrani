@@ -162,11 +162,19 @@ TV_HOME = Path("/var/lib/hseftv")
 TV_UNIT = Path("/etc/systemd/system/hsef-tv.service")
 TV_LOG = Path("/var/lib/homenas/tv-setup.log")
 TV_PKGS = ("cage", "chromium", "fonts-noto-core", "fonts-noto-color-emoji", "pipewire-audio", "wireplumber", "pulseaudio-utils", "wlr-randr")
+# البند 57: متصفح التلفاز لا يحتاج إلا السيرفر نفسه (127.0.0.1)، فلا يتصل بأي جهة خارجية:
+# وسيط ميت (127.0.0.1:9) لكل العناوين الخارجية، والسيرفر نفسه يتجاوزه، وخدمات Google الخلفية مطفأة.
+TV_PROXY = "127.0.0.1:9"
+TV_PROXY_BYPASS = "127.0.0.1;localhost;[::1]"   # لا «<-loopback>»: تلك تمرّر السيرفر نفسه إلى الوسيط فلا تفتح صفحة التلفاز
 CHROMIUM_FLAGS = ("--kiosk --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble "
-                  "--disable-features=Translate,TranslateUI,MediaRouter --autoplay-policy=no-user-gesture-required "
+                  "--disable-features=Translate,TranslateUI,MediaRouter,NetworkTimeServiceQuerying,OptimizationHints "
+                  "--autoplay-policy=no-user-gesture-required "
                   "--check-for-update-interval=31536000 --password-store=basic --ozone-platform=wayland "
                   "--disable-pinch --overscroll-history-navigation=0 --user-data-dir=/var/lib/hseftv/chromium "
-                  "--ignore-gpu-blocklist --enable-gpu-rasterization")
+                  "--ignore-gpu-blocklist --enable-gpu-rasterization "
+                  f"--proxy-server=http://{TV_PROXY} --proxy-bypass-list={TV_PROXY_BYPASS} "
+                  "--disable-background-networking --disable-component-update --disable-domain-reliability "
+                  "--disable-sync --no-pings --disable-breakpad")
 
 
 def unit_active(name: str) -> bool:
@@ -193,7 +201,13 @@ def tv_write():
         "SyncDisabled": True, "MetricsReportingEnabled": False, "SpellcheckEnabled": False,
         "AutoplayAllowed": True, "HardwareAccelerationModeEnabled": True,
         "URLAllowlist": ["127.0.0.1", "localhost", "about:blank"], "URLBlocklist": ["*"],
-        "DownloadRestrictions": 3, "DeveloperToolsAvailability": 2, "PrintingEnabled": False}, indent=1))
+        "DownloadRestrictions": 3, "DeveloperToolsAvailability": 2, "PrintingEnabled": False,
+        # البند 57: لا اتصال بأي جهة خارجية (مثل العلامات في CHROMIUM_FLAGS)
+        "ProxySettings": {"ProxyMode": "fixed_servers", "ProxyServer": TV_PROXY, "ProxyBypassList": TV_PROXY_BYPASS},
+        "ComponentUpdatesEnabled": False, "SafeBrowsingProtectionLevel": 0, "NetworkPredictionOptions": 2,
+        "SearchSuggestEnabled": False, "AlternateErrorPagesEnabled": False, "UrlKeyedAnonymizedDataCollectionEnabled": False,
+        "SpellCheckServiceEnabled": False, "BackgroundModeEnabled": False, "DomainReliabilityAllowed": False,
+        "PasswordLeakDetectionEnabled": False, "DnsOverHttpsMode": "off", "WebRtcIPHandling": "disable_non_proxied_udp"}, indent=1))
     TV_UNIT.write_text(f"""[Unit]
 Description=HOME ANAB TV screen (shows /tv on the attached screen)
 After=systemd-user-sessions.service plymouth-quit-wait.service homenas.service
@@ -949,6 +963,9 @@ IFACES_BAK = Path("/etc/network/interfaces.hsef-bak")
 RESOLV_BAK = Path("/etc/resolv.conf.hsef-bak")
 WIFI_FILE = Path("/etc/network/interfaces.d/hsef-wifi")
 OFFLINE_FLAG = Path("/etc/homenas/offline")
+# البند 57: تحديثات الأمان التلقائية من ديبيان (مطفأة افتراضياً). اختيار صاحب الجهاز في AUTO_CHOICE يحترمه install.sh في كل تحديث.
+AUTO_UPGRADES = Path(os.environ.get("HSEF_APT_AUTO") or "/etc/apt/apt.conf.d/20auto-upgrades")
+AUTO_CHOICE = Path(os.environ.get("HSEF_APT_CHOICE") or "/etc/homenas/auto-updates")
 TV_MODE = Path("/etc/homenas/tv-mode")
 IP_RE = _re.compile(r"^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$")
 FAKE_ARP = {"192.168.1.77": ["aa:bb:cc:dd:ee:ff"]}   # للاختبار فقط: عنوان «مستعمل» في وضع FAKE
@@ -1475,9 +1492,27 @@ def offline_set(on: bool):
         subprocess.run(["timedatectl", "set-ntp", "true"], capture_output=True)
 
 
+def auto_updates_on() -> bool:
+    try:
+        return bool(_re.search(r'Unattended-Upgrade\s+"1"', AUTO_UPGRADES.read_text()))
+    except OSError:
+        return False
+
+
+def auto_updates_set(on: bool):
+    if FAKE and not os.environ.get("HSEF_APT_AUTO"):
+        return
+    v = "1" if on else "0"
+    AUTO_UPGRADES.parent.mkdir(parents=True, exist_ok=True)
+    AUTO_UPGRADES.write_text(f'APT::Periodic::Update-Package-Lists "{v}";\nAPT::Periodic::Unattended-Upgrade "{v}";\n')
+    AUTO_CHOICE.parent.mkdir(parents=True, exist_ok=True)
+    AUTO_CHOICE.write_text(v + "\n")
+
+
 def sys_status():
     ntp = subprocess.run(["timedatectl", "show", "-p", "NTP", "--value"], capture_output=True, text=True).stdout.strip() if not FAKE else "no"
-    print(json.dumps({"offline": OFFLINE_FLAG.exists(), "ntp": ntp == "yes", "now": _time.strftime("%Y-%m-%d %H:%M:%S")}))
+    print(json.dumps({"offline": OFFLINE_FLAG.exists(), "ntp": ntp == "yes", "now": _time.strftime("%Y-%m-%d %H:%M:%S"),
+                      "auto_updates": auto_updates_on()}))
 
 
 # ----------------------------------------------------------------------------- البلوتوث (ويد بلايستيشن 5)
@@ -2648,6 +2683,8 @@ def main():
         time_set(a[1])
     elif a in (["offline", "on"], ["offline", "off"]):
         offline_set(a[1] == "on")
+    elif a in (["auto-updates", "on"], ["auto-updates", "off"]):
+        auto_updates_set(a[1] == "on")
     elif a == ["sys-status"]:
         sys_status()
     elif a == ["bt-install"]:

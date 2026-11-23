@@ -19,7 +19,8 @@ printf '{"title":"HOME ANAB v%s","head":"fix/v%s","base":"%s","body":"إصدار
 N=$(gh api -X POST "repos/$REPO/pulls" --input /tmp/pr.json --jq .number)
 sleep 3; gh api -X PUT "repos/$REPO/pulls/$N/merge" -f merge_method=merge --jq '"PR #'"$N"' merged=\(.merged)"'
 git checkout -q "$WORK" && git pull -q --ff-only
-gh workflow run homenas-iso.yml -R "$REPO" --ref "$WORK" -f publish=true -f replace=false -f cleanup_old=false
+# KEEP=1 DROP_TAGS=true ./release.sh 2.0 ← يبقى هذا الإصدار وحده (طلب صاحب المشروع لـ 2.0)
+gh workflow run homenas-iso.yml -R "$REPO" --ref "$WORK" -f publish=true -f replace=false -f cleanup_old=false -f keep="${KEEP:-5}" -f drop_tags="${DROP_TAGS:-false}"
 sleep 10
 RID=$(gh api "repos/$REPO/actions/runs?event=workflow_dispatch&per_page=1" --jq '.workflow_runs[0].id')
 for _ in $(seq 1 60); do
