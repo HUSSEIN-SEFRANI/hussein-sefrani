@@ -300,7 +300,7 @@ def tv_settings() -> dict:
         "night_dim": g("tv_night_dim", "auto"),   # إضاءة خفيفة جداً في الليل (من العشاء حتى الشروق): auto / off
         "source": g("tv_prayer_source", "calc"), "offsets": json.loads(g("tv_prayer_off", "{}")),
         "adhan": {**ADHAN_DEFAULT, **json.loads(g("tv_adhan", "{}"))},
-        "weather": g("tv_weather", "1") == "1",
+        "weather": g("tv_weather", "0") == "1",   # البند 57: مطفأ حتى يفعّله الأبوان (يتصل بـ open-meteo)
         "daily_kinds": welcome.daily_kinds(),
         "saver_kind": g("tv_saver_kind", "prayer"), "saver_text": g("tv_saver_text", ""),
     }

@@ -15,7 +15,7 @@ export async function deviceSection(sc, section) {
   p.appendChild(cableCard());
   p.appendChild(bootCard());
   p.appendChild(wifiCard(d.net.wifi || {}, reload));
-  p.appendChild(timeCard(d.sys, reload));
+  p.appendChild(timeCard({ ...d.sys, weather: !!d.weather }, reload));
   p.appendChild(btCard());
   p.appendChild(diagCard());
 }
@@ -238,7 +238,13 @@ function timeCard(s, reload) {
     <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap"><input class="field" type="datetime-local" name="dt" style="max-width:260px"><button class="btn sm" data-x="set">ضبط</button></div>
     <hr style="border:0;border-top:1px solid var(--border);margin:14px 0">
     <label class="check"><input type="checkbox" name="off" ${s.offline ? 'checked' : ''}> <b>وضع بدون إنترنت</b></label>
-    <p class="muted small">يوقف كل اتصال يبدؤه السيرفر بالخارج: التحديثات التلقائية، وضبط الوقت من الإنترنت، والبحث عن تحديثات HOME ANAB. التحديث بعدها من فلاشة (لوحة التحكم ← عام).</p></div>`);
+    <p class="muted small">يوقف كل اتصال يبدؤه السيرفر بالخارج: التحديثات التلقائية، وضبط الوقت من الإنترنت، والبحث عن تحديثات HOME ANAB. التحديث بعدها من فلاشة (لوحة التحكم ← عام).</p>
+    <hr style="border:0;border-top:1px solid var(--border);margin:14px 0">
+    <p class="muted small">${icon('shield')} لا يتصل الجهاز وحده بأي جهة خارجية إلا بما تشغّله هنا. متصفح التلفاز لا يتصل إلا بالسيرفر نفسه.</p>
+    <label class="check"><input type="checkbox" name="au" ${s.auto_updates ? 'checked' : ''}> <b>تحديثات الأمان التلقائية</b></label>
+    <p class="muted small">مرة كل يوم من خوادم ديبيان (تسد ثغرات النظام). لا تُرسل أي بيانات للعائلة. مطفأة افتراضياً.</p>
+    <label class="check"><input type="checkbox" name="wx" ${s.weather ? 'checked' : ''}> <b>الطقس على التلفاز</b></label>
+    <p class="muted small">كل نصف ساعة من Open-Meteo، ويُرسل إحداثيات مدينة المواقيت فقط (لا البيت). مطفأ افتراضياً.</p></div>`);
   const pad = (x) => String(x).padStart(2, '0');
   const now = new Date();
   $('[name=dt]', c).value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
@@ -249,6 +255,15 @@ function timeCard(s, reload) {
     if (await guard(() => api.post('/api/admin/offline', { on: e.target.checked }))) { toast(e.target.checked ? 'وضع بدون إنترنت مفعّل' : 'تم إيقاف وضع بدون إنترنت', 'ok'); reload(); }
     else e.target.checked = !e.target.checked;
   };
+  // البند 57: الاتصالات التي يبدؤها الجهاز وحده (مطفأة افتراضياً)
+  const sw = (name, url, onMsg, offMsg) => {
+    $(`[name=${name}]`, c).onchange = async (e) => {
+      if (await guard(() => api.post(url, { on: e.target.checked }))) toast(e.target.checked ? onMsg : offMsg, 'ok');
+      else e.target.checked = !e.target.checked;
+    };
+  };
+  sw('au', '/api/admin/auto-updates', 'تحديثات الأمان التلقائية مفعّلة', 'تم إيقاف تحديثات الأمان التلقائية');
+  sw('wx', '/api/admin/weather', 'الطقس مفعّل على التلفاز', 'تم إيقاف الطقس');
   return c;
 }
 
