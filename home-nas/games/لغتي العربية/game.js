@@ -7,13 +7,15 @@
   "use strict";
   const GAME = "لغتي العربية";
   const D = window.LUGHATI;
-  const save = K.store("lughati", { best: {}, done: {}, lv: 0 });
+  const save = K.store("lughati", { best: {}, done: {}, lv: 0, topic: "all" });
+  const AUTHOR = "SEFRANI HUSSEIN";
 
   // ---------------------------------------------------------------- الحروف والتشكيل
   const MARKS = "ًٌٍَُِّْ";          // ً ٌ ٍ َ ُ ِ ّ ْ
   const isMark = (c) => MARKS.includes(c);
   const HAMZA = "أإآءؤئ";
   const BASIC = "ا ب ت ث ج ح خ د ذ ر ز س ش ص ض ط ظ ع غ ف ق ك ل م ن ه و ي ة ى".split(" ");
+  const ORDER = BASIC.concat([..."أإآءؤئ"]);
   const MARK_KEYS = ["َ", "ُ", "ِ", "ْ", "ّ", "ً", "ٌ", "ٍ"];
   const NAME = {
     "ا": "أَلِف", "ب": "بَاء", "ت": "تَاء", "ث": "ثَاء", "ج": "جِيم", "ح": "حَاء", "خ": "خَاء", "د": "دَال", "ذ": "ذَال",
@@ -64,6 +66,39 @@
     return out;
   }
 
+  // الصورة: رمز ملون، أو صورة حقيقية (كلماتي، ووجوه العائلة)
+  const pic = (w) => (w[1] && /^(\/|[^\s]+\.(jpe?g|png|webp|gif)$|كلماتي\/)/i.test(w[1])
+    ? `<img class="pic photo" src="${K.esc(w[1])}" alt="">` : `<span class="emo pic">${w[1] || "💬"}</span>`);
+
+  // ---------------------------------------------------------------- المواضيع (البند 59)
+  const TOPICS = [["all", "كل الكلمات", "📚"], ...Object.entries(D.topics).map(([k, t]) => [k, t.n, t.e]),
+    ["people", "أسماء عائلتي", "🙂"], ["mine", "كلماتي", "🖼️"]];
+  const topicName = (id) => (TOPICS.find((t) => t[0] === id) || TOPICS[0])[1];
+  const okWord = (s) => /^[\u0621-\u064A\u064B-\u0652 ]+$/.test(s) && strip(s).replace(/ /g, "").length >= 2;
+  async function topicWords(id) {
+    if (D.topics[id]) return D.topics[id].words;
+    if (id === "mine") {        // صور في مجلد «كلماتي» داخل مجلد اللعبة، واسم الصورة هو الكلمة
+      const ims = await K.listImages("كلماتي");
+      return ims.map((x) => [x.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim(), x.url]).filter((w) => okWord(w[0]));
+    }
+    if (id === "people") {      // اسم الطفل، والأشخاص الذين سمّاهم الأهل في «الصور ← الأشخاص»
+      const out = [];
+      try { const r = await fetch("/api/tv/home", { credentials: "same-origin" }); if (r.ok) { const n = ((await r.json()).user || {}).name || ""; const f = n.trim().split(/\s+/)[0]; if (okWord(f)) out.push([f, "⭐"]); } } catch {}
+      try { const r = await fetch("/api/tv/family/people?limit=30&faces=1", { credentials: "same-origin" });
+        if (r.ok) for (const x of (await r.json()).people || []) if (okWord(x.name.trim()) && !out.some((w) => w[0] === x.name.trim())) out.push([x.name.trim(), `/api/tv/face/${x.faces[0]}`]); } catch {}
+      return out;
+    }
+    return null;
+  }
+  function topics() {
+    K.begin();
+    K.paint(`<div class="top">${K.backBtn()}<h2 class="ttl">اختر الموضوع</h2><span></span></div>
+      <div class="topics">${TOPICS.map(([id, n, e]) => `<button class="topic f ${id === save.topic ? "on" : ""}" ${K.act("t-" + id, () => { save.topic = id; save.save(); K.back(); })}>
+        <span class="emo">${e}</span><b>${n}</b></button>`).join("")}</div>
+      <p class="tip">«كلماتي»: ضع صوراً في المجلد «كلماتي» داخل مجلد اللعبة (في «التعليم»)، واسم كل صورة هو الكلمة، مثل «جدّو.jpg».
+        «أسماء عائلتي»: اسم الطفل، والأشخاص الذين سمّيتموهم في تطبيق «الصور» ← «الأشخاص».</p>${K.HELP}`, "t-" + save.topic);
+  }
+
   // ---------------------------------------------------------------- الصوت
   const say = (t, rate = 0.8) => { if (t) K.tts(t, "ar", rate); };
   const report = (topic, ok) => {
@@ -80,12 +115,20 @@
       <div class="modes lv">${LEVELS.map((L, i) => `<button class="mode f" style="background:${L.bg}" ${K.act("l" + i, () => { save.lv = i; save.save(); K.show(lesson, i); })}>
         <span class="big emo">${L.e}</span><b>${i + 1}. ${L.n}</b><small>${L.sub}</small>
         <span class="best">${save.best[i] ? K.starsHtml(save.best[i]) : "ابدأ!"}</span></button>`).join("")}</div>
+      <div class="row2"><button class="btn f topic-btn" ${K.act("topic", () => K.show(topics))}><span class="emo">${(TOPICS.find((t) => t[0] === save.topic) || TOPICS[0])[2]}</span> الموضوع: <b>${topicName(save.topic)}</b></button>
+        <span class="author" dir="ltr">${AUTHOR}</span></div>
       ${K.HELP}`, "l" + (save.lv || 0));
   }
 
   // ---------------------------------------------------------------- الدرس: 10 أسئلة
-  function makeLesson(lv) {
+  function makeLesson(lv, tw) {
     const L = LEVELS[lv], Q = [];
+    if (tw) {                 // موضوع: قطّع وركّب بكلماته (التاء والهمزة والتنوين في «كل الكلمات» فقط)
+      const ws = take(tw, "t-" + save.topic, Math.min(10, tw.length));
+      while (ws.length < 10 && tw.length) ws.push(K.pick(tw));
+      ws.forEach((w, i) => Q.push({ t: i % 5 === 3 || i % 5 === 1 ? "join" : "spell", w }));
+      return K.shuffle(Q);
+    }
     if (!L.hard) {
       const ws = take(wordsFor(lv), "w" + lv, 10);
       ws.forEach((w, i) => Q.push({ t: i % 5 === 3 || i % 5 === 1 ? "join" : "spell", w }));
@@ -103,9 +146,26 @@
     return K.shuffle(Q).slice(0, 10);
   }
 
-  function lesson(lv) {
+  async function lesson(lv) {
     const L = LEVELS[lv];
-    const S = { lv, qs: makeLesson(lv), i: 0, score: 0, res: [] };
+    const topic = save.topic || "all";
+    let tw = null;
+    if (topic !== "all") {
+      K.begin(); K.paint(`<div class="top">${K.backBtn()}<span></span></div><h2 class="ask">جارٍ التحضير…</h2>`);
+      const shown = K.top();
+      tw = await topicWords(topic);
+      if (K.top() !== shown) return;
+      if (!tw || tw.length < 3) {
+        K.begin();
+        K.paint(`<div class="top">${K.backBtn()}<span class="pill">${K.esc(topicName(topic))}</span><span></span></div>
+          <h2 class="ask">لا توجد كلمات كافية في هذا الموضوع بعد 🙂</h2>
+          <p class="tip">${topic === "mine" ? "ضعوا صوراً في المجلد «كلماتي» داخل مجلد اللعبة (في «التعليم»)، واسم كل صورة هو الكلمة بالعربية، مثل «جدّو.jpg» أو «مطبخنا.jpg»."
+            : "سمّوا الأشخاص في تطبيق «الصور» ← «الأشخاص» على الهاتف أو الكمبيوتر، فتظهر أسماؤهم هنا مع صورهم."}</p>
+          <div class="nav"><button class="btn f go" ${K.act("tp", () => K.replace(topics))}>اختر موضوعاً آخر</button></div>`, "tp");
+        return;
+      }
+    }
+    const S = { lv, qs: makeLesson(lv, tw), i: 0, score: 0, res: [] };
     save.save();
     // الأزرار الإضافية في اليد: الأيسر (2) مساعدة، والعلوي (3) اسمع
     const held = { h: false, s: false };
@@ -151,7 +211,7 @@
       save.done[lv] = (save.done[lv] || 0) + 1;
       save.save();
       K.resultScreen({
-        s, score: S.score, total: S.qs.length, title: `لغتي العربية — المستوى ${lv + 1}`,
+        s, score: S.score, total: S.qs.length, title: `لغتي العربية — المستوى ${lv + 1}${topic !== "all" ? " · " + topicName(topic) : ""}`,
         again: () => K.replace(lesson, lv),
         next: lv < LEVELS.length - 1 ? { label: `المستوى ${lv + 2}`, fn: () => { save.lv = lv + 1; save.save(); K.replace(lesson, lv + 1); } } : null,
       });
@@ -165,20 +225,21 @@
       const sentence = word.includes(" ");
       // لوحة الحروف: صغيرة في المستويين 1 و2 (حروف الكلمة وحروف تشبهها)، وكاملة بعدهما
       let keys;
+      const need = [...new Set(G.map((g) => g.b).filter((c) => c !== " "))];
       if (L.keys) {
-        const need = [...new Set(G.map((g) => g.b))];
         const extra = K.shuffle([...new Set(need.flatMap(like).concat(K.shuffle(BASIC)))].filter((c) => !need.includes(c)));
-        keys = BASIC.filter((c) => need.includes(c) || extra.slice(0, L.keys - need.length).includes(c));
+        const pickd = extra.slice(0, Math.max(3, L.keys - need.length));
+        keys = ORDER.filter((c) => need.includes(c) || pickd.includes(c));
       } else {
         keys = BASIC.slice();
-        if (L.hard) keys.push(..."أإآءؤئ");
-        if (L.marks) keys.push(...MARK_KEYS);
-        if (sentence) keys.push(" ");
+        if (L.hard || need.some((c) => HAMZA.includes(c))) keys.push(..."أإآءؤئ");
       }
+      if (L.marks && G.some((g) => g.m.length)) keys.push(...MARK_KEYS);
+      if (sentence) keys.push(" ");
       const st = { g: 0, m: [], miss: 0, slotMiss: 0, helped: 0, hintOn: false, done: false };
-      K.paint(`${top(sentence ? "اكتب الجملة حرفاً حرفاً" : "اكتب حروف الكلمة")}
-        <div class="stage"><span class="emo pic">${q.w[1] || "💬"}</span><b class="word ${L.marks ? "marked" : ""}">${K.esc(word)}</b></div>
-        <div class="boxes ${G.length > 9 ? "long" : ""}">${G.map((g) => `<span class="box ${g.b === " " ? "sp" : ""}"></span>`).join("")}</div>
+      K.paint(`${top(sentence ? "اكتب حرفاً حرفاً (مع المسافة)" : "اكتب حروف الكلمة")}
+        <div class="stage">${pic(q.w)}<b class="word ${L.marks ? "marked" : ""}">${K.esc(word)}</b></div>
+        <div class="boxes ${G.length > 9 ? "long" : ""} ${G.length > 13 ? "xlong" : ""}">${G.map((g) => `<span class="box ${g.b === " " ? "sp" : ""}"></span>`).join("")}</div>
         <div class="keys ${keys.length <= 12 ? "few" : ""}">${keys.map((k, i) => `<button class="key f ${isMark(k) ? "mk" : ""} ${k === " " ? "space" : ""}" data-c="${k}" ${K.act("k" + i, () => type(k))}>${show(k)}</button>`).join("")}
           <button class="key f tool" ${K.act("del", erase)}>⌫</button><button class="key f tool help" ${K.act("help", help)}>💡</button></div>
         <div class="cheer"></div>`, "k0");
@@ -312,7 +373,7 @@
       K.begin();
       const st = { wrong: false, locked: false };
       K.paint(`${top(title)}
-        <div class="stage"><span class="emo pic">${q.w[1] || "💬"}</span>${middle}</div>
+        <div class="stage">${pic(q.w)}${middle}</div>
         <div class="opts ${opts.every((o) => strip(o).length <= 1) ? "small" : ""}">${opts.map((o, j) => `<button class="opt f" ${K.act("o" + j, (el) => pickOpt(j, el))}>${K.esc(o)}</button>`).join("")}</div>
         <div class="cheer"></div>`, "o0");
       S.listen = () => say(speak);
