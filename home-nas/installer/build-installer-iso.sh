@@ -91,7 +91,7 @@ in_root apt-get install -y --no-install-recommends \
     firmware-intel-misc firmware-cirrus firmware-nvidia-graphics firmware-nvidia-gsp firmware-ti-connectivity \
     firmware-bnx2 firmware-bnx2x bluez-firmware atmel-firmware alsa-ucm-conf alsa-topology-conf \
     intel-media-va-driver-non-free i965-va-driver mesa-va-drivers vainfo pciutils \
-    cage chromium fonts-noto-core fonts-noto-color-emoji pipewire-audio wireplumber pulseaudio-utils wlr-randr cec-utils \
+    cage chromium fonts-noto-core fonts-noto-color-emoji pipewire-audio wireplumber pulseaudio-utils wlr-randr cec-utils espeak-ng \
     python3-opencv usbmuxd libimobiledevice-utils ifuse fuse3 less nano
 
 log "HOME ANAB"

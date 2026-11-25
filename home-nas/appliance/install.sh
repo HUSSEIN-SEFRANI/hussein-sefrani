@@ -33,7 +33,7 @@ log "Installing system packages"
 PKGS="python3 python3-venv python3-pip ffmpeg avahi-daemon libnss-mdns sudo ca-certificates \
     unattended-upgrades rsync parted e2fsprogs sqlite3 mdadm smartmontools samba minidlna \
     python3-flask python3-waitress python3-pil python3-psutil libheif-examples libheif-plugin-libde265 \
-    poppler-utils usbmuxd libimobiledevice-utils ifuse"
+    poppler-utils usbmuxd libimobiledevice-utils ifuse espeak-ng"
 # بدون إنترنت (تحديث من فلاشة): نكمل إذا كانت الحزم الأساسية مثبتة مسبقاً
 # البند 57: إذا كانت كل الحزم مثبتة (الإيزو فيه كل شيء) فلا نتصل بخوادم ديبيان أصلاً
 OFFLINE=0
