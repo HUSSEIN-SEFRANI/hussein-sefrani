@@ -4,15 +4,12 @@
 (() => {
   "use strict";
   const { CH, CD, CITIES } = window.BEL;
-  const save = K.store("belgium", { unlocked: 1, best: 0, char: 0, facts: {}, wins: 0 });
-  if (!save.facts || typeof save.facts !== "object") save.facts = {};
+  const save = K.store("belgium", { unlocked: 1, best: 0, char: 0, wins: 0 });
   const cv = document.createElement("canvas"); cv.id = "cv"; document.body.insertBefore(cv, K.app);
   const cx = cv.getContext("2d");
   const T = 40, ROWS = 13, VH = 520, OY = 20, FONT = '"Baloo", "Noto Sans Arabic", Tahoma, sans-serif';
   let VW = 960, sc = 1, frame = 0, cam = 0;
   const HELP = `<div class="help"><b>الأسهم</b> للتنقل · <b>Enter</b> أو <b>الزر السفلي</b> للاختيار · <b>Backspace</b> أو <b>الزر الأيمن</b> للرجوع</div>`;
-  const foundOf = (i) => (save.facts[CITIES[i].n] || []).filter((k) => k < CITIES[i].facts.length);
-  const totalFacts = CITIES.reduce((s, c) => s + c.facts.length, 0);
 
   // ---------------------------------------------------------------- رسم الشخصية (للعبة وللبطاقات)
   function drawHero(g, x, y, c, o) {
@@ -51,12 +48,12 @@
   // ---------------------------------------------------------------- الشاشة الأولى
   function home() {
     K.begin(); K.onFocus = null;
-    const c = CH[save.char], found = CITIES.reduce((s, _, i) => s + foundOf(i).length, 0);
+    const c = CH[save.char], open = Math.min(save.unlocked, CITIES.length);
     K.paint(`<div class="top"><span></span><span class="pill"><span class="emo">🏆</span> أفضل نتيجة: ${save.best}</span></div>
       <div class="hero">${portrait(save.char, "heroP")}<div><h1 class="logo">اكتشف بلجيكا</h1><div class="sub">مغامرة قفز من مدينة إلى مدينة</div><div class="flag"><i></i><i></i><i></i></div></div></div>
       <div class="modes">
         <button class="mode f" style="background:#e11d48" ${K.act("play", () => K.show(chars))}><span class="big emo">🏃</span><b>العب</b><small>اختر بطلك ثم المدينة</small></button>
-        <button class="mode f" style="background:#1f2937" ${K.act("book", () => K.show(book))}><span class="big emo">📖</span><b>دفتر بلجيكا</b><small>${found} من ${totalFacts} معلومة</small></button>
+        <button class="mode f" style="background:#1f2937" ${K.act("map", () => K.show(cities))}><span class="big emo">🗺️</span><b>المدن</b><small>${open} من ${CITIES.length} مفتوحة</small></button>
       </div>
       <div class="sub small">بطلك الآن: <b>${c.n}</b> · قوته: ${c.pl}</div>${HELP}`, "play");
   }
@@ -78,51 +75,41 @@
     const last = Math.min(save.unlocked, CITIES.length) - 1;
     K.paint(`<div class="top">${K.backBtn()}<h2 class="ttl">إلى أين؟</h2><span class="pill">${CH[save.char].n} · ${CH[save.char].pl}</span></div>
       <div class="cgrid">${CITIES.map((c, i) => {
-        const open = i < save.unlocked, f = foundOf(i).length;
+        const open = i < save.unlocked;
         return `<button class="city f ${open ? "" : "no"}" ${K.act("m" + i, () => { if (open) K.show(play, { city: i }); else { K.sfx.bad(); K.tts("أكمل المدينة التي قبلها أولاً"); } })}>
-          <span class="emo big">${open ? c.e : "🔒"}</span><b>${i + 1}. ${c.n}</b><small>${open ? `💡 ${f} من ${c.facts.length}` : "مغلقة"}</small></button>`;
+          <span class="emo big">${open ? c.e : "🔒"}</span><b>${i + 1}. ${c.n}</b><small>${open ? (i + 1 < save.unlocked ? "✔ أكملتها" : "جاهزة") : "مغلقة"}</small></button>`;
       }).join("")}</div>${HELP}`, "m" + last);
-  }
-
-  // ---------------------------------------------------------------- دفتر بلجيكا
-  function book() {
-    K.begin(); K.onFocus = null;
-    K.paint(`<div class="top">${K.backBtn()}<h2 class="ttl">دفتر بلجيكا</h2><span class="pill">💡 ${CITIES.reduce((s, _, i) => s + foundOf(i).length, 0)} / ${totalFacts}</span></div>
-      <div class="sub">اضرب صناديق <span class="ibox">i</span> في اللعبة لتجمع المعلومات</div>
-      <div class="cgrid">${CITIES.map((c, i) => `<button class="city f" ${K.act("b" + i, () => K.show(bookCity, i))}><span class="emo big">${c.e}</span><b>${c.n}</b><small>💡 ${foundOf(i).length} من ${c.facts.length}</small></button>`).join("")}</div>${HELP}`, "b0");
-  }
-  function bookCity(i) {
-    K.begin(); K.onFocus = null;
-    const c = CITIES[i], f = foundOf(i);
-    K.paint(`<div class="top">${K.backBtn()}<h2 class="ttl">${c.e} ${c.n}</h2><span class="pill">💡 ${f.length} / ${c.facts.length}</span></div>
-      <div class="flist">${c.facts.map((t, k) => f.includes(k)
-        ? `<button class="fitem f" ${K.act("f" + k, () => K.tts(t))}><span class="emo">🔊</span> ${t}</button>`
-        : `<button class="fitem f lock" ${K.act("f" + k, () => K.tts("لم تكتشف هذه المعلومة بعد"))}><span class="emo">🔒</span> معلومة لم تكتشفها بعد</button>`).join("")}</div>${HELP}`, "f0");
   }
 
   // ---------------------------------------------------------------- بناء المرحلة
   function rng(s) { return () => { s |= 0; s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  // طرقات على ارتفاعات مختلفة: يمشي الطفل ويقفز من طريق إلى طريق ويصعد (الصعود مربعان على الأكثر)
   function build(i) {
-    const C = CITIES[i], r = rng(i * 97 + 13), W = 170 + i * 15;
+    const C = CITIES[i], r = rng(i * 97 + 13), W = 160 + i * 14;
     const g = Array.from({ length: ROWS }, () => Array(W + 60).fill("."));
-    const G = (a, b) => { for (let x = a; x <= b; x++) { g[11][x] = "#"; g[12][x] = "#"; } };
-    const P = (x, y, s) => { [...s].forEach((c, k) => { if (c !== " ") g[y][x + k] = c; }); };
-    G(0, 13); P(5, 10, "WWW"); P(9, 7, "i"); let x = 14;
+    const G = (a, b, top) => { for (let x = a; x <= b; x++) for (let y = top; y < ROWS; y++) g[y][x] = "#"; };
+    const P = (x, y, s) => { if (y < 0 || y >= ROWS) return; [...s].forEach((c, k) => { if (c !== " ") g[y][x + k] = c; }); };
+    G(0, 13, 11); P(5, 10, "WWW"); P(9, 7, "i");
+    let x = 14, top = 11;
     while (x < W) {
-      const len = 8 + Math.floor(r() * 8), m = x + 2, f = Math.floor(r() * 6); let stair = false;
-      G(x, x + len - 1);
-      if (f === 0) { P(m, 7, "BiB"); P(m, 6, "W W"); }
-      else if (f === 1) { P(m, 8, "BBBB"); P(m, 7, "WCW"); P(m + 1, 4, "i"); }
-      else if (f === 2) { P(m, 10, "WWW"); P(m + 4, 7, "i"); }
-      else if (f === 3) { stair = true; for (let k = 0; k < 3; k++) for (let h = 0; h <= k; h++) g[10 - h][x + len - 3 + k] = "#"; P(m, 10, "WW"); }
-      else if (f === 4) { P(m, 7, "iBi"); P(m + 1, 3, "C"); }
-      else { P(m, 9, "BB"); P(m + 3, 6, "BBB"); P(m + 4, 5, "C"); P(m + 1, 8, "W"); }
-      if (!stair && r() < C.sp) P(x + len - 5, 10, "S");   // بعيداً عن حافة الفجوة
-      if (r() < C.pg) P(x + Math.floor(len / 2), 4 + Math.floor(r() * 2), "P");
+      const len = 10 + Math.floor(r() * 6);   // الصناديق في أول الطريق، وآخره فارغ للركض قبل القفز
+      const nt = Math.max(7, Math.min(11, top + [-2, -1, 0, 0, 1, 2, -1][Math.floor(r() * 7)]));
+      let gap = r() < C.gap + 0.3 ? (i > 3 && r() < 0.3 ? 3 : 2) : 0;
+      if (nt < top && gap > 2) gap = 2;   // صعود مع فجوة: الفجوة قصيرة
+      x += gap; G(x, x + len - 1, nt); top = nt;
+      const o = nt - 11, m = x + 2, f = Math.floor(r() * 6); let stair = false;
+      if (f === 0) { P(m, 7 + o, "BiB"); P(m, 6 + o, "W W"); }
+      else if (f === 1) { P(m, 8 + o, "BBBB"); P(m, 7 + o, "WCW"); P(m + 1, 4 + o, "i"); }
+      else if (f === 2) { P(m, 10 + o, "WWW"); P(m + 4, 7 + o, "i"); }
+      else if (f === 3) { stair = true; for (let k = 0; k < 3; k++) for (let h = 0; h <= k; h++) P(x + len - 3 + k, 10 + o - h, "#"); P(m, 10 + o, "WW"); P(x + len - 1, 7 + o, "C"); }
+      else if (f === 4) { P(m, 7 + o, "iBi"); P(m + 1, 3 + o, "C"); }
+      else { P(m, 9 + o, "BB"); P(m + 3, 6 + o, "BBB"); P(m + 4, 5 + o, "C"); P(m + 1, 8 + o, "W"); }
+      if (!stair && r() < C.sp) P(x + len - 5, 10 + o, "S");   // بعيداً عن حافة الطريق
+      if (r() < C.pg) P(x + Math.floor(len / 2), Math.max(1, 4 + o + Math.floor(r() * 2)), "P");
       x += len;
-      if (r() < C.gap + 0.3) x += i > 3 && r() < 0.3 ? 3 : 2;   // فجوة من مربعين (وأحياناً ثلاثة في آخر مدينتين)
     }
-    const end = x + 24; G(x, end);
+    x += 2;
+    const end = x + 24; G(x, end, 11);
     for (let k = 0; k < 4; k++) for (let h = 0; h <= k; h++) g[10 - h][x + 3 + k] = "#";
     const L = { g: g.map((row) => row.slice(0, end + 1)), w: end + 1, flag: x + 14, en: [] };
     for (let rr = 0; rr < ROWS; rr++) for (let c = 0; c < L.w; c++) {
@@ -174,40 +161,24 @@
         <button class="btn f" ${K.act("restart", () => { score = lvScore; lives = MAXL; closeOv(); startLevel(li); })}>🔁 من البداية</button>
         <button class="btn f" ${K.act("quit", () => { keepBest(); K.back(); })}>🏠 خروج</button></div>`, "resume", closeOv);
     }
-    function factCard() {
-      const C = CITIES[li], have = save.facts[C.n] || [];
-      const k = C.facts.findIndex((_, j) => !have.includes(j));
-      add(100);
-      if (k < 0) {   // اكتُشفت كل معلومات المدينة: الصندوق يعطي قلباً إن نقص
-        if (lives < MAXL) { lives++; pop(p.x, p.y - 30, "♥ +1", "#EF3340"); } else pop(p.x, p.y - 30, shown(100), "#FDDA24");
-        K.sfx.pop(); return;
-      }
-      save.facts[C.n] = [...have, k]; save.save();
-      const t = C.facts[k];
-      K.sfx.ok();
-      overlay(() => `<h1>هل تعلم؟ 💡</h1><div class="fact">${t}</div><div class="sub">${C.e} ${C.n} · ${shown(100)} نقطة</div><div class="nav">
-        <button class="btn f go" ${K.act("go", closeOv)}>تابع ←</button>
-        <button class="btn f" ${K.act("say", () => K.tts(t))}><span class="emo">🔊</span> اسمع</button></div>`, "go", closeOv);
-      K.tts(t);
+    // صندوق النجمة: قلب إن نقص، وإلا شوكولاتة ونقاط
+    function bonusBox(h) {
+      add(50); K.sfx.pop();
+      if (lives < MAXL) { lives++; pop(h.c * T, h.r * T - 14, "♥ +1", "#EF3340"); }
+      else pop(h.c * T, h.r * T - 14, shown(50), "#FDDA24");
+      for (let k = 0; k < 8; k++) parts.push({ x: h.c * T + 20, y: h.r * T, vx: Math.random() * 6 - 3, vy: -Math.random() * 6 - 2, life: 35, c: k % 2 ? "#FDDA24" : "#EF3340" });
     }
-    function quiz() {
-      const C = CITIES[li], q = C.q;
-      add(200); keepBest();
-      overlay(() => `<h1>وصلت إلى نهاية ${C.n}! 🚩</h1><div class="fact">${q.q}</div>
-        <div class="opts wide">${q.o.map((o, i) => `<button class="opt f" ${K.act("o" + i, () => answer(i))}>${o}</button>`).join("")}</div>`, "o0", () => {});
-      K.tts(q.q);
-    }
-    function answer(i) {
-      const C = CITIES[li], q = C.q, ok = i === q.a, lastCity = li === CITIES.length - 1;
-      if (ok) { add(500); K.sfx.ok(); K.confetti(20, "⭐🎉🧇🍫"); } else K.sfx.bad();
+    // نهاية المدينة: احتفال ثم المدينة التالية (بلا أسئلة)
+    function cityDone() {
+      const C = CITIES[li], lastCity = li === CITIES.length - 1;
+      add(200); K.sfx.win(); K.confetti(24, "⭐🎉🧇🍫");
       if (li + 2 > save.unlocked) save.unlocked = Math.min(CITIES.length, li + 2);
       keepBest(); save.save();
       const next = () => { closeOv(); if (lastCity) { save.wins = (save.wins || 0) + 1; save.save(); K.replace(final, { score, waf, ch: save.char }); } else startLevel(li + 1); };
-      overlay(() => `<h1>${ok ? "إجابة صحيحة! 🎉" : "ليست هذه 🙂"}</h1>
-        <div class="fact">${ok ? "أحسنت، أضفنا 500 نقطة." : "الإجابة الصحيحة: " + q.o[q.a]}</div><div class="sub">نقاطك: ${score}</div>
-        <div class="nav"><button class="btn f go" ${K.act("next", next)}>${lastCity ? "النهاية 🏆" : "إلى " + CITIES[li + 1].n + " ←"}</button>
+      overlay(() => `<h1>وصلت إلى نهاية ${C.n}! 🚩</h1><div class="fact">${C.e} ⭐ ${score} نقطة · 🧇 ${waf}</div>
+        <div class="nav"><button class="btn f go" ${K.act("next", next)}>${lastCity ? "النهاية 🏆" : "إلى " + CITIES[li + 1].n + " " + CITIES[li + 1].e + " ←"}</button>
         <button class="btn f" ${K.act("quit", () => K.back())}>🏠 القائمة</button></div>`, "next", () => {});
-      K.tts(ok ? "إجابة صحيحة" : "الإجابة الصحيحة " + q.o[q.a]);
+      K.tts(lastCity ? "أحسنت! وصلت إلى النهاية" : `أحسنت! هيا إلى ${CITIES[li + 1].n}`);
     }
     function gameOver() {
       keepBest(); K.sfx.bad();
@@ -241,7 +212,7 @@
     function breakB(c, r) { lv.g[r][c] = "."; add(20); K.tone(180, 0.1, "square", 0.05); for (let k = 0; k < 6; k++) parts.push({ x: c * T + 20, y: r * T + 20, vx: Math.random() * 6 - 3, vy: -Math.random() * 6 - 2, life: 40, c: "#c4622d" }); }
     function bump(h) {
       const t = tile(h.c, h.r);
-      if (t === "i") { lv.g[h.r][h.c] = "u"; factCard(); }
+      if (t === "i") { lv.g[h.r][h.c] = "u"; bonusBox(h); }
       else if (t === "B") { if (ch.p === "head") breakB(h.c, h.r); else { pop(h.c * T + 4, h.r * T - 6, "طق", "#fff"); K.tone(240, 0.05, "triangle", 0.06); } }
     }
     function hurt() {
@@ -285,7 +256,7 @@
           for (let k = 0; k < 14; k++) parts.push({ x: P.x + 14, y: P.y + P.h, vx: Math.random() * 10 - 5, vy: -Math.random() * 4, life: 30, c: "#d8c9a8" });
         }
         const c0 = Math.floor(P.x / T), c1 = Math.floor((P.x + P.w) / T), r = Math.floor((P.y + P.h + 2) / T);
-        if ([-2, -1, 0, 1, 2, 3].every((d) => solid(c0 + d, r))) P.safe = { x: P.x, y: P.y };   // نقطة العودة بعد السقوط: ليست على الحافة
+        if ([-2, -1, 0, 1, 2, 3, 4].every((d) => solid(c0 + d, r))) P.safe = { x: P.x, y: P.y };   // نقطة العودة بعد السقوط: ليست على الحافة
       }
       if (res.head) bump(res.head);
       if (ovOpen) return;
@@ -335,7 +306,7 @@
         if (lives <= 0) { gameOver(); return; }
         Object.assign(P, { x: P.safe.x, y: P.safe.y - 4, vx: 0, vy: 0, inv: 100, pound: 0 });
       }
-      if (P.x > lv.flag * T) { quiz(); return; }
+      if (P.x > lv.flag * T) { cityDone(); return; }
       cam = Math.max(0, Math.min(P.x - VW * 0.4, lv.w * T - VW));
     }
 
@@ -491,8 +462,10 @@
         } else if (t === "i") {
           const bo = Math.sin(frame * 0.1 + c) * 1.5;
           cx.fillStyle = "#FDDA24"; cx.fillRect(x + 1, y + 1, T - 2, T - 2); cx.strokeStyle = "#141414"; cx.lineWidth = 3; cx.strokeRect(x + 2, y + 2, T - 4, T - 4);
-          cx.fillStyle = "#141414"; cx.font = "bold 26px Georgia, serif"; cx.fillText("i", x + 20, y + 30 + bo);
-          cx.fillStyle = "#EF3340"; cx.fillRect(x + 4, y + 4, 5, 5); cx.fillRect(x + T - 9, y + 4, 5, 5);
+          cx.fillStyle = "#EF3340"; cx.beginPath();
+          for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + (k * Math.PI) / 5, rr = k % 2 ? 5 : 12; cx.lineTo(x + 20 + Math.cos(a) * rr, y + 21 + bo + Math.sin(a) * rr); }
+          cx.fill();
+          cx.fillStyle = "#141414"; cx.fillRect(x + 4, y + 4, 4, 4); cx.fillRect(x + T - 8, y + 4, 4, 4);
         } else if (t === "u") {
           cx.fillStyle = "#8a6a3a"; cx.fillRect(x + 1, y + 1, T - 2, T - 2); cx.strokeStyle = "#5a4220"; cx.lineWidth = 3; cx.strokeRect(x + 2, y + 2, T - 4, T - 4);
         } else if (t === "W") {
@@ -556,7 +529,7 @@
         cx.fillStyle = "rgba(255,255,255,.9)"; cx.fillRect(VW / 2 - 260, 150, 520, 120);
         cx.fillStyle = "#EF3340"; cx.fillRect(VW / 2 - 260, 150, 520, 8);
         cx.fillStyle = "#141414"; cx.font = `800 46px ${FONT}`; cx.fillText(`${CITIES[li].e} ${CITIES[li].n}`, VW / 2, 200);
-        cx.font = `700 22px ${FONT}`; cx.fillText(`المدينة ${li + 1} من ${CITIES.length} · اضرب صناديق i لتكتشفها`, VW / 2, 245);
+        cx.font = `700 22px ${FONT}`; cx.fillText(`المدينة ${li + 1} من ${CITIES.length} · اقفز من طريق إلى طريق واصعد`, VW / 2, 245);
         cx.globalAlpha = 1; cx.direction = "ltr";
       }
       cx.textBaseline = "alphabetic";
@@ -618,7 +591,6 @@
       <div class="sub">${newBest ? "نتيجة جديدة هي الأفضل! 🏆" : "زرت المدن الست كلها"}</div>
       <div class="nav">
         <button class="btn f go" ${K.act("again", () => K.replace(chars))}><span class="emo">🔁</span> بطل آخر</button>
-        <button class="btn f" ${K.act("book", () => K.replace(book))}><span class="emo">📖</span> دفتر بلجيكا</button>
         <button class="btn f" ${K.act("home", K.home)}><span class="emo">🏠</span> القائمة</button>
       </div>${HELP}`, "again");
     K.sfx.win(); K.confetti(40, "⭐🎉🧇🍫");

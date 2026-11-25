@@ -27,7 +27,7 @@ body.playing #app { padding: 0; pointer-events: none; }
 .ch.on { background: #fef3c7; box-shadow: 0 0 0 .5vh #FDDA24, 0 .8vh 1.6vh rgba(31,41,55,.25); }
 .desc { margin-top: 1.6vh; min-height: 6vh; background: #141414; color: #FDDA24; border-radius: 3vh; padding: 1vh 4vw; font-size: 3.6vh; font-weight: 800; }
 
-/* المدن والدفتر */
+/* المدن */
 .cgrid { display: grid; grid-template-columns: repeat(3, 27vw); gap: 3vh 2vw; margin-top: 3vh; }
 .city { height: 26vh; border: 0; border-radius: 4vh; background: #fff; color: #1f2937; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .6vh;
   box-shadow: 0 1vh 2vh rgba(31,41,55,.25); border-bottom: 1.4vh solid #EF3340; }
@@ -35,10 +35,6 @@ body.playing #app { padding: 0; pointer-events: none; }
 .city b { font-size: 4.4vh; }
 .city small { font-size: 2.8vh; font-weight: 800; color: #92400e; }
 .city.no { background: rgba(255,255,255,.55); border-bottom-color: #9ca3af; }
-.ibox { display: inline-block; background: #FDDA24; border: .4vh solid #141414; border-radius: .8vh; padding: 0 1.4vh; font-family: Georgia, serif; font-weight: 800; color: #141414; }
-.flist { display: flex; flex-direction: column; gap: 2vh; margin-top: 3vh; width: 86vw; }
-.fitem { border: 0; border-radius: 3vh; background: #fff; color: #1f2937; font-size: 3.8vh; font-weight: 700; text-align: start; padding: 1.6vh 3vw; line-height: 1.5; box-shadow: 0 .8vh 1.6vh rgba(31,41,55,.2); }
-.fitem.lock { color: #6b7280; background: rgba(255,255,255,.6); }
 
 /* النوافذ فوق اللعبة */
 .ovl { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(10,10,15,.55); pointer-events: auto; }
