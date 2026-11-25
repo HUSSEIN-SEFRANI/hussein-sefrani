@@ -11,39 +11,23 @@
 - /api/tv/family/people و /api/tv/face/<n> و /api/tv/face/<n>/photo: «صور العائلة» من tools/faces/<الاسم>/*.jpg
   إن وُجد، وإلا وجوه مرسومة لأربعة أشخاص (بابا، ماما، جدّو، تيتا).
 - POST /api/tv/learn/result: يطبع النتيجة فقط (لتقرير الأهل)، انظر _kit/API.txt.
-- GET/PUT /api/tv/save: حفظ التقدّم (K.store) في الذاكرة ما دام الخادم يعمل.
-- GET /api/tv/tts: صوت عربي من espeak-ng إن وُجد، وإلا ثانية صامتة (K.tts بلا أخطاء في الـconsole).
+- GET/PUT /api/tv/save: حفظ التقدّم في الذاكرة (البند 50)، وGET /api/tv/tts: صوت espeak-ng إن وُجد وإلا صوت صامت (البند 58).
 """
 import http.server
+import io
 import json
 import mimetypes
 import os
-import sys
+import shutil
 import subprocess
+import sys
 import urllib.parse
 import wave
-import io
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))
 GAMES = os.path.dirname(os.path.dirname(TOOLS))          # home-nas/games
 ROOT = os.path.dirname(GAMES)                             # home-nas
 PHOTOS = os.path.join(TOOLS, "photos")
-
-
-SAVES = {}
-
-
-def tts_wav(text, rate):
-    try:
-        r = subprocess.run(["espeak-ng", "-v", "ar", "-s", str(rate), "--stdout", text], capture_output=True, timeout=20)
-        if r.returncode == 0 and r.stdout:
-            return r.stdout
-    except (OSError, subprocess.SubprocessError):
-        pass
-    b = io.BytesIO()
-    with wave.open(b, "wb") as w:
-        w.setnchannels(1); w.setsampwidth(2); w.setframerate(8000); w.writeframes(b"\0\0" * 8000)
-    return b.getvalue()
 
 
 STARS = {"balance": 10, "today": 0, "limit": 20}
@@ -76,6 +60,24 @@ def face_svg(fid, name):
             f'<circle cx="100" cy="92" r="58" fill="#fde2c8"/><circle cx="80" cy="85" r="7" fill="#333"/><circle cx="120" cy="85" r="7" fill="#333"/>'
             f'<path d="M78 112 Q100 {128 + fid % 3 * 4} 122 112" stroke="#333" stroke-width="6" fill="none" stroke-linecap="round"/>'
             f'<text x="100" y="190" font-size="26" text-anchor="middle" fill="#fff" font-family="sans-serif">{name}</text></svg>').encode()
+
+
+SAVES = {}
+
+
+def tts_wav(text, rate):
+    exe = shutil.which("espeak-ng") or shutil.which("espeak")
+    if exe and text:
+        try:
+            r = subprocess.run([exe, "-v", "ar", "-s", str(max(80, min(200, int(rate or 130)))), "--stdout", "--", text[:200]], capture_output=True, timeout=20)
+            if r.returncode == 0 and len(r.stdout) > 100:
+                return r.stdout
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            pass
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(8000); w.writeframes(b"\0\0" * 800)
+    return buf.getvalue()
 
 
 class H(http.server.BaseHTTPRequestHandler):
@@ -116,6 +118,11 @@ class H(http.server.BaseHTTPRequestHandler):
                 people.setdefault(name, []).append(fid)
             data = [{"id": i + 1, "name": k, "faces": v[:6], "count": len(v)} for i, (k, v) in enumerate(people.items())]
             return self.send(200, json.dumps({"people": data}, ensure_ascii=False).encode())
+        if path == "/api/tv/save":   # البند 50: حفظ التقدّم (في الذاكرة فقط)
+            k = qs.get("key", [""])[0]
+            return self.send(200, json.dumps({"found": True, "value": SAVES[k]} if k in SAVES else {"found": False}, ensure_ascii=False).encode())
+        if path == "/api/tv/tts":   # البند 58: espeak-ng إن وُجد، وإلا صوت صامت قصير (لتجربة اللعبة بلا أخطاء)
+            return self.send(200, tts_wav(qs.get("t", [""])[0], qs.get("r", ["130"])[0]), "audio/wav")
         if path.startswith("/api/tv/face/"):
             fid = int(path.split("/")[4])
             hit = next((x for x in family() if x[0] == fid), None)
@@ -128,12 +135,6 @@ class H(http.server.BaseHTTPRequestHandler):
         if path.startswith("/api/tv/photo/"):
             i = int(path.split("/")[4])
             return self.file(os.path.join(PHOTOS, photos[i - 1])) if 0 < i <= len(photos) else self.send(404, b"nf", "text/plain")
-        if path == "/api/tv/save":
-            k = qs.get("key", [""])[0]
-            return self.send(200, json.dumps({"found": k in SAVES, "value": SAVES.get(k)}, ensure_ascii=False).encode())
-        if path == "/api/tv/tts":
-            rate = int((qs.get("r") or ["130"])[0] or 130)
-            return self.send(200, tts_wav(qs.get("t", [""])[0][:300], max(80, min(260, rate))), "audio/wav")
         self.send(404, b"not found", "text/plain")
 
     def do_PUT(self):
@@ -143,10 +144,10 @@ class H(http.server.BaseHTTPRequestHandler):
             d = json.loads(self.rfile.read(n) or b"{}")
         except ValueError:
             d = {}
-        if path != "/api/tv/save" or not d.get("key"):
-            return self.send(404, b"not found", "text/plain")
-        SAVES[d["key"]] = d.get("value")
-        self.send(200, json.dumps({"ok": True}).encode())
+        if path == "/api/tv/save" and isinstance(d.get("value"), dict):
+            SAVES[str(d.get("key", ""))] = d["value"]
+            return self.send(200, b'{"ok": true}')
+        self.send(404, b"not found", "text/plain")
 
     def do_POST(self):
         path = urllib.parse.unquote(urllib.parse.urlparse(self.path).path)
