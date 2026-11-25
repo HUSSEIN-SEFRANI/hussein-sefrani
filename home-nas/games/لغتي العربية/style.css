@@ -56,3 +56,17 @@
 .cheer { min-height: 6vh; margin-top: 1.5vh; font-size: 4vh; text-align: center; color: #1e3a8a; }
 .cheer .why { font-size: 3vh; color: #9a3412; margin-top: .6vh; }
 .spelled { display: inline-block; margin-inline-start: 1.5vw; color: #16a34a; letter-spacing: .6vh; }
+/* البند 59: المواضيع، واسم الصانع، والصور الحقيقية */
+.row2 { display: flex; align-items: center; justify-content: space-between; margin-top: 2.2vh; padding: 0 1vw; }
+.topic-btn { font-size: 3.2vh; }
+.topic-btn b { color: #be185d; margin-inline-start: .6vw; }
+.author { font-size: 2.4vh; font-weight: 800; letter-spacing: .3vh; color: #92400e; opacity: .85; }
+.topics { display: grid; grid-template-columns: repeat(4, 21vw); gap: 1.6vh 1.4vw; justify-content: center; margin-top: 2.5vh; }
+.topic { height: 13vh; border: 0; border-radius: 2.5vh; background: #fff; color: #1e3a8a; display: flex; align-items: center; gap: 1.2vw; padding: 0 1.4vw;
+  font-size: 3.2vh; box-shadow: 0 .8vh 0 #a5b4fc; }
+.topic .emo { font-size: 6.5vh; }
+.topic.on { background: #fef3c7; box-shadow: 0 .8vh 0 #f59e0b; }
+.topic.f.sel { box-shadow: 0 0 0 .7vh #f97316, 0 1.2vh 2.4vh rgba(30,58,138,.35) !important; transform: scale(1.05); }
+.tip { text-align: center; font-size: 2.5vh; color: #7c2d12; max-width: 80vw; margin: 2vh auto 0; line-height: 1.6; }
+.pic.photo { width: 17vh; height: 17vh; object-fit: cover; border-radius: 3vh; box-shadow: 0 1vh 2vh rgba(30,58,138,.25); background: #fff; }
+.boxes.xlong .box { width: 5.6vh; height: 8vh; font-size: 4.4vh; }
