@@ -1,0 +1,65 @@
+/* أحكام التجويد — سماء خضراء هادئة ومصحف ذهبي الإطار (للتلفاز 1280×720، يُرى من بعيد) */
+@font-face { font-family: "AmiriQ"; src: url(fonts/amiri-quran.woff2) format("woff2"); }
+#sky { --sky: linear-gradient(180deg, #064e3b 0%, #0f766e 55%, #5eead4 100%); }
+#sky i { display: none; }   /* بلا غيوم: لا تمر خلف الكتابة */
+.sun { background: #fef9c3; box-shadow: 0 0 6vh #fef08a; width: 10vh; height: 10vh; }
+h1 { -webkit-text-stroke-color: #065f46; }
+h2 { color: #fff; text-shadow: 0 .4vh 0 #065f46; }
+.sub { color: #ecfdf5; }
+.qr { font-family: "AmiriQ", "Amiri", "Noto Naskh Arabic", serif; font-weight: 400; }
+.title h1 { font-size: 8.5vh; }
+.title .mascot { font-size: 9vh; }
+
+/* القائمة الرئيسية: 6 بطاقات في صفّين */
+.lessons { display: grid; grid-template-columns: repeat(3, 27vw); gap: 3vh 2.5vw; margin-top: 2vh; }
+.lesson { height: 25vh; border: 0; border-radius: 4vh; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .6vh;
+  box-shadow: 0 1.4vh 3vh rgba(6,78,59,.4); padding: 1vh 1vw; text-align: center; }
+.lesson .ic { height: 10vh; display: flex; align-items: center; font-size: 7.5vh; line-height: 1; text-shadow: 0 .4vh 0 rgba(0,0,0,.2); }
+.lesson .ic.emo { font-size: 8vh; }
+.lesson b { font-size: 3.6vh; line-height: 1.2; }
+.lesson .st { font-size: 3vh; }
+
+/* صفحة الباب */
+.ltitle { font-size: 6vh; }
+.intro { margin-top: 1.5vh; background: rgba(255,255,255,.95); border-radius: 3vh; padding: 1.6vh 3vw; font-size: 3.6vh; font-weight: 700; color: #064e3b; max-width: 86vw; text-align: center; line-height: 1.5; }
+.rules { display: grid; gap: 2.4vh 2vw; margin-top: 3vh; grid-template-columns: repeat(var(--n, 3), minmax(0, 24vw)); }
+.rules.n2 { --n: 2; } .rules.n3 { --n: 3; } .rules.n5 { --n: 3; }
+.rule { position: relative; border: 0; border-radius: 3.5vh; background: #fff; min-height: 17vh; padding: 1.4vh 1.5vw; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .8vh;
+  border-bottom: 1.2vh solid var(--c); box-shadow: 0 1vh 2vh rgba(6,78,59,.3); }
+.rule b { font-size: 4.2vh; color: var(--c); line-height: 1.2; }
+.rule .lt { font-size: 3vh; color: #334155; font-weight: 700; line-height: 1.3; }
+.rule .seen { position: absolute; top: 1vh; left: 1.2vw; font-style: normal; font-size: 3vh; color: #16a34a; font-weight: 800; }
+
+/* صفحة الحكم */
+.rname { font-size: 9vh; -webkit-text-stroke: .5vh #fff; paint-order: stroke fill; margin-top: .5vh; }
+.chips { display: flex; flex-wrap: wrap; gap: 1vh; justify-content: center; max-width: 88vw; margin-top: 1vh; }
+.chip { background: #fff; border-radius: 2vh; min-width: 7vh; padding: 0 1.4vh; height: 7vh; display: inline-flex; align-items: center; justify-content: center; font-size: 4.6vh; color: #064e3b;
+  box-shadow: 0 .6vh 1.2vh rgba(6,78,59,.3); }
+.how { margin-top: 1.6vh; font-size: 3.6vh; font-weight: 700; color: #fff; text-shadow: 0 .3vh 0 #065f46; max-width: 86vw; text-align: center; line-height: 1.45; }
+.mushaf { margin-top: 1.6vh; width: 86vw; background: #fffdf5; border: .8vh solid #fbbf24; border-radius: 4vh; box-shadow: 0 2vh 5vh rgba(6,78,59,.4);
+  display: flex; flex-direction: column; align-items: center; gap: .4vh; padding: 1.4vh 3vw; text-align: center; }
+.ayah { font-size: 6vh; line-height: 2.3; color: #111827; }
+.hl { display: inline-block; line-height: 1.7; color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); border-radius: 1.2vh; padding: 0 .8vh; box-shadow: inset 0 -.6vh 0 var(--c); transition: color .3s; }
+.hl2 { color: #b45309; }
+.ref { margin-top: .6vh; font-size: 2.8vh; color: #64748b; font-weight: 700; }
+.exn { font-size: 2.4vh; color: #94a3b8; }
+.nav .btn { font-size: 3.2vh; }
+
+/* الأسئلة */
+.prompt { min-height: 30vh; padding: 1.6vh 3vw; background: #fffdf5; border: .7vh solid #fbbf24; max-width: 92vw; }
+.prompt .col { display: flex; flex-direction: column; align-items: center; gap: .6vh; }
+.prompt .q { max-width: 84vw; font-size: 3.8vh; color: #065f46; }
+.prompt .ayah { font-size: 5.6vh; max-width: 84vw; }
+.prompt .big { font-size: 14vh; line-height: 1.3; color: #111827; font-weight: 400; }
+.prompt .big b { color: #ea580c; font-weight: 400; }
+.prompt .def { font-size: 5vh; font-weight: 800; color: #111827; max-width: 80vw; text-align: center; line-height: 1.4; }
+.why { min-height: 4vh; font-size: 3.2vh; font-weight: 800; text-align: center; max-width: 84vw; line-height: 1.35; }
+.opts.rules-opts { display: grid; grid-template-columns: repeat(3, minmax(0, 27vw)); gap: 2vh 2vw; margin-top: 2.4vh; }
+.opts.rules-opts .opt { min-width: 0; width: 100%; height: auto; min-height: 11vh; font-size: 4vh; padding: 1vh 1vw; flex-direction: column; gap: .2vh; }
+.opt .rn { line-height: 1.2; }
+.opt .rl { display: none; font-family: "Baloo", sans-serif; font-size: 2.8vh; font-weight: 700; color: #64748b; line-height: 1.3; }
+.opts.showl .opt .rl { display: block; }
+.opt .letter { font-size: 9vh; line-height: 1.2; }
+.cheer { min-height: 6vh; margin-top: 1vh; font-size: 4.6vh; -webkit-text-stroke-color: #065f46; }
+.help { font-size: 2.3vh; }
+.help b { color: #047857; }
