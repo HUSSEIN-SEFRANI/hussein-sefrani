@@ -201,6 +201,16 @@
       x.fillStyle = "#fef08a"; x.fillRect(22, -2, 4, 4);
       x.restore(); return;
     }
+    if (vid === "truck") {
+      sh(96, 34);
+      x.fillStyle = "#111827"; for (const a of [-40, -26, 10, 30]) { rr(x, a, -19, 12, 6, 2); x.fill(); rr(x, a, 13, 12, 6, 2); x.fill(); }
+      x.fillStyle = "#e2e8f0"; rr(x, -48, -17, 70, 34, 4); x.fill(); x.lineWidth = 1.5; x.strokeStyle = "rgba(0,0,0,.35)"; x.stroke();
+      x.fillStyle = "#f97316"; x.fillRect(-44, -4, 62, 8);
+      x.fillStyle = "#2563eb"; rr(x, 25, -16, 24, 32, 6); x.fill();
+      x.fillStyle = "#0f172a"; rr(x, 38, -13, 8, 26, 3); x.fill();
+      x.fillStyle = "#fef9c3"; x.fillRect(46, -14, 3, 6); x.fillRect(46, 8, 3, 6);
+      x.restore(); return;
+    }
     let w = 62, h = 30, body = "#ef4444", roof = null, shape = "sedan";
     if (vid === "car") { const b = brandOf(brand); body = b.color; shape = b.shape; }
     if (vid === "npc") { body = brand; shape = "sedan"; }
@@ -506,7 +516,8 @@
         <div>${dia(3)} <b>الزر العلوي</b> (أو M): الخريطة الكبيرة. قبل كل تقاطع تظهر لوحة بأسماء الطرق والمسافة.</div>
         <div>${dia(1)} <b>الزر الأيمن</b> (أو Backspace): استراحة.</div>
         <div>⭐ اجمع النجوم. 📷 الرادار يأخذ نجمتين إن تجاوزت السرعة. 💥 الاصطدام بسيارة يأخذ نجمة.</div>
-        <div>🚦 تجاوز الإشارة الحمراء أو ⛔ السير عكس <b>الاتجاه الواحد</b> (الأسهم البيضاء) يأخذ نجمة. 🚧 الطريق المغلق لا يُعبر.</div>
+        <div>🚦 تجاوز الإشارة الحمراء يأخذ نجمة، والسير في <b>الجهة اليسرى</b> من الطريق أيضاً. 🚧 الطريق المغلق لا يُعبر.</div>
+        <div>⬆️ <b>السهم الأخضر</b> فوق الطريق يدلّك على الطريق إلى الهدف.</div>
       </div>
       ${K.HELP}`);
   }
@@ -570,6 +581,32 @@
     const d3 = window.D3 && D3.available() ? D3.build(map, { veh: veh.id, fly, brandColor: brandOf(save.brand).color, brandShape: brandOf(save.brand).shape, npcs, skyStars, birds }) : null;
     const radars = map.edges.filter((e) => e.radar != null).map((e) => { const A = map.nodes[e.a], B = map.nodes[e.b]; return { e, x: A.x + (B.x - A.x) * e.radar, y: A.y + (B.y - A.y) * e.radar, armed: true }; });
     const lightState = {};
+    // للسهم الأخضر: مسافة كل تقاطع إلى الهدف (بلا الطرق المغلقة)
+    const toGoal = {};
+    if (!fly) {
+      for (const k in map.nodes) toGoal[k] = Infinity;
+      toGoal[map.goal] = 0; const done = new Set();
+      for (;;) {
+        let u = null; for (const k in toGoal) if (!done.has(k) && (u === null || toGoal[k] < toGoal[u])) u = k;
+        if (u === null || toGoal[u] === Infinity) break; done.add(u);
+        for (const e of map.adj[u]) { if (e.works) continue; const v = other(e, u); if (toGoal[u] + e.len < toGoal[v]) toGoal[v] = toGoal[u] + e.len; }
+      }
+    }
+    // اتجاه السهم: نحو طرف الطريق الأقرب إلى الهدف، وقربه نحو الطريق التالي. يرجع الزاوية والطريق المقترح عند التقاطع
+    function guide() {
+      if (fly) return { a: Math.atan2(G0.y - P.y, G0.x - P.x) };
+      const e = st8.edge; if (!e) return null;
+      const A = map.nodes[e.a], B = map.nodes[e.b], tA = (P.x - A.x) * (B.x - A.x) + (P.y - A.y) * (B.y - A.y);
+      const t = clamp(tA / e.len, 0, e.len);
+      let ca = t + toGoal[e.a], cb = e.len - t + toGoal[e.b];
+      if (e.works) { if (t < e.len / 2) cb = Infinity; else ca = Infinity; }
+      const end = ca <= cb ? e.a : e.b, N = map.nodes[end], dEnd = Math.hypot(N.x - P.x, N.y - P.y);
+      if (end === map.goal) return { a: Math.atan2(N.y - P.y, N.x - P.x), node: end };
+      let nx = null, bs = Infinity;
+      for (const q of map.adj[end]) { if (q.works || q === e) continue; const c = q.len + toGoal[other(q, end)]; if (c < bs) { bs = c; nx = q; } }
+      if (nx && dEnd < 110) { const O = map.nodes[other(nx, end)]; return { a: Math.atan2(O.y - N.y, O.x - N.x), node: end, next: nx }; }
+      return { a: Math.atan2(N.y - P.y, N.x - P.x), node: end, next: nx };
+    }
 
     function fitCam(b) { const w = b.x1 - b.x0, h = b.y1 - b.y0; return { x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2, z: Math.min((W - 80) / w, (H - 190) / h) }; }
     function makeMini() {
@@ -675,11 +712,16 @@
         P.x = A.x + (B.x - A.x) * f - dyn * off; P.y = A.y + (B.y - A.y) * f + dxn * off;
         if (sp > 3) { P.v = 0; snd.no(); say("🚧 الطريق مغلق! ابحث عن طريق آخر", "#c2410c"); }
       }
-      // اتجاه واحد: ممنوع عكسه
-      if (n.e.oneway && sp > 6 && n.t > 50 && n.t < n.e.len - 50) {
-        const A = map.nodes[n.e.oneway], B = map.nodes[other(n.e, n.e.oneway)];
-        const dot = (Math.cos(P.a) * (B.x - A.x) + Math.sin(P.a) * (B.y - A.y)) / n.e.len * Math.sign(P.v);
-        if (dot < -0.5 && st8.t - (st8.wrongT || -9) > 5) { st8.wrongT = st8.t; st8.wrong++; lose(1); snd.no(); say("⛔ اتجاه ممنوع! هذا الشارع باتجاه واحد: نقصت نجمة", "#dc2626"); }
+      // ذهاب وإياب: السير في الجهة اليمنى
+      if (!n.e.oneway && P.v > 15 && n.t > 70 && n.t < n.e.len - 70) {
+        const A = map.nodes[n.e.a], B = map.nodes[n.e.b], ex = (B.x - A.x) / n.e.len, ey = (B.y - A.y) / n.e.len;
+        const fwd = Math.cos(P.a) * ex + Math.sin(P.a) * ey >= 0 ? 1 : -1;
+        const side = ((P.x - n.px) * -ey + (P.y - n.py) * ex) * fwd;   // موجب = يمين
+        if (side < -3) {
+          st8.left = (st8.left || 0) + dt;
+          if (st8.left > 1.2 && st8.t - (st8.leftT || -9) > 4) { st8.leftT = st8.t; snd.no(); say("➡️ قُد في الجهة اليمنى من الطريق!", "#c2410c"); }
+          if (st8.left > 5) { st8.left = 0; st8.wrong++; lose(1); say("⛔ بقيت في الجهة اليسرى: نقصت نجمة", "#dc2626"); }
+        } else st8.left = 0;
       }
       // الإشارة الحمراء
       for (const k of map.lights) {
@@ -761,7 +803,8 @@
       g.setTransform(1, 0, 0, 1, 0, 0);
       if (use3d) {
         g.clearRect(0, 0, cv.width, cv.height);
-        d3.render({ x: P.x, y: P.y, a: P.a, camA: P.camA, v: Math.abs(P.v), alt: P.alt, roll: P.roll, t: st8.t, npcs: npcs.map(npcPos), lightGreen: (k) => lightGreen(map, k, st8.t) });
+        const gd = st8.phase === "drive" ? guide() : null;
+        d3.render({ guide: gd ? gd.a : null, x: P.x, y: P.y, a: P.a, camA: P.camA, v: Math.abs(P.v), alt: P.alt, roll: P.roll, t: st8.t, npcs: npcs.map(npcPos), lightGreen: (k) => lightGreen(map, k, st8.t) });
         g.setTransform(VS, 0, 0, VS, VX, VY);
       } else {
         g.fillStyle = "#0f172a"; g.fillRect(0, 0, cv.width, cv.height);
@@ -812,7 +855,7 @@
       if (st8.phase === "map") {
         g.fillStyle = "rgba(255,255,255,.95)"; rr(g, 140, H - 150, W - 280, 130, 30); g.fill();
         text(g, `🔎 ابحث عن أقصر طريق إلى ${toName}`, W / 2, H - 112, 38, "#1e3a8a");
-        text(g, fly ? "الطيارة تطير فوق كل شيء: أقصر طريق هو الخط المستقيم ✈️" : "🚧 طريق مغلق  ·  ➡ اتجاه واحد  ·  📷 رادار  ·  🚦 إشارة", W / 2, H - 70, 26, "#475569");
+        text(g, fly ? "الطيارة تطير فوق كل شيء: أقصر طريق هو الخط المستقيم ✈️" : "🚧 طريق مغلق  ·  📷 رادار  ·  🚦 إشارة  ·  ⬆️ السهم الأخضر يدلّك", W / 2, H - 70, 26, "#475569");
         const pulse = 1 + Math.sin(st8.t * 5) * 0.04;
         g.save(); g.translate(W / 2, H - 28); g.scale(pulse, pulse); g.fillStyle = "#16a34a"; rr(g, -190, -22, 380, 44, 22); g.fill();
         text(g, "اضغط الزر السفلي أو Enter للانطلاق", 0, 1, 24, "#fff"); g.restore();
@@ -834,6 +877,14 @@
         g.translate(P.x, P.y); g.rotate(P.a); g.fillStyle = "#f59e0b"; g.strokeStyle = "#fff"; g.lineWidth = 2.5 / m.s;
         g.beginPath(); g.moveTo(12 / m.s, 0); g.lineTo(-8 / m.s, -8 / m.s); g.lineTo(-8 / m.s, 8 / m.s); g.closePath(); g.fill(); g.stroke();
         g.restore();
+        // اسم الشارع أو الطريق الحالي
+        if (!fly && st8.edge) {
+          const nm = (city ? "📍 " : "🛣️ ") + st8.edge.name + (city ? "" : ` · ${st8.edge.limit} كم/س`);
+          g.font = FONT(24); const tw = Math.max(m.c.width, g.measureText(nm).width + 40);
+          g.fillStyle = city ? "#1e3a8a" : st8.edge.type === "h" ? (st8.edge.name[0] === "E" ? "#16a34a" : "#1d4ed8") : "#334155";
+          rr(g, 14, 22 + m.c.height, tw, 44, 12); g.fill(); g.strokeStyle = "#fff"; g.lineWidth = 3; g.stroke();
+          text(g, nm, 14 + tw / 2, 45 + m.c.height, 24, "#fff");
+        }
       } else {
         g.fillStyle = "rgba(15,23,42,.72)"; rr(g, 20, H - 70, 420, 50, 25); g.fill();
         text(g, "🗺️ الخريطة الكبيرة (الزر العلوي أو M)", 230, H - 44, 22, "#fff");
@@ -847,14 +898,24 @@
       if (lim) { g.fillStyle = "#fff"; g.beginPath(); g.arc(W - 230, H - 60, 42, 0, 6.283); g.fill(); g.strokeStyle = "#dc2626"; g.lineWidth = 9; g.stroke(); text(g, String(lim), W - 230, H - 58, 32, "#111827"); }
       g.fillStyle = "rgba(255,255,255,.95)"; rr(g, W - 190, 78, 175, 46, 23); g.fill();
       text(g, "🛣️ " + fmtKm(map, P.drove), W - 102, 102, 24, "#1e3a8a");
+      // السهم الأخضر (الدليل)
+      const GDh = st8.phase === "drive" ? guide() : null;
+      if (GDh) {
+        let rel = GDh.a - P.a; while (rel > Math.PI) rel -= 2 * Math.PI; while (rel < -Math.PI) rel += 2 * Math.PI;
+        g.fillStyle = "rgba(255,255,255,.95)"; g.beginPath(); g.arc(W - 102, 182, 44, 0, 6.283); g.fill(); g.strokeStyle = "#16a34a"; g.lineWidth = 5; g.stroke();
+        g.save(); g.translate(W - 102, 182); g.rotate(rel); g.fillStyle = "#16a34a";
+        g.beginPath(); g.moveTo(0, -32); g.lineTo(24, -4); g.lineTo(9, -4); g.lineTo(9, 28); g.lineTo(-9, 28); g.lineTo(-9, -4); g.lineTo(-24, -4); g.closePath(); g.fill(); g.restore();
+      }
       // لوحة التقاطع
       const J = !full && st8.phase === "drive" ? junction() : null;
       if (J && J.out.length) {
         const n = J.out.length, tw = 230, x0 = W / 2 - (n * tw + (n - 1) * 10) / 2;
         g.fillStyle = "rgba(15,23,42,.55)"; rr(g, x0 - 14, H - 128, n * tw + (n - 1) * 10 + 28, 112, 22); g.fill();
         text(g, `تقاطع بعد ${fmtKm(map, J.d)}`, W / 2, H - 140, 22, "#fff", "#0f172a", 6);
+        const GD = guide();
         J.out.forEach((o, i) => {
           const x = x0 + i * (tw + 10);
+          if (GD && GD.next === o.q && GD.node === J.node) { g.fillStyle = "#22c55e"; rr(g, x - 6, H - 124, tw + 12, 104, 20); g.fill(); }
           const col = !o.ok ? "#94a3b8" : city ? "#ffffff" : o.q.type === "h" ? (o.q.name[0] === "E" ? "#16a34a" : "#1d4ed8") : "#ffffff";
           const dark = col === "#16a34a" || col === "#1d4ed8";
           g.fillStyle = col; rr(g, x, H - 118, tw, 92, 16); g.fill(); g.lineWidth = 3; g.strokeStyle = "#0f172a"; g.stroke();
