@@ -44,6 +44,9 @@ export async function tvSection(sc, section) {
   open(tvTab);
 }
 
+// البند 63: بطاقات الشاشة الرئيسية للبالغين (بترتيب العرض)
+const HOME_CARDS = [['prayer', '🕌 مواقيت الصلاة'], ['text', '📖 نص اليوم'], ['word', '🔤 كلمة اليوم'], ['calendar', '📅 التقويم والمناسبات'],
+  ['family', '👨‍👩‍👧 العائلة (أعياد الميلاد والنجوم)'], ['memory', '📸 ذكرى من هذا اليوم']];
 // التبويب المفتوح يبقى بعد الحفظ وإعادة التحميل
 let tvTab = 'screen';
 const TV_TABS = [
@@ -579,7 +582,10 @@ function settingsCard(d, reload) {
       <label class="check"><input type="checkbox" name="ad_pause"> إيقاف الفيديو والأناشيد مؤقتاً أثناء الأذان</label>
       <div class="ad-files small" style="margin-top:6px"></div>
     </div></div>
-    <div data-p="daily"><h4>${icon('book')} كلمة اليوم</h4>
+    <div data-p="daily"><h4>🏠 البطاقات في الشاشة الرئيسية (للبالغين)</h4>
+    <div style="display:flex;gap:16px;flex-wrap:wrap">${HOME_CARDS.map(([k, n]) => `<label class="check" style="margin:0"><input type="checkbox" name="hc_${k}"> ${n}</label>`).join('')}</div>
+    <p class="muted small" style="margin:4px 0 12px">تظهر بهذا الترتيب في عمودين بجانب الساعة. إن لم يتسع المكان لكلها لا تظهر الأخيرة (أنسب عدد: 3 أو 4).</p>
+    <h4>${icon('book')} كلمة اليوم</h4>
     <label class="check" style="display:inline-flex;margin-inline-end:16px"><input type="checkbox" name="w_fr"> الفرنسية</label>
     <label class="check" style="display:inline-flex"><input type="checkbox" name="w_en"> الإنجليزية</label>
     <p class="muted small" style="margin:6px 0 0">تتغيّر الكلمة مع كل تسجيل دخول، وتظهر في صفحة كل شخص.</p>
@@ -672,6 +678,7 @@ function settingsCard(d, reload) {
   for (const k of ['hadith', 'ayah', 'proverb', 'wisdom']) f('dk_' + k).checked = (s.daily_kinds || []).includes(k);
   f('saver_kind').value = s.saver_kind || 'prayer'; f('saver_text').value = s.saver_text || '';
   f('weather').checked = s.weather !== false;
+  for (const [k] of HOME_CARDS) f('hc_' + k).checked = (s.home_cards || ['prayer', 'text', 'word']).includes(k);
   $('[data-x=hlist]', c).onclick = async () => {
     const r = await guard(() => api.get('/api/admin/welcome/hadith')); if (!r) return;
     modal({ title: `نصوص اليوم — كلمات: ${r.words}`, wide: true, body: h(`<div style="max-height:60vh;overflow:auto">
@@ -701,6 +708,7 @@ function settingsCard(d, reload) {
       words: ['ar', ...(f('w_fr').checked ? ['fr'] : []), ...(f('w_en').checked ? ['en'] : [])],
       daily_kinds: ['hadith', 'ayah', 'wisdom', 'proverb'].filter((k) => f('dk_' + k).checked), weather: f('weather').checked,
       saver_kind: f('saver_kind').value, saver_text: f('saver_text').value,
+      home_cards: HOME_CARDS.map(([k]) => k).filter((k) => f('hc_' + k).checked),
       source: f('source').value,
       offsets: Object.fromEntries(['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'].map((k) => [k, +f('off_' + k).value || 0])),
       adhan: { on: f('ad_on').checked, volume: +f('ad_volume').value || 80, remind: +f('ad_remind').value || 0, pause: f('ad_pause').checked,

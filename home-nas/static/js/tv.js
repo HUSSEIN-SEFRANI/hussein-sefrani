@@ -506,11 +506,58 @@ function textBody(t) {
   if (t.kind === "ayah") return `<span class="qr">﴿${esc(t.text)}﴾</span>`;
   return t.kind === "hadith" ? `«${esc(t.text)}»` : esc(t.text);
 }
-function textCard(t, kids = false, cls = "") {
+// البند 63: بطاقات الشاشة الرئيسية للبالغين، يختارها المدير (لوحة التحكم ← وضع التلفاز ← صفحة كل شخص).
+// عمودان: الأيسر (48، عرض 340) والأوسط (404، عرض 460)، من 112 حتى 525. كل بطاقة تأخذ مكانها المفضّل، أو الآخر، أو لا تظهر.
+function calendarCard() {
+  const now = new Date(), occ = nextOccasions(1)[0];
+  return `<div class="card glass hcal"><div class="hd2"><span class="emo">📅</span><div>
+    <div class="lbl">${WEEK_AR[now.getDay()]} ${now.getDate()}</div>${fmtHijri ? `<b class="js-hj"></b>` : ""}</div></div>
+    ${occ ? `<div class="occ">${occ.ic} ${occ.name}: <b>${occDays(occ.days)}</b></div>` : ""}</div>`;
+}
+function familyCard(f) {
+  if (!f || (!f.birthdays.length && !f.stars.length)) return "";
+  const bd = f.birthdays.map((b) => `<div>🎂 <b>${esc(b.name)}</b> ${b.in === 0 ? "اليوم! 🎉" : `${occDays(b.in)} (${b.age} ${b.age >= 3 && b.age <= 10 ? "سنوات" : "سنة"})`}</div>`).join("");
+  const st = f.stars.length ? `<div>⭐ ${f.stars.map((s) => `<b>${esc(s.name)}</b> ${s.stars}`).join(" · ")}</div>` : "";
+  return `<div class="card glass hfam"><div class="lbl">العائلة</div>${bd}${st}</div>`;
+}
+function memoryCard(m) {
+  if (!m) return "";
+  return `<div class="card glass hmem"><img src="/api/tv/media/${m.id}/thumb" alt="">
+    <div class="cap">📸 في مثل هذا اليوم · ${m.ago === 1 ? "قبل سنة" : m.ago === 2 ? "قبل سنتين" : `قبل ${m.ago} ${m.ago <= 10 ? "سنوات" : "سنة"}`} (${m.year})</div></div>`;
+}
+function homeCards(d, hasPrayer) {
+  const list = settings.home_cards || ["prayer", "text", "word"];
+  const one = {
+    prayer: () => (hasPrayer ? prayerCard(d.prayer, 0) : ""), text: () => textCard(d.text), word: () => wordCard(d.word, 0),
+    calendar: calendarCard, family: () => familyCard(d.family), memory: () => memoryCard(d.memory),
+  };
+  return list.map((k) => (one[k] ? one[k]() : "").replace(/^<div class="/, `<div data-hk="${k}" style="visibility:hidden" class="`)).join("");
+}
+// الأماكن تُحسب بعد العرض من الطول الحقيقي لكل بطاقة: عمود أيسر وأوسط، وتحت الساعة مكان لبطاقة صغيرة
+function layoutHome(box) {
+  if (!box || !box.isConnected || box.closest("[hidden]")) return;
+  const cols = { L: { x: 48, w: 340, y: 112, max: 999 }, C: { x: 404, w: 460, y: 112, max: 999 }, R: { x: 884, w: 350, y: 346, max: 150 } };
+  for (const c of box.querySelectorAll("[data-hk]")) {
+    const k = c.dataset.hk, pref = k === "text" ? ["C", "L"] : k === "memory" ? ["C", "L", "R"] : ["L", "C", "R"];
+    let done = false;
+    c.style.display = "";
+    c.style.transition = "none";   // الوضع الخفيف يضع مدة انتقال لكل شيء، فيُقاس الطول القديم
+    for (const n of pref) {
+      const col = cols[n];
+      c.style.left = `${col.x}px`; c.style.width = `${col.w}px`; c.style.top = `${col.y}px`;
+      if (k === "memory") c.style.height = n === "C" ? "224px" : n === "L" ? "200px" : "150px";
+      const hh = c.offsetHeight;
+      if (hh <= col.max && col.y + hh <= 525) { col.y += hh + 14; done = true; break; }
+    }
+    c.style.visibility = done ? "" : "hidden";
+    c.style.display = done ? "" : "none";
+  }
+}
+function textCard(t, kids = false, cls = "", style = "") {
   if (!t) return "";
   const icon = TEXT_ICON[t.kind] || "✨";
   const long = letters(t.text) > (kids ? 42 : 55) ? " long" : "";
-  return `<div class="tcard ${kids ? "kid" : "glass"} ${t.kind}${long} ${cls}"><div class="lbl"><span class="emo">${icon}</span> ${esc(t.label)}</div>
+  return `<div class="tcard ${kids ? "kid" : "glass"} ${t.kind}${long} ${cls}"${style ? ` style="${style}"` : ""}><div class="lbl"><span class="emo">${icon}</span> ${esc(t.label)}</div>
     <div class="tx" translate="no">${textBody(t)}</div>
     ${t.source ? `<div class="src" translate="no">${esc(t.source)}</div>` : ""}${t.explain && (kids || t.kind === "proverb") ? `<div class="ex" translate="no">${esc(t.explain)}</div>` : ""}</div>`;
 }
@@ -723,8 +770,7 @@ function adultHome(d) {
       <div class="user-pill glass"><div class="mini">${face(u)}</div><span style="font-weight:700;font-size:16px">${esc(u.name)}</span></div></div>
       <button class="pill glass f js-switch">تبديل المستخدم</button></div>
     <div class="clockbig"><div class="tm js-tm"></div><div class="dt js-dt"></div><div class="hj js-hj"></div><div class="wx js-wx">${weatherLine(d.weather)}</div></div>
-    ${textCard(d.text, false, hasPrayer ? "beside" : "solo")}
-    <div class="cards">${hasPrayer ? prayerCard(d.prayer, 112) : ""}${wordCard(d.word, hasPrayer ? 336 : 112)}</div>
+    <div class="cards">${homeCards(d, hasPrayer)}</div>
     <nav class="dock glass">${dock}${setTile}</nav></div>`);
   const tiles = Object.fromEntries(d.tiles.map((t) => [String(t.id), t]));
   el.querySelector(".js-settings")?.addEventListener("click", settingsScreen);
@@ -750,15 +796,18 @@ function adultHome(d) {
     el,
     initial: () => el.querySelector(".dk"),
     back: () => setFocus(el.querySelector(".js-switch")),
-    onShow: () => { fillBalance(el); fillPending(); },
+    onShow: () => { fillBalance(el); fillPending(); layoutHome(el.querySelector(".cards")); },
     destroy: () => clearInterval(pendTimer),
     refresh(c) {
       d.prayer = c.prayer;
-      el.querySelector(".cards").innerHTML = (hasPrayer ? prayerCard(c.prayer, 112) : "") + wordCard(d.word, hasPrayer ? 336 : 112);
+      el.querySelector(".cards").innerHTML = homeCards(d, hasPrayer);
+      layoutHome(el.querySelector(".cards")); tick();
       el.querySelector(".js-wx").innerHTML = weatherLine(c.weather);
     },
   };
   if (wp === "photos") photoWallpaper(el.querySelector(".photolayer"), scr);
+  requestAnimationFrame(() => layoutHome(el.querySelector(".cards")));
+  setTimeout(() => layoutHome(el.querySelector(".cards")), 300);   // بعد تحميل الخطوط
   return scr;
 }
 
