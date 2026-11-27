@@ -68,7 +68,7 @@
   const held = [{}, {}], edge = [{}, {}], tHeld = [{}, {}], tEdge = [{}, {}], padPrev = {};
   // ريموت التلفاز (HDMI-CEC) يرسل كل ضغطة «ضغطاً ورفعاً» في اللحظة نفسها، وإذا بقي الزر مضغوطاً يكررها.
   // فالضغطة القصيرة جداً تُعدّ مستمرة قليلاً (tapUntil) حتى يمشي الأخ بالريموت.
-  const lastDown = [{}, {}], tapUntil = [{}, {}], TAP_HOLD = 280;
+  const lastDown = [{}, {}], tapUntil = [{}, {}], TAP_HOLD = 130;
   function kbKey(e, down) {
     const m = KB[e.code] || KB[e.key];
     if (!m) return false;
@@ -503,11 +503,24 @@
       if (c.ground) { c.coy = 0.09; c.thrown = false; } else c.coy -= dt;
       if (e.jump) c.jbuf = 0.13; else c.jbuf -= dt;
       const sp = R.speed * (c.inWater ? 0.6 : 1) * (c.push > 0 ? 0.6 : 1);
-      if (!c.thrown) c.vx = dir * sp;
+      // في الهواء يحتفظ الأخ باتجاهه إذا لم يُضغط شيء (الريموت لا يضغط سهمين معاً: قفز ثم سهم يكفي)
+      if (!c.thrown && (c.ground || dir)) c.vx = dir * sp;
+      // مساعدة على التوقف: يقف الأخ على الزر القريب، ويثبت في وسط ظهر أخيه
+      if (!dir && !c.thrown && c.ground) {
+        const cx = c.x + c.w / 2;
+        let tgt = null;
+        if (c.ground === BIG || c.ground === SMALL) tgt = c.ground.x + c.ground.w / 2;
+        else {
+          const pl = plates.find((q) => !q.on && (!q.heavy || c.role === "big") && Math.abs(q.x + 0.5 - cx) < 0.75 && Math.abs(c.y + c.h - q.y - 1) < 0.1);
+          if (pl) tgt = pl.x + 0.5;
+        }
+        if (tgt !== null && Math.abs(tgt - cx) > 0.03) c.vx = clamp((tgt - cx) * 8, -2.5, 2.5);
+      }
       else if (dir && Math.sign(dir) !== Math.sign(c.vx)) c.vx *= 0.9;
       if (dir) c.face = dir;
       if (c.jbuf > 0 && c.coy > 0) {
-        c.vy = -R.jump * (c.inWater ? 0.92 : 1); c.jbuf = 0; c.coy = 0; c.ground = null; c.jt = 0.2; snd.jump();
+        const fromBro = c.ground === BIG || c.ground === SMALL;   // القفز من ظهر الأخ أعلى قليلاً
+        c.vy = -R.jump * (c.inWater ? 0.92 : fromBro ? 1.08 : 1); c.jbuf = 0; c.coy = 0; c.ground = null; c.jt = 0.2; snd.jump();
       }
       if (e.act) action(c);
       if (e.down && c.carry) putDown();
