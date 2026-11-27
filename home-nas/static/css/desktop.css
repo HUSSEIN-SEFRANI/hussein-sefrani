@@ -412,6 +412,9 @@ table.tbl tr:hover td { background: var(--surface-2); }
 .cp-tabs { display: flex; gap: 4px; flex-wrap: wrap; padding: 12px 18px 0; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); z-index: 2; }
 .cp-tabs button { border: 0; background: transparent; color: var(--muted); padding: 8px 14px; font: inherit; font-size: 14px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .cp-tabs button:hover { color: var(--text); }
+/* البند 60: أجزاء نموذج إعدادات التلفاز، يظهر منها جزء التبويب المفتوح فقط */
+.tv-set [data-p] { display: none; }
+.tv-set[data-part=look] [data-p=look], .tv-set[data-part=prayer] [data-p=prayer], .tv-set[data-part=daily] [data-p=daily] { display: block; }
 .cp-tabs button.on { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
 .perm-grid { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center; margin-top: 6px; }
 .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
