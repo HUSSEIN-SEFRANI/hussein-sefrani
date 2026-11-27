@@ -506,11 +506,58 @@ function textBody(t) {
   if (t.kind === "ayah") return `<span class="qr">﴿${esc(t.text)}﴾</span>`;
   return t.kind === "hadith" ? `«${esc(t.text)}»` : esc(t.text);
 }
-function textCard(t, kids = false, cls = "") {
+// البند 63: بطاقات الشاشة الرئيسية للبالغين، يختارها المدير (لوحة التحكم ← وضع التلفاز ← صفحة كل شخص).
+// عمودان: الأيسر (48، عرض 340) والأوسط (404، عرض 460)، من 112 حتى 525. كل بطاقة تأخذ مكانها المفضّل، أو الآخر، أو لا تظهر.
+function calendarCard() {
+  const now = new Date(), occ = nextOccasions(1)[0];
+  return `<div class="card glass hcal"><div class="hd2"><span class="emo">📅</span><div>
+    <div class="lbl">${WEEK_AR[now.getDay()]} ${now.getDate()}</div>${fmtHijri ? `<b class="js-hj"></b>` : ""}</div></div>
+    ${occ ? `<div class="occ">${occ.ic} ${occ.name}: <b>${occDays(occ.days)}</b></div>` : ""}</div>`;
+}
+function familyCard(f) {
+  if (!f || (!f.birthdays.length && !f.stars.length)) return "";
+  const bd = f.birthdays.map((b) => `<div>🎂 <b>${esc(b.name)}</b> ${b.in === 0 ? "اليوم! 🎉" : `${occDays(b.in)} (${b.age} ${b.age >= 3 && b.age <= 10 ? "سنوات" : "سنة"})`}</div>`).join("");
+  const st = f.stars.length ? `<div>⭐ ${f.stars.map((s) => `<b>${esc(s.name)}</b> ${s.stars}`).join(" · ")}</div>` : "";
+  return `<div class="card glass hfam"><div class="lbl">العائلة</div>${bd}${st}</div>`;
+}
+function memoryCard(m) {
+  if (!m) return "";
+  return `<div class="card glass hmem"><img src="/api/tv/media/${m.id}/thumb" alt="">
+    <div class="cap">📸 في مثل هذا اليوم · ${m.ago === 1 ? "قبل سنة" : m.ago === 2 ? "قبل سنتين" : `قبل ${m.ago} ${m.ago <= 10 ? "سنوات" : "سنة"}`} (${m.year})</div></div>`;
+}
+function homeCards(d, hasPrayer) {
+  const list = settings.home_cards || ["prayer", "text", "word"];
+  const one = {
+    prayer: () => (hasPrayer ? prayerCard(d.prayer, 0) : ""), text: () => textCard(d.text), word: () => wordCard(d.word, 0),
+    calendar: calendarCard, family: () => familyCard(d.family), memory: () => memoryCard(d.memory),
+  };
+  return list.map((k) => (one[k] ? one[k]() : "").replace(/^<div class="/, `<div data-hk="${k}" style="visibility:hidden" class="`)).join("");
+}
+// الأماكن تُحسب بعد العرض من الطول الحقيقي لكل بطاقة: عمود أيسر وأوسط، وتحت الساعة مكان لبطاقة صغيرة
+function layoutHome(box) {
+  if (!box || !box.isConnected || box.closest("[hidden]")) return;
+  const cols = { L: { x: 48, w: 340, y: 112, max: 999 }, C: { x: 404, w: 460, y: 112, max: 999 }, R: { x: 884, w: 350, y: 346, max: 150 } };
+  for (const c of box.querySelectorAll("[data-hk]")) {
+    const k = c.dataset.hk, pref = k === "text" ? ["C", "L"] : k === "memory" ? ["C", "L", "R"] : ["L", "C", "R"];
+    let done = false;
+    c.style.display = "";
+    c.style.transition = "none";   // الوضع الخفيف يضع مدة انتقال لكل شيء، فيُقاس الطول القديم
+    for (const n of pref) {
+      const col = cols[n];
+      c.style.left = `${col.x}px`; c.style.width = `${col.w}px`; c.style.top = `${col.y}px`;
+      if (k === "memory") c.style.height = n === "C" ? "224px" : n === "L" ? "200px" : "150px";
+      const hh = c.offsetHeight;
+      if (hh <= col.max && col.y + hh <= 525) { col.y += hh + 14; done = true; break; }
+    }
+    c.style.visibility = done ? "" : "hidden";
+    c.style.display = done ? "" : "none";
+  }
+}
+function textCard(t, kids = false, cls = "", style = "") {
   if (!t) return "";
   const icon = TEXT_ICON[t.kind] || "✨";
   const long = letters(t.text) > (kids ? 42 : 55) ? " long" : "";
-  return `<div class="tcard ${kids ? "kid" : "glass"} ${t.kind}${long} ${cls}"><div class="lbl"><span class="emo">${icon}</span> ${esc(t.label)}</div>
+  return `<div class="tcard ${kids ? "kid" : "glass"} ${t.kind}${long} ${cls}"${style ? ` style="${style}"` : ""}><div class="lbl"><span class="emo">${icon}</span> ${esc(t.label)}</div>
     <div class="tx" translate="no">${textBody(t)}</div>
     ${t.source ? `<div class="src" translate="no">${esc(t.source)}</div>` : ""}${t.explain && (kids || t.kind === "proverb") ? `<div class="ex" translate="no">${esc(t.explain)}</div>` : ""}</div>`;
 }
@@ -531,6 +578,7 @@ function loadQR() {
 }
 
 async function whoScreen(boot = false) {
+  stopBg();   // البند 62
   stopKidWatch();
   let d;
   try { d = await api("/api/tv/profiles"); } catch (e) { toast(e.message); return; }
@@ -722,8 +770,7 @@ function adultHome(d) {
       <div class="user-pill glass"><div class="mini">${face(u)}</div><span style="font-weight:700;font-size:16px">${esc(u.name)}</span></div></div>
       <button class="pill glass f js-switch">تبديل المستخدم</button></div>
     <div class="clockbig"><div class="tm js-tm"></div><div class="dt js-dt"></div><div class="hj js-hj"></div><div class="wx js-wx">${weatherLine(d.weather)}</div></div>
-    ${textCard(d.text, false, hasPrayer ? "beside" : "solo")}
-    <div class="cards">${hasPrayer ? prayerCard(d.prayer, 112) : ""}${wordCard(d.word, hasPrayer ? 336 : 112)}</div>
+    <div class="cards">${homeCards(d, hasPrayer)}</div>
     <nav class="dock glass">${dock}${setTile}</nav></div>`);
   const tiles = Object.fromEntries(d.tiles.map((t) => [String(t.id), t]));
   el.querySelector(".js-settings")?.addEventListener("click", settingsScreen);
@@ -749,15 +796,18 @@ function adultHome(d) {
     el,
     initial: () => el.querySelector(".dk"),
     back: () => setFocus(el.querySelector(".js-switch")),
-    onShow: () => { fillBalance(el); fillPending(); },
+    onShow: () => { fillBalance(el); fillPending(); layoutHome(el.querySelector(".cards")); },
     destroy: () => clearInterval(pendTimer),
     refresh(c) {
       d.prayer = c.prayer;
-      el.querySelector(".cards").innerHTML = (hasPrayer ? prayerCard(c.prayer, 112) : "") + wordCard(d.word, hasPrayer ? 336 : 112);
+      el.querySelector(".cards").innerHTML = homeCards(d, hasPrayer);
+      layoutHome(el.querySelector(".cards")); tick();
       el.querySelector(".js-wx").innerHTML = weatherLine(c.weather);
     },
   };
   if (wp === "photos") photoWallpaper(el.querySelector(".photolayer"), scr);
+  requestAnimationFrame(() => layoutHome(el.querySelector(".cards")));
+  setTimeout(() => layoutHome(el.querySelector(".cards")), 300);   // بعد تحميل الخطوط
   return scr;
 }
 
@@ -938,6 +988,7 @@ async function browseScreen(t, sub) {
 
 // ============================================================== الفيديو
 function videoScreen(t, paths, idx) {
+  stopBg();   // البند 62
   const el = h(`<div class="player"><video autoplay playsinline></video>${PREP}
     <div class="bigplay" hidden>${A.PAUSE}</div><div class="counter"></div>
     <div class="osd"><div class="tt"></div><div class="bar"><i></i></div><div class="row"><span class="ct">0:00</span><span class="du">0:00</span></div>
@@ -998,7 +1049,42 @@ function videoScreen(t, paths, idx) {
 // ============================================================== الصوتيات (أناشيد، قرآن، تسجيلات)
 // أربع طرق عرض (تُحفظ لكل مربع): قائمة، أسطوانة دوّارة، موجات صوتية، شاشة كبيرة. مع تكرار وتشغيل عشوائي
 const AUDIO_VIEWS = [["list", "📋", "قائمة"], ["vinyl", "💿", "أسطوانة"], ["waves", "🌊", "موجات"], ["big", "🖥️", "شاشة كبيرة"]];
+// البند 62: الموسيقى تستمر بعد الخروج من تطبيق الصوت، مع إشعار صغير أعلى الشاشة.
+// تتوقف عند فتح فيديو أو لعبة أو تطبيق أو كاميرا أو قصة، أو تبديل المستخدم. والضغط على الإشعار (أو فتح المربع نفسه) يرجع إلى المشغّل.
+let bgPlay = null;
+function stopBg() {
+  if (!bgPlay) return;
+  const b = bgPlay; bgPlay = null;
+  clearInterval(b.timer);
+  try { b.au.pause(); b.au.removeAttribute("src"); b.au.load(); } catch { /* */ }
+  b.au.remove(); b.pill.remove();
+}
+function startBg(t, paths, au, cur, reopen) {
+  stopBg();
+  const pill = h(`<button class="bgmusic" aria-label="الموسيقى قيد التشغيل"><span class="eq"><i></i><i></i><i></i></span><span class="tt"></span><b class="st"></b></button>`);
+  const draw = () => {
+    pill.querySelector(".tt").textContent = cur();
+    pill.querySelector(".st").textContent = au.paused ? "⏸ متوقفة" : "🎵 قيد التشغيل";
+    pill.classList.toggle("paused", au.paused);
+  };
+  au.hidden = true;
+  stage.appendChild(au); stage.appendChild(pill);
+  bgPlay = { t, au, pill, timer: setInterval(draw, 1000), reopen };
+  pill.addEventListener("click", () => { const r = bgPlay?.reopen; if (r) r(); });
+  draw();
+  toast("🎵 الموسيقى مستمرة. افتح المربع نفسه للتحكم بها");
+}
+document.addEventListener("keydown", (e) => {
+  if (!bgPlay) return;
+  if (e.key === "MediaPlayPause" && !top()?.busy?.()) { bgPlay.au.paused ? bgPlay.au.play().catch(() => {}) : bgPlay.au.pause(); }
+  else if (e.key === "MediaStop") stopBg();
+});
+
 function audioScreen(t, paths, idx) {
+  // نفس المربع والموسيقى مستمرة: نكمل من حيث وصلت
+  const resume = bgPlay && bgPlay.t.id === t.id && bgPlay.paths?.join("\n") === paths.join("\n") ? { i: bgPlay.idx(), at: bgPlay.au.currentTime } : null;
+  if (resume) idx = resume.i;
+  stopBg();
   const names = paths.map((p) => p.split("/").pop().replace(/\.[^.]+$/, ""));
   const vkey = `hsef-aview-${t.id}`;
   let view = "list", repeat = "all", shuffle = false;
@@ -1014,7 +1100,7 @@ function audioScreen(t, paths, idx) {
     <div class="now"><div class="tt"></div><div class="bar"><i></i></div><div class="tms"><span class="cur">0:00</span><span class="dur"></span></div>
       <div class="vbtns"><button class="btn f js-vd">${VOL_ICON(false).replace(/34/g, "24")} −</button><button class="btn f js-vm">${VOL_ICON(true).replace(/34/g, "24")}</button><button class="btn f js-vu">${VOL_ICON(false).replace(/34/g, "24")} +</button></div>
       <div class="vbtns"><button class="btn f js-view"></button><button class="btn f js-rep"></button><button class="btn f js-shuf"></button></div></div>
-    <div class="list">${list}</div><audio autoplay></audio>
+    <div class="list">${list}</div><audio autoplay preload="auto"></audio>
     ${hints([["موافق", "تشغيل"], ["+ −", "الصوت"], [faceIcon("up"), "طريقة العرض"], [faceIcon("left"), "تكرار"], ["رجوع", "خروج"]])}</div>`);
   const au = el.querySelector("audio"), bar = el.querySelector(".now .bar i"), cover = el.querySelector(".cover");
   const fmt = (x) => (isFinite(x) ? `${Math.floor(x / 60)}:${pad(Math.floor(x % 60))}` : "");
@@ -1082,7 +1168,10 @@ function audioScreen(t, paths, idx) {
   au.addEventListener("pause", () => { cover.classList.remove("playing"); el.classList.remove("playing"); });
   au.addEventListener("ended", () => { const j = nextIdx(); if (j >= 0) load(j); });
   au.addEventListener("error", () => { toast("لا يمكن تشغيل هذا الملف"); if (idx + 1 < paths.length) setTimeout(() => load(idx + 1), 1500); });
-  el.querySelector(".js-back").addEventListener("click", pop);
+  // الخروج بزر «رجوع»: إن كان الصوت يعمل يستمر في الخلفية
+  let keep = false;
+  const leave = () => { keep = !au.paused; pop(); };
+  el.querySelector(".js-back").addEventListener("click", leave);
   el.querySelector(".js-vd").addEventListener("click", volDown);
   el.querySelector(".js-vu").addEventListener("click", volUp);
   el.querySelector(".js-vm").addEventListener("click", volMute);
@@ -1097,7 +1186,16 @@ function audioScreen(t, paths, idx) {
     el,
     initial: () => (view === "list" ? el.querySelector(`.trk[data-i="${idx}"]`) : el.querySelector(".js-view")),
     busy: () => !au.paused,
-    destroy() { stopWaves?.(); au.pause(); au.removeAttribute("src"); au.load(); },
+    back: leave,
+    destroy() {
+      stopWaves?.();
+      if (keep) {
+        startBg(t, paths, au, () => names[idx], () => { if (bgPlay) audioScreen(t, paths, idx); });
+        bgPlay.paths = paths; bgPlay.idx = () => idx;
+        return;
+      }
+      au.pause(); au.removeAttribute("src"); au.load();
+    },
     key(e) {
       if (e.key === " " || e.key === "MediaPlayPause") { au.paused ? au.play() : au.pause(); return true; }
       if (e.key === "v" || e.key === "V" || e.key === "ContextMenu") { el.querySelector(".js-view").click(); return true; }
@@ -1110,6 +1208,7 @@ function audioScreen(t, paths, idx) {
   setView(view);
   drawModes();
   load(idx);
+  if (resume && resume.at > 1) au.addEventListener("loadedmetadata", () => { try { au.currentTime = resume.at; } catch { /* */ } }, { once: true });
 }
 
 // ============================================================== عارض الصور وعرض الشرائح
@@ -1317,6 +1416,7 @@ async function camerasScreen(t) {
 }
 
 function camLiveScreen(cams, idx, auto = false) {
+  stopBg();   // البند 62
   const SEQ_SEC = 10;
   const el = h(`<div class="player cam-live"><video autoplay playsinline></video><img class="cam-img" alt="" hidden>
     <div class="osd"><div class="tt"></div><div class="keys"><span><b>← →</b>كاميرا أخرى</span><span><b>موافق</b>التسجيلات</span><span><b>⬆</b>${auto ? "إيقاف التبديل" : "تبديل تلقائي"}</span><span><b>رجوع</b>كل الكاميرات</span></div></div></div>`);
@@ -1492,6 +1592,7 @@ function carryProgress(tid, path) {
 }
 
 async function gameScreen(t, path) {
+  stopBg();   // البند 62
   const gname = gameName(t, path);
   carryProgress(t.id, path);
   if (isKid()) {
@@ -1537,6 +1638,7 @@ async function gameScreen(t, path) {
 
 // البند 46: تطبيق مدمج في النظام (مثل «الرسائل») داخل إطار، و«رجوع» يخرج منه ويحدّث الشاشة الرئيسية
 function appScreen(url, title) {
+  stopBg();   // البند 62
   const el = h(`<div class="game"><iframe src="${url}" allow="autoplay; fullscreen; gamepad" title="${esc(title)}"></iframe>
     <div class="exit">للخروج اضغط «رجوع» (Esc)</div></div>`);
   const fr = el.querySelector("iframe");
@@ -1632,6 +1734,7 @@ async function storiesScreen(t) {
   push({ el, initial: () => el.querySelector(".kcard") || el.querySelector(".js-back") });
 }
 function storyPlayer(t, x) {
+  stopBg();   // البند 62
   const el = h(`<div class="bg-dark kplay" style="--glow1:#ec489966">
     <div class="cover" style="background:${A.gradient(t.color)}"><span class="emo">🎧</span></div>
     <h1>${esc(x.title)}</h1><div class="by">${x.by ? `بصوت ${nm(esc(x.by))}` : ""}</div>
@@ -1765,8 +1868,9 @@ async function bookScreen(t, path) {
 
 // ============================================================== شاشة التوقف + منع إطفاء الشاشة
 // الأنواع: مواقيت الصلاة، صوري، نار، نص، أمطار، درب التبانة، وتنويع (يتبدّل كل 4 دقائق)
-const SAVERS = [["prayer", "مواقيت الصلاة", "🕌"], ["photos", "صوري", "🖼️"], ["fire", "نار", "🔥"], ["text", "نص", "📜"],
-  ["rain", "أمطار", "🌧️"], ["galaxy", "درب التبانة", "🌌"], ["mix", "تنويع", "🔀"]];
+const SAVERS = [["prayer", "مواقيت الصلاة", "🕌"], ["calendar", "التقويم", "📅"], ["photos", "صوري", "🖼️"], ["nature", "الطبيعة", "🏞️"], ["sea", "تحت الماء", "🐠"],
+  ["fire", "نار", "🔥"], ["text", "نص", "📜"], ["rain", "أمطار", "🌧️"], ["snow", "ثلج", "❄️"], ["galaxy", "درب التبانة", "🌌"],
+  ["moon", "القمر الليلة", "🌕"], ["clock", "ساعة كبيرة", "🕰️"], ["mix", "تنويع", "🔀"]];
 let lastAct = Date.now();
 let saverEl = null, saverTimer = 0, saverStop = null;
 function activity() { lastAct = Date.now(); }
@@ -1789,7 +1893,7 @@ function showSaver(night, kind) {
   if (night) { el.classList.add("night"); el.innerHTML = SCLOCK; tick(); return; }
   kind = kind || (isNightNow() && prayerOk() ? "prayer" : settings.saver_kind || "prayer");   // في الليل: مواقيت الصلاة بإضاءة خفيفة
   if (kind === "mix") {
-    const order = (LITE ? ["prayer", "text"] : ["prayer", "galaxy", "fire", "text", "rain"]).filter((k) => k !== "prayer" || prayerOk());
+    const order = (LITE ? ["prayer", "text", "calendar", "clock"] : ["prayer", "galaxy", "fire", "text", "rain", "calendar", "nature", "sea", "snow", "moon"]).filter((k) => k !== "prayer" || prayerOk());
     let i = Math.floor(Math.random() * order.length);
     const run = () => {
       if (el !== saverEl) return;
@@ -1805,7 +1909,8 @@ function showSaver(night, kind) {
 }
 function startSaver(el, kind) {
   if (kind === "prayer" && !prayerOk()) kind = "galaxy";
-  const fn = { prayer: svPrayer, photos: svPhotos, fire: svFire, text: svText, rain: svRain, galaxy: svGalaxy }[kind] || svPrayer;
+  const fn = { prayer: svPrayer, photos: svPhotos, fire: svFire, text: svText, rain: svRain, galaxy: svGalaxy,
+    calendar: svCalendar, nature: svNature, sea: svSea, snow: svSnow, moon: svMoon, clock: svClock }[kind] || svPrayer;
   el.classList.add("sv-" + kind);
   const stop = fn(el);
   tick();
@@ -2150,6 +2255,236 @@ function svGalaxy(el) {
   }, 20);
 }
 
+// ================================================================ البند 61: شاشات توقف جديدة (كلها مرسومة في الجهاز، بلا إنترنت)
+// التقويم: المناسبات الهجرية القادمة من تقويم أم القرى في المتصفح نفسه
+let fmtHijriNum = null;
+try { fmtHijriNum = new Intl.DateTimeFormat("en-u-ca-islamic-umalqura-nu-latn", { day: "numeric", month: "numeric" }); } catch { /* غير مدعوم */ }
+const OCCASIONS = [[9, 1, "رمضان المبارك", "🌙"], [10, 1, "عيد الفطر", "🎉"], [12, 10, "عيد الأضحى", "🐑"], [1, 1, "رأس السنة الهجرية", "📅"], [3, 12, "المولد النبوي", "✨"]];
+function hijriDM(d) {
+  if (!fmtHijriNum) return null;
+  const p = Object.fromEntries(fmtHijriNum.formatToParts(d).map((x) => [x.type, x.value]));
+  return [+p.month, +p.day];
+}
+function nextOccasions(n = 3) {
+  if (!fmtHijriNum) return [];
+  const out = [], seen = new Set(), d = new Date(); d.setHours(12, 0, 0, 0);
+  for (let i = 0; i < 390 && out.length < n; i++) {
+    const [m, dd] = hijriDM(d);
+    for (const [om, od, name, ic] of OCCASIONS) {
+      if (m === om && dd === od && !seen.has(name)) { seen.add(name); out.push({ name, ic, days: i }); }
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+const occDays = (n) => (n === 0 ? "اليوم" : n === 1 ? "غداً" : n === 2 ? "بعد يومين" : n <= 10 ? `بعد ${n} أيام` : `بعد ${n} يوماً`);
+const WEEK_AR = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+function monthGrid(now) {
+  const y = now.getFullYear(), m = now.getMonth(), first = new Date(y, m, 1).getDay(), days = new Date(y, m + 1, 0).getDate();
+  let cells = ["ح", "ن", "ث", "ر", "خ", "ج", "س"].map((w) => `<b>${w}</b>`).join("");
+  for (let i = 0; i < first; i++) cells += "<span></span>";
+  for (let d = 1; d <= days; d++) cells += `<span class="${d === now.getDate() ? "on" : ""}">${d}</span>`;
+  return cells;
+}
+function svCalendar(el) {
+  const draw = () => {
+    const now = new Date();
+    const mon = new Intl.DateTimeFormat(AR ? "ar" : LOC, { month: "long", year: "numeric", numberingSystem: "latn" }).format(now);
+    const occ = nextOccasions(3);
+    el.innerHTML = `<div class="cl-wrap">
+      <div class="cl-main"><div class="cl-day">${WEEK_AR[now.getDay()]}</div><div class="cl-num">${now.getDate()}</div>
+        <div class="cl-g js-dt"></div>${fmtHijri ? `<div class="cl-h">🌙 <span class="js-hj"></span></div>` : ""}<div class="cl-tm js-tm"></div></div>
+      <div class="cl-side"><div class="cl-mon">${esc(mon)}</div><div class="cl-grid">${monthGrid(now)}</div>
+        ${occ.length ? `<div class="cl-occ">${occ.map((o) => `<div><span>${o.ic}</span><b>${o.name}</b><i>${occDays(o.days)}</i></div>`).join("")}</div>` : ""}</div></div>`;
+    tick();
+  };
+  draw();
+  const wrap = () => el.querySelector(".cl-wrap");
+  let day = new Date().getDate();
+  const id = setInterval(() => {
+    if (new Date().getDate() !== day) { day = new Date().getDate(); draw(); }
+    const w = wrap(); if (w) w.style.transform = `translate(${rnd(-16, 16)}px, ${rnd(-10, 10)}px)`;
+  }, 60000);
+  return () => clearInterval(id);
+}
+
+// الطبيعة: جبال وبحيرة وأشجار، والسماء حسب وقت اليوم (فجر، نهار، غروب، ليل)
+function natureSky() {
+  const h0 = new Date().getHours();
+  if (h0 >= 5 && h0 < 7) return ["dawn", "#fbcfe8", "#fde68a", "#6d6a9c"];
+  if (h0 >= 7 && h0 < 17) return ["day", "#7dd3fc", "#e0f2fe", "#4b7f6b"];
+  if (h0 >= 17 && h0 < 19) return ["dusk", "#f97316", "#fcd34d", "#5b3a56"];
+  return ["night", "#0b1026", "#1e2a52", "#141c33"];
+}
+function ridge(seed, y0, amp, step = 40) {
+  let r = seed; const R = () => { r = (r * 9301 + 49297) % 233280; return r / 233280; };
+  let d = `M0 ${y0}`;
+  for (let x = 0; x <= 1280; x += step) d += ` L${x} ${(y0 - R() * amp).toFixed(0)}`;
+  return `${d} L1280 720 L0 720Z`;
+}
+function pines(seed, n, yMin, yMax, color) {
+  let r = seed; const R = () => { r = (r * 9301 + 49297) % 233280; return r / 233280; };
+  let s = "";
+  for (let i = 0; i < n; i++) {
+    const x = R() * 1280, y = yMin + R() * (yMax - yMin), hh = 40 + R() * 50, w = hh * 0.42;
+    s += `<path d="M${x.toFixed(0)} ${(y - hh).toFixed(0)}l${w.toFixed(0)} ${hh.toFixed(0)}h${(-2 * w).toFixed(0)}z"/>`;
+  }
+  return `<g fill="${color}">${s}</g>`;
+}
+function svNature(el) {
+  const [mode, top, bot, land] = natureSky();
+  const night = mode === "night";
+  el.style.background = `linear-gradient(180deg, ${top} 0%, ${bot} 62%, ${land} 100%)`;
+  const sun = night ? `<circle cx="1010" cy="150" r="46" fill="#fef3c7" opacity=".95"/>` : `<circle cx="${mode === "day" ? 980 : 640}" cy="${mode === "day" ? 140 : 380}" r="${mode === "day" ? 54 : 70}" fill="${mode === "day" ? "#fff7d6" : "#fde68a"}" opacity=".95"/>`;
+  const m1 = night ? "#1f2a4a" : mode === "day" ? "#6b8fb3" : "#7c5b8a", m2 = night ? "#18213b" : mode === "day" ? "#4e7a6a" : "#5a3f62", m3 = night ? "#0f1629" : mode === "day" ? "#2f5d45" : "#3b2a45";
+  el.innerHTML = `<svg class="nt-land" viewBox="0 0 1280 720" preserveAspectRatio="none" aria-hidden="true">${sun}
+    <path d="${ridge(11, 420, 170, 80)}" fill="${m1}"/><path d="${ridge(23, 470, 110, 60)}" fill="${m2}"/>
+    <rect x="0" y="500" width="1280" height="220" fill="${night ? "#0c1430" : mode === "day" ? "#5fa8d3" : "#b45f5a"}" opacity=".85"/>
+    <g opacity=".22" transform="translate(0,1000) scale(1,-1)"><path d="${ridge(23, 470, 110, 60)}" fill="${m2}"/></g>
+    <path d="M0 560 C 200 540, 360 600, 640 590 C 900 580, 1080 540, 1280 560 V720 H0Z" fill="${m3}"/>
+    ${pines(5, 26, 600, 700, night ? "#070b17" : "#1f4030")}</svg>${SCLOCK}`;
+  const { ctx } = svCanvas(el, "nt-fx");
+  const clouds = Array.from({ length: night ? 0 : 6 }, () => ({ x: rnd(0, 1280), y: rnd(40, 260), s: rnd(0.6, 1.4), v: rnd(6, 16) }));
+  const birds = [];
+  const flies = Array.from({ length: night ? 40 : 0 }, () => ({ x: rnd(0, 1280), y: rnd(560, 700), ph: rnd(0, 6.3), v: rnd(0.3, 1) }));
+  const stars = Array.from({ length: night ? 120 : 0 }, () => ({ x: rnd(0, 1280), y: rnd(0, 380), r: rnd(0.5, 1.5), ph: rnd(0, 6.3) }));
+  const ripple = [];
+  let nextBird = 3;
+  return frameLoop((dt, t) => {
+    ctx.clearRect(0, 0, 1280, 720);
+    for (const s of stars) { ctx.fillStyle = `rgba(255,255,255,${(0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * 1.3 + s.ph))).toFixed(2)})`; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 7); ctx.fill(); }
+    for (const c of clouds) {
+      c.x += c.v * dt; if (c.x > 1400) c.x = -200;
+      ctx.fillStyle = mode === "day" ? "rgba(255,255,255,.85)" : "rgba(255,220,200,.55)";
+      for (const [dx, dy, r] of [[0, 0, 34], [34, -12, 40], [72, 0, 32], [36, 10, 30]]) { ctx.beginPath(); ctx.arc(c.x + dx * c.s, c.y + dy * c.s, r * c.s, 0, 7); ctx.fill(); }
+    }
+    if (!night) {
+      nextBird -= dt;
+      if (nextBird < 0 && birds.length < 6) { nextBird = rnd(6, 14); const y = rnd(120, 300); for (let i = 0; i < 3; i++) birds.push({ x: -40 - i * 36, y: y + i * 14, ph: rnd(0, 6) }); }
+      ctx.strokeStyle = "rgba(30,30,40,.7)"; ctx.lineWidth = 2;
+      for (let i = birds.length - 1; i >= 0; i--) {
+        const b = birds[i]; b.x += 70 * dt; if (b.x > 1340) { birds.splice(i, 1); continue; }
+        const w = 8 * Math.sin(t * 8 + b.ph);
+        ctx.beginPath(); ctx.moveTo(b.x - 12, b.y - w); ctx.quadraticCurveTo(b.x - 5, b.y - 4, b.x, b.y); ctx.quadraticCurveTo(b.x + 5, b.y - 4, b.x + 12, b.y - w); ctx.stroke();
+      }
+    }
+    for (const f of flies) {
+      f.x += Math.cos(t * f.v + f.ph) * 12 * dt; f.y += Math.sin(t * f.v * 1.3 + f.ph) * 10 * dt;
+      const a = 0.5 + 0.5 * Math.sin(t * 2 + f.ph), g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, 7);
+      g.addColorStop(0, `rgba(253,230,138,${a})`); g.addColorStop(1, "rgba(253,230,138,0)");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(f.x, f.y, 7, 0, 7); ctx.fill();
+    }
+    // لمعان خفيف على سطح البحيرة
+    if (ripple.length < 30) ripple.push({ x: rnd(0, 1280), y: rnd(505, 570), l: rnd(10, 40), a: 0 , s: rnd(0.3, 0.8) });
+    for (let i = ripple.length - 1; i >= 0; i--) {
+      const r = ripple[i]; r.a += r.s * dt; const a = Math.sin(Math.min(Math.PI, r.a)) * 0.35;
+      if (r.a > Math.PI) { ripple.splice(i, 1); continue; }
+      ctx.strokeStyle = `rgba(255,255,255,${a.toFixed(2)})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(r.x, r.y); ctx.lineTo(r.x + r.l, r.y); ctx.stroke();
+    }
+  }, 24);
+}
+
+// تحت الماء: أسماك وفقاعات وأعشاب بحرية وأشعة ضوء
+const FISH_COLORS = [["#f97316", "#fdba74"], ["#facc15", "#fef08a"], ["#38bdf8", "#bae6fd"], ["#f472b6", "#fbcfe8"], ["#a78bfa", "#ddd6fe"], ["#34d399", "#a7f3d0"]];
+function svSea(el) {
+  el.innerHTML = `<div class="sea-bg"></div><div class="sea-rays"><i></i><i></i><i></i><i></i></div>${SCLOCK}`;
+  const { ctx } = svCanvas(el, "sea-fx");
+  const fish = Array.from({ length: LITE ? 6 : 11 }, () => {
+    const dir = Math.random() < 0.5 ? 1 : -1, [c1, c2] = FISH_COLORS[(Math.random() * FISH_COLORS.length) | 0];
+    return { x: rnd(0, 1280), y: rnd(120, 560), s: rnd(0.6, 1.5), v: rnd(30, 70) * dir, ph: rnd(0, 6.3), c1, c2 };
+  });
+  const bubbles = [], weeds = Array.from({ length: 16 }, (_, i) => ({ x: 30 + i * 82 + rnd(-20, 20), h: rnd(90, 200), ph: rnd(0, 6.3), c: Math.random() < 0.5 ? "#15803d" : "#166534" }));
+  const sand = (x) => 660 + Math.sin(x / 90) * 10 + Math.sin(x / 37) * 4;
+  return frameLoop((dt, t) => {
+    ctx.clearRect(0, 0, 1280, 720);
+    for (const w of weeds) {
+      ctx.strokeStyle = w.c; ctx.lineWidth = 9; ctx.lineCap = "round"; ctx.beginPath();
+      const by = sand(w.x); ctx.moveTo(w.x, by);
+      for (let k = 1; k <= 6; k++) { const yy = by - (w.h * k) / 6; ctx.lineTo(w.x + Math.sin(t * 1.1 + w.ph + k * 0.6) * k * 4, yy); }
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#c2a36b"; ctx.beginPath(); ctx.moveTo(0, 720);
+    for (let x = 0; x <= 1280; x += 20) ctx.lineTo(x, sand(x));
+    ctx.lineTo(1280, 720); ctx.fill();
+    for (const f of fish) {
+      f.x += f.v * dt; f.y += Math.sin(t * 0.8 + f.ph) * 8 * dt;
+      if (f.v > 0 && f.x > 1360) f.x = -80; if (f.v < 0 && f.x < -80) f.x = 1360;
+      const d = f.v > 0 ? 1 : -1, L = 46 * f.s, H = 20 * f.s, tail = Math.sin(t * 9 + f.ph) * 5 * f.s;
+      ctx.save(); ctx.translate(f.x, f.y); ctx.scale(d, 1);
+      ctx.fillStyle = f.c1; ctx.beginPath(); ctx.moveTo(-L * 0.45, 0); ctx.lineTo(-L * 0.85, -H * 0.7 + tail); ctx.lineTo(-L * 0.85, H * 0.7 + tail); ctx.fill();
+      const g = ctx.createLinearGradient(0, -H, 0, H); g.addColorStop(0, f.c2); g.addColorStop(1, f.c1);
+      ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, 0, L * 0.5, H * 0.5, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(L * 0.28, -H * 0.1, 3.4 * f.s, 0, 7); ctx.fill();
+      ctx.fillStyle = "#0f172a"; ctx.beginPath(); ctx.arc(L * 0.3, -H * 0.1, 1.8 * f.s, 0, 7); ctx.fill();
+      ctx.restore();
+      if (Math.random() < 0.006 && bubbles.length < 70) bubbles.push({ x: f.x + 20 * d * f.s, y: f.y, r: rnd(2, 4), v: rnd(30, 60), ph: rnd(0, 6) });
+    }
+    if (Math.random() < 0.15 && bubbles.length < 70) bubbles.push({ x: rnd(0, 1280), y: 700, r: rnd(2, 7), v: rnd(40, 90), ph: rnd(0, 6) });
+    ctx.strokeStyle = "rgba(255,255,255,.55)"; ctx.lineWidth = 1.2;
+    for (let i = bubbles.length - 1; i >= 0; i--) {
+      const b = bubbles[i]; b.y -= b.v * dt; b.x += Math.sin(t * 3 + b.ph) * 10 * dt;
+      if (b.y < -10) { bubbles.splice(i, 1); continue; }
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7); ctx.stroke();
+    }
+  }, 30);
+}
+
+// ثلج يتساقط على قرية في الليل
+function svSnow(el) {
+  el.innerHTML = `<div class="sn-sky"></div>${skyline(53, "#1e293b", 50, 140, true)}<div class="sn-ground"></div>${SCLOCK}`;
+  const { ctx } = svCanvas(el, "sn-fx");
+  const flakes = Array.from({ length: LITE ? 140 : 300 }, () => ({ x: rnd(0, 1280), y: rnd(-720, 720), z: Math.random(), ph: rnd(0, 6.3) }));
+  return frameLoop((dt, t) => {
+    ctx.clearRect(0, 0, 1280, 720);
+    for (const f of flakes) {
+      f.y += (25 + f.z * 60) * dt; f.x += Math.sin(t * 0.7 + f.ph) * (8 + f.z * 14) * dt;
+      if (f.y > 730) { f.y = -10; f.x = rnd(0, 1280); }
+      ctx.fillStyle = `rgba(255,255,255,${(0.35 + f.z * 0.6).toFixed(2)})`; ctx.beginPath(); ctx.arc(f.x, f.y, 0.8 + f.z * 2.6, 0, 7); ctx.fill();
+    }
+  }, 30);
+}
+
+// القمر والنجوم: شكل القمر الحقيقي الليلة (طور القمر) والتاريخ الهجري
+const MOON_NAMES = ["محاق", "هلال", "تربيع أول", "أحدب متزايد", "بدر", "أحدب متناقص", "تربيع أخير", "هلال أخير"];
+function moonPhase(d = new Date()) {
+  const syn = 29.530588853, ref = Date.UTC(2000, 0, 6, 18, 14);
+  return ((((d.getTime() - ref) / 86400000) % syn) + syn) % syn / syn;   // 0 محاق، 0.5 بدر
+}
+function svMoon(el) {
+  const ph = moonPhase(), name = MOON_NAMES[Math.round(ph * 8) % 8];
+  el.innerHTML = `<div class="mn-sky">${starsHtml(160)}</div><div class="mn-info"><b>${name}</b>${fmtHijri ? `<span class="js-hj"></span>` : ""}</div>${HILLS}${SCLOCK}`;
+  const { ctx } = svCanvas(el, "mn-fx");
+  const R = 120, cx = 640, cy = 300;
+  const drawMoon = (glow) => {
+    const g = ctx.createRadialGradient(cx, cy, R * 0.8, cx, cy, R * 2.4);
+    g.addColorStop(0, `rgba(254,243,199,${0.18 * glow})`); g.addColorStop(1, "rgba(254,243,199,0)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R * 2.4, 0, 7); ctx.fill();
+    ctx.fillStyle = "#1e2440"; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.fill();
+    // الجزء المضيء: نصف دائرة + قطع ناقص حسب الطور
+    const k = Math.cos(ph * 2 * Math.PI), wax = ph < 0.5;
+    ctx.fillStyle = "#fef3c7"; ctx.beginPath();
+    ctx.arc(cx, cy, R, -Math.PI / 2, Math.PI / 2, !wax);
+    ctx.ellipse(cx, cy, Math.abs(k) * R, R, 0, Math.PI / 2, -Math.PI / 2, (k > 0) === wax ? true : false);
+    ctx.fill();
+    ctx.fillStyle = "rgba(180,160,120,.18)";
+    for (const [dx, dy, r] of [[-30, -40, 18], [35, 20, 24], [-10, 50, 12], [50, -45, 10]]) { ctx.beginPath(); ctx.arc(cx + dx, cy + dy, r, 0, 7); ctx.fill(); }
+  };
+  return frameLoop((dt, t) => { ctx.clearRect(0, 0, 1280, 720); drawMoon(0.8 + 0.2 * Math.sin(t * 0.5)); }, 8);
+}
+
+// ساعة كبيرة بلون يتغير ببطء وتتحرك قليلاً (حتى لا تحترق الشاشة)
+function svClock(el) {
+  el.innerHTML = `<div class="ck-wrap"><div class="ck-tm"><span class="js-tm"></span><i class="ck-s"></i></div><div class="ck-dt"><span class="js-dt"></span>${fmtHijri ? ` · <span class="js-hj"></span>` : ""}</div></div>`;
+  const w = el.querySelector(".ck-wrap"), s = el.querySelector(".ck-s");
+  let hue = rnd(0, 360);
+  const id = setInterval(() => {
+    s.textContent = String(new Date().getSeconds()).padStart(2, "0");
+    hue = (hue + 0.4) % 360; w.style.setProperty("--h", hue.toFixed(0));
+  }, 1000);
+  const mv = setInterval(() => { w.style.transform = `translate(${rnd(-180, 180)}px, ${rnd(-120, 120)}px)`; }, 60000);
+  return () => { clearInterval(id); clearInterval(mv); };
+}
+
 let wakeLock = null;
 async function keepAwake() {
   if (!settings.nosleep || !navigator.wakeLock || document.visibilityState !== "visible") return;
@@ -2488,23 +2823,42 @@ const SET_ICON = {
 
 // اختيار شاشة التوقف من التلفاز: تظهر فوراً للتجربة
 function saverSetScreen() {
+  // البند 61: الأسماء في قائمة فوق بعضها، وعلى الطرف معاينة كبيرة متحركة للشاشة التي عليها التركيز
   const el = subScreen("شاشة التوقف", "saver"), body = el.querySelector(".set-body");
   const draw = () => {
     const cur = settings.saver_kind || "prayer";
-    body.innerHTML = `<p class="set-msg">اختر شاشة، وستظهر لك فوراً للتجربة. اضغط أي زر للرجوع.</p>
-      <div class="sv-grid">${SAVERS.map(([k, n, ic]) => `<button class="sv-card f${k === cur ? " on" : ""}" data-k="${k}"><span class="emo">${ic}</span><b>${n}</b>${k === cur ? "<i>✓ المختارة</i>" : ""}</button>`).join("")}</div>
-      <p class="set-msg">تظهر بعد ${+settings.saver_min || 0} دقيقة بلا استعمال (تغيّر المدة من لوحة تحكم السيرفر ← وضع التلفاز).</p>`;
-    body.querySelectorAll(".sv-card").forEach((b) => b.addEventListener("click", async () => {
+    body.innerHTML = `<div class="sv-split"><div class="sv-list">${SAVERS.map(([k, n, ic]) => `<button class="sv-row f${k === cur ? " on" : ""}" data-k="${k}"><span class="emo">${ic}</span><b>${n}</b>${k === cur ? "<i>✓</i>" : ""}</button>`).join("")}</div>
+      <div class="sv-side"><div class="sv-big"><span class="emo"></span></div><div class="sv-name"></div>
+        <p class="set-msg">«موافق» = اختيارها وتجربتها بكامل الشاشة، وأي زر للرجوع.<br>تظهر بعد ${+settings.saver_min || 0} دقيقة بلا استعمال (المدة من لوحة تحكم السيرفر ← وضع التلفاز).</p></div></div>`;
+    body.querySelectorAll(".sv-row").forEach((b) => b.addEventListener("click", async () => {
       const k = b.dataset.k;
       try { await api("/api/tv/admin/saver", { json: { kind: k } }); } catch (e) { toast(e.message); return; }
       settings.saver_kind = k;
-      draw();
-      setFocus(body.querySelector(`.sv-card[data-k="${k}"]`));
+      draw(); shown = null;
+      setFocus(body.querySelector(`.sv-row[data-k="${k}"]`));
       showSaver(false, k);
     }));
   };
   draw();
-  push({ el, initial: () => el.querySelector(".sv-card.on") || el.querySelector(".sv-card") });
+  push({ el, initial: () => el.querySelector(".sv-row.on") || el.querySelector(".sv-row"), onFocus: (f) => f.scrollIntoView?.({ block: "nearest" }) });
+  // معاينة واحدة فقط في كل مرة (أخف على الجهاز)، تتبدّل مع التركيز
+  let shown = null, pvStop = null;
+  const stopPv = () => { try { pvStop?.(); } catch { /* */ } pvStop = null; body.querySelector(".sv-big .sv-mini")?.remove(); };
+  const pvId = setInterval(() => {
+    if (!el.isConnected) { stopPv(); clearInterval(pvId); return; }
+    if (saverEl) { stopPv(); shown = null; return; }
+    const row = body.querySelector(".sv-row.focus") || body.querySelector(".sv-row.on");
+    const k = row?.dataset.k;
+    if (!k || k === shown) return;
+    stopPv(); shown = k;
+    const [, n, ic] = SAVERS.find((x) => x[0] === k);
+    body.querySelector(".sv-name").textContent = k === "mix" ? `${n}: تتبدّل الشاشات كل 4 دقائق` : n;
+    body.querySelector(".sv-big .emo").textContent = ic;
+    if (k === "mix") return;
+    const mini = h(`<div class="saver sv-mini"></div>`);
+    body.querySelector(".sv-big").appendChild(mini);
+    try { pvStop = startSaver(mini, k); } catch { stopPv(); }
+  }, 300);
 }
 
 function subScreen(title, iconKey) {
@@ -2639,6 +2993,27 @@ async function pollBattery() {
   }
 }
 setTimeout(pollBattery, 8000); setInterval(pollBattery, 60000);
+
+// البند 65: حفظ شحن القبضات. بعد مدة بلا لعب (إعداد «إطفاء القبضات»، افتراضياً 15 دقيقة) تُفصل القبضات الموصولة بالبلوتوث،
+// فتنطفئ وتبقى مربوطة: زر PS يعيد وصلها. أي زر أو حركة عصا في أي يد (في التلفاز أو داخل لعبة) يعيد العدّ.
+let padSeen = Date.now(), padSnap = "", padSlept = false;
+async function padsOff(manual = false) {
+  try {
+    const r = await api("/api/tv/pads/off", { json: {} });
+    if (manual) toast(r.off?.length ? `🔌 أُطفئت: ${r.off.join("، ")}. اضغط زر PS لإعادة وصلها` : "لا توجد قبضة بلوتوث موصولة", 4500);
+    return r.off || [];
+  } catch (e) { if (manual) toast(e.message); return []; }
+}
+setInterval(() => {
+  const pads = livePads();
+  if (!pads.length) { padSlept = false; padSeen = Date.now(); padSnap = ""; return; }
+  const snap = pads.map((g) => g.index + ":" + g.buttons.map((b) => (b.pressed ? 1 : 0)).join("") + ":" + g.axes.map((a) => (Math.abs(a) > 0.4 ? Math.sign(a) : 0)).join("")).join("|");
+  if (snap !== padSnap) { padSnap = snap; padSeen = Date.now(); padSlept = false; return; }
+  const mins = settings?.pad_sleep ?? 15;
+  if (!mins || padSlept || Date.now() - padSeen < mins * 60000) return;
+  padSlept = true;   // مرة واحدة حتى تُستعمل يد من جديد (اليد السلكية لا تُطفأ وتبقى ظاهرة)
+  padsOff().then((off) => { if (off.length) toast(`🔌 أُطفئت القبضات بعد ${mins} دقيقة بلا لعب. اضغط زر PS لإعادة وصلها`, 6000); });
+}, 5000);
 function batFor(g, used) {
   const [v, p] = padIds(g), nm = g.id.replace(/\(.*\)/, "").trim().toLowerCase();
   const b = PADBAT.find((x) => !used.has(x.id) && ((v && x.vendor === v && x.product === p) || (x.name || "").toLowerCase() === nm));
@@ -2858,11 +3233,14 @@ function padScreen() {
     <div class="set-status"><div>آخر يد ضُغط فيها زر: <b class="ltr js-pn">اضغط أي زر في اليد…</b></div></div>
     <div class="pad-test ltr">${BTN.map(([k, t]) => `<span data-b="${k}">${t}</span>`).join("")}</div>
     <div class="set-row"><button class="btn f js-swap"></button><button class="btn f js-rum"></button><button class="btn gold f js-diag">🩺 تشخيص اليد</button></div>
+    <div class="set-row"><button class="btn f js-off">🔌 أطفئ القبضات الآن</button></div>
+    <p class="set-msg">لحفظ الشحن: تنطفئ القبضات وحدها بعد ${settings.pad_sleep ? `${settings.pad_sleep} دقيقة` : "— (مُعطّل)"} بلا لعب (المدة من لوحة تحكم السيرفر ← وضع التلفاز). زر PS يعيد وصلها.</p>
     <div class="set-row"><button class="btn gold f js-setup">🎮 إعداد يد جديدة</button>${Object.keys(PADMAPS).length ? `<button class="btn f js-reset">مسح إعدادات الأيادي (${Object.keys(PADMAPS).length})</button>` : ""}</div>
     <p class="set-msg">«إعداد يد جديدة»: لأي يد لا تعمل أزرارها صحيحة (يد عامة بلا ماركة): تضغط كل زر مرة عند السؤال، فتُحفظ لهذه اليد.</p>
     <div class="pad-legend js-legend"></div>
     <p class="set-msg">الأسهم أو العصا اليسرى للتوجيه دائماً · L1/R1 السابق/التالي · L2/R2 الصوت · Options تشغيل/إيقاف · PS الرئيسية (وفي الألعاب: الخروج)</p>`;
   el.querySelector(".js-diag").addEventListener("click", () => padDiagScreen());
+  el.querySelector(".js-off").addEventListener("click", () => padsOff(true));
   el.querySelector(".js-pair").addEventListener("click", () => { pop(); padPairScreen(() => padScreen()); });
   // تصحيح نوع اليد يدوياً: تلقائي ← بلايستيشن ← إكس بوكس ← نينتندو ← عامة ← تلقائي
   el.querySelector(".js-players").addEventListener("click", (e) => {
