@@ -9,8 +9,8 @@
 (() => {
   "use strict";
   const GAME = "حرب الديدان";
-  const save = K.store("worms", { wins: [0, 0], cpu: { easy: 0, mid: 0, hard: 0 }, set: { n: 3, time: 30, cr: 1 } });
-  if (!save.set) save.set = { n: 3, time: 30, cr: 1 };
+  const save = K.store("worms", { wins: [0, 0], cpu: { easy: 0, mid: 0, hard: 0 }, set: {} });
+  save.set = Object.assign({ n: 3, time: 30, cr: 1, talk: 1, wx: 0 }, save.set || {});
   const TM = [
     { name: "الأحمر", color: "#ef4444", dark: "#991b1b", light: "#fecaca", emo: "🔴" },
     { name: "الأزرق", color: "#3b82f6", dark: "#1e40af", light: "#bfdbfe", emo: "🔵" },
@@ -29,7 +29,11 @@
     { k: "gr", e: "💣", name: "قنبلة", r: 46, d: 55, fire: "hold" },
     { k: "sg", e: "🔫", name: "خرطوش", r: 17, d: 25, fire: "tap" },
     { k: "dy", e: "🧨", name: "ديناميت", r: 58, d: 65, fire: "tap" },
+    { k: "wb", e: "🎈", name: "بالون ماء", fire: "hold" },
+    { k: "boom", e: "🪃", name: "بوميرانغ", d: 20, fire: "hold" },
     { k: "hj", e: "🦘", name: "قفزة عالية", fire: "hold", tool: 1 },
+    { k: "para", e: "🪂", name: "مظلة", fire: "tap", tool: 1 },
+    // أسلحة خاصة: تنزل في صناديق بالمظلة، ومن يلمس الصندوق يأخذ واحداً منها
     { k: "sl", e: "🩴", name: "شحاطة", r: 18, d: 30, sp: "home" },
     { k: "st", e: "🪨", name: "حجرة", r: 24, d: 40, sp: "home" },
     { k: "rc", e: "📺", name: "ريموت كنترول", r: 20, d: 30, sp: "home" },
@@ -37,17 +41,27 @@
     { k: "car", e: "🚗", name: "ضربة السيارة", r: 48, d: 60, sp: "car" },
     { k: "bt", e: "🥾", name: "البوط", r: 38, d: 50, sp: "sky" },
     { k: "ck", e: "🐔", name: "دجاجة مجنونة", r: 40, d: 45, sp: "car" },
+    { k: "bee", e: "🐝", name: "خلية نحل", d: 8, sp: "bee" },
     { k: "wm", e: "🍉", name: "بطيخة", r: 30, d: 30, sp: "throw", fire: "hold" },
+    { k: "ff", e: "🧆", name: "صحن فلافل", r: 22, d: 15, sp: "throw", fire: "hold" },
     { k: "pan", e: "🍳", name: "ضربة المقلاة", r: 0, d: 25, sp: "melee", fire: "tap" },
+    { k: "brl", e: "🛢️", name: "برميل زيت", r: 46, d: 45, sp: "place", fire: "tap" },
+    { k: "met", e: "☄️", name: "مطر نيازك", r: 26, d: 22, sp: "rain", fire: "tap" },
+    { k: "tp", e: "🌀", name: "بوابة انتقال", sp: "point", fire: "tap", tool: 1 },
+    { k: "wall", e: "🧱", name: "جدار", sp: "point", fire: "tap", tool: 1 },
   ];
-  const BASIC = 5, SPECIAL = K.range(5, WP.length);
+  const BASIC = 8, SPECIAL = K.range(8, WP.length);
   const WI = (k) => WP.findIndex((q) => q.k === k);
+  // النيازك نادرة في الصناديق
+  const crateWeapon = () => K.pick(SPECIAL.flatMap((i) => (WP[i].k === "met" ? [i] : [i, i, i])));
   const SEED = { r: 16, d: 14 };
   // كلام مضحك عند الإصابة
   const OUCH = ["آخ!", "يا ويلي!", "بدي ماما!", "ليش هيك؟!", "مش عدل!", "شو عملتلك؟", "رح أشتكي عليك!", "وجعتني!", "يا لطيف!",
     "زعلت منك", "الله يسامحك", "انتبه شوي!", "مش مضحك!", "رح أرجعلك!", "شفت نجوم!", "مين هاد؟!", "خلص بكفي!", "يا عيب الشوم!"];
   const OUCH_K = { sl: "مثل أمي بالضبط!", bt: "البوط لا يا ابني!", car: "مين أعطاك رخصة؟!", ph: "ألو؟ مين معي؟", rc: "غيّر القناة!",
-    st: "راسي يا راسي!", pan: "طبخوني!", wm: "بطيخ على راسي!", ck: "كاك كاك؟!", fall: "آخ رجلي!", dy: "طار شعري!" };
+    st: "راسي يا راسي!", pan: "طبخوني!", wm: "بطيخ على راسي!", ck: "كاك كاك؟!", fall: "آخ رجلي!", dy: "طار شعري!",
+    bee: "آي آي آي!", boom: "رجعتلك!", boomself: "ضربت حالي!", ff: "سخنة سخنة!", fb: "فلافل بالوجه!", brl: "برميل؟ جد؟!", met: "السما عم تشتي حجار!" };
+  const WXT = ["", "", "❄️ ثلج: الأرض زلقة", "🌪️ عاصفة: ريح قوية", "🌙 ليل"];
   const WIN_SAY = ["فزنا!", "يا سلام!", "هيييه!", "أبطال!", "مين قدنا؟", "رقصني يا جدع!"];
   const HATS = ["fez", "cap", "crown", "flower", "party", "chef", "none", "glasses"];
   // سماء أعلى، سماء أسفل، تلال بعيدة، عشب فاتح، عشب، تراب
@@ -112,8 +126,8 @@
         ${card("mid", "linear-gradient(135deg,#f59e0b,#f97316)")}
         ${card("hard", "linear-gradient(135deg,#ef4444,#a855f7)")}
       </div>
-      <div class="legend">🚀 بازوكا تميل مع الريح · 💣 قنبلة · 🔫 خرطوش · 🧨 ديناميت · 🦘 قفزة عالية · 🌊 الماء يرتفع آخر المباراة<br>
-        📦 صناديق من السماء: ❤️ إسعاف أو سلاح خاص يصيب غالباً: 🩴 🪨 📺 📱 🚗 🥾 🐔 🍉 🍳</div>
+      <div class="legend">🚀 بازوكا · 💣 قنبلة · 🔫 خرطوش · 🧨 ديناميت · 🎈 بالون ماء · 🪃 بوميرانغ · 🦘 قفزة · 🪂 مظلة · 🌊 الماء يرتفع آخر المباراة<br>
+        📦 صناديق من السماء: ❤️ إسعاف أو سلاح خاص: 🩴 🪨 📺 📱 🚗 🥾 🐔 🐝 🍉 🧆 🍳 🛢️ ☄️ 🌀 🧱</div>
       ${K.HELP}`, "easy");
   }
 
@@ -130,6 +144,8 @@
         ${row("🐛 عدد الديدان لكل فريق", "n", [2, 3, 4, 5], (v) => v)}
         ${row("⏱️ وقت الدور", "time", [20, 30, 45, 60], (v) => v + " ث")}
         ${row("📦 الصناديق", "cr", [0, 1, 2], (v) => ["قليلة", "عادية", "كثيرة"][v])}
+        ${row("🌦️ الطقس", "wx", [0, 1, 2, 3, 4], (v) => ["عشوائي", "عادي", "❄️ ثلج", "🌪️ عاصفة", "🌙 ليل"][v])}
+        ${row("🗣️ كلام الديدان بالصوت", "talk", [1, 0], (v) => (v ? "نعم" : "لا"))}
       </div>
       <div class="nav"><button class="btn f go" ${K.act("go", () => K.show(playScreen, mode, lvl))}><span class="emo">▶️</span> ابدأ المباراة</button></div>
       ${K.HELP}`, "go");
@@ -141,6 +157,8 @@
     const CPU = mode === "cpu", L = CPU ? LV[lvl] : null;
     const N = clamp(save.set.n | 0 || 3, 2, 5), TURN = (save.set.time || 30) * 60, CRP = [0.3, 0.5, 0.8][save.set.cr] ?? 0.5;
     const SD = 8 + 4 * N; // بعد هذا العدد من الأدوار يبدأ الماء بالارتفاع
+    const WXN = save.set.wx || 1 + ((Math.random() * 4) | 0), SNOW = WXN === 2, STORM = WXN === 3, NIGHT = WXN === 4, WMAX = 0.06 * (STORM ? 2.2 : 1);
+    const STARS = K.range(0, 70).map((i) => [(i * 173) % W, (i * 97) % 380, (i % 3) + 1]);
     K.paint(`<canvas class="war"></canvas><div class="msg"></div>
       <div class="tpad"><button data-c="l">◀</button><button data-c="r">▶</button><button data-c="u">▲</button><button data-c="d">▼</button><button data-c="j">⤴</button><button data-c="m">🎒</button><button class="fire" data-c="f">💥</button></div>`);
     const cv = K.app.querySelector("canvas"), g = cv.getContext("2d"), msg = K.app.querySelector(".msg"), tpad = K.app.querySelector(".tpad");
@@ -156,6 +174,7 @@
     const solid = new Uint8Array(W * H);
     let TH, far, worms = [], projs = [], parts = [], texts = [], clouds = [], bubbles = [], tracer = null, swing = null;
     let crates = [], ammo = [{}, {}], tgt = 0, prevA = 0, hopUsed = false, menu = null;
+    let cursor = null, wallV = true, shooter = null, firstDrown = "", slow = 0, focus = null, camX = W / 2, camY = H / 2, camZ = 1, lastTalk = 0;
     let WATER = WATER0, waterTo = WATER0, turnNo = 0;
     let state = "aim", cur = Math.random() < 0.5 ? 0 : 1, idx = [-1, -1], weap = [0, 0], wind = 0, timer = 0, power = 0, charging = false, needRel = false;
     let st = 0, frame = 0, shake = 0, ai = null, paused = false, banner = 0, bannerTxt = "", endT = 0, winner = -1, raf = 0, acc = 0, last = performance.now(), gone = false;
@@ -167,7 +186,8 @@
 
     // ------------------------------------------------ الأرض
     function gen() {
-      TH = THEMES[(Math.random() * THEMES.length) | 0];
+      TH = SNOW ? THEMES[2] : THEMES[(Math.random() * THEMES.length) | 0];
+      if (NIGHT) TH = ["#0b1026", "#1e293b", "#334155", ...TH.slice(3)];
       solid.fill(0);
       const p = [rnd(0, 7), rnd(0, 7), rnd(0, 7)];
       for (let x = 0; x < W; x++) {
@@ -213,14 +233,15 @@
         const c = winner < 0 ? "#334155" : TM[winner].color;
         const title = winner < 0 ? "تعادل!" : CPU ? (winner === 0 ? "فزت! 🏆" : "فاز الكمبيوتر 🤖") : `فاز ${TM[winner].name} ${TM[winner].emo}`;
         msg.innerHTML = `<div class="win up" style="--c:${c}">${title}<small>${winner < 0 ? "لم ينجُ أحد" : "الديدان الفائزة ترقص 💃🕺"}</small></div>`;
-        if (winner >= 0) team(winner).filter((w) => !w.dead).forEach((w, i) => setTimeout(() => say(w, K.pick(WIN_SAY), 140), i * 400));
+        if (winner >= 0) team(winner).filter((w) => !w.dead).forEach((w, i) => setTimeout(() => say(w, K.pick(WIN_SAY), 140), i * 900));
         K.sfx.win();
         return;
       }
       if (!first) { cur = 1 - cur; turnNo++; }
+      cursor = null; worms.forEach((o) => (o.chute = false));
       const tm = team(cur); do { idx[cur] = (idx[cur] + 1) % N; } while (tm[idx[cur]].dead);
-      wind = rnd(-1, 1) * 0.06; timer = TURN; power = 0; charging = false; needRel = true; state = "aim"; hopUsed = false;
-      banner = 80; bannerTxt = "";
+      wind = rnd(-1, 1) * WMAX; timer = TURN; power = 0; charging = false; needRel = true; state = "aim"; hopUsed = false;
+      banner = first && WXT[WXN] ? 140 : 80; bannerTxt = first ? WXT[WXN] : "";
       ai = human(cur) ? null : { t: L.wait + 30, plan: null };
       if (!has(cur, weap[cur])) weap[cur] = 0;
       prevA = 0; const T = targets(), cw = curW();
@@ -235,12 +256,20 @@
     function say(w, s, t = 110) {
       if (w.drown) return;
       bubbles = bubbles.filter((b) => b.w !== w); bubbles.push({ w, s, t });
+      const now = Date.now();
+      if (save.set.talk && now - lastTalk > 1300) { lastTalk = now; try { K.tts(s.replace(/[^\u0600-\u06FF\s!؟?،]/g, "").trim()); } catch {} }
+    }
+    function finalBlow(w) {
+      if (team(w.t).some((o) => !o.dead) || slow) return;
+      slow = 110; focus = { x: w.x, y: w.y };
+      texts.push({ x: w.x, y: w.y - 110, t: 120, s: "🎬 الضربة القاضية!", c: "#fde047" });
     }
     function hurt(w, d, k) {
       if (w.dead || d <= 0) return;
       w.hp = Math.max(0, w.hp - d); w.ouch = 50;
+      if (shooter) { if (w.t !== shooter.t) shooter.dmg = (shooter.dmg || 0) + d; else shooter.self = (shooter.self || 0) + d; }
       texts.push({ x: w.x, y: w.y - 50, t: 70, s: "-" + d, c: TM[w.t].color });
-      if (!w.hp) { w.dead = true; texts.push({ x: w.x, y: w.y - 74, t: 90, s: "وداعاً " + w.name, c: "#fff" }); bubbles = bubbles.filter((b) => b.w !== w); }
+      if (!w.hp) { w.dead = true; texts.push({ x: w.x, y: w.y - 74, t: 90, s: "وداعاً " + w.name, c: "#fff" }); bubbles = bubbles.filter((b) => b.w !== w); finalBlow(w); }
       else say(w, OUCH_K[k] && Math.random() < 0.7 ? OUCH_K[k] : K.pick(OUCH));
     }
     function explode(x, y, r, dm, k) {
@@ -262,8 +291,9 @@
     function wphys(w) {
       if (w.drown) return;
       if (w.ouch > 0) w.ouch--;
-      if (w.ground) { if (S(w.x, w.y + 1)) { if (w.y > WATER + 8) drown(w); return; } w.ground = false; }
+      if (w.ground) { if (S(w.x, w.y + 1)) { if (SNOW && Math.abs(w.vx) > 0.15) slide(w); if (w.y > WATER + 8) drown(w); return; } w.ground = false; }
       w.vy = Math.min(12, w.vy + G);
+      if (w.chute) { if (w.vy > 1.4) w.vy = 1.4; w.vx = clamp(w.vx + wind * 0.8, -2.5, 2.5); w.nofall = true; }
       const n = Math.ceil(Math.max(Math.abs(w.vx), Math.abs(w.vy))) || 1;
       for (let i = 0; i < n; i++) {
         const nx = w.x + w.vx / n;
@@ -272,7 +302,7 @@
         if (w.vy < 0 && S(w.x, ny - 20)) w.vy = 0;
         else if (w.vy > 0 && S(w.x, ny)) {
           if (w.vy > 7 && !w.nofall && state !== "end") hurt(w, Math.round((w.vy - 7) * 7), "fall");
-          w.vy = 0; w.vx = 0; w.ground = true; w.nofall = false; w.y = Math.floor(ny) - 1; let k = 0; while (S(w.x, w.y) && k++ < 14) w.y--; break;
+          w.vy = 0; w.vx = SNOW && Math.abs(w.vx) > 0.6 ? w.vx * 0.7 : 0; w.ground = true; w.nofall = false; w.y = Math.floor(ny) - 1; let k = 0; while (S(w.x, w.y) && k++ < 14) w.y--; break;
         } else w.y = ny;
       }
       if (w.y > WATER + 8) drown(w);
@@ -280,9 +310,18 @@
     function drown(w) {
       w.drown = true; splash(w.x); K.tone(500, 0.4, "sine", 0.1); K.tone(250, 0.5, "sine", 0.1, 0.2);
       bubbles = bubbles.filter((b) => b.w !== w);
-      if (!w.dead) { w.hp = 0; w.dead = true; texts.push({ x: w.x, y: WATER - 40, t: 90, s: "بلُب بلُب… غرق " + w.name + "!", c: "#fff" }); }
+      if (!w.dead) { w.hp = 0; w.dead = true; texts.push({ x: w.x, y: WATER - 40, t: 90, s: "بلُب بلُب… غرق " + w.name + "!", c: "#fff" }); if (!firstDrown) firstDrown = w.name; finalBlow(w); }
+    }
+    function slide(w) {   // الثلج: الدودة تتزحلق
+      const nx = clamp(w.x + w.vx, 8, W - 8); let moved = false;
+      for (let up = 0; up <= 3 && !moved; up++) if (!S(nx, w.y - up) && !S(nx, w.y - up - 14)) { w.x = nx; w.y -= up; moved = true; }
+      if (!moved) { w.vx = 0; return; }
+      let k = 0; while (!S(w.x, w.y + 1) && k++ < 4) w.y++;
+      if (!S(w.x, w.y + 1)) w.ground = false;
+      w.vx *= 0.94;
     }
     function walk(w, d) {
+      if (SNOW && w.ground) w.vx = d * 1.1;
       w.face = d; if (!w.ground || ++w.wt % 2) return;
       const nx = w.x + d; if (nx < 8 || nx > W - 8) return;
       for (let up = 0; up <= 6; up++) if (!S(nx, w.y - up) && !S(nx, w.y - up - 16)) {
@@ -293,6 +332,7 @@
     }
     function jump() {
       const w = curW();
+      if (state === "aim" && human(cur) && !menu && WP[weap[cur]].k === "wall") { wallV = !wallV; K.sfx.tick(); return; }
       if (!(state === "aim" || state === "fly") || !human(cur) || paused || menu || !w || !w.ground || w.dead) return;
       w.vy = -4.4; w.vx = w.face * 2.3; w.ground = false; K.tone(420, 0.06, "triangle", 0.08); K.tone(640, 0.08, "triangle", 0.08, 0.05);
     }
@@ -300,14 +340,14 @@
       if (state !== "aim" || !human(cur) || paused || charging) return;
       if (k !== undefined) { if (!has(cur, k)) { K.sfx.bad(); return; } weap[cur] = k; }
       else { let i = weap[cur]; do { i = (i + 1) % WP.length; } while (!has(cur, i)); weap[cur] = i; }
-      K.tone(700, 0.06, "triangle", 0.1);
+      cursor = null; K.tone(700, 0.06, "triangle", 0.1);
     }
     const mkP = (w, k, face, aim, pw) => { const a = aim * D2R, ax = Math.cos(a) * face, ay = -Math.sin(a);
       return { k, x: w.x + ax * 14, y: w.y - 11 + ay * 14, vx: ax * pw * 13, vy: ay * pw * 13, t: 0, own: w, rot: 0 }; };
     const hitW = (p) => worms.some((w) => !w.dead && (w !== p.own || p.t > 10) && (p.x - w.x) ** 2 + (p.y - w.y + 10) ** 2 < 144);
     const BOUNCE = { gr: 180, dy: 240 };
     function pstep(p) {
-      p.t++; p.vy += G; if (p.k === "bz") p.vx += wind; p.rot += p.vx * 0.05;
+      p.t++; p.vy += G; if (p.k === "bz" || p.k === "wb") p.vx += wind; p.rot += p.vx * 0.05;
       for (let i = 0; i < 4; i++) { const px = p.x, py = p.y; p.x += p.vx / 4; p.y += p.vy / 4;
         if (p.x < -80 || p.x > W + 80 || p.y > WATER) return "gone";
         if (!BOUNCE[p.k]) { if (S(p.x, p.y) || hitW(p)) return "boom"; }
@@ -321,8 +361,27 @@
         if (i > 12 && (S(x, y) || worms.some((o) => !o.dead && o !== w && (x - o.x) ** 2 + (y - o.y + 10) ** 2 < 100))) return { x, y, hit: 1 }; }
       return { x, y, hit: 0 }; }
     function fire() {
-      const w = curW(), i = weap[cur], q = WP[i], k = q.k; charging = false;
-      if (q.sp && q.sp !== "throw" && q.sp !== "melee") { fireSpecial(w, i, curTarget()); return; }
+      const w = curW(), i = weap[cur], q = WP[i], k = q.k; charging = false; shooter = w;
+      if (targeted(q) || q.sp === "rain") { fireSpecial(w, i, curTarget()); return; }
+      if (k === "para") {
+        w.chute = true; weap[cur] = 0; power = 0; needRel = true;
+        texts.push({ x: w.x, y: w.y - 90, t: 80, s: "🪂 المظلة جاهزة، اقفز!", c: "#fff" }); K.tone(600, 0.1, "sine", 0.1); K.tone(900, 0.12, "sine", 0.1, 0.1);
+        return;
+      }
+      if (q.sp === "point") {
+        const ok = k === "tp" ? tpOk() : wallOk(w);
+        if (!ok) { K.sfx.bad(); texts.push({ x: cursor.x, y: cursor.y - 30, t: 50, s: "لا يمكن هنا", c: "#fca5a5" }); needRel = true; return; }
+        ammo[cur][i]--; needRel = true; power = 0;
+        if (k === "tp") {
+          for (let j = 0; j < 20; j++) { const a = rnd(0, 7); parts.push({ x: w.x, y: w.y - 10, vx: Math.cos(a) * 3, vy: Math.sin(a) * 3, l: 30, c: "#c084fc", r: 3, g: 0 }); }
+          w.x = cursor.x; w.y = cursor.y; w.vx = 0; w.vy = 0; w.ground = false; w.nofall = true;
+          for (let j = 0; j < 20; j++) { const a = rnd(0, 7); parts.push({ x: w.x, y: w.y - 10, vx: Math.cos(a) * 3, vy: Math.sin(a) * 3, l: 30, c: "#a855f7", r: 3, g: 0 }); }
+          for (let j = 0; j < 6; j++) K.tone(300 + j * 180, 0.08, "sine", 0.08, j * 0.05);
+          state = "hop"; st = 0;
+        } else { buildWall(cursor.x, cursor.y); K.tone(160, 0.12, "square", 0.1); K.tone(200, 0.12, "square", 0.1, 0.15); }
+        cursor = null; if (!has(cur, i)) weap[cur] = 0;
+        return;
+      }
       if (q.sp) ammo[cur][i]--;
       if (k === "sg") { const r = ray(w, w.face, w.aim); tracer = { x1: w.x, y1: w.y - 11, x2: r.x, y2: r.y, t: 14 };
         K.tone(180, 0.12, "square", 0.09); noise(0.15, 0.35); K.tone(160, 0.12, "square", 0.08, 0.25); noise(0.1, 0.2);
@@ -341,18 +400,50 @@
           K.tone(1300, 0.5, "triangle", 0.16); K.tone(1950, 0.4, "sine", 0.09); K.tone(660, 0.6, "sine", 0.06, 0.05); }
         else { noise(0.15, 0.15); texts.push({ x: w.x, y: w.y - 74, t: 60, s: "ما في حدا!", c: "#fff" }); }
         toSettle();
+      } else if (k === "brl") {
+        projs.push({ k, x: w.x + w.face * 16, y: w.y - 1, vx: w.face * 2.2, vy: 0, t: 0, own: w, rot: 0, still: 0 });
+        K.tone(120, 0.2, "triangle", 0.1); state = "fly";
+      } else if (k === "boom") {
+        const a = w.aim * D2R, ax = Math.cos(a) * w.face, ay = -Math.sin(a), pw = Math.max(0.3, power);
+        projs.push({ k, x: w.x + ax * 14, y: w.y - 11 + ay * 14, vx: ax * pw * 11, vy: ay * pw * 11, ax0: ax, ay0: ay, t: 0, own: w, rot: 0, hits: new Set() });
+        K.tone(400, 0.15, "triangle", 0.08); state = "fly";
       } else if (k === "dy") {
         projs.push({ k, x: w.x + w.face * 10, y: w.y - 8, vx: w.face * 1.4, vy: -1.5, t: 0, own: w, rot: 0 });
         K.tone(900, 0.05, "square", 0.05); state = "fly";
       } else {
         projs.push(mkP(w, k, w.face, w.aim, Math.max(0.12, power))); state = "fly";
         if (k === "bz") { noise(0.35, 0.3); K.tone(220, 0.25, "sawtooth", 0.05); }
-        else if (k === "wm") { K.tone(300, 0.1, "sine", 0.1); K.tone(200, 0.1, "sine", 0.1, 0.08); }
+        else if (k === "wm" || k === "ff") { K.tone(300, 0.1, "sine", 0.1); K.tone(200, 0.1, "sine", 0.1, 0.08); }
+        else if (k === "wb") { K.tone(700, 0.1, "sine", 0.08); K.tone(500, 0.1, "sine", 0.08, 0.06); }
         else K.tone(500, 0.08, "triangle", 0.08);
       }
       power = 0;
     }
     function toSettle() { state = "settle"; st = 0; charging = false; power = 0; }
+    const tpOk = () => cursor && cursor.y < WATER - 20 && !S(cursor.x, cursor.y) && !S(cursor.x, cursor.y - 8) && !S(cursor.x, cursor.y - 18);
+    const wallRect = (x, y) => (wallV ? [x - 7, y - 30, 14, 60] : [x - 36, y - 7, 72, 14]);
+    function wallOk(w) {
+      if (!cursor) return false;
+      const [x, y, rw, rh] = wallRect(cursor.x, cursor.y);
+      if (x < 0 || y < 0 || x + rw > W || y + rh > WATER || Math.hypot(cursor.x - w.x, cursor.y - w.y) > 300) return false;
+      return !worms.some((o) => !o.drown && o.x + 9 > x && o.x - 9 < x + rw && o.y > y && o.y - 24 < y + rh);
+    }
+    function buildWall(cx, cy) {
+      const [x, y, rw, rh] = wallRect(cx, cy).map(Math.round);
+      for (let j = y; j < y + rh; j++) for (let i = x; i < x + rw; i++) solid[j * W + i] = 1;
+      tx.fillStyle = "#b45309"; tx.fillRect(x, y, rw, rh);
+      tx.strokeStyle = "#7c2d12"; tx.lineWidth = 1.5;
+      for (let j = y; j < y + rh; j += 7) for (let i = x + ((((j - y) / 7) | 0) % 2) * 6; i < x + rw; i += 12) tx.strokeRect(i, j, Math.min(12, x + rw - i), Math.min(7, y + rh - j));
+      for (let j = 0; j < 14; j++) parts.push({ x: cx + rnd(-20, 20), y: cy + rnd(-20, 20), vx: rnd(-1, 1), vy: rnd(-2, 0), l: 25, c: "#d6d3d1", r: 3, g: 1 });
+    }
+    function soak(x, y) {
+      noise(0.35, 0.4); K.tone(260, 0.18, "sine", 0.12);
+      for (let i = 0; i < 26; i++) { const a = rnd(0, 7), v = rnd(1, 6); parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 2, l: rnd(25, 45), c: i % 2 ? "#60a5fa" : "#dbeafe", r: rnd(2, 4), g: 1 }); }
+      for (const w of worms) { if (w.drown || w.dead) continue;
+        const dx = w.x - x, dy = w.y - 10 - y, d = Math.hypot(dx, dy);
+        if (d < 75) { const f = 1 - d / 80, a = Math.atan2(dy, dx || 0.01); w.vx = Math.cos(a) * f * 9; w.vy = Math.sin(a) * f * 9 - 3.5; w.ground = false;
+          say(w, K.pick(["مبلول!", "مين رشّني؟", "برد برد!", "تحممت!"])); } }
+    }
 
     // ------------------------------------------------ الأصوات الخاصة
     function impactSfx(k) {
@@ -364,6 +455,9 @@
       else if (k === "bt") { K.tone(55, 0.35, "square", 0.14); noise(0.3, 0.6); }
       else if (k === "ck") { K.tone(800, 0.06, "square", 0.08); K.tone(1100, 0.12, "square", 0.08, 0.08); K.tone(600, 0.1, "square", 0.08, 0.22); }
       else if (k === "wm") { noise(0.3, 0.55); K.tone(140, 0.18, "triangle", 0.12); }
+      else if (k === "ff" || k === "fb") { noise(0.15, 0.3); K.tone(700, 0.05, "square", 0.05); }
+      else if (k === "brl") { K.tone(50, 0.5, "sawtooth", 0.12); noise(0.6, 0.6); }
+      else if (k === "met") { K.tone(90, 0.3, "sawtooth", 0.08); }
     }
     function flySfx(p) {
       if (p.k === "ph" && p.t % 12 === 0) K.tone((p.t / 12) % 2 ? 1400 : 1750, 0.08, "sine", 0.05);
@@ -372,13 +466,16 @@
       else if (p.k === "ck" && p.t % 24 === 0) { K.tone(750, 0.05, "square", 0.06); K.tone(950, 0.06, "square", 0.06, 0.07); }
       else if (p.k === "sl" && p.t % 9 === 0) K.tone(500 + Math.random() * 200, 0.03, "triangle", 0.03);
       else if (p.k === "dy" && p.t % 6 === 0) noise(0.05, 0.08);
+      else if (p.k === "bee" && p.lead && p.t > 0 && p.t % 6 === 0) K.tone(210 + (p.t % 12) * 4, 0.07, "sawtooth", 0.025);
+      else if (p.k === "boom" && p.t % 10 === 0) K.tone(300 + Math.hypot(p.vx, p.vy) * 40, 0.06, "triangle", 0.04);
     }
 
     // ------------------------------------------------ الصناديق والأسلحة الخاصة
     const has = (t, i) => (WP[i].k === "hj" ? !hopUsed : i < BASIC || (ammo[t][i] || 0) > 0);
+    const CUST = new Set(["boom", "brl", "met"]);
     const targets = () => worms.filter((o) => !o.dead && o.t !== cur).sort((a, b) => a.x - b.x);
     const curTarget = () => { const T = targets(); return T.length ? T[((tgt % T.length) + T.length) % T.length] : null; };
-    const targeted = (q) => q.sp && q.sp !== "throw" && q.sp !== "melee";
+    const targeted = (q) => ["home", "car", "sky", "bee"].includes(q.sp);
     function dropCrate() {
       let x, k = 0;
       do { x = rnd(100, W - 100); k++; } while (k < 200 && topY(x) > WATER - 30);
@@ -395,7 +492,7 @@
         if (w) {
           if (c.med) { w.hp = Math.min(150, w.hp + 25); texts.push({ x: c.x, y: c.y - 40, t: 100, s: "+25 ❤️", c: "#4ade80" }); say(w, K.pick(["شكراً يا دكتور!", "صحتي رجعت!", "أحسن من الأول!"]));
             K.tone(523, 0.12, "sine", 0.12); K.tone(784, 0.12, "sine", 0.12, 0.1); K.tone(1047, 0.2, "sine", 0.12, 0.2); }
-          else { const i = K.pick(SPECIAL); ammo[w.t][i] = (ammo[w.t][i] || 0) + 1;
+          else { const i = crateWeapon(); ammo[w.t][i] = (ammo[w.t][i] || 0) + 1; w.crates = (w.crates || 0) + 1;
             texts.push({ x: c.x, y: c.y - 40, t: 100, s: "+ " + WP[i].e + " " + WP[i].name, c: TM[w.t].light }); K.sfx.ok(); }
           return false;
         }
@@ -403,9 +500,22 @@
       });
     }
     function fireSpecial(w, i, T) {
+      const q = WP[i];
+      shooter = w;
+      if (q.sp === "rain") {
+        ammo[cur][i]--; charging = false; power = 0;
+        for (let j = 0; j < 9; j++) projs.push({ k: "met", x: rnd(60, W - 60), y: -30, vx: rnd(-1.5, 1.5) + wind * 20, vy: rnd(3, 5), t: -j * 16, own: w, rot: 0 });
+        texts.push({ x: w.x, y: w.y - 80, t: 70, s: "☄️ مطر نيازك!", c: "#fde047" }); K.tone(200, 0.6, "sawtooth", 0.05);
+        state = "fly"; return;
+      }
       if (!T) return;
-      const q = WP[i], f = T.x > w.x ? 1 : -1;
+      const f = T.x > w.x ? 1 : -1;
       ammo[cur][i]--; charging = false; power = 0; w.face = f;
+      if (q.sp === "bee") {
+        for (let j = 0; j < 5; j++) projs.push({ k: "bee", x: w.x + f * 8, y: w.y - 20, vx: f * 2 + rnd(-1, 1), vy: -3 + rnd(-1, 1), t: -j * 10, own: w, tg: T, ph: rnd(0, 7), lead: j === 0 });
+        texts.push({ x: w.x, y: w.y - 80, t: 60, s: "🐝 خلية نحل!", c: "#fde047" });
+        state = "fly"; return;
+      }
       if (q.sp === "home") projs.push({ k: q.k, x: w.x + f * 10, y: w.y - 16, vx: f * 4, vy: -8, t: 0, own: w, tg: T, rot: 0, lx: T.x, ly: T.y - 10 });
       else if (q.sp === "car") projs.push({ k: q.k, x: w.x + f * 18, y: w.y, vy: 0, t: 0, own: w, tg: T, face: f, gr: true });
       else { projs.push({ k: "bt", x: T.x, y: -80, vx: 0, vy: 2, t: 0, own: w, tg: T });
@@ -416,9 +526,53 @@
       else if (q.sp === "home") { noise(0.12, 0.15); K.tone(600, 0.1, "triangle", 0.08); }
       state = "fly";
     }
+    function gy(x, y) { for (let d = -10; d <= 14; d++) if (S(x, y + d)) return y + d; return y + 14; }
     function sstep(p) {
       p.t++;
       const T = p.tg;
+      if (p.k === "met") {
+        if (p.t < 0) return null;
+        if (p.t === 1) for (let j = 0; j < 5; j++) K.tone(1300 - j * 160, 0.1, "sine", 0.03, j * 0.08);
+        p.vy += 0.12; p.x += p.vx; p.y += p.vy; p.rot += 0.2;
+        if (frame % 2) parts.push({ x: p.x, y: p.y, vx: rnd(-0.5, 0.5), vy: -0.5, l: 18, c: Math.random() < 0.5 ? "#f97316" : "#fde047", r: 3, g: 0 });
+        if (p.y > WATER) return "gone";
+        if (p.y > 0 && (S(p.x, p.y) || hitW(p))) return "boom";
+        return null;
+      }
+      if (p.k === "bee") {
+        if (p.t < 0) return null;
+        if (T.dead || T.drown) { p.vy -= 0.15; p.x += p.vx; p.y += p.vy; return p.y < -40 ? "gone" : null; }
+        const tx2 = T.x + Math.sin(p.t / 7 + p.ph) * 10, ty2 = T.y - 12 + Math.cos(p.t / 5 + p.ph) * 8;
+        const dx = tx2 - p.x, dy = ty2 - p.y, d = Math.hypot(dx, dy) || 1;
+        p.vx += ((dx / d) * 5.5 - p.vx) * 0.1; p.vy += ((dy / d) * 5.5 - p.vy) * 0.1;
+        p.x += p.vx + Math.sin(p.t / 3 + p.ph) * 1.2; p.y += p.vy + Math.cos(p.t / 4 + p.ph) * 1.2;
+        if (d < 12 && p.t > 20) return "sting";
+        return p.t > 420 ? "gone" : null;
+      }
+      if (p.k === "boom") {
+        p.rot += 0.5; p.vx -= p.ax0 * 0.2; p.vy -= p.ay0 * 0.2; p.vy += 0.02;
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < -40 || p.x > W + 40 || p.y > WATER || p.t > 240) return "gone";
+        if (S(p.x, p.y)) { for (let j = 0; j < 8; j++) parts.push({ x: p.x, y: p.y, vx: rnd(-2, 2), vy: rnd(-3, 0), l: 25, c: "#6b4228", r: 2, g: 1 }); K.tone(140, 0.08, "triangle", 0.1); return "gone"; }
+        for (const o of worms) if (!o.dead && !p.hits.has(o) && (o !== p.own || p.t > 25) && (p.x - o.x) ** 2 + (p.y - o.y + 10) ** 2 < 196) {
+          p.hits.add(o); hurt(o, 20, o === p.own ? "boomself" : "boom"); o.vx = Math.sign(p.vx || 1) * 3; o.vy = -3; o.ground = false;
+          K.tone(500, 0.06, "square", 0.1); noise(0.1, 0.3); }
+        return null;
+      }
+      if (p.k === "brl") {
+        p.vy += G; p.rot += p.vx / 8;
+        const nx = p.x + p.vx;
+        let moved = false;
+        for (let up = 0; up <= 3 && !moved; up++) if (!S(nx, p.y - up) && !S(nx, p.y - up - 10)) { p.x = nx; p.y -= up; moved = true; }
+        if (!moved) { if (Math.abs(p.vx) > 1.2) return "boom"; p.vx *= -0.3; }
+        if (S(p.x, p.y + 1) && p.vy >= 0) { if (p.vy > 7) return "boom"; p.vy = 0; p.vx = (p.vx + (gy(p.x + 6, p.y) - gy(p.x - 6, p.y)) * 0.012) * 0.995; }
+        else { p.y += p.vy; let k = 0; while (S(p.x, p.y) && k++ < 20) { p.y--; if (p.vy > 7) return "boom"; p.vy = 0; } }
+        if (p.y > WATER || p.x < 0 || p.x > W) return "gone";
+        if (p.t % 12 === 0 && Math.abs(p.vx) > 0.4) K.tone(90 + Math.abs(p.vx) * 30, 0.08, "triangle", 0.05);
+        if (worms.some((o) => !o.dead && (o !== p.own || p.t > 40) && Math.abs(o.x - p.x) < 16 && Math.abs(o.y - 8 - p.y) < 20)) return "boom";
+        p.still = Math.abs(p.vx) < 0.15 ? p.still + 1 : 0;
+        return p.still > 90 || p.t > 600 ? "boom" : null;
+      }
       if (p.k === "car" || p.k === "ck") {
         const f = p.face, sp = p.k === "ck" ? 2.6 : 3.2, nx = p.x + f * sp;
         let moved = false;
@@ -461,7 +615,9 @@
         if (d < R) { const dm = WP[k].d * (1 - d / R); s += o.t === w.t ? -dm * 1.6 : dm + (dm >= o.hp ? 40 : 0); } }
       return s - m * 0.05; }
     function plan(w) {
-      const si = ["bt", "car", "ck", "st", "ph", "sl", "rc"].map(WI).find((i) => (ammo[w.t][i] || 0) > 0);
+      const mi = WI("met");
+      if ((ammo[w.t][mi] || 0) > 0 && Math.random() < 0.5) return { sp: true, k: mi, target: null };
+      const si = ["bt", "car", "ck", "bee", "st", "ph", "sl", "rc"].map(WI).find((i) => (ammo[w.t][i] || 0) > 0);
       if (si !== undefined && Math.random() < 0.85) {
         const T = targets().filter((o) => !o.drown);
         if (T.length) return { sp: true, k: si, target: T.reduce((a, o) => (o.hp < a.hp ? o : a), T[0]) };
@@ -481,7 +637,7 @@
     }
 
     // ------------------------------------------------ قائمة الأسلحة
-    const MC = 5, CW = 190, CH = 120, GAPM = 16, MX = (W - (MC * CW + (MC - 1) * GAPM)) / 2, MY = 196;
+    const MC = 5, CW = 190, CH = 86, GAPM = 10, MX = (W - (MC * CW + (MC - 1) * GAPM)) / 2, MY = 150, ROWS = Math.ceil(WP.length / MC);
     const cardXY = (i) => { const col = i % MC, row = (i / MC) | 0; return [MX + (MC - 1 - col) * (CW + GAPM), MY + row * (CH + GAPM)]; };
     function openMenu() {
       if (state !== "aim" || !human(cur) || paused || charging || menu) return;
@@ -497,7 +653,7 @@
     function menuPick(i = menu.sel) {
       if (!menu) return;
       if (!has(cur, i)) { K.sfx.bad(); return; }
-      weap[cur] = i; menu = null; needRel = true; enterAt = -1; K.tone(700, 0.06, "triangle", 0.1); K.tone(1050, 0.08, "triangle", 0.1, 0.06);
+      weap[cur] = i; menu = null; needRel = true; cursor = null; enterAt = -1; K.tone(700, 0.06, "triangle", 0.1); K.tone(1050, 0.08, "triangle", 0.1, 0.06);
     }
 
     // ------------------------------------------------ التحكم
@@ -605,6 +761,12 @@
       const c = ctl(), q = WP[weap[cur]];
       if (needRel) { if (!c.f) needRel = false; c.f = false; }
       if (state === "fly") { if (c.m) walk(w, c.m); return; }   // وقت للهروب بعد الرمي
+      if (q.sp === "point") {
+        if (!cursor) cursor = { x: w.x, y: w.y - 70 };
+        cursor.x = clamp(cursor.x + c.m * 5, 10, W - 10); cursor.y = clamp(cursor.y - c.a * 5, 30, WATER - 10);
+        if (c.f) { needRel = true; fire(); }
+        return;
+      }
       if (targeted(q)) {
         if (c.a && c.a !== prevA) { tgt -= c.a; K.sfx.tick(); }
         prevA = c.a;
@@ -630,13 +792,26 @@
       if (shake > 0) shake *= 0.85;
       if (banner > 0) banner--;
       if (Math.abs(WATER - waterTo) > 0.1) WATER += (waterTo - WATER) * 0.02;
+      if (slow > 0) slow--;
+      const tz = slow > 0 && focus ? 1.7 : 1, tcx = slow > 0 && focus ? clamp(focus.x, W / 2 / tz, W - W / 2 / tz) : W / 2, tcy = slow > 0 && focus ? clamp(focus.y - 20, H / 2 / tz, H - H / 2 / tz) : H / 2;
+      camZ += (tz - camZ) * 0.08; camX += (tcx - camX) * 0.08; camY += (tcy - camY) * 0.08;
       worms.forEach(wphys);
       updCrates();
       if (state === "end") {
         endT++;
         if (winner >= 0) for (const w of team(winner)) if (!w.dead && w.ground && Math.random() < 0.05) { w.vy = -rnd(3.5, 5.5); w.vx = rnd(-0.6, 0.6); w.ground = false; w.face = -w.face; w.dance = 30; }
         if (frame % 3 === 0) parts.push({ x: rnd(0, W), y: -10, vx: rnd(-1, 1), vy: rnd(1.5, 3), l: 260, c: `hsl(${rnd(0, 360) | 0},90%,60%)`, r: rnd(3, 5), g: 0 });
-        if (endT === 330) K.replace(endScreen, { mode, lvl, w: winner });
+        if (endT === 330) {
+          const best = worms.reduce((a, o) => ((o.dmg || 0) > (a.dmg || 0) ? o : a), worms[0]);
+          const king = worms.reduce((a, o) => ((o.crates || 0) > (a.crates || 0) ? o : a), worms[0]);
+          const oops = worms.reduce((a, o) => ((o.self || 0) > (a.self || 0) ? o : a), worms[0]);
+          const titles = [];
+          if (best.dmg) titles.push(`🎯 أفضل رامٍ: ${best.name} (${best.dmg} ضرر)`);
+          if (king.crates) titles.push(`📦 ملك الصناديق: ${king.name} (${king.crates})`);
+          if (firstDrown) titles.push(`🌊 أول من غرق: ${firstDrown} 😅`);
+          if (oops.self >= 15) titles.push(`🤦 ضرب فريقه: ${oops.name}`);
+          K.replace(endScreen, { mode, lvl, w: winner, titles });
+        }
         return;
       }
       const w = curW();
@@ -648,7 +823,7 @@
         if (human(cur)) humanInput(w);
         else if (ai) {
           if (!ai.plan && ai.t <= L.wait) ai.plan = plan(w);
-          if (ai.plan && ai.plan.sp) { weap[cur] = ai.plan.k; tgt = targets().indexOf(ai.plan.target);
+          if (ai.plan && ai.plan.sp) { weap[cur] = ai.plan.k; if (ai.plan.target) tgt = targets().indexOf(ai.plan.target);
             if (ai.t > 0) ai.t--; else fireSpecial(w, ai.plan.k, ai.plan.target); return; }
           if (ai.t > 0) { ai.t--; if (ai.plan) { w.face = ai.plan.face; weap[cur] = ai.plan.k; w.aim += (ai.plan.aim - w.aim) * 0.07; } }
           else { const P = ai.plan; w.aim = P.aim; if (P.k === 2) fire(); else { charging = true; power += 1 / 75; if (power >= P.pw) { power = P.pw; fire(); } } }
@@ -661,13 +836,16 @@
         if (human(cur) && !w.dead) humanInput(w);
         const add = [];
         projs = projs.filter((p) => {
-          const r = p.tg ? sstep(p) : pstep(p);
+          const r = p.tg || CUST.has(p.k) ? sstep(p) : pstep(p);
           flySfx(p);
           if (p.k === "bz" && frame % 2) parts.push({ x: p.x, y: p.y, vx: rnd(-0.3, 0.3), vy: -0.3, l: 28, c: "rgba(240,240,240,.6)", r: 3.5, g: 0 });
           if (p.k === "dy" && frame % 2) parts.push({ x: p.x + 4, y: p.y - 12, vx: rnd(-1, 1), vy: rnd(-1.5, -0.3), l: 10, c: "#fde047", r: 1.6, g: 0 });
+          if (r === "sting") { const T = p.tg; hurt(T, WP[WI("bee")].d, "bee"); T.vx = Math.sign(p.vx || 1) * 1.5; T.vy = -1.5; T.ground = false; K.tone(1800, 0.06, "sawtooth", 0.05); return false; }
           if (r === "boom") {
-            if (p.k === "seed") explode(p.x, p.y, SEED.r, SEED.d, "seed");
+            if (p.k === "seed" || p.k === "fb") explode(p.x, p.y, p.k === "fb" ? 14 : SEED.r, p.k === "fb" ? 10 : SEED.d, p.k);
+            else if (p.k === "wb") soak(p.x, p.y);
             else { const q = WP.find((o) => o.k === p.k); explode(p.x, p.k === "car" || p.k === "ck" ? p.y - 8 : p.y, q.r, q.d, p.k); }
+            if (p.k === "ff") for (let i = 0; i < 6; i++) add.push({ k: "fb", x: p.x, y: p.y - 6, vx: rnd(-3, 3), vy: rnd(-8, -5), t: 0, own: p.own, rot: rnd(0, 7) });
             if (p.k === "wm") for (let i = 0; i < 5; i++) add.push({ k: "seed", x: p.x, y: p.y - 6, vx: rnd(-3.5, 3.5), vy: rnd(-7, -4), t: 0, own: p.own, rot: rnd(0, 7) });
             return false;
           }
@@ -683,7 +861,8 @@
     }
     function loop(ts) {
       acc += Math.min(100, ts - last); last = ts;
-      if (!paused) while (acc >= 1000 / 60) { update(); acc -= 1000 / 60; if (gone) return; }
+      const dt = 1000 / 60 / (slow > 0 ? 0.3 : 1);
+      if (!paused) while (acc >= dt) { update(); acc -= dt; if (gone) return; }
       else acc = 0;
       draw(ts);
       raf = requestAnimationFrame(loop);
@@ -707,16 +886,24 @@
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
       g.fillStyle = TH[0]; g.fillRect(0, 0, innerWidth, innerHeight);
       const sx = shake > 0.5 ? rnd(-shake, shake) : 0, sy = shake > 0.5 ? rnd(-shake, shake) : 0;
-      g.setTransform(dpr * sc, 0, 0, dpr * sc, dpr * (ox + sx * sc), dpr * (oy + sy * sc));
+      const z = camZ, zs = dpr * sc * z;
+      g.setTransform(zs, 0, 0, zs, dpr * (ox + sc * (W / 2 - camX * z) + sx * sc), dpr * (oy + sc * (H / 2 - camY * z) + sy * sc));
       const L0 = -ox / sc - 20, R0 = W + ox / sc + 20, T0 = -oy / sc - 20, B0 = H + oy / sc + 20;
       const sky = g.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, TH[0]); sky.addColorStop(1, TH[1]);
       g.fillStyle = sky; g.fillRect(L0, T0, R0 - L0, B0 - T0);
-      g.fillStyle = "#fde047"; g.beginPath(); g.arc(W * 0.8, 120, 46, 0, 7); g.fill();
-      g.fillStyle = "rgba(253,224,71,.3)"; g.beginPath(); g.arc(W * 0.8, 120, 64 + Math.sin(frame / 30) * 4, 0, 7); g.fill();
-      g.fillStyle = "rgba(255,255,255,.9)";
+      if (NIGHT) {
+        for (const [x, y, r] of STARS) { g.globalAlpha = 0.5 + 0.5 * Math.sin(frame / 20 + x); g.fillStyle = "#fff"; g.beginPath(); g.arc(x, y, r * 0.8, 0, 7); g.fill(); }
+        g.globalAlpha = 1; g.fillStyle = "#f8fafc"; g.beginPath(); g.arc(W * 0.8, 110, 40, 0, 7); g.fill();
+        g.fillStyle = TH[0]; g.beginPath(); g.arc(W * 0.8 + 16, 100, 36, 0, 7); g.fill();
+      } else {
+        g.fillStyle = "#fde047"; g.beginPath(); g.arc(W * 0.8, 120, 46, 0, 7); g.fill();
+        g.fillStyle = "rgba(253,224,71,.3)"; g.beginPath(); g.arc(W * 0.8, 120, 64 + Math.sin(frame / 30) * 4, 0, 7); g.fill();
+      }
+      g.fillStyle = STORM ? "rgba(100,116,139,.9)" : NIGHT ? "rgba(148,163,184,.35)" : "rgba(255,255,255,.9)";
       for (const c of clouds) for (const [dx, dy, r] of [[0, 0, 24], [24, 4, 18], [-24, 5, 17], [10, -11, 17]]) { g.beginPath(); g.arc(c.x + dx * c.s, c.y + dy * c.s, r * c.s, 0, 7); g.fill(); }
       g.fillStyle = TH[2]; g.beginPath(); g.moveTo(L0, H); far.forEach((y, i) => g.lineTo((i * W) / 64, y)); g.lineTo(R0, H); g.fill();
       g.drawImage(tc, 0, 0);
+      if (NIGHT) { g.fillStyle = "rgba(15,23,60,.22)"; g.fillRect(L0, T0, R0 - L0, B0 - T0); }
       crates.forEach((c) => drawCrate(g, c));
       layoutLabels();
       const cw = state === "aim" || state === "hop" || state === "fly" ? curW() : null;
@@ -731,10 +918,17 @@
         g.fillStyle = c; g.beginPath(); g.moveTo(L0, B0);
         for (let x = L0; x <= R0 + 20; x += 20) g.lineTo(x, WATER + o + Math.sin(x / 40 + frame / s) * 4);
         g.lineTo(R0, B0); g.fill(); }
+      if (STORM) { g.strokeStyle = "rgba(191,219,254,.55)"; g.lineWidth = 1.5; g.beginPath();
+        for (let i = 0; i < 90; i++) { const x = (((i * 137 + frame * (6 + wind * 80)) % (W + 200)) + W + 200) % (W + 200) - 100, y = (i * 89 + frame * 14) % H; g.moveTo(x, y); g.lineTo(x + wind * 160 + 2, y + 16); }
+        g.stroke(); }
+      if (SNOW) { g.fillStyle = "rgba(255,255,255,.85)";
+        for (let i = 0; i < 70; i++) { const x = ((((i * 173 + frame * (0.5 + wind * 25) + Math.sin(frame / 40 + i) * 20) % W) + W) % W), y = (i * 97 + frame * 1.1) % H; g.beginPath(); g.arc(x, y, 1.5 + (i % 3) * 0.6, 0, 7); g.fill(); } }
       for (const b of bubbles) drawBubble(b);
       for (const t of texts) { g.globalAlpha = Math.min(1, t.t / 20); label(t.s, t.x, t.y, 22, t.c); }
       g.globalAlpha = 1;
+      g.setTransform(dpr * sc, 0, 0, dpr * sc, dpr * ox, dpr * oy);
       hud();
+      if (slow > 0) label("🎬 حركة بطيئة", W / 2, H - 50, 28, "#fde047");
       if (menu) drawMenu();
     }
     function label(s, x, y, size, col) {
@@ -757,6 +951,16 @@
       const q = WP[weap[cur]], ax = Math.cos(w.aim * D2R) * w.face, ay = -Math.sin(w.aim * D2R), cy = w.y - 11;
       const ty = (w.ly ?? w.y - 80) - 18 + Math.sin(frame / 8) * 4;
       g.fillStyle = "#fde047"; g.strokeStyle = "#92400e"; g.lineWidth = 2; g.beginPath(); g.moveTo(w.x - 9, ty - 12); g.lineTo(w.x + 9, ty - 12); g.lineTo(w.x, ty); g.closePath(); g.fill(); g.stroke();
+      if (q.sp === "point" && cursor) {
+        const ok = q.k === "tp" ? tpOk() : wallOk(w), col = ok ? "#4ade80" : "#f87171";
+        g.strokeStyle = col; g.lineWidth = 3; g.setLineDash([6, 5]);
+        if (q.k === "wall") { const [x, y, rw, rh] = wallRect(cursor.x, cursor.y); g.fillStyle = ok ? "rgba(180,83,9,.5)" : "rgba(248,113,113,.35)"; g.fillRect(x, y, rw, rh); g.strokeRect(x, y, rw, rh); }
+        else { g.beginPath(); g.ellipse(cursor.x, cursor.y - 12, 12, 16, 0, 0, 7); g.stroke(); }
+        g.setLineDash([]); g.beginPath(); g.moveTo(cursor.x - 16, cursor.y); g.lineTo(cursor.x + 16, cursor.y); g.moveTo(cursor.x, cursor.y - 16); g.lineTo(cursor.x, cursor.y + 16); g.stroke();
+        label(q.k === "wall" ? "الأسهم للمكان · القفز يدوّر الجدار" : "الأسهم لاختيار المكان", cursor.x, cursor.y + 42, 15, "#fff");
+        return;
+      }
+      if (q.k === "para") { label(w.chute ? "🪂 المظلة جاهزة" : "اضغط للرمي ← تتجهز المظلة", w.x, w.y + 30, 15, "#fff"); return; }
       if (targeted(q)) {
         const T = curTarget(); if (!T) return;
         const r = 26 + Math.sin(frame / 6) * 3, tyy = T.y - 12;
@@ -792,7 +996,7 @@
       g.font = `30px ${EFONT}`; g.fillText(wq.e, cx + 45, 56);
       g.font = `800 ${wn.length > 9 ? 17 : 21}px ${FONT}`; g.fillStyle = wq.sp ? "#be185d" : "#1e3a8a"; g.fillText(wn, cx - 55, 50);
       g.fillStyle = "#e2e8f0"; rr(g, cx - 140, 74, 180, 16, 8); g.fill();
-      const wl = (Math.abs(wind) / 0.06) * 88;
+      const wl = Math.min(1, Math.abs(wind) / WMAX) * 88;
       g.fillStyle = "#0ea5e9"; rr(g, wind >= 0 ? cx - 50 : cx - 50 - wl, 74, wl, 16, 8); g.fill();
       g.fillStyle = "#1e3a8a"; g.fillRect(cx - 51, 70, 2, 24);
       g.font = `700 15px ${FONT}`; g.fillText("الريح", cx - 50, 106);
@@ -816,29 +1020,32 @@
     function drawMenu() {
       g.fillStyle = "rgba(15,23,42,.8)"; g.fillRect(-500, -500, W + 1000, H + 1000);
       g.direction = "rtl"; g.textAlign = "center";
-      label("🎒 اختر السلاح", W / 2, 172, 36, "#fde047");
+      label("🎒 اختر السلاح", W / 2, 132, 32, "#fde047");
       WP.forEach((q, i) => {
         const [x, y] = cardXY(i), ok = has(cur, i), sel = i === menu.sel;
         g.save(); if (sel) { g.translate(x + CW / 2, y + CH / 2); g.scale(1.06, 1.06); g.translate(-x - CW / 2, -y - CH / 2); }
         g.fillStyle = ok ? (q.sp ? "#fdf2f8" : "#fff") : "#64748b"; rr(g, x, y, CW, CH, 20); g.fill();
         if (sel) { g.strokeStyle = "#fde047"; g.lineWidth = 7; g.stroke(); }
         g.globalAlpha = ok ? 1 : 0.4;
-        g.font = `44px ${EFONT}`; g.fillText(q.e, x + CW / 2, y + 60);
-        g.font = `800 ${q.name.length > 9 ? 18 : 21}px ${FONT}`; g.fillStyle = "#1e3a8a"; g.fillText(q.name, x + CW / 2, y + 100);
+        g.font = `34px ${EFONT}`; g.fillText(q.e, x + CW / 2, y + 42);
+        g.font = `800 ${q.name.length > 9 ? 16 : 19}px ${FONT}`; g.fillStyle = "#1e3a8a"; g.fillText(q.name, x + CW / 2, y + 74);
         const n = q.k === "hj" ? (hopUsed ? "تم" : "1") : q.sp ? "×" + (ammo[cur][i] || 0) : "∞";
-        g.fillStyle = q.sp ? "#be185d" : "#64748b"; g.font = `800 17px ${FONT}`; g.textAlign = "right"; g.fillText(n, x + CW - 12, y + 24); g.textAlign = "center";
+        g.fillStyle = q.sp ? "#be185d" : "#64748b"; g.font = `800 17px ${FONT}`; g.textAlign = "right"; g.fillText(n, x + CW - 10, y + 20); g.textAlign = "center";
         g.globalAlpha = 1; g.restore();
       });
       const q = WP[menu.sel];
       const tip = { bz: "تميل مع الريح", gr: "ترتدّ وتنفجر بعد 3 ثوانٍ", sg: "طلقة مستقيمة", dy: "ضعه واهرب! ينفجر بعد 4 ثوانٍ", hj: "قفزة كبيرة بلا ضرر، ثم تكمل دورك",
         sl: "تطير وتنقضّ على الهدف", st: "تطير وتنقضّ على الهدف", rc: "يطير وينقضّ على الهدف", ph: "يرنّ وينقضّ على الهدف", car: "تسير إلى الهدف وتنفجر",
-        bt: "يسقط من السماء على الهدف", ck: "تقفز وتركض نحو الهدف", wm: "تنفجر وترمي بذورها المتفجرة", pan: "ضربة قريبة تطيّر الدودة بعيداً" }[q.k];
-      label(`${q.e} ${q.name}: ${tip}${has(cur, menu.sel) ? "" : " (غير متوفر — اجمع الصناديق 📦)"}`, W / 2, MY + 3 * (CH + GAPM) + 26, 22, "#fff");
-      label("الأسهم للتنقل · ✕ أو Enter للاختيار · ○ أو Backspace للإغلاق", W / 2, MY + 3 * (CH + GAPM) + 56, 17, "#cbd5e1");
+        bt: "يسقط من السماء على الهدف", ck: "تقفز وتركض نحو الهدف", wm: "تنفجر وترمي بذورها المتفجرة", pan: "ضربة قريبة تطيّر الدودة بعيداً",
+        wb: "لا يجرح، لكنه يدفع بقوة (إلى الماء؟)", boom: "يذهب ويرجع، وقد يصيبك أنت!", para: "تنزل ببطء بلا ضرر السقوط", bee: "نحلات تلاحق الهدف وتلسعه",
+        ff: "تتطاير منه حبات فلافل ساخنة", brl: "يتدحرج مع المنحدر وينفجر عند أول اصطدام", met: "نيازك تسقط على الخريطة كلها!",
+        tp: "اختر مكاناً وانتقل إليه، ثم أكمل دورك", wall: "ابنِ جداراً تحتمي خلفه (القفز يدوّره)" }[q.k];
+      label(`${q.e} ${q.name}: ${tip}${has(cur, menu.sel) ? "" : " (غير متوفر — اجمع الصناديق 📦)"}`, W / 2, MY + ROWS * (CH + GAPM) + 22, 20, "#fff");
+      label("الأسهم للتنقل · ✕ أو Enter للاختيار · ○ أو Backspace للإغلاق", W / 2, MY + ROWS * (CH + GAPM) + 50, 16, "#cbd5e1");
     }
 
     gen(); spawn(); nextTurn(true);
-    K.dbg = () => ({ worms, state, cur, weap, explode, nextTurn, plan, curW, crates, ammo, dropCrate, switchW, curTarget, menu, openMenu, WATER, setTurn: (n) => (turnNo = n), say });
+    K.dbg = () => ({ worms, state, cur, weap, explode, nextTurn, plan, curW, crates, ammo, dropCrate, switchW, curTarget, menu, openMenu, WATER, setTurn: (n) => (turnNo = n), say, get cursor() { return cursor; }, setCursor: (x, y) => (cursor = { x, y }), WXN, get slow() { return slow; } });
     raf = requestAnimationFrame(loop);
   }
 
@@ -853,6 +1060,7 @@
       <h1 class="endh">${title}</h1>
       <div class="score">${CPU ? `🏆 ${save.cpu[r.lvl]}` : `🔵 ${save.wins[1]} : ${save.wins[0]} 🔴`}</div>
       <div class="sub">${humanWon ? "أحسنت التصويب! 🎯" : "حاول مرة أخرى، ستفوز في المرة القادمة 💪"}</div>
+      <div class="titles">${(r.titles || []).map((t) => `<span class="pill">${t}</span>`).join("")}</div>
       <div class="earned"></div>
       <div class="nav">
         <button class="btn f go" ${K.act("again", () => K.replace(playScreen, r.mode, r.lvl))}><span class="emo">🔁</span> مباراة جديدة</button>
@@ -928,6 +1136,20 @@
       case "wm": x.rotate(p.rot); x.fillStyle = "#15803d"; x.beginPath(); x.ellipse(0, 0, 13, 10, 0, 0, 7); x.fill();
         x.strokeStyle = "#86efac"; x.lineWidth = 2; for (const o of [-6, 0, 6]) { x.beginPath(); x.ellipse(o, 0, 2, 9, 0, 0, 7); x.stroke(); } return;
       case "seed": x.rotate(p.rot); x.fillStyle = "#111827"; x.beginPath(); x.ellipse(0, 0, 3, 5, 0, 0, 7); x.fill(); return;
+      case "wb": x.fillStyle = "#3b82f6"; x.beginPath(); x.ellipse(0, 0, 9, 11, 0, 0, 7); x.fill(); x.fillStyle = "rgba(255,255,255,.5)"; x.beginPath(); x.arc(-3, -4, 2.5, 0, 7); x.fill();
+        x.fillStyle = "#1d4ed8"; x.beginPath(); x.moveTo(-2, 11); x.lineTo(2, 11); x.lineTo(0, 14); x.fill(); return;
+      case "boom": x.rotate(p.rot); x.strokeStyle = "#92400e"; x.lineWidth = 5; x.lineCap = "round"; x.beginPath(); x.moveTo(-12, 6); x.lineTo(0, -4); x.lineTo(12, 6); x.stroke();
+        x.strokeStyle = "#fbbf24"; x.lineWidth = 2; x.stroke(); x.lineCap = "butt"; return;
+      case "ff": x.fillStyle = "#fff"; x.strokeStyle = "#94a3b8"; x.lineWidth = 1.5; x.beginPath(); x.ellipse(0, 3, 15, 5, 0, 0, 7); x.fill(); x.stroke();
+        for (const [a, b] of [[-6, -1], [0, -3], [6, -1], [-3, -6], [3, -6]]) { x.fillStyle = "#92400e"; x.beginPath(); x.arc(a, b, 3.4, 0, 7); x.fill(); } return;
+      case "fb": x.rotate(p.rot); x.fillStyle = "#92400e"; x.beginPath(); x.arc(0, 0, 4.5, 0, 7); x.fill(); x.fillStyle = "#65a30d"; x.beginPath(); x.arc(1, -1, 1.2, 0, 7); x.arc(-2, 1, 1, 0, 7); x.fill(); return;
+      case "brl": x.rotate(p.rot); x.fillStyle = "#1e3a8a"; x.strokeStyle = "#0f172a"; x.lineWidth = 1.5; x.beginPath(); x.arc(0, -9, 10, 0, 7); x.fill(); x.stroke();
+        x.strokeStyle = "#fbbf24"; x.lineWidth = 2; x.beginPath(); x.arc(0, -9, 6, 0, 7); x.stroke(); x.fillStyle = "#fbbf24"; x.fillRect(-1.5, -16, 3, 14); return;
+      case "met": if (p.t < 0) return; x.fillStyle = "#7c2d12"; x.beginPath(); x.arc(0, 0, 8, 0, 7); x.fill(); x.fillStyle = "#f97316"; x.beginPath(); x.arc(-2, -2, 4, 0, 7); x.fill(); return;
+      case "bee": if (p.t < 0) return; x.scale(p.vx < 0 ? -1 : 1, 1);
+        x.fillStyle = "rgba(255,255,255,.75)"; x.beginPath(); x.ellipse(-1, -6, 4, 2.5, Math.sin(fr) * 0.8, 0, 7); x.fill();
+        x.fillStyle = "#facc15"; x.beginPath(); x.ellipse(0, 0, 6, 4, 0, 0, 7); x.fill();
+        x.fillStyle = "#111"; x.fillRect(-2, -4, 1.6, 8); x.fillRect(1.5, -4, 1.6, 8); x.beginPath(); x.arc(5, -1, 1, 0, 7); x.fill(); return;
       case "car":
         x.scale(p.face, 1); x.fillStyle = "#ef4444"; x.strokeStyle = "#7f1d1d"; x.lineWidth = 2;
         rr(x, -18, -16, 36, 11, 4); x.fill(); x.stroke(); rr(x, -9, -25, 18, 10, 4); x.fill(); x.stroke();
@@ -991,7 +1213,10 @@
     const sq = w.ground ? 1 + Math.sin(((w.wt || 0) * Math.PI) / 8) * 0.06 : 0.92;
     x.save(); x.translate(w.x, w.y); x.scale(SZ, SZ);
     if (w.dance > 0) { w.dance--; x.rotate(Math.sin(w.dance / 3) * 0.25); }
-    x.fillStyle = "rgba(0,0,0,.18)"; x.beginPath(); x.ellipse(0, 0, 9, 2, 0, 0, 7); x.fill();
+    if (w.chute && !w.ground) {
+      x.strokeStyle = "rgba(51,65,85,.7)"; x.lineWidth = 0.7; x.beginPath(); x.moveTo(-4, -18); x.lineTo(-14, -40); x.moveTo(4, -18); x.lineTo(14, -40); x.stroke();
+      ["#ef4444", "#fff", "#3b82f6", "#fff"].forEach((c, i) => { x.fillStyle = c; x.beginPath(); x.moveTo(0, -40); x.arc(0, -40, 17, Math.PI + (i * Math.PI) / 4, Math.PI + ((i + 1) * Math.PI) / 4); x.closePath(); x.fill(); });
+    } else { x.fillStyle = "rgba(0,0,0,.18)"; x.beginPath(); x.ellipse(0, 0, 9, 2, 0, 0, 7); x.fill(); }
     // الجسم: ذيل ملتف + بطن بخطوط
     x.fillStyle = "#f9a8c1"; x.strokeStyle = "#9d3b5c"; x.lineWidth = 1.3;
     x.beginPath(); x.ellipse(-f * 9, -3, 4 * sq, 3, 0, 0, 7); x.fill(); x.stroke();

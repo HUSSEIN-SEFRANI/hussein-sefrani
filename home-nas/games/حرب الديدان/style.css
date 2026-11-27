@@ -37,14 +37,15 @@ canvas.war { position: fixed; inset: 0; width: 100vw; height: 100vh; touch-actio
 }
 .msg .win.up { align-self: flex-start; margin-top: 16vh; font-size: 6vh; }
 /* إعداد المباراة */
-.setup { display: flex; flex-direction: column; gap: 2vh; margin: 3vh 0; align-items: stretch; flex: 0 0 auto; }
-.setrow { flex: 0 0 auto; display: flex; align-items: center; gap: 2vw; background: rgba(255,255,255,.75); border-radius: 4vh; padding: 1.4vh 2.4vw; }
-.setrow b { font-size: 3.2vh; color: #1e3a8a; min-width: 26vw; }
+.setup { display: flex; flex-direction: column; gap: 1.3vh; margin: 1.5vh 0; align-items: stretch; flex: 0 0 auto; }
+.setrow { flex: 0 0 auto; display: flex; align-items: center; gap: 2vw; background: rgba(255,255,255,.75); border-radius: 4vh; padding: .9vh 2.4vw; }
+.setrow b { font-size: 2.9vh; color: #1e3a8a; min-width: 26vw; }
 .opts { display: flex; gap: 1.2vw; flex-wrap: nowrap; align-items: center; }
-.btn.opt { min-width: 8vw; font-size: 3.6vh; padding: 1.2vh 2.4vh; height: auto; flex: 0 0 auto; align-self: center; }
+.btn.opt { min-width: 8vw; font-size: 3vh; padding: .8vh 2.2vh; height: auto; flex: 0 0 auto; align-self: center; }
 .opt.on { background: #fde047; color: #92400e; box-shadow: 0 0 0 .5vh #f59e0b inset; }
 @media (orientation: portrait) {
   .setrow { flex-direction: column; gap: 1vh; padding: 1.2vh 3vw; }
   .setrow b { min-width: 0; font-size: 2.6vh; }
   .btn.opt { min-width: 14vw; font-size: 2.4vh; padding: 1vh 2vh; }
 }
+.titles { display: flex; flex-wrap: wrap; gap: 1vh 1vw; justify-content: center; margin: 1vh 0; font-size: 2.6vh; }
