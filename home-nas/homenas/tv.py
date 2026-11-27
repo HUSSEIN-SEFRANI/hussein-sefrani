@@ -293,6 +293,7 @@ def tv_settings() -> dict:
         "hanafi": g("tv_hanafi", "0") == "1", "prayer": g("tv_prayer", "1") == "1",
         "words": json.loads(g("tv_words", '["ar","fr","en"]')), "nosleep": g("tv_nosleep", "1") == "1",
         "saver_min": int(g("tv_saver_min", "10")), "night_off": g("tv_night_off", ""),
+        "pad_sleep": int(g("tv_pad_sleep", "15")),   # البند 65: دقائق بلا لعب ثم تُطفأ القبضات (0 = أبداً)
         "zoom": int(g("tv_zoom", "100")), "margin": int(g("tv_margin", "0")), "text": int(g("tv_text", "100")),
         "lite": g("tv_lite", "auto"),   # وضع خفيف للأجهزة الضعيفة: auto / on / off
         "lang": tv_lang(),               # لغة واجهة التلفاز يختارها الأبوان
@@ -578,6 +579,8 @@ def api_admin_tv_settings():
             set_setting(sk, str(max(lo, min(hi, int(d[key] or 0)))))
     if "saver_min" in d:
         set_setting("tv_saver_min", str(max(0, min(240, int(d["saver_min"] or 0)))))
+    if "pad_sleep" in d:
+        set_setting("tv_pad_sleep", str(max(0, min(240, int(d["pad_sleep"] or 0)))))
     if "words" in d:
         set_setting("tv_words", json.dumps([x for x in d["words"] if x in ("ar", "fr", "en")]))
     if "weather" in d:
@@ -1993,6 +1996,16 @@ def api_tv_admin_audio_set():
     if d.get("action") != "test":
         log_action("مخرج صوت التلفاز", d.get("profile") or d.get("action") or "", u["username"])
     return jsonify(ok=True)
+
+
+@bp.post("/api/tv/pads/off")
+def api_tv_pads_off():
+    """البند 65: إطفاء القبضات الموصولة بالبلوتوث (بعد مدة بلا لعب، أو بزر «أطفئ القبضات»). لا يحتاج رمز المدير، لكن يحتاج فرداً مختاراً على التلفاز."""
+    tv_user()
+    from .sysadmin import available, helper
+    if not available():
+        return jsonify(off=[])
+    return jsonify(helper("bt-pads-off", timeout=90, as_json=True) or {"off": []})
 
 
 @bp.get("/api/tv/admin/bt")
