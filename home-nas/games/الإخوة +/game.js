@@ -20,7 +20,18 @@
     small: { w: 0.66, h: 0.9, speed: 5.5, jump: 14, shirt: "#f97316", pants: "#7c2d12", name: "الأخ الصغير", emo: "🟧" },
   };
   // من يساعد في المراحل التي فيها مساعد طوال الوقت (لرسالة النهاية)
-  const HELPER = { 8: "big", 9: "small", 10: "big", 14: "small", 17: "big", 18: "small", 19: "big" };
+  const HELPER = { 8: "big", 9: "small", 10: "big", 14: "small", 17: "big", 18: "small", 19: "big", 28: "big", 38: "big", 39: "small", 48: "big" };
+  // كل 10 مراحل مستوى جديد
+  const TIERS = [
+    { name: "البداية", emo: "🌱", moves: [] },
+    { name: "الفريق", emo: "🤝", moves: [] },
+    { name: "المغامرون", emo: "🧗", moves: [["⬇️", "الكبير يمسك الصندوق بزر ⬇️ ويسحبه، ثم □ يرميه"], ["🤸", "قفزة الفريق: يقفز الكبير وأخوه على كتفه، فيقفز الصغير أعلى"],
+      ["🧱", "الجدار المتشقق: يكسره الكبير بزر □"], ["🪜", "السلّم: يصعده الصغير وينزله بالأسهم"]] },
+    { name: "الأبطال", emo: "🦸", moves: [["🛗", "المصعد يتحرك ما دام زره مضغوطاً"], ["↔️", "منصات تتحرك فوق الأشواك"],
+      ["🪵", "الخشب الهشّ ينكسر تحت الكبير الثقيل"], ["🌀", "المروحة ترفع الصغير الخفيف"]] },
+    { name: "الأساطير", emo: "🏆", moves: [["⏱️", "زر الساعة يفتح الباب ثوانيَ قليلة"], ["🔑", "المفتاح يفتح الباب المقفل"], ["🧊", "الثلج يزلق: تمهّلا!"]] },
+  ];
+  const tierOf = (n) => Math.min(TIERS.length - 1, Math.floor((n - 1) / 10));
   const GRAV = 40, MAXF = 22, EPS = 1e-4, STEP = 1 / 60;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const snd = {
@@ -33,6 +44,8 @@
     boing: () => { K.tone(300, 0.08, "sine", 0.12); K.tone(700, 0.18, "sine", 0.1, 0.05); },
     heavy: () => K.tone(140, 0.12, "square", 0.04),
     flag: () => K.sfx.ok(),
+    crash: () => { K.tone(120, 0.2, "sawtooth", 0.08); K.tone(80, 0.3, "square", 0.05, 0.05); },
+    crack: () => K.tone(260, 0.08, "sawtooth", 0.05),
     hurt: () => { K.tone(330, 0.12, "square", 0.05); K.tone(220, 0.25, "square", 0.05, 0.1); },
     heart: () => K.tone(880, 0.1, "sine", 0.08),
   };
@@ -143,6 +156,7 @@
     for (const k of [-1, 1]) {
       g.beginPath(); g.moveTo(k * tw * 0.45, ay);
       if (pose === "lift") g.lineTo(k * tw * 0.4, ay - al);
+      else if (pose === "grab") g.lineTo(tw * 0.55 + al * 0.9, ay + 0.06 * s + k * 0.04 * s);
       else { const a = -sw * k * 0.8; g.lineTo(k * tw * 0.5 + Math.sin(a) * al, ay + Math.cos(a) * al); }
       g.stroke();
     }
@@ -208,7 +222,7 @@
       <div class="title"><canvas class="hero" width="300" height="220"></canvas><div><h1>${GAME}</h1><div class="sub">أخوان… وكل واحد يحتاج أخاه 💙</div></div></div>
       <div class="modes">
         <button class="mode f" style="background:linear-gradient(135deg,#2563eb,#f97316)" ${K.act("play", () => K.show(pickScreen, cont))}>
-          <span class="big emo">▶️</span><b>${done ? "نكمل" : "نبدأ"}</b><small>المرحلة ${cont}: ${K.esc(LEVELS[cont - 1].name)}</small></button>
+          <span class="big emo">▶️</span><b>${done ? "نكمل" : "نبدأ"}</b><small>${TIERS[tierOf(cont)].emo} المرحلة ${cont}: ${K.esc(LEVELS[cont - 1].name)}</small></button>
         <button class="mode f" style="background:linear-gradient(135deg,#0ea5e9,#22c55e)" ${K.act("levels", () => K.show(levelsScreen))}>
           <span class="big emo">🗺️</span><b>المراحل</b><small>${done} / ${N}</small></button>
         <button class="mode f" style="background:linear-gradient(135deg,#a855f7,#ec4899)" ${K.act("how", () => K.show(howScreen))}>
@@ -219,24 +233,32 @@
     K.mode = { stop };
   }
 
-  function levelsScreen() {
+  function levelsScreen(tier) {
     K.begin();
-    const tiles = LEVELS.map((L, i) => {
-      const n = i + 1, open = n <= save.max, ok = save.done[n];
+    if (tier === undefined) tier = tierOf(Math.min(save.max, N));
+    const tabs = TIERS.map((t, i) => {
+      const open = i * 10 + 1 <= save.max;
+      return `<button class="tab f ${i === tier ? "on" : ""} ${open ? "" : "lock"}" ${K.act("t" + i, () => (open ? K.replace(levelsScreen, i) : K.sfx.bad()))}>
+        <span class="emo">${open ? t.emo : "🔒"}</span> ${t.name}</button>`;
+    }).join("");
+    const tiles = LEVELS.slice(tier * 10, tier * 10 + 10).map((L, i) => {
+      const n = tier * 10 + i + 1, open = n <= save.max, ok = save.done[n];
       return `<button class="tile lv f ${open ? "" : "lock"} ${ok ? "ok" : ""}" ${K.act("l" + n, () => (open ? K.show(pickScreen, n) : K.sfx.bad()))}>
         <b>${open ? n : "🔒"}</b><small>${open ? K.esc(L.name) : ""}</small>${ok ? '<i class="emo">✅</i>' : ""}</button>`;
     }).join("");
+    const cur = Math.min(save.max, N), def = tierOf(cur) === tier ? "l" + cur : "l" + (tier * 10 + 1);
     K.paint(`
       <div class="top">${K.backBtn()}<h2>🗺️ المراحل</h2><span class="pill">${Object.keys(save.done).length} / ${N}</span></div>
+      <div class="tabs">${tabs}</div>
       <div class="grid">${tiles}</div>
-      ${K.HELP}`, "l" + Math.min(save.max, N));
+      ${K.HELP}`, def);
   }
 
   function howScreen() {
     K.begin();
     const row = (e, t) => `<div class="hw"><span class="emo">${e}</span><span>${t}</span></div>`;
     K.paint(`
-      <div class="top">${K.backBtn()}<h2>❓ كيف نلعب؟</h2><span></span></div>
+      <div class="top">${K.backBtn()}<h2>❓ كيف نلعب؟</h2><button class="btn f" ${K.act("more", () => K.replace(howMore))}>حركات المستويات ←</button></div>
       <div class="how">
         <div class="col">
           <h3>🟦 الأخ الكبير</h3>
@@ -262,6 +284,14 @@
         </div>
       </div>`, "back");
   }
+  function howMore() {
+    K.begin();
+    const cols = TIERS.slice(2).map((t, i) => `<div class="col"><h3>${t.emo} ${t.name} (${(i + 2) * 10 + 1}–${(i + 3) * 10})</h3>
+      ${t.moves.map(([e, x]) => `<div class="hw"><span class="emo">${e}</span><span>${x}</span></div>`).join("")}</div>`).join("");
+    K.paint(`
+      <div class="top">${K.backBtn()}<h2>✨ حركات المستويات</h2><button class="btn f" ${K.act("basic", () => K.replace(howScreen))}>→ الأساسيات</button></div>
+      <div class="how three">${cols}</div>`, "back");
+  }
 
   // ---------------------------------------------------------------- من يلعب؟ (قبل كل مرحلة)
   function pickScreen(n) {
@@ -271,6 +301,8 @@
     let names = defaultNames(), big = save.big ? 1 : 0, ready = [false, false], raf = 0, starting = false, devs = ["", ""];
     K.paint(`
       <div class="top">${K.backBtn()}<h2>المرحلة ${n}: ${K.esc(L.name)}</h2><span class="pill">من يلعب؟</span></div>
+      ${(n - 1) % 10 === 0 && n > 1 ? `<div class="newtier"><b>🎉 مستوى جديد: ${TIERS[tierOf(n)].emo} ${TIERS[tierOf(n)].name}</b>
+        ${TIERS[tierOf(n)].moves.map(([e, x]) => `<span><span class="emo">${e}</span> ${x}</span>`).join("")}</div>` : ""}
       <div class="pick"><div class="pc" data-p="0"></div><div class="pc" data-p="1"></div></div>
       <div class="nav"><button class="btn f" ${K.act("swap", () => { swap(); })}>🔄 تبديل الأخوين</button>
         <button class="btn go f" ${K.act("go", () => go())}>▶ ابدأ</button></div>
@@ -353,6 +385,8 @@
     // العالم
     const S = new Uint8Array(W * H), G = [];
     const plates = [], levers = [], doors = [], bridges = [], flags = [], jpads = [], boxes = [], water = [];
+    const fragiles = [], cracks = [], locks = [], fans = [], keys = [];
+    const timers = [0, 0, 0, 0], TDUR = LV.timer || 5;
     let exit = null, trophy = null;
     const starts = {};
     LV.map.forEach((row, y) => {
@@ -361,6 +395,14 @@
         let k = ".";
         if (ch === "#") { S[y * W + x] = 1; k = "#"; }
         else if (ch === "-") { S[y * W + x] = 2; k = "-"; }
+        else if (ch === "=") { S[y * W + x] = 1; k = "="; }
+        else if (ch === "%") { S[y * W + x] = 1; k = "%"; fragiles.push({ x, y, t: 0, gone: false }); }
+        else if (ch === "Z") { S[y * W + x] = 1; k = "Z"; cracks.push({ x, y, gone: false }); }
+        else if (ch === "L") { S[y * W + x] = 1; k = "L"; locks.push({ x, y, gone: false }); }
+        else if (ch === "H") k = "H";
+        else if (ch === "Y") fans.push({ x, y, top: y });
+        else if (ch === "K") keys.push({ x, y, held: null, used: false });
+        else if ("ijkp".includes(ch)) plates.push({ x, y, c: "ijkp".indexOf(ch), heavy: false, timer: true, on: false });
         else if (ch === "^" || ch === "~") { k = ch; if (ch === "~") water.push({ x, y }); }
         else if (ch === "1") starts.big = { x, y };
         else if (ch === "2") starts.small = { x, y };
@@ -377,23 +419,36 @@
         G[y][x] = k;
       });
     });
-    const mk = (role) => ({ role, ...ROLE[role], x: 0, y: 0, vx: 0, vy: 0, face: 1, ground: null, coy: 0, jbuf: 0, ph: 0, carry: null, carried: false, thrown: false, inWater: false, jt: 0 });
+    // السلّم: أعلاه يقف عليه الصغير (3)، والمروحة: عمود هواء فوقها حتى 8 خانات
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (G[y][x] === "H" && !(G[y - 1] && G[y - 1][x] === "H")) S[y * W + x] = 3;
+    for (const f of fans) { let t = f.y; while (t - 1 >= 1 && f.y - (t - 1) <= 8 && S[(t - 1) * W + f.x] === 0 && G[t - 1][f.x] !== "H") t--; f.top = t; }
+    const plats = (LV.plats || []).map(([x, y, w, x2, y2, c]) => ({ plat: true, x, y, w, h: 0.35, ax: x, ay: y, bx: x2, by: y2, c, to: 1, wait: 0 }));
+    const setTile = (x, y, k, sv) => { G[y][x] = k; S[y * W + x] = sv; };
+    const mk = (role) => ({ role, ...ROLE[role], x: 0, y: 0, vx: 0, vy: 0, face: 1, ground: null, coy: 0, jbuf: 0, ph: 0, carry: null, carried: false, thrown: false, inWater: false, jt: 0, grab: null, key: null, climb: false });
     const BIG = mk("big"), SMALL = mk("small"), CH = [BIG, SMALL];
     const nameOf = (c) => names[roleP(c.role)];
     let active = [false, false, false, false];
     let state = "play", stT = 0, paused = false, T = 0, winner = null;
-    let bubbles = [], parts = [], said = {}, cp = null;
+    let bubbles = [], parts = [], said = {}, cp = null, deaths = 0, lvT = 0;
 
     // الحفظ داخل المرحلة: مكان الأخوين والصناديق والعتلات
     function snap(fx) {
       const at = fx ? [[fx.x - 0.45, fx.y + 1 - BIG.h], [fx.x + 0.6, fx.y + 1 - SMALL.h]] : CH.map((c) => [c.x, c.y]);
-      return { at, boxes: boxes.map((b) => [b.x, b.y]), levers: levers.map((l) => l.on), flags: flags.map((f) => f.on) };
+      return { at, boxes: boxes.map((b) => [b.x, b.y]), levers: levers.map((l) => l.on), flags: flags.map((f) => f.on),
+        frag: fragiles.map((f) => f.gone), cracks: cracks.map((c) => c.gone), locks: locks.map((l) => l.gone),
+        keys: keys.map((k) => [k.held ? CH.indexOf(k.held) : -1, k.used]) };
     }
     function restore(s) {
       CH.forEach((c, i) => { c.x = s.at[i][0]; c.y = s.at[i][1]; c.vx = c.vy = 0; c.ground = null; c.carry = null; c.carried = false; c.thrown = false; c.jbuf = 0; });
       boxes.forEach((b, i) => { if (s.boxes[i]) { b.x = s.boxes[i][0]; b.y = s.boxes[i][1]; } b.vx = b.vy = 0; b.ground = null; });
       levers.forEach((l, i) => { l.on = !!s.levers[i]; });
       flags.forEach((f, i) => { f.on = !!(s.flags && s.flags[i]); });
+      fragiles.forEach((f, i) => { f.gone = !!(s.frag && s.frag[i]); f.t = 0; setTile(f.x, f.y, f.gone ? "." : "%", f.gone ? 0 : 1); });
+      cracks.forEach((c, i) => { c.gone = !!(s.cracks && s.cracks[i]); setTile(c.x, c.y, c.gone ? "." : "Z", c.gone ? 0 : 1); });
+      locks.forEach((l, i) => { l.gone = !!(s.locks && s.locks[i]); setTile(l.x, l.y, l.gone ? "." : "L", l.gone ? 0 : 1); });
+      CH.forEach((c) => { c.grab = null; c.key = null; c.climb = false; });
+      keys.forEach((k, i) => { const v = s.keys && s.keys[i]; k.used = !!(v && v[1]); k.held = v && v[0] >= 0 && !k.used ? CH[v[0]] : null; if (k.held) k.held.key = k; });
+      timers.fill(0);
       updateSwitches(true);
     }
     let start = null;
@@ -404,11 +459,14 @@
     // صندوق التصادم: الكبير وهو يحمل أخاه أطول
     const top = (b) => (b.carry ? b.y - b.carry.h : b.y);
     const colHit = (col, y, h) => { for (let ty = Math.floor(y + EPS); ty <= Math.floor(y + h - EPS); ty++) if (solidAt(col, ty) === 1) return true; return false; };
-    const rowHit = (row, x, w, oneway, prevBot) => {
-      for (let tx = Math.floor(x + EPS); tx <= Math.floor(x + w - EPS); tx++) { const s = solidAt(tx, row); if (s === 1 || (oneway && s === 2 && prevBot <= row + 0.02)) return true; }
+    const rowHit = (row, x, w, oneway, prevBot, b) => {
+      for (let tx = Math.floor(x + EPS); tx <= Math.floor(x + w - EPS); tx++) {
+        const s = solidAt(tx, row);
+        if (s === 1 || (oneway && prevBot <= row + 0.02 && (s === 2 || (s === 3 && b && b.role === "small" && !b.down)))) return true;
+      }
       return false;
     };
-    const ridersOf = (base) => CH.filter((c) => c !== base && !c.carried && c.ground === base);
+    const ridersOf = (base) => [...CH.filter((c) => !c.carried), ...boxes].filter((c) => c !== base && c.ground === base);
     function blockers(b) { return b.box ? [...boxes.filter((o) => o !== b), ...CH.filter((c) => !c.carried)] : boxes; }
     function moveX(b, dx, pusher) {
       if (!dx) return 0;
@@ -438,7 +496,11 @@
       let ny = b.y + dy, land = null, bonk = false;
       if (dy > 0) {
         const row = Math.floor(ny + b.h - EPS);
-        if (rowHit(row, b.x, b.w, true, prevBot)) { ny = row - b.h; land = "t"; }
+        if (rowHit(row, b.x, b.w, true, prevBot, b)) { ny = row - b.h; land = "t"; }
+        for (const o of plats) {   // المنصات: يُصعد إليها من الأرض بخطوة صغيرة
+          if (ox_(b.x, b.w, o) <= 0.05) continue;
+          if (prevBot <= o.y + 0.45 && ny + b.h >= o.y && o.y - b.h <= ny + EPS) { ny = o.y - b.h; land = o; }
+        }
         const on = b.box ? boxes : [...boxes, ...CH.filter((c) => c !== b && !c.carried && c.ground !== b && c.carry !== b)];
         for (const o of on) {
           if (o === b || ox_(b.x, b.w, o) <= 0.05) continue;
@@ -447,7 +509,7 @@
         }
       } else if (dy < 0) {
         const nt = ny - ext, row = Math.floor(nt + EPS);
-        if (rowHit(row, b.x, b.w, false)) { ny = row + 1 + ext; bonk = true; }
+        if (rowHit(row, b.x, b.w, false, 0, b)) { ny = row + 1 + ext; bonk = true; }
         if (!b.box) for (const o of boxes) if (ox_(b.x, b.w, o) > 0.05 && prevTop >= o.y + o.h - 0.02 && nt < o.y + o.h) { ny = o.y + o.h + ext; bonk = true; }
       }
       const moved = ny - b.y;
@@ -471,7 +533,8 @@
         if (p.heavy && !p.on && !said["hv" + p.x] && !SMALL.carried && ox_(p.x + 0.1, 0.8, SMALL) > 0.25 && Math.abs(SMALL.y + SMALL.h - p.y - 1) < 0.05)
           say(SMALL, "ثقيل! أحتاج أخي الكبير 💪", "hv" + p.x), snd.heavy();
       }
-      active = [0, 1, 2, 3].map((c) => plates.some((p) => p.c === c && p.on) || levers.some((l) => l.c === c && l.on));
+      for (const p of plates) if (p.timer && p.on) { if (timers[p.c] <= 0 && !force) snd.door(); timers[p.c] = TDUR; }
+      active = [0, 1, 2, 3].map((c) => plates.some((p) => p.c === c && p.on && !p.timer) || levers.some((l) => l.c === c && l.on) || timers[c] > 0);
       const occ = (tx, ty) => bodies().some((b) => overlapsTile(b, tx, ty));
       let opened = false;
       for (const d of doors) {
@@ -496,17 +559,34 @@
       const R = c, e = inp.e;
       const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
       if (c.carried) {   // الصغير على كتف أخيه
-        if (e.jump) { const b = BIG; b.carry = null; c.carried = false; c.vy = -c.jump * 0.85; c.vx = dir * c.speed; snd.jump(); }
+        // قفزة الفريق: إذا كان الكبير يقفز إلى الأعلى زادت قفزة الصغير
+        if (e.jump) { const b = BIG; b.carry = null; c.carried = false; c.vy = -c.jump + 0.5 * Math.min(0, b.vy); c.vx = dir * c.speed; snd.jump(); if (b.vy < -2) puff(c.x + c.w / 2, c.y + c.h, "#fde68a", 8); }
         else if (dir) c.face = dir;
         return;
       }
       if (c.ground) { c.coy = 0.09; c.thrown = false; } else c.coy -= dt;
       if (e.jump) c.jbuf = 0.13; else c.jbuf -= dt;
-      const sp = R.speed * (c.inWater ? 0.6 : 1) * (c.push > 0 ? 0.6 : 1);
+      const up = inp.up || inp.jump;
+      c.down = !!inp.down;
+      // السلّم: للصغير فقط
+      const lad = onLadder(c);
+      if (c.role === "small") {
+        // ⬇️ فوق أعلى السلّم: يقف الصغير على السلّم وينزل
+        if (inp.down && !lad && c.ground) {
+          const tx = Math.floor(c.x + c.w / 2), row = Math.floor(c.y + c.h + 0.02);
+          if (G[row] && G[row][tx] === "H") { c.x = tx + 0.5 - c.w / 2; c.y += 0.06; c.ground = null; c.climb = true; }
+        }
+        if (lad && (up || inp.down)) c.climb = true;
+        if (!lad || (c.ground && !up && !inp.down)) c.climb = false;
+        if (c.climb) { c.vy = up ? -4.5 : inp.down ? 4.5 : 0; c.jbuf = 0; c.vx = dir * 2.5; if (dir) c.face = dir; if (e.act) action(c); return; }
+      } else if (lad && up && !said.ladder) say(c, "السلّم ضعيف! للصغير فقط 🪜", "ladder");
+      const sp = R.speed * (c.inWater ? 0.6 : 1) * (c.push > 0 ? 0.6 : 1) * (c.grab ? 0.55 : 1);
+      const ice = c.ground === "t" && onIce(c);
       // في الهواء يحتفظ الأخ باتجاهه إذا لم يُضغط شيء (الريموت لا يضغط سهمين معاً: قفز ثم سهم يكفي)
-      if (!c.thrown && (c.ground || dir)) c.vx = dir * sp;
+      if (ice && !c.thrown) c.vx += (dir * sp - c.vx) * Math.min(1, 2.6 * dt);   // الثلج يزلق
+      else if (!c.thrown && (c.ground || dir)) c.vx = dir * sp;
       // مساعدة على التوقف: يقف الأخ على الزر القريب، ويثبت في وسط ظهر أخيه
-      if (!dir && !c.thrown && c.ground) {
+      if (!dir && !c.thrown && c.ground && !ice && !c.grab) {
         const cx = c.x + c.w / 2;
         let tgt = null;
         if (c.ground === BIG || c.ground === SMALL) tgt = c.ground.x + c.ground.w / 2;
@@ -518,6 +598,13 @@
       }
       else if (dir && Math.sign(dir) !== Math.sign(c.vx)) c.vx *= 0.9;
       if (dir) c.face = dir;
+      // الكبير يمسك الصندوق (⬇️) فيسحبه أو يرميه (□)
+      if (c.role === "big" && e.down && !c.carry) { if (c.grab) { c.grab = null; snd.click(); } else grabBox(c); }
+      if (c.grab) {
+        const gb = c.grab, d = gb.x + gb.w / 2 - (c.x + c.w / 2);
+        if (e.jump || !c.ground || gb.vy > 3 || Math.abs(d) > (c.w + gb.w) / 2 + 0.3) c.grab = null;
+        else { c.face = Math.sign(d) || c.face; c.jbuf = 0; }
+      }
       if (c.jbuf > 0 && c.coy > 0) {
         const fromBro = c.ground === BIG || c.ground === SMALL;   // القفز من ظهر الأخ أعلى قليلاً
         c.vy = -R.jump * (c.inWater ? 0.92 : fromBro ? 1.08 : 1); c.jbuf = 0; c.coy = 0; c.ground = null; c.jt = 0.2; snd.jump();
@@ -525,13 +612,55 @@
       if (e.act) action(c);
       if (e.down && c.carry) putDown();
     }
+    function onLadder(c) {
+      const tx = Math.floor(c.x + c.w / 2);
+      for (let ty = Math.floor(top(c) + EPS); ty <= Math.floor(c.y + c.h - 0.001); ty++) if (G[ty] && G[ty][tx] === "H") return true;
+      return false;
+    }
+    function onIce(c) {
+      const row = Math.floor(c.y + c.h + 0.02);
+      for (let tx = Math.floor(c.x + EPS); tx <= Math.floor(c.x + c.w - EPS); tx++) if (G[row] && G[row][tx] === "=") return true;
+      return false;
+    }
+    function grabBox(c) {
+      const bx = boxes.find((b) => {
+        const oy = Math.min(c.y + c.h, b.y + b.h) - Math.max(c.y, b.y);
+        const gr = b.x - (c.x + c.w), gl = c.x - (b.x + b.w);
+        return oy > 0.5 && ((gr > -0.05 && gr < 0.25) || (gl > -0.05 && gl < 0.25));
+      });
+      if (bx) { c.grab = bx; snd.click(); if (!said.grab) say(c, "أمسكته! امشِ لتسحبه، أو □ لترميه 📦", "grab"); }
+    }
+    function crackNear(c) {
+      const col = c.face > 0 ? Math.floor(c.x + c.w + 0.2) : Math.floor(c.x - 0.2);
+      for (let ty = Math.floor(top(c) + 0.1); ty <= Math.floor(c.y + c.h - 0.1); ty++) { const k = cracks.find((q) => !q.gone && q.x === col && q.y === ty); if (k) return k; }
+      return null;
+    }
+    // يزيل مجموعة خانات متصلة (جدار متشقق أو باب مقفل)
+    function clearGroup(list, first) {
+      const todo = [first];
+      while (todo.length) {
+        const q = todo.pop(); if (q.gone) continue;
+        q.gone = true; setTile(q.x, q.y, ".", 0); puff(q.x + 0.5, q.y + 0.5, "#a8a29e", 6);
+        for (const o of list) if (!o.gone && Math.abs(o.x - q.x) + Math.abs(o.y - q.y) === 1) todo.push(o);
+      }
+    }
     function action(c) {
       const lv = levers.find((l) => overlapsTile(c, l.x, l.y, 0.1));
       if (lv) {
         lv.on = !lv.on; snd.click(); puff(lv.x + 0.5, lv.y + 0.5, COL[lv.c]);
         return;
       }
+      const cr = crackNear(c);
+      if (cr) {
+        if (c.role === "big") { clearGroup(cracks, cr); snd.crash(); }
+        else say(c, "الجدار قوي! أحتاج أخي الكبير 💪", null);
+        return;
+      }
       if (c.role === "big") {
+        if (c.grab) {   // رمي الصندوق
+          const gb = c.grab; c.grab = null; gb.vx = c.face * 7; gb.vy = -11; gb.ground = null; snd.toss();
+          return;
+        }
         if (c.carry) { throwSmall(); return; }
         const s = SMALL, dx = Math.abs(s.x + s.w / 2 - (c.x + c.w / 2)), dyFeet = Math.abs(s.y + s.h - (c.y + c.h));
         if (!s.carried && dx < 1.05 && (dyFeet < 1.0 || s.ground === c)) {
@@ -568,11 +697,15 @@
         c.inWater = water.some((w) => overlapsTile(c, w.x, w.y, 0.15));
         if (c.push > 0) c.push -= dt;
       }
+      movePlats(dt);
+      for (let i = 0; i < 4; i++) if (timers[i] > 0) { const t0 = timers[i]; timers[i] = Math.max(0, t0 - dt); if (Math.ceil(timers[i]) < Math.ceil(t0)) K.tone(timers[i] > 0 ? 990 : 440, 0.05, "square", 0.04); }
       CH.forEach((c, i) => control(c, I[roleP(c.role)], dt));
       for (const c of CH) {
         if (c.carried) continue;
-        c.vy = Math.min(MAXF, c.vy + GRAV * dt);
+        if (!c.climb) c.vy = Math.min(MAXF, c.vy + GRAV * dt);
+        if (c.role === "small" && !c.climb && inFan(c)) c.vy = Math.max(c.vy - 85 * dt, -6.5);   // المروحة ترفع الصغير
         const before = c.x, m = moveX(c, c.vx * dt);
+        if (m && c.grab && Math.sign(m) !== Math.sign(c.grab.x - c.x)) moveX(c.grab, m, c);   // سحب الصندوق
         if (c.thrown && Math.abs(m) < Math.abs(c.vx * dt) - EPS) c.vx = 0;
         if (m) for (const r of ridersOf(c)) moveX(r, c.x - before);
         if (c.vx && c.ground) c.ph += Math.abs(c.vx) * dt * 3.2;
@@ -586,7 +719,24 @@
           r.ground = c;
         }
       }
-      for (const b of boxes) { b.vy = Math.min(MAXF, b.vy + GRAV * dt); moveY(b, b.vy * dt); }
+      for (const b of boxes) {
+        b.vy = Math.min(MAXF, b.vy + GRAV * dt);
+        if (b.vx) { const want = b.vx * dt, m = moveX(b, want); if (Math.abs(m) < Math.abs(want) - EPS) b.vx = 0; }
+        moveY(b, b.vy * dt);
+        if (b.ground && b.vy >= 0) b.vx = 0;
+      }
+      // الخشب الهشّ ينكسر تحت الكبير والصندوق
+      for (const b of [BIG, ...boxes]) if (b.ground === "t") {
+        const row = Math.floor(b.y + b.h + 0.02);
+        for (const f of fragiles) if (!f.gone && !f.t && f.y === row && ox_(f.x, 1, b) > 0.05) { f.t = 0.001; snd.crack(); if (!said.frag && !b.box) say(b, "الخشب ينكسر! 😮", "frag"); }
+      }
+      for (const f of fragiles) if (f.t && !f.gone) { f.t += dt; if (f.t > 0.4) { f.gone = true; setTile(f.x, f.y, ".", 0); puff(f.x + 0.5, f.y + 0.3, "#b45309", 8); } }
+      // المفاتيح والأبواب المقفلة
+      for (const k of keys) if (!k.used && !k.held) for (const c of CH) if (!c.key && overlapsTile(c, k.x, k.y, 0.15)) { k.held = c; c.key = k; snd.pick(); say(c, "معي المفتاح! 🔑", null); break; }
+      for (const c of CH) if (c.key) {
+        const lk = locks.find((l) => !l.gone && c.x - 0.2 < l.x + 1 && c.x + c.w + 0.2 > l.x && top(c) < l.y + 1 && c.y + c.h > l.y);
+        if (lk) { clearGroup(locks, lk); c.key.used = true; c.key.held = null; c.key = null; snd.door(); K.sfx.ok(); }
+      }
       if (BIG.carry) { const s = SMALL; s.x = BIG.x + (BIG.w - s.w) / 2; s.y = BIG.y - s.h; s.vx = s.vy = 0; s.face = BIG.face; }
       // النوابض
       for (const j of jpads) {
@@ -597,6 +747,31 @@
         }
       }
       updateSwitches(false);
+    }
+    function inFan(c) {
+      return fans.some((f) => ox_(f.x + 0.1, 0.8, c) > 0.25 && c.y + c.h > f.top + 0.05 && top(c) < f.y + 1);
+    }
+    function movePlats(dt) {
+      for (const p of plats) {
+        if (p.wait > 0) { p.wait -= dt; continue; }
+        const on = p.c >= 0 ? active[p.c] : p.to;
+        const tx = on ? p.bx : p.ax, ty = on ? p.by : p.ay, ddx = tx - p.x, ddy = ty - p.y, d = Math.hypot(ddx, ddy), sp = (p.c >= 0 ? 2.5 : 2) * dt;
+        if (d < EPS && p.c >= 0) continue;   // مصعد وصل
+        let mx, my;
+        if (d <= sp) { mx = ddx; my = ddy; if (p.c < 0) { p.to = 1 - p.to; p.wait = 0.7; } }
+        else { mx = ddx / d * sp; my = ddy / d * sp; }
+        const riders = ridersOf(p);
+        p.x += mx; p.y += my;
+        for (const r of riders) shift(r, mx, my, p);
+      }
+    }
+    function shift(r, dx, dy, base) {
+      const rs = r.box ? [] : ridersOf(r);
+      const mx = moveX(r, dx);
+      let my = dy;
+      if (dy < 0) my = moveY(r, dy); else r.y += dy;
+      r.ground = base;
+      for (const q of rs) shift(q, mx, my, r);
     }
     function hazards() {
       for (const c of CH) {
@@ -612,7 +787,7 @@
         say(SMALL, "الماء عميق! احملني يا أخي 🌊", "water");
     }
     function die(c, why) {
-      state = "dead"; stT = 0; snd.hurt();
+      state = "dead"; stT = 0; snd.hurt(); deaths++;
       puff(c.x + c.w / 2, c.y + c.h / 2, "#fff", 14);
       say(c, why, null);
     }
@@ -657,8 +832,9 @@
         const other = winner === BIG ? SMALL : BIG;
         msg = `🏆 وصل ${K.esc(nameOf(winner))} إلى الكأس!<br>وأحسنت يا ${K.esc(nameOf(other))}: تركتَ أخاك يكمل وساعدته 💙`;
       } else if (helper) msg = `أحسنت يا ${K.esc(helper)}: ساعدت أخاك طوال المرحلة 💙`;
-      const last = n >= N;
-      overlay(`<div class="card"><div class="emo big">${last ? "🏠🎉" : winner ? "🏆" : "🎉"}</div>
+      const last = n >= N, tierEnd = !last && n % 10 === 0;
+      if (tierEnd) msg += `<br>🎉 أنهيتما مستوى «${TIERS[tierOf(n)].name}»! المستوى التالي: ${TIERS[tierOf(n + 1)].emo} ${TIERS[tierOf(n + 1)].name}`;
+      overlay(`<div class="card"><div class="emo big">${last ? "🏠🎉" : tierEnd ? TIERS[tierOf(n)].emo + "🎉" : winner ? "🏆" : "🎉"}</div>
         <h2>${last ? "أنهيتما كل المراحل!" : "أحسنتما!"}</h2><p>${msg}</p>
         <div class="nav">${last ? "" : `<button class="btn go f" ${K.act("next", () => K.replace(pickScreen, n + 1))}>▶ المرحلة ${n + 1}</button>`}
         <button class="btn f" ${K.act("again", () => { save.cp = null; save.save(); K.replace(playScreen, n, who); })}>🔄 مرة أخرى</button>
@@ -676,6 +852,7 @@
         <div class="nav col"><button class="btn go f" ${K.act("resume", resume)}>▶ نكمل</button>
         ${cp ? `<button class="btn f" ${K.act("toflag", () => { resume(); restore(cp); })}>🚩 نرجع إلى العلم</button>` : ""}
         <button class="btn f" ${K.act("restart", () => { save.cp = null; save.save(); K.replace(playScreen, n, who); })}>🔄 نعيد المرحلة</button>
+        ${n < N && (deaths >= 6 || lvT > 300) ? `<button class="btn f" ${K.act("skip", () => { save.max = Math.max(save.max, n + 1); save.cp = null; save.save(); K.replace(pickScreen, n + 1); })}>⏭️ صعبة؟ تخطَّ المرحلة</button>` : ""}
         <button class="btn f" ${K.act("quit", () => { K.home(); K.show(levelsScreen); })}>🗺️ المراحل</button></div></div>`, "resume");
     }
     function resume() { paused = false; closeOv(); clearInput(); inputs(); I = [null, null]; lastT = 0; }
@@ -733,6 +910,15 @@
           if (!edge) { x.fillStyle = "rgba(0,0,0,.12)"; x.fillRect(px + s * 0.2, py + s * 0.55, s * 0.15, s * 0.12); x.fillRect(px + s * 0.65, py + s * 0.3, s * 0.12, s * 0.1); }
           else { x.strokeStyle = "rgba(0,0,0,.18)"; x.lineWidth = 1; x.strokeRect(px + 0.5, py + 0.5, s - 1, s - 1); }
           if (!solidT(tx, ty - 1) && ty > 0) { x.fillStyle = "#65a30d"; x.fillRect(px, py, s + 1, s * 0.22); x.fillStyle = "#84cc16"; x.fillRect(px, py, s + 1, s * 0.1); }
+        } else if (k === "=") {
+          x.fillStyle = "#bae6fd"; x.fillRect(px, py, s + 1, s + 1);
+          x.fillStyle = "#e0f2fe"; x.fillRect(px, py, s + 1, s * 0.2);
+          x.strokeStyle = "rgba(255,255,255,.9)"; x.lineWidth = s * 0.05; x.beginPath(); x.moveTo(px + s * 0.2, py + s * 0.5); x.lineTo(px + s * 0.45, py + s * 0.35); x.stroke();
+        } else if (k === "H") {
+          x.strokeStyle = "#92400e"; x.lineWidth = s * 0.09;
+          x.beginPath(); x.moveTo(px + s * 0.2, py); x.lineTo(px + s * 0.2, py + s); x.moveTo(px + s * 0.8, py); x.lineTo(px + s * 0.8, py + s);
+          for (const r of [0.25, 0.75]) { x.moveTo(px + s * 0.2, py + s * r); x.lineTo(px + s * 0.8, py + s * r); }
+          x.stroke();
         } else if (k === "-") {
           x.fillStyle = "#b45309"; rr(x, px, py, s, s * 0.26, s * 0.08); x.fill();
           x.fillStyle = "#d97706"; x.fillRect(px + 2, py + 2, s - 4, s * 0.08);
@@ -817,6 +1003,61 @@
         x.fillStyle = "#eab308"; x.fillRect(px + s * 0.45, py + s * 0.55, s * 0.1, s * 0.2); x.fillRect(px + s * 0.3, py + s * 0.75, s * 0.4, s * 0.12);
         if (!LITE) { x.fillStyle = "#fff"; x.globalAlpha = (Math.sin(T * 6) + 1) / 2; x.beginPath(); x.arc(px + s * 0.7, py + s * 0.15, s * 0.05, 0, 7); x.fill(); x.globalAlpha = 1; }
       }
+      // الجدار المتشقق والخشب الهشّ والأبواب المقفلة
+      for (const c of cracks) if (!c.gone) {
+        const px = P(c.x), py = Q(c.y);
+        x.fillStyle = "#a8a29e"; x.fillRect(px, py, s + 1, s + 1);
+        x.strokeStyle = "#57534e"; x.lineWidth = s * 0.06; x.beginPath();
+        x.moveTo(px + s * 0.3, py); x.lineTo(px + s * 0.5, py + s * 0.35); x.lineTo(px + s * 0.35, py + s * 0.6); x.lineTo(px + s * 0.6, py + s); x.moveTo(px + s * 0.5, py + s * 0.35); x.lineTo(px + s * 0.85, py + s * 0.45);
+        x.stroke();
+      }
+      for (const f of fragiles) if (!f.gone) {
+        const j = f.t ? (Math.random() - 0.5) * s * 0.08 : 0, px = P(f.x) + j, py = Q(f.y);
+        x.fillStyle = "#d6a76c"; x.fillRect(px, py, s + 1, s * 0.45);
+        x.strokeStyle = "#78350f"; x.lineWidth = s * 0.04; x.beginPath(); x.moveTo(px + s * 0.33, py); x.lineTo(px + s * 0.33, py + s * 0.45); x.moveTo(px + s * 0.66, py); x.lineTo(px + s * 0.66, py + s * 0.45);
+        x.moveTo(px + s * 0.1, py + s * 0.25); x.lineTo(px + s * 0.25, py + s * 0.15); x.stroke();
+      }
+      for (const l of locks) if (!l.gone) {
+        const px = P(l.x), py = Q(l.y);
+        x.fillStyle = "#475569"; x.fillRect(px + s * 0.08, py, s * 0.84, s + 1);
+        x.strokeStyle = "#facc15"; x.lineWidth = s * 0.05; x.strokeRect(px + s * 0.12, py + s * 0.04, s * 0.76, s * 0.92);
+        x.fillStyle = "#facc15"; x.beginPath(); x.arc(px + s / 2, py + s * 0.42, s * 0.11, 0, 7); x.fill(); x.fillRect(px + s * 0.46, py + s * 0.45, s * 0.08, s * 0.22);
+      }
+      // المراوح
+      for (const f of fans) {
+        const px = P(f.x), py = Q(f.y);
+        if (!LITE) {
+          x.strokeStyle = "rgba(255,255,255,.65)"; x.lineWidth = s * 0.04;
+          for (let i = 0; i < 3; i++) { const yy = Q(f.top) + (((T * 3 + i / 3) % 1) * (f.y - f.top)) * s; x.beginPath(); x.moveTo(px + s * (0.25 + i * 0.25), yy + s * 0.5); x.lineTo(px + s * (0.25 + i * 0.25), yy); x.stroke(); }
+        }
+        x.fillStyle = "#475569"; rr(x, px + s * 0.05, py + s * 0.6, s * 0.9, s * 0.4, s * 0.08); x.fill();
+        x.save(); x.translate(px + s / 2, py + s * 0.55); x.fillStyle = "#38bdf8";
+        for (let i = 0; i < 3; i++) { x.rotate(T * 12 + i * 2.09); x.beginPath(); x.ellipse(s * 0.2, 0, s * 0.2, s * 0.06, 0, 0, 7); x.fill(); x.rotate(-(T * 12 + i * 2.09)); }
+        x.restore();
+      }
+      // المنصات المتحركة
+      for (const pl of plats) {
+        const px = P(pl.x), py = Q(pl.y), w = pl.w * s;
+        x.fillStyle = "#64748b"; rr(x, px, py, w, pl.h * s, s * 0.08); x.fill();
+        x.fillStyle = pl.c >= 0 ? COL[pl.c] : "#94a3b8"; x.fillRect(px + s * 0.08, py + s * 0.05, w - s * 0.16, s * 0.08);
+        x.fillStyle = "#334155"; for (const k of [0.15, 0.5, 0.85]) { x.beginPath(); x.arc(px + w * k, py + pl.h * s * 0.65, s * 0.04, 0, 7); x.fill(); }
+      }
+      // المفاتيح وعدّاد زر الساعة
+      const drawKey = (cx, cy, k) => {
+        x.strokeStyle = "#ca8a04"; x.fillStyle = "#facc15"; x.lineWidth = s * 0.03;
+        x.beginPath(); x.arc(cx - k * 0.18, cy, k * 0.14, 0, 7); x.fill(); x.stroke();
+        x.fillRect(cx - k * 0.06, cy - k * 0.04, k * 0.36, k * 0.08); x.fillRect(cx + k * 0.18, cy, k * 0.06, k * 0.12); x.fillRect(cx + k * 0.08, cy, k * 0.05, k * 0.1);
+      };
+      for (const k of keys) if (!k.used && !k.held) drawKey(P(k.x + 0.5), Q(k.y + 0.5) + (LITE ? 0 : Math.sin(T * 3) * s * 0.06), s);
+      for (const p of plates) if (p.timer) {
+        const px = P(p.x + 0.5), py = Q(p.y + 0.55);
+        x.fillStyle = "#fff"; x.beginPath(); x.arc(px, py, s * 0.2, 0, 7); x.fill();
+        x.strokeStyle = "#1e293b"; x.lineWidth = s * 0.04; x.beginPath(); x.moveTo(px, py); x.lineTo(px, py - s * 0.13); x.moveTo(px, py); x.lineTo(px + s * 0.1, py); x.stroke();
+        if (timers[p.c] > 0) { x.font = `800 ${Math.round(s * 0.5)}px ${FONT}`; x.textAlign = "center"; x.fillStyle = COLD[p.c]; x.fillText(String(Math.ceil(timers[p.c])), px, Q(p.y - 0.15)); }
+      }
+      for (const d of doors) if (timers[d.c] > 0 && !(doors.some((o) => o.c === d.c && o.x === d.x && o.y === d.y - 1))) {
+        x.font = `800 ${Math.round(s * 0.45)}px ${FONT}`; x.textAlign = "center"; x.fillStyle = COLD[d.c]; x.fillText("⏱" + Math.ceil(timers[d.c]), P(d.x + 0.5), Q(d.y - 0.2));
+      }
       // الصناديق
       for (const b of boxes) {
         const px = P(b.x), py = Q(b.y), w = b.w * s, h = b.h * s;
@@ -827,11 +1068,12 @@
       // الأخوان
       const fade = state === "dead" ? Math.min(1, stT / 0.5) : 0;
       for (const c of [BIG, SMALL]) {
-        const pose = c.carried ? "walk" : BIG.carry && c === BIG ? "lift" : !c.ground ? "air" : "walk";
+        const pose = c.carried ? "walk" : BIG.carry && c === BIG ? "lift" : c.grab ? "grab" : c.climb ? "lift" : !c.ground ? "air" : "walk";
         drawKid(x, P(c.x + c.w / 2), Q(c.y + c.h), s, c.role, c.face, c.vx && c.ground ? c.ph : 0, pose);
       }
       if (BIG.carry) { label(x, P(BIG.x + BIG.w / 2), Q(SMALL.y - 0.95), nameOf(BIG), ROLE.big.shirt, s); label(x, P(SMALL.x + SMALL.w / 2), Q(SMALL.y - 0.4), nameOf(SMALL), ROLE.small.shirt, s); }
       else for (const c of [BIG, SMALL]) label(x, P(c.x + c.w / 2), Q(c.y - 0.4), nameOf(c), ROLE[c.role].shirt, s);
+      for (const c of CH) if (c.key) drawKey(P(c.x + c.w / 2), Q(top(c) - 0.95), s * 0.8);
       // الجسيمات والفقاعات
       parts = parts.filter((p) => p.t < p.life);
       for (const p of parts) {
@@ -857,7 +1099,7 @@
       let dt = Math.min(0.1, (now - lastT) / 1000);
       lastT = now;
       if (paused) return;
-      T += dt; stT += dt;
+      T += dt; stT += dt; lvT += dt;
       const inp = inputs();
       if (inp.some((i) => i.e.pause)) { pause(); return; }
       I = inp.map((x, p) => ({ ...x, e: { ...((I[p] && I[p].e) || {}), ...x.e } }));
@@ -900,9 +1142,10 @@
       poll() { return !(paused || state === "win"); },
       stop() { cancelAnimationFrame(raf); removeEventListener("resize", resize); clearInput(); },
     };
-    window.__bro = { get s() { return { state, paused, BIG, SMALL, boxes, active, cp, plates, doors }; }, win: () => win(null), tp: (r, x, y) => { const c = r === "big" ? BIG : SMALL; c.x = x; c.y = y; c.vx = c.vy = 0; } };
+    window.__bro = { plats: () => plats, get s() { return { state, paused, BIG, SMALL, boxes, active, cp, plates, doors }; }, win: () => win(null), tp: (r, x, y) => { const c = r === "big" ? BIG : SMALL; c.x = x; c.y = y; c.vx = c.vy = 0; } };
   }
 
   window.__broGo = (n) => K.show(playScreen, n, { names: ["أحمد", "سامي"], big: 0 });   // للتجربة
+  window.__broPick = (n) => K.show(pickScreen, n);
   K.start(homeScreen);
 })();

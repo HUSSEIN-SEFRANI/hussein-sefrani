@@ -9,7 +9,7 @@
   align-items: center; justify-content: center; position: relative; box-shadow: 0 1vh 2vh rgba(30,58,138,.25); }
 .tile b { font-size: 6vh; line-height: 1; }
 .tile small { font-size: 2.2vh; font-weight: 700; margin-top: .4vh; }
-.tile i { position: absolute; top: .6vh; left: .8vw; font-size: 3vh; }
+.tile i.emo { position: absolute; top: .6vh; left: .8vw; font-size: 2.8vh; }
 .tile.lock { background: #94a3b8; }
 .tile.ok { background: linear-gradient(135deg, #16a34a, #0ea5e9); }
 
@@ -62,3 +62,13 @@
 .tc button { width: 9vh; height: 9vh; border: 0; border-radius: 50%; font-size: 4vh; font-weight: 800; color: #fff; touch-action: none; }
 .tc .big button { background: rgba(37,99,235,.8); } .tc .small button { background: rgba(249,115,22,.8); }
 .tc button.on { filter: brightness(1.3); transform: scale(.94); }
+
+/* المستويات */
+.tabs { display: flex; gap: 1vw; margin-top: 1.5vh; flex-wrap: wrap; justify-content: center; }
+.tab { border: 0; border-radius: 3vh; padding: 1vh 2.2vh; font-size: 2.8vh; font-weight: 800; background: rgba(255,255,255,.8); color: #1e3a8a; }
+.tab.on { background: #1e40af; color: #fff; } .tab.lock { opacity: .55; }
+.newtier { margin-top: 1vh; background: #fef9c3; border-radius: 3vh; padding: 1vh 2.5vw; display: flex; gap: 1.6vw; flex-wrap: wrap; justify-content: center; align-items: center;
+  font-size: 2.4vh; font-weight: 700; color: #713f12; max-width: 92vw; box-shadow: 0 1vh 2vh rgba(113,63,18,.15); }
+.newtier b { font-size: 2.9vh; color: #92400e; }
+.how.three .col { min-width: 28vw; }
+.top .btn { font-size: 2.6vh; padding: 1vh 2.4vh; }
