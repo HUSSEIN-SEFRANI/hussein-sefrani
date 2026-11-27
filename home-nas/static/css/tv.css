@@ -756,6 +756,7 @@ svg.face { vertical-align: middle; display: inline-block; }
 .pad-test span.on svg.face circle[r="4.8"] { fill: #1e293b; }
 .pad-test span.on svg.face circle:not([r="4.8"]) { fill: rgba(30,41,59,.35); }
 
+<<<<<<< HEAD
 /* البند 63: بطاقات الشاشة الرئيسية الجديدة (التقويم، العائلة، ذكرى من هذا اليوم) */
 .card.hcal, .card.hfam { height: 124px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
 .hcal .lbl, .hfam .lbl { font-size: 14px; font-weight: 700; color: #fde68a; }
@@ -765,3 +766,16 @@ svg.face { vertical-align: middle; display: inline-block; }
 .card.hmem { padding: 0; overflow: hidden; box-sizing: border-box; }
 .hmem img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .hmem .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 16px; font-size: 16px; font-weight: 700; background: linear-gradient(0deg, rgba(0,0,0,.7), transparent); }
+=======
+/* البند 62: إشعار الموسيقى المستمرة في الخلفية */
+.bgmusic { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 80; display: flex; align-items: center; gap: 12px; max-width: 560px;
+  padding: 8px 18px; border-radius: 999px; border: 1px solid rgba(255,255,255,.25); background: rgba(15,23,42,.78); backdrop-filter: blur(10px); color: #fff; font: inherit; font-size: 18px; cursor: pointer; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+.bgmusic .tt { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 330px; font-weight: 700; }
+.bgmusic .st { font-weight: 500; font-size: 15px; color: #a7f3d0; white-space: nowrap; }
+.bgmusic.paused .st { color: #fcd34d; }
+.bgmusic .eq { display: flex; gap: 3px; align-items: flex-end; height: 18px; }
+.bgmusic .eq i { width: 4px; background: #34d399; border-radius: 2px; animation: bgeq .9s ease-in-out infinite alternate; }
+.bgmusic .eq i:nth-child(2) { animation-delay: -.3s; } .bgmusic .eq i:nth-child(3) { animation-delay: -.6s; }
+.bgmusic.paused .eq i { animation: none; height: 5px; background: #fcd34d; }
+@keyframes bgeq { from { height: 4px; } to { height: 18px; } }
+>>>>>>> origin/claude/eager-wright-ytkzo1
