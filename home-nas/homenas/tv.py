@@ -293,6 +293,7 @@ def tv_settings() -> dict:
         "hanafi": g("tv_hanafi", "0") == "1", "prayer": g("tv_prayer", "1") == "1",
         "words": json.loads(g("tv_words", '["ar","fr","en"]')), "nosleep": g("tv_nosleep", "1") == "1",
         "saver_min": int(g("tv_saver_min", "10")), "night_off": g("tv_night_off", ""),
+        "pad_sleep": int(g("tv_pad_sleep", "15")),   # البند 65: دقائق بلا لعب ثم تُطفأ القبضات (0 = أبداً)
         "zoom": int(g("tv_zoom", "100")), "margin": int(g("tv_margin", "0")), "text": int(g("tv_text", "100")),
         "lite": g("tv_lite", "auto"),   # وضع خفيف للأجهزة الضعيفة: auto / on / off
         "lang": tv_lang(),               # لغة واجهة التلفاز يختارها الأبوان
@@ -303,10 +304,55 @@ def tv_settings() -> dict:
         "weather": g("tv_weather", "0") == "1",   # البند 57: مطفأ حتى يفعّله الأبوان (يتصل بـ open-meteo)
         "daily_kinds": welcome.daily_kinds(),
         "saver_kind": g("tv_saver_kind", "prayer"), "saver_text": g("tv_saver_text", ""),
+        "home_cards": home_cards(g("tv_home_cards", "")),
     }
 
 
-SAVER_KINDS = ("prayer", "photos", "fire", "text", "rain", "galaxy", "mix")
+# البند 63: البطاقات في الشاشة الرئيسية للبالغين، يختارها المدير للجميع (الترتيب ثابت)
+HOME_CARDS = ("prayer", "text", "word", "calendar", "family", "memory")
+HOME_DEFAULT = ["prayer", "text", "word"]
+
+
+def home_cards(raw) -> list:
+    try:
+        v = json.loads(raw) if raw else HOME_DEFAULT
+    except ValueError:
+        v = HOME_DEFAULT
+    return [k for k in HOME_CARDS if k in (v if isinstance(v, list) else HOME_DEFAULT)]
+
+
+def home_family(db) -> dict:
+    """أعياد الميلاد القادمة وأكثر من جمع نجوماً (لبطاقة «العائلة»)."""
+    from .stars import balance, is_parent
+    people = [u for u in db.execute("SELECT * FROM users WHERE disabled=0") if (u["tv_role"] or "none") != "none"]
+    bdays = []
+    for u in people:
+        a = age_info(u["birthdate"])
+        if a.get("birthday_in") is not None:
+            bdays.append({"name": display_name(u), "in": a["birthday_in"], "age": (a.get("age") or 0) + (0 if a["birthday_in"] == 0 else 1)})
+    bdays.sort(key=lambda x: x["in"])
+    kids = [{"name": display_name(u), "stars": balance(db, u["id"])} for u in people if not is_parent(u)]
+    kids.sort(key=lambda x: -x["stars"])
+    db.commit()   # balance() قد يكتب رصيد البداية
+    return {"birthdays": bdays[:2], "stars": [k for k in kids if k["stars"] > 0][:3]}
+
+
+def home_memory(db, u):
+    """صورة التُقطت في مثل هذا اليوم في سنة سابقة (لبطاقة «ذكرى من هذا اليوم»)."""
+    import random
+    from .kids import onthisday_rows
+    try:
+        rows = onthisday_rows(db, u, limit=40)
+    except Exception:
+        return None
+    if not rows:
+        return None
+    r = random.choice(rows)
+    year = int(r["taken_at"][:4])
+    return {"id": r["id"], "year": year, "ago": datetime.now().year - year}
+
+
+SAVER_KINDS = ("prayer", "photos", "fire", "text", "rain", "galaxy", "mix", "calendar", "nature", "sea", "snow", "moon", "clock")
 
 
 def city_coords(s: dict):
@@ -533,6 +579,8 @@ def api_admin_tv_settings():
             set_setting(sk, str(max(lo, min(hi, int(d[key] or 0)))))
     if "saver_min" in d:
         set_setting("tv_saver_min", str(max(0, min(240, int(d["saver_min"] or 0)))))
+    if "pad_sleep" in d:
+        set_setting("tv_pad_sleep", str(max(0, min(240, int(d["pad_sleep"] or 0)))))
     if "words" in d:
         set_setting("tv_words", json.dumps([x for x in d["words"] if x in ("ar", "fr", "en")]))
     if "weather" in d:
@@ -543,6 +591,8 @@ def api_admin_tv_settings():
         set_setting("tv_saver_kind", d["saver_kind"])
     if "saver_text" in d:
         set_setting("tv_saver_text", str(d["saver_text"] or "").strip()[:160])
+    if isinstance(d.get("home_cards"), list):
+        set_setting("tv_home_cards", json.dumps([k for k in HOME_CARDS if k in d["home_cards"]]))
     if d.get("source") in ("calc", "mawaqit"):
         set_setting("tv_prayer_source", d["source"])
     if isinstance(d.get("offsets"), dict):
@@ -1287,8 +1337,11 @@ def api_tv_home():
     daily = session.get("tv_daily")
     if not daily:
         daily = session["tv_daily"] = welcome.daily(u)
+    cards = s["home_cards"]
     return jsonify(user=profile_dict(u), tiles=tiles, settings=s, prayer=prayer_now(s), word=daily["word"],
-                   text=daily.get("text") if s["daily_kinds"] else None, weather=weather_now(s))
+                   text=daily.get("text") if s["daily_kinds"] else None, weather=weather_now(s),
+                   family=home_family(db) if "family" in cards else None,
+                   memory=home_memory(db, u) if "memory" in cards else None)
 
 
 THEMES = ("grape", "apple", "orange", "strawberry", "lemon", "watermelon")
@@ -1943,6 +1996,16 @@ def api_tv_admin_audio_set():
     if d.get("action") != "test":
         log_action("مخرج صوت التلفاز", d.get("profile") or d.get("action") or "", u["username"])
     return jsonify(ok=True)
+
+
+@bp.post("/api/tv/pads/off")
+def api_tv_pads_off():
+    """البند 65: إطفاء القبضات الموصولة بالبلوتوث (بعد مدة بلا لعب، أو بزر «أطفئ القبضات»). لا يحتاج رمز المدير، لكن يحتاج فرداً مختاراً على التلفاز."""
+    tv_user()
+    from .sysadmin import available, helper
+    if not available():
+        return jsonify(off=[])
+    return jsonify(helper("bt-pads-off", timeout=90, as_json=True) or {"off": []})
 
 
 @bp.get("/api/tv/admin/bt")

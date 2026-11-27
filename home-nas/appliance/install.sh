@@ -33,7 +33,7 @@ log "Installing system packages"
 PKGS="python3 python3-venv python3-pip ffmpeg avahi-daemon libnss-mdns sudo ca-certificates \
     unattended-upgrades rsync parted e2fsprogs sqlite3 mdadm smartmontools samba minidlna \
     python3-flask python3-waitress python3-pil python3-psutil libheif-examples libheif-plugin-libde265 \
-    poppler-utils usbmuxd libimobiledevice-utils ifuse espeak-ng"
+    poppler-utils usbmuxd libimobiledevice-utils ifuse"
 # بدون إنترنت (تحديث من فلاشة): نكمل إذا كانت الحزم الأساسية مثبتة مسبقاً
 # البند 57: إذا كانت كل الحزم مثبتة (الإيزو فيه كل شيء) فلا نتصل بخوادم ديبيان أصلاً
 OFFLINE=0
@@ -320,7 +320,14 @@ if [ "$APPLIANCE" -eq 1 ]; then
     cat > /etc/udev/rules.d/71-homenas-cec-power.rules <<'EOF'
 SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="*[Cc][Ee][Cc]*", TAG-="power-switch"
 EOF
+    # البند 64: زر الإطفاء في ريموت USB (مثل Air Mouse بقطعة USB) أو في لوحة مفاتيح USB/بلوتوث لا يطفئ السيرفر.
+    # يبقى زر الإطفاء في الجهاز نفسه (ACPI) يعمل كما هو.
+    cat > /etc/udev/rules.d/71-homenas-remote-power.rules <<'EOF'
+SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_BUS}=="usb|bluetooth", TAG-="power-switch"
+EOF
     udevadm control --reload >/dev/null 2>&1 || true
+    # يُطبَّق فوراً على الأجهزة الموصولة الآن (logind يترك الزر عند حدث change بلا الوسم)
+    udevadm trigger --subsystem-match=input --action=change >/dev/null 2>&1 || true
     cat > /etc/systemd/system/hsef-cec.service <<'EOF'
 [Unit]
 Description=HOME ANAB: TV remote over HDMI-CEC

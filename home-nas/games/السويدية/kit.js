@@ -93,19 +93,10 @@
   const voices = () => { try { return speechSynthesis.getVoices(); } catch { return []; } };
   if ("speechSynthesis" in window) { voices(); speechSynthesis.onvoiceschanged = voices; }
   K.voice = (lang = "ar") => voices().find((v) => v.lang && v.lang.toLowerCase().startsWith(lang)) || null;
-  // البند 58: لا صوت عربي في متصفح التلفاز ← السيرفر يصنع الصوت (espeak-ng، بلا إنترنت)
-  K.serverTts = (text, rate = 0.85) => `/api/tv/tts?t=${encodeURIComponent(text)}&r=${Math.round(150 * rate)}`;
+  // البند 66: لا صوت آلي من السيرفر (أُلغي البند 58 بطلب صاحب المشروع): القراءة بصوت المتصفح العربي فقط إن وُجد
   K.tts = (text, lang = "ar", rate = 0.85) => {
     const v = K.voice(lang);
-    if (!text) return false;
-    if (!v) {
-      if (!String(lang).startsWith("ar") || location.protocol === "file:") return false;
-      try { speechSynthesis.cancel(); } catch {}
-      try { audio && audio.pause(); } catch {}
-      audio = new Audio(K.serverTts(text, rate));
-      audio.play().catch(() => {});
-      return true;
-    }
+    if (!v || !text) return false;
     try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.voice = v; u.lang = v.lang; u.rate = rate; speechSynthesis.speak(u); return true; } catch { return false; }
   };
   K.stopSound = () => { try { audio && audio.pause(); } catch {} try { speechSynthesis.cancel(); } catch {} };

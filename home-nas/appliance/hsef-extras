@@ -1748,6 +1748,23 @@ def bt_pair_pad(wait: int = 45):
     print(json.dumps({"mac": found["mac"], "name": found["name"]}))
 
 
+# البند 65: إطفاء القبضات الموصولة بالبلوتوث حفاظاً على شحنها (تبقى مربوطة، وزر PS يعيد وصلها)
+def bt_pads_off():
+    if FAKE:
+        print(json.dumps({"off": ["DualSense Wireless Controller"]}))
+        return
+    if not shutil.which("bluetoothctl") or not any(Path("/sys/class/bluetooth").glob("hci*")):
+        print(json.dumps({"off": []}))
+        return
+    off = []
+    for d in bt_devices():
+        if d["connected"] and is_pad(d):
+            r = subprocess.run(["bluetoothctl", "disconnect", d["mac"]], capture_output=True, text=True, timeout=20)
+            if r.returncode == 0:
+                off.append(d["name"])
+    print(json.dumps({"off": off}))
+
+
 PAD_GENERIC = Path("/etc/modprobe.d/hsef-pads.conf")
 
 
@@ -2697,6 +2714,8 @@ def main():
         bt_pair(a[1])
     elif a == ["bt-pair-pad"]:
         bt_pair_pad()
+    elif a == ["bt-pads-off"]:
+        bt_pads_off()
     elif len(a) == 2 and a[0] == "bt-remove":
         bt_remove(a[1])
     elif a == ["pad-diag"]:
