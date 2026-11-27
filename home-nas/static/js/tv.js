@@ -2720,38 +2720,42 @@ const SET_ICON = {
 
 // اختيار شاشة التوقف من التلفاز: تظهر فوراً للتجربة
 function saverSetScreen() {
+  // البند 61: الأسماء في قائمة فوق بعضها، وعلى الطرف معاينة كبيرة متحركة للشاشة التي عليها التركيز
   const el = subScreen("شاشة التوقف", "saver"), body = el.querySelector(".set-body");
   const draw = () => {
     const cur = settings.saver_kind || "prayer";
-    body.innerHTML = `<p class="set-msg">اختر شاشة، وستظهر لك فوراً للتجربة. اضغط أي زر للرجوع.</p>
-      <div class="sv-grid">${SAVERS.map(([k, n, ic]) => `<button class="sv-card f${k === cur ? " on" : ""}" data-k="${k}"><span class="sv-prev"><span class="emo">${ic}</span></span><b>${n}</b>${k === cur ? "<i>✓ المختارة</i>" : ""}</button>`).join("")}</div>
-      <p class="set-msg">تظهر بعد ${+settings.saver_min || 0} دقيقة بلا استعمال (تغيّر المدة من لوحة تحكم السيرفر ← وضع التلفاز).</p>`;
-    body.querySelectorAll(".sv-card").forEach((b) => b.addEventListener("click", async () => {
+    body.innerHTML = `<div class="sv-split"><div class="sv-list">${SAVERS.map(([k, n, ic]) => `<button class="sv-row f${k === cur ? " on" : ""}" data-k="${k}"><span class="emo">${ic}</span><b>${n}</b>${k === cur ? "<i>✓</i>" : ""}</button>`).join("")}</div>
+      <div class="sv-side"><div class="sv-big"><span class="emo"></span></div><div class="sv-name"></div>
+        <p class="set-msg">«موافق» = اختيارها وتجربتها بكامل الشاشة، وأي زر للرجوع.<br>تظهر بعد ${+settings.saver_min || 0} دقيقة بلا استعمال (المدة من لوحة تحكم السيرفر ← وضع التلفاز).</p></div></div>`;
+    body.querySelectorAll(".sv-row").forEach((b) => b.addEventListener("click", async () => {
       const k = b.dataset.k;
       try { await api("/api/tv/admin/saver", { json: { kind: k } }); } catch (e) { toast(e.message); return; }
       settings.saver_kind = k;
-      draw();
-      setFocus(body.querySelector(`.sv-card[data-k="${k}"]`));
+      draw(); shown = null;
+      setFocus(body.querySelector(`.sv-row[data-k="${k}"]`));
       showSaver(false, k);
     }));
   };
   draw();
-  push({ el, initial: () => el.querySelector(".sv-card.on") || el.querySelector(".sv-card") });
-  // البند 61: معاينة صغيرة متحركة للشاشة التي عليها التركيز (واحدة فقط في كل مرة، أخف على الجهاز)
-  let pv = null, pvStop = null;
-  const stopPv = () => { try { pvStop?.(); } catch { /* */ } pvStop = null; pv?.querySelector(".sv-mini")?.remove(); pv = null; };
+  push({ el, initial: () => el.querySelector(".sv-row.on") || el.querySelector(".sv-row"), onFocus: (f) => f.scrollIntoView?.({ block: "nearest" }) });
+  // معاينة واحدة فقط في كل مرة (أخف على الجهاز)، تتبدّل مع التركيز
+  let shown = null, pvStop = null;
+  const stopPv = () => { try { pvStop?.(); } catch { /* */ } pvStop = null; body.querySelector(".sv-big .sv-mini")?.remove(); };
   const pvId = setInterval(() => {
     if (!el.isConnected) { stopPv(); clearInterval(pvId); return; }
-    if (saverEl) { stopPv(); return; }
-    const card = body.querySelector(".sv-card.focus");
-    if (card === pv) return;
-    stopPv();
-    if (!card || card.dataset.k === "mix") return;
-    pv = card;
+    if (saverEl) { stopPv(); shown = null; return; }
+    const row = body.querySelector(".sv-row.focus") || body.querySelector(".sv-row.on");
+    const k = row?.dataset.k;
+    if (!k || k === shown) return;
+    stopPv(); shown = k;
+    const [, n, ic] = SAVERS.find((x) => x[0] === k);
+    body.querySelector(".sv-name").textContent = k === "mix" ? `${n}: تتبدّل الشاشات كل 4 دقائق` : n;
+    body.querySelector(".sv-big .emo").textContent = ic;
+    if (k === "mix") return;
     const mini = h(`<div class="saver sv-mini"></div>`);
-    card.querySelector(".sv-prev").appendChild(mini);
-    try { pvStop = startSaver(mini, card.dataset.k); } catch { stopPv(); }
-  }, 400);
+    body.querySelector(".sv-big").appendChild(mini);
+    try { pvStop = startSaver(mini, k); } catch { stopPv(); }
+  }, 300);
 }
 
 function subScreen(title, iconKey) {

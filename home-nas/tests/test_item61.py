@@ -14,7 +14,7 @@ res.append(ok(all(k in kinds for k in NEW) and set(kinds) == set(tv.SAVER_KINDS)
 fn = js.split("function startSaver")[1].split("};")[0]
 res.append(ok(all(f"{k}: sv" in fn for k in NEW), "لكل شاشة جديدة رسمها"))
 res.append(ok(all(f'value="{k}"' in adm for k in NEW), "وفي لوحة التحكم ← وضع التلفاز ← المظهر"))
-res.append(ok("sv-mini" in js and ".saver.sv-mini" in css and "card.dataset.k === \"mix\"" in js, "معاينة صغيرة متحركة للشاشة التي عليها التركيز"))
+res.append(ok("sv-mini" in js and ".saver.sv-mini" in css and 'class="sv-row' in js and ".sv-big" in css, "الأسماء في قائمة فوق بعضها، وعلى الطرف معاينة كبيرة متحركة للشاشة التي عليها التركيز"))
 res.append(ok(not re.search(r"https?://", js.split("البند 61: شاشات توقف جديدة")[1].split("let wakeLock")[0]), "كلها بلا إنترنت"))
 # المناسبات الهجرية وطور القمر
 code = js.split("let fmtHijriNum = null;")[1].split("const occDays")[0]
