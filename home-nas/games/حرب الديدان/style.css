@@ -1,0 +1,50 @@
+#sky { --sky: linear-gradient(180deg, #60a5fa 0%, #e0f2fe 62%, #84cc16 62%, #4d7c0f 100%); }
+.mode { width: 26vw; height: 40vh; }
+.help { font-size: 2.2vh; }
+.hero { width: 36vh; height: 18vh; }
+.top h2 { font-size: 5vh; }
+.endh { font-size: 8vh; }
+.score { font-size: 7vh; font-weight: 800; color: #fff; -webkit-text-stroke: .35vh #1e3a8a; paint-order: stroke fill; margin: 1vh 0; }
+.earned { min-height: 6vh; margin-top: 1vh; }
+.gain { background: #fde047; color: #92400e; }
+.legend { font-size: 2.8vh; background: rgba(255,255,255,.8); border-radius: 3vh; padding: .6vh 3vh; margin-top: 3vh; text-align: center; }
+canvas.war { position: fixed; inset: 0; width: 100vw; height: 100vh; touch-action: none; }
+.msg { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 5; }
+.msg .win { background: #fff; border: 1.2vh solid var(--c); border-radius: 6vh; padding: 3vh 6vw; font-size: 8vh; font-weight: 800; color: var(--c); text-align: center; box-shadow: 0 3vh 6vh rgba(0,0,0,.35); }
+.msg .win small { display: block; font-size: 3.2vh; color: #334155; margin-top: 1.5vh; }
+/* أزرار اللمس */
+.tpad { position: fixed; bottom: 2vmin; right: 50%; transform: translateX(50%); display: none; gap: 1.4vmin; z-index: 4; direction: ltr; }
+.tpad.on { display: flex; }
+.tpad button { width: 11vmin; height: 11vmin; border: 0; border-radius: 3vmin; background: rgba(255,255,255,.82); color: #1e3a8a; font-size: 5vmin; font-weight: 800;
+  box-shadow: 0 .8vmin 0 rgba(0,0,0,.2); touch-action: none; padding: 0; }
+.tpad button.fire { background: var(--c, #ef4444); color: #fff; width: 14vmin; }
+.tpad button.dn { transform: translateY(.6vmin); box-shadow: 0 .2vmin 0 rgba(0,0,0,.2); filter: brightness(.9); }
+@media (orientation: portrait) {
+  #app { padding: 3vh 3vw; }
+  h1 { font-size: 6vh; }
+  .title { flex-direction: column; gap: 1vh; }
+  .modes { gap: 2vh; }
+  .mode { width: 80vw; height: 15vh; flex-direction: row; gap: 4vw; }
+  .mode .big { font-size: 8vh; }
+  .top h2 { font-size: 3vh; }
+  .endh { font-size: 5vh; }
+  .nav { flex-wrap: wrap; justify-content: center; gap: 2vh; }
+  .help { display: none; }
+  .hero { width: 30vh; height: 15vh; }
+  .tpad { gap: 1vmin; }
+  .tpad button { width: 12vmin; height: 12vmin; }
+  .tpad button.fire { width: 15vmin; }
+}
+.msg .win.up { align-self: flex-start; margin-top: 16vh; font-size: 6vh; }
+/* إعداد المباراة */
+.setup { display: flex; flex-direction: column; gap: 2vh; margin: 3vh 0; align-items: stretch; flex: 0 0 auto; }
+.setrow { flex: 0 0 auto; display: flex; align-items: center; gap: 2vw; background: rgba(255,255,255,.75); border-radius: 4vh; padding: 1.4vh 2.4vw; }
+.setrow b { font-size: 3.2vh; color: #1e3a8a; min-width: 26vw; }
+.opts { display: flex; gap: 1.2vw; flex-wrap: nowrap; align-items: center; }
+.btn.opt { min-width: 8vw; font-size: 3.6vh; padding: 1.2vh 2.4vh; height: auto; flex: 0 0 auto; align-self: center; }
+.opt.on { background: #fde047; color: #92400e; box-shadow: 0 0 0 .5vh #f59e0b inset; }
+@media (orientation: portrait) {
+  .setrow { flex-direction: column; gap: 1vh; padding: 1.2vh 3vw; }
+  .setrow b { min-width: 0; font-size: 2.6vh; }
+  .btn.opt { min-width: 14vw; font-size: 2.4vh; padding: 1vh 2vh; }
+}
