@@ -28,5 +28,43 @@
   <input type="hidden" name="tz" id="tz">
   <button class="btn primary" type="submit">إنشاء الحساب والبدء</button>
 </form>
+<!-- البند 6: جهاز جديد بدل جهاز قديم: الاستيراد من هنا بدل إنشاء المدير -->
+<details class="act-box" id="imp" style="margin-top:18px">
+  <summary style="cursor:pointer;font-weight:700">عندك جهاز HOME ANAB قديم؟ انقل كل شيء منه</summary>
+  <p class="muted" style="font-size:13px;margin:8px 0">في الجهاز القديم: لوحة التحكم ← <b>التصدير والاستيراد</b> ← «تصدير»، فتحصل على ملف ‎.anab. اختره هنا واكتب كلمة سره:
+    تنتقل الحسابات وكلمات مرورها والإعدادات (كود التفعيل لا يُنقل).</p>
+  <input class="field" type="file" id="impf" accept=".anab">
+  <label class="lbl">كلمة سر الملف</label>
+  <input class="field" type="password" id="imppw" autocomplete="off">
+  <div class="err" id="imperr" hidden></div>
+  <button class="btn" type="button" id="impgo">استيراد الملف</button>
+  <p class="muted" id="impst" style="font-size:13px" hidden></p>
+</details>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id), err = $('imperr'), st = $('impst'), go = $('impgo');
+  go.onclick = async () => {
+    err.hidden = true;
+    const f = $('impf').files[0], pw = $('imppw').value;
+    if (!f || !pw) { err.textContent = 'اختر ملف ‎.anab واكتب كلمة سره'; err.hidden = false; return; }
+    const fd = new FormData(); fd.append('file', f); fd.append('password', pw);
+    go.disabled = true; st.hidden = false; st.textContent = 'جارٍ رفع الملف وفحصه…';
+    try {
+      const r = await fetch('/api/setup/import', { method: 'POST', body: fd });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || j.message || 'تعذر الاستيراد');
+      const m = j.manifest || {};
+      st.textContent = `✓ ملف «${m.server_name || 'HOME ANAB'}» (${m.users || '?'} حساب). يُعاد تشغيل البرنامج ويُطبَّق الاستيراد… انتظر.`;
+      let n = 0;
+      const wait = async () => {
+        n++;
+        try { const x = await fetch('/login', { cache: 'no-store' }); if (x.ok && x.url.indexOf('/setup') < 0 && n > 2) { location.href = '/login'; return; } } catch (e) {}
+        if (n < 60) setTimeout(wait, 3000); else st.textContent = 'أعد تشغيل الجهاز، ثم سجّل الدخول بحساب الجهاز القديم.';
+      };
+      setTimeout(wait, 4000);
+    } catch (e) { err.textContent = e.message; err.hidden = false; go.disabled = false; st.hidden = true; }
+  };
+})();
+</script>
 <script>try { document.getElementById('tz').value = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}</script>
 {% endblock %}

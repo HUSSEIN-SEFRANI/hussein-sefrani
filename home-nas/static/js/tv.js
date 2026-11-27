@@ -441,6 +441,15 @@ function themeScreen() {
   push({ el, initial: () => el.querySelector(".theme-card.on") || el.querySelector(".theme-card") });
 }
 
+// البند 52: الأزرار الأربعة اليمنى بالموقع لا بالرمز (✕○□△ في بلايستيشن، B A Y X في نينتندو، وغيرها في الأيادي غير الأصلية):
+// السفلي «موافق»، الأيمن «رجوع»، الأيسر والعلوي فعلان إضافيان. والأسهم أو العصا اليسرى للتوجيه دائماً، في كل الأيادي.
+const FACE_NAME = { down: "الزر السفلي", right: "الزر الأيمن", left: "الزر الأيسر", up: "الزر العلوي" };
+function faceIcon(pos, size = 28) {
+  const at = { up: [12, 5], left: [5, 12], right: [19, 12], down: [12, 19] };
+  return `<svg class="face" width="${size}" height="${size}" viewBox="0 0 24 24" role="img" aria-label="${FACE_NAME[pos]}">${Object.entries(at).map(([k, [x, y]]) =>
+    `<circle cx="${x}" cy="${y}" r="${k === pos ? 4.8 : 3.3}" fill="${k === pos ? "#fde68a" : "rgba(255,255,255,.32)"}"/>`).join("")}</svg>`;
+}
+const okPos = () => (padPrefs.swap ? "right" : "down"), backPos = () => (padPrefs.swap ? "down" : "right");
 function hints(list) {
   return `<div class="hints">${list.map(([k, t]) => `<span><b>${k}</b>${t}</span>`).join("")}</div>`;
 }
@@ -497,11 +506,58 @@ function textBody(t) {
   if (t.kind === "ayah") return `<span class="qr">﴿${esc(t.text)}﴾</span>`;
   return t.kind === "hadith" ? `«${esc(t.text)}»` : esc(t.text);
 }
-function textCard(t, kids = false, cls = "") {
+// البند 63: بطاقات الشاشة الرئيسية للبالغين، يختارها المدير (لوحة التحكم ← وضع التلفاز ← صفحة كل شخص).
+// عمودان: الأيسر (48، عرض 340) والأوسط (404، عرض 460)، من 112 حتى 525. كل بطاقة تأخذ مكانها المفضّل، أو الآخر، أو لا تظهر.
+function calendarCard() {
+  const now = new Date(), occ = nextOccasions(1)[0];
+  return `<div class="card glass hcal"><div class="hd2"><span class="emo">📅</span><div>
+    <div class="lbl">${WEEK_AR[now.getDay()]} ${now.getDate()}</div>${fmtHijri ? `<b class="js-hj"></b>` : ""}</div></div>
+    ${occ ? `<div class="occ">${occ.ic} ${occ.name}: <b>${occDays(occ.days)}</b></div>` : ""}</div>`;
+}
+function familyCard(f) {
+  if (!f || (!f.birthdays.length && !f.stars.length)) return "";
+  const bd = f.birthdays.map((b) => `<div>🎂 <b>${esc(b.name)}</b> ${b.in === 0 ? "اليوم! 🎉" : `${occDays(b.in)} (${b.age} ${b.age >= 3 && b.age <= 10 ? "سنوات" : "سنة"})`}</div>`).join("");
+  const st = f.stars.length ? `<div>⭐ ${f.stars.map((s) => `<b>${esc(s.name)}</b> ${s.stars}`).join(" · ")}</div>` : "";
+  return `<div class="card glass hfam"><div class="lbl">العائلة</div>${bd}${st}</div>`;
+}
+function memoryCard(m) {
+  if (!m) return "";
+  return `<div class="card glass hmem"><img src="/api/tv/media/${m.id}/thumb" alt="">
+    <div class="cap">📸 في مثل هذا اليوم · ${m.ago === 1 ? "قبل سنة" : m.ago === 2 ? "قبل سنتين" : `قبل ${m.ago} ${m.ago <= 10 ? "سنوات" : "سنة"}`} (${m.year})</div></div>`;
+}
+function homeCards(d, hasPrayer) {
+  const list = settings.home_cards || ["prayer", "text", "word"];
+  const one = {
+    prayer: () => (hasPrayer ? prayerCard(d.prayer, 0) : ""), text: () => textCard(d.text), word: () => wordCard(d.word, 0),
+    calendar: calendarCard, family: () => familyCard(d.family), memory: () => memoryCard(d.memory),
+  };
+  return list.map((k) => (one[k] ? one[k]() : "").replace(/^<div class="/, `<div data-hk="${k}" style="visibility:hidden" class="`)).join("");
+}
+// الأماكن تُحسب بعد العرض من الطول الحقيقي لكل بطاقة: عمود أيسر وأوسط، وتحت الساعة مكان لبطاقة صغيرة
+function layoutHome(box) {
+  if (!box || !box.isConnected || box.closest("[hidden]")) return;
+  const cols = { L: { x: 48, w: 340, y: 112, max: 999 }, C: { x: 404, w: 460, y: 112, max: 999 }, R: { x: 884, w: 350, y: 346, max: 150 } };
+  for (const c of box.querySelectorAll("[data-hk]")) {
+    const k = c.dataset.hk, pref = k === "text" ? ["C", "L"] : k === "memory" ? ["C", "L", "R"] : ["L", "C", "R"];
+    let done = false;
+    c.style.display = "";
+    c.style.transition = "none";   // الوضع الخفيف يضع مدة انتقال لكل شيء، فيُقاس الطول القديم
+    for (const n of pref) {
+      const col = cols[n];
+      c.style.left = `${col.x}px`; c.style.width = `${col.w}px`; c.style.top = `${col.y}px`;
+      if (k === "memory") c.style.height = n === "C" ? "224px" : n === "L" ? "200px" : "150px";
+      const hh = c.offsetHeight;
+      if (hh <= col.max && col.y + hh <= 525) { col.y += hh + 14; done = true; break; }
+    }
+    c.style.visibility = done ? "" : "hidden";
+    c.style.display = done ? "" : "none";
+  }
+}
+function textCard(t, kids = false, cls = "", style = "") {
   if (!t) return "";
   const icon = TEXT_ICON[t.kind] || "✨";
   const long = letters(t.text) > (kids ? 42 : 55) ? " long" : "";
-  return `<div class="tcard ${kids ? "kid" : "glass"} ${t.kind}${long} ${cls}"><div class="lbl"><span class="emo">${icon}</span> ${esc(t.label)}</div>
+  return `<div class="tcard ${kids ? "kid" : "glass"} ${t.kind}${long} ${cls}"${style ? ` style="${style}"` : ""}><div class="lbl"><span class="emo">${icon}</span> ${esc(t.label)}</div>
     <div class="tx" translate="no">${textBody(t)}</div>
     ${t.source ? `<div class="src" translate="no">${esc(t.source)}</div>` : ""}${t.explain && (kids || t.kind === "proverb") ? `<div class="ex" translate="no">${esc(t.explain)}</div>` : ""}</div>`;
 }
@@ -522,6 +578,7 @@ function loadQR() {
 }
 
 async function whoScreen(boot = false) {
+  stopBg();   // البند 62
   stopKidWatch();
   let d;
   try { d = await api("/api/tv/profiles"); } catch (e) { toast(e.message); return; }
@@ -713,8 +770,7 @@ function adultHome(d) {
       <div class="user-pill glass"><div class="mini">${face(u)}</div><span style="font-weight:700;font-size:16px">${esc(u.name)}</span></div></div>
       <button class="pill glass f js-switch">تبديل المستخدم</button></div>
     <div class="clockbig"><div class="tm js-tm"></div><div class="dt js-dt"></div><div class="hj js-hj"></div><div class="wx js-wx">${weatherLine(d.weather)}</div></div>
-    ${textCard(d.text, false, hasPrayer ? "beside" : "solo")}
-    <div class="cards">${hasPrayer ? prayerCard(d.prayer, 112) : ""}${wordCard(d.word, hasPrayer ? 336 : 112)}</div>
+    <div class="cards">${homeCards(d, hasPrayer)}</div>
     <nav class="dock glass">${dock}${setTile}</nav></div>`);
   const tiles = Object.fromEntries(d.tiles.map((t) => [String(t.id), t]));
   el.querySelector(".js-settings")?.addEventListener("click", settingsScreen);
@@ -740,15 +796,18 @@ function adultHome(d) {
     el,
     initial: () => el.querySelector(".dk"),
     back: () => setFocus(el.querySelector(".js-switch")),
-    onShow: () => { fillBalance(el); fillPending(); },
+    onShow: () => { fillBalance(el); fillPending(); layoutHome(el.querySelector(".cards")); },
     destroy: () => clearInterval(pendTimer),
     refresh(c) {
       d.prayer = c.prayer;
-      el.querySelector(".cards").innerHTML = (hasPrayer ? prayerCard(c.prayer, 112) : "") + wordCard(d.word, hasPrayer ? 336 : 112);
+      el.querySelector(".cards").innerHTML = homeCards(d, hasPrayer);
+      layoutHome(el.querySelector(".cards")); tick();
       el.querySelector(".js-wx").innerHTML = weatherLine(c.weather);
     },
   };
   if (wp === "photos") photoWallpaper(el.querySelector(".photolayer"), scr);
+  requestAnimationFrame(() => layoutHome(el.querySelector(".cards")));
+  setTimeout(() => layoutHome(el.querySelector(".cards")), 300);   // بعد تحميل الخطوط
   return scr;
 }
 
@@ -929,6 +988,7 @@ async function browseScreen(t, sub) {
 
 // ============================================================== الفيديو
 function videoScreen(t, paths, idx) {
+  stopBg();   // البند 62
   const el = h(`<div class="player"><video autoplay playsinline></video>${PREP}
     <div class="bigplay" hidden>${A.PAUSE}</div><div class="counter"></div>
     <div class="osd"><div class="tt"></div><div class="bar"><i></i></div><div class="row"><span class="ct">0:00</span><span class="du">0:00</span></div>
@@ -989,7 +1049,42 @@ function videoScreen(t, paths, idx) {
 // ============================================================== الصوتيات (أناشيد، قرآن، تسجيلات)
 // أربع طرق عرض (تُحفظ لكل مربع): قائمة، أسطوانة دوّارة، موجات صوتية، شاشة كبيرة. مع تكرار وتشغيل عشوائي
 const AUDIO_VIEWS = [["list", "📋", "قائمة"], ["vinyl", "💿", "أسطوانة"], ["waves", "🌊", "موجات"], ["big", "🖥️", "شاشة كبيرة"]];
+// البند 62: الموسيقى تستمر بعد الخروج من تطبيق الصوت، مع إشعار صغير أعلى الشاشة.
+// تتوقف عند فتح فيديو أو لعبة أو تطبيق أو كاميرا أو قصة، أو تبديل المستخدم. والضغط على الإشعار (أو فتح المربع نفسه) يرجع إلى المشغّل.
+let bgPlay = null;
+function stopBg() {
+  if (!bgPlay) return;
+  const b = bgPlay; bgPlay = null;
+  clearInterval(b.timer);
+  try { b.au.pause(); b.au.removeAttribute("src"); b.au.load(); } catch { /* */ }
+  b.au.remove(); b.pill.remove();
+}
+function startBg(t, paths, au, cur, reopen) {
+  stopBg();
+  const pill = h(`<button class="bgmusic" aria-label="الموسيقى قيد التشغيل"><span class="eq"><i></i><i></i><i></i></span><span class="tt"></span><b class="st"></b></button>`);
+  const draw = () => {
+    pill.querySelector(".tt").textContent = cur();
+    pill.querySelector(".st").textContent = au.paused ? "⏸ متوقفة" : "🎵 قيد التشغيل";
+    pill.classList.toggle("paused", au.paused);
+  };
+  au.hidden = true;
+  stage.appendChild(au); stage.appendChild(pill);
+  bgPlay = { t, au, pill, timer: setInterval(draw, 1000), reopen };
+  pill.addEventListener("click", () => { const r = bgPlay?.reopen; if (r) r(); });
+  draw();
+  toast("🎵 الموسيقى مستمرة. افتح المربع نفسه للتحكم بها");
+}
+document.addEventListener("keydown", (e) => {
+  if (!bgPlay) return;
+  if (e.key === "MediaPlayPause" && !top()?.busy?.()) { bgPlay.au.paused ? bgPlay.au.play().catch(() => {}) : bgPlay.au.pause(); }
+  else if (e.key === "MediaStop") stopBg();
+});
+
 function audioScreen(t, paths, idx) {
+  // نفس المربع والموسيقى مستمرة: نكمل من حيث وصلت
+  const resume = bgPlay && bgPlay.t.id === t.id && bgPlay.paths?.join("\n") === paths.join("\n") ? { i: bgPlay.idx(), at: bgPlay.au.currentTime } : null;
+  if (resume) idx = resume.i;
+  stopBg();
   const names = paths.map((p) => p.split("/").pop().replace(/\.[^.]+$/, ""));
   const vkey = `hsef-aview-${t.id}`;
   let view = "list", repeat = "all", shuffle = false;
@@ -1005,8 +1100,8 @@ function audioScreen(t, paths, idx) {
     <div class="now"><div class="tt"></div><div class="bar"><i></i></div><div class="tms"><span class="cur">0:00</span><span class="dur"></span></div>
       <div class="vbtns"><button class="btn f js-vd">${VOL_ICON(false).replace(/34/g, "24")} −</button><button class="btn f js-vm">${VOL_ICON(true).replace(/34/g, "24")}</button><button class="btn f js-vu">${VOL_ICON(false).replace(/34/g, "24")} +</button></div>
       <div class="vbtns"><button class="btn f js-view"></button><button class="btn f js-rep"></button><button class="btn f js-shuf"></button></div></div>
-    <div class="list">${list}</div><audio autoplay></audio>
-    ${hints([["موافق", "تشغيل"], ["+ −", "الصوت"], ["△", "طريقة العرض"], ["□", "تكرار"], ["رجوع", "خروج"]])}</div>`);
+    <div class="list">${list}</div><audio autoplay preload="auto"></audio>
+    ${hints([["موافق", "تشغيل"], ["+ −", "الصوت"], [faceIcon("up"), "طريقة العرض"], [faceIcon("left"), "تكرار"], ["رجوع", "خروج"]])}</div>`);
   const au = el.querySelector("audio"), bar = el.querySelector(".now .bar i"), cover = el.querySelector(".cover");
   const fmt = (x) => (isFinite(x) ? `${Math.floor(x / 60)}:${pad(Math.floor(x % 60))}` : "");
   const save = () => { try { localStorage.setItem(vkey, view); localStorage.setItem("hsef-arep", repeat); localStorage.setItem("hsef-ashuf", shuffle ? "1" : "0"); } catch { /* */ } };
@@ -1073,7 +1168,10 @@ function audioScreen(t, paths, idx) {
   au.addEventListener("pause", () => { cover.classList.remove("playing"); el.classList.remove("playing"); });
   au.addEventListener("ended", () => { const j = nextIdx(); if (j >= 0) load(j); });
   au.addEventListener("error", () => { toast("لا يمكن تشغيل هذا الملف"); if (idx + 1 < paths.length) setTimeout(() => load(idx + 1), 1500); });
-  el.querySelector(".js-back").addEventListener("click", pop);
+  // الخروج بزر «رجوع»: إن كان الصوت يعمل يستمر في الخلفية
+  let keep = false;
+  const leave = () => { keep = !au.paused; pop(); };
+  el.querySelector(".js-back").addEventListener("click", leave);
   el.querySelector(".js-vd").addEventListener("click", volDown);
   el.querySelector(".js-vu").addEventListener("click", volUp);
   el.querySelector(".js-vm").addEventListener("click", volMute);
@@ -1088,7 +1186,16 @@ function audioScreen(t, paths, idx) {
     el,
     initial: () => (view === "list" ? el.querySelector(`.trk[data-i="${idx}"]`) : el.querySelector(".js-view")),
     busy: () => !au.paused,
-    destroy() { stopWaves?.(); au.pause(); au.removeAttribute("src"); au.load(); },
+    back: leave,
+    destroy() {
+      stopWaves?.();
+      if (keep) {
+        startBg(t, paths, au, () => names[idx], () => { if (bgPlay) audioScreen(t, paths, idx); });
+        bgPlay.paths = paths; bgPlay.idx = () => idx;
+        return;
+      }
+      au.pause(); au.removeAttribute("src"); au.load();
+    },
     key(e) {
       if (e.key === " " || e.key === "MediaPlayPause") { au.paused ? au.play() : au.pause(); return true; }
       if (e.key === "v" || e.key === "V" || e.key === "ContextMenu") { el.querySelector(".js-view").click(); return true; }
@@ -1101,6 +1208,7 @@ function audioScreen(t, paths, idx) {
   setView(view);
   drawModes();
   load(idx);
+  if (resume && resume.at > 1) au.addEventListener("loadedmetadata", () => { try { au.currentTime = resume.at; } catch { /* */ } }, { once: true });
 }
 
 // ============================================================== عارض الصور وعرض الشرائح
@@ -1308,6 +1416,7 @@ async function camerasScreen(t) {
 }
 
 function camLiveScreen(cams, idx, auto = false) {
+  stopBg();   // البند 62
   const SEQ_SEC = 10;
   const el = h(`<div class="player cam-live"><video autoplay playsinline></video><img class="cam-img" alt="" hidden>
     <div class="osd"><div class="tt"></div><div class="keys"><span><b>← →</b>كاميرا أخرى</span><span><b>موافق</b>التسجيلات</span><span><b>⬆</b>${auto ? "إيقاف التبديل" : "تبديل تلقائي"}</span><span><b>رجوع</b>كل الكاميرات</span></div></div></div>`);
@@ -1381,6 +1490,55 @@ async function camRecScreen(c) {
 
 // ============================================================== الألعاب
 // اليد داخل اللعبة: إذا لم يرَ إطار اللعبة يد التحكم بنفسه (يحدث في بعض الأجهزة)، نعطيه ما تراه شاشة التلفاز
+// البند 51: الخروج من اللعبة بزر PS (أو «رجوع» في الريموت) بعد رسالة تأكيد، واللعبة متوقفة خلفها
+let padsBlocked = false;   // أثناء رسالة الخروج: اللعبة لا ترى الأيادي
+window.hsefPadSwap = () => { try { return !!padPrefs.swap; } catch { return false; } };   // للألعاب (kit.js). البند 52: نفس الموقع في كل الأيادي
+function freezeGame(fr, on) {   // نوقف رسم اللعبة (requestAnimationFrame) ثم نكمله من حيث توقف
+  try {
+    const w = fr.contentWindow;
+    if (on && !w.__hsefRaf) {
+      const real = w.requestAnimationFrame.bind(w), held = [];
+      w.__hsefRaf = { real, held };
+      w.requestAnimationFrame = (cb) => { held.push(cb); return 0; };
+      w.document.querySelectorAll("video, audio").forEach((m) => { if (!m.paused) { m.pause(); m.dataset.hsefPaused = "1"; } });
+    } else if (!on && w.__hsefRaf) {
+      const { real, held } = w.__hsefRaf;
+      w.requestAnimationFrame = real; w.__hsefRaf = null;
+      held.splice(0).forEach((cb) => real(cb));
+      w.document.querySelectorAll("[data-hsef-paused]").forEach((m) => { delete m.dataset.hsefPaused; m.play().catch(() => {}); });
+    }
+  } catch { /* لعبة من مصدر آخر */ }
+}
+function whenPadsReleased(fn, t0 = performance.now()) {   // لا تصل ضغطة «أكمل» نفسها إلى اللعبة
+  let held = false;
+  try { held = [...(navigator.getGamepads ? navigator.getGamepads() : [])].some((g) => g && g.connected && g.buttons.some((x) => x && x.pressed)); } catch { /* */ }
+  if (!held || performance.now() - t0 > 1500) fn(); else requestAnimationFrame(() => whenPadsReleased(fn, t0));
+}
+function askGameExit(scr, fr) {
+  if (scr.asking) return;
+  scr.asking = true; padsBlocked = true;
+  freezeGame(fr, true);
+  fr.inert = true;
+  try { fr.contentWindow.blur(); } catch { /* */ }
+  window.focus();
+  const box = h(`<div class="gexit"><div class="gx-card"><div class="gx-ic">🚪</div><b>الخروج من اللعبة؟</b>
+    <div class="gx-row"><button class="gx-btn f js-stay">▶️ أكمل اللعب</button><button class="gx-btn out f js-out">نعم، اخرج</button></div>
+    <small><b dir="ltr">PS</b> <span>للخروج</span> · <b>${faceIcon(backPos(), 22)}</b> <span>للعودة إلى اللعبة</span></small></div></div>`);
+  scr.el.appendChild(box);
+  scr.closeAsk = (out) => {
+    if (!scr.asking) return;
+    box.remove(); scr.asking = false; scr.closeAsk = null;
+    if (out) { padsBlocked = false; pop(); return; }
+    fr.inert = false;
+    freezeGame(fr, false);
+    whenPadsReleased(() => { padsBlocked = false; });
+    try { fr.contentWindow.focus(); } catch { /* */ }
+  };
+  box.querySelector(".js-stay").addEventListener("click", () => scr.closeAsk?.(false));
+  box.querySelector(".js-out").addEventListener("click", () => scr.closeAsk?.(true));
+  setFocus(box.querySelector(".js-stay"));
+}
+
 function shareGamepads(fr) {
   try {
     const nav = fr.contentWindow.navigator;
@@ -1388,6 +1546,7 @@ function shareGamepads(fr) {
     Object.defineProperty(nav, "getGamepads", {
       configurable: true,
       value: () => {
+        if (padsBlocked) return [];
         let a = [];
         try { a = [...own()]; } catch { /* */ }
         if (a.some((g) => g && g.connected)) return a;
@@ -1433,6 +1592,7 @@ function carryProgress(tid, path) {
 }
 
 async function gameScreen(t, path) {
+  stopBg();   // البند 62
   const gname = gameName(t, path);
   carryProgress(t.id, path);
   if (isKid()) {
@@ -1441,9 +1601,10 @@ async function gameScreen(t, path) {
     if (c && !c.allowed) { blockedScreen(t, c); return; }
   }
   const el = h(`<div class="game"><iframe src="/tv/game/${t.id}/${path ? `${encPath(path)}/` : ""}" allow="autoplay; fullscreen; gamepad" title="${esc(path)}"></iframe>
-    <div class="exit">للخروج من اللعبة اضغط «رجوع» (Esc)</div></div>`);
+    <div class="exit">للخروج من اللعبة: <b dir="ltr">PS</b> · زر «رجوع» في الريموت</div></div>`);
   const fr = el.querySelector("iframe");
-  const onKey = (e) => { activity(); if (e.key === "Escape" || e.key === "BrowserBack" || e.key === "GoBack") { e.preventDefault(); pop(); } };
+  let scr = null;
+  const onKey = (e) => { activity(); if (e.key === "Escape" || e.key === "BrowserBack" || e.key === "GoBack") { e.preventDefault(); if (scr) askGameExit(scr, fr); } };
   fr.addEventListener("load", () => {
     shareGamepads(fr);
     try {
@@ -1459,18 +1620,25 @@ async function gameScreen(t, path) {
       if (r.stop && top() && top().el === el) { pop(); blockedScreen(t, r); }
     } catch { /* */ }
   }, 30000);
-  push({
+  scr = {
     el,
     busy: () => true,
     isGame: true,
-    destroy() { clearInterval(beat); },
-    key(e) { if (e.key === "Escape" || BACK_KEYS.has(e.key)) { pop(); return true; } return false; },
-  });
+    askExit: () => askGameExit(scr, fr),
+    destroy() { clearInterval(beat); padsBlocked = false; },
+    key(e) {
+      if (scr.asking) { if (BACK_KEYS.has(e.key)) { scr.closeAsk(false); return true; } return false; }   // الأسهم وموافق للرسالة
+      if (e.key === "Escape" || BACK_KEYS.has(e.key)) { askGameExit(scr, fr); return true; }
+      return false;
+    },
+  };
+  push(scr);
   setTimeout(() => { try { fr.contentWindow.focus(); } catch { /* */ } }, 300);
 }
 
 // البند 46: تطبيق مدمج في النظام (مثل «الرسائل») داخل إطار، و«رجوع» يخرج منه ويحدّث الشاشة الرئيسية
 function appScreen(url, title) {
+  stopBg();   // البند 62
   const el = h(`<div class="game"><iframe src="${url}" allow="autoplay; fullscreen; gamepad" title="${esc(title)}"></iframe>
     <div class="exit">للخروج اضغط «رجوع» (Esc)</div></div>`);
   const fr = el.querySelector("iframe");
@@ -1566,6 +1734,7 @@ async function storiesScreen(t) {
   push({ el, initial: () => el.querySelector(".kcard") || el.querySelector(".js-back") });
 }
 function storyPlayer(t, x) {
+  stopBg();   // البند 62
   const el = h(`<div class="bg-dark kplay" style="--glow1:#ec489966">
     <div class="cover" style="background:${A.gradient(t.color)}"><span class="emo">🎧</span></div>
     <h1>${esc(x.title)}</h1><div class="by">${x.by ? `بصوت ${nm(esc(x.by))}` : ""}</div>
@@ -1699,8 +1868,9 @@ async function bookScreen(t, path) {
 
 // ============================================================== شاشة التوقف + منع إطفاء الشاشة
 // الأنواع: مواقيت الصلاة، صوري، نار، نص، أمطار، درب التبانة، وتنويع (يتبدّل كل 4 دقائق)
-const SAVERS = [["prayer", "مواقيت الصلاة", "🕌"], ["photos", "صوري", "🖼️"], ["fire", "نار", "🔥"], ["text", "نص", "📜"],
-  ["rain", "أمطار", "🌧️"], ["galaxy", "درب التبانة", "🌌"], ["mix", "تنويع", "🔀"]];
+const SAVERS = [["prayer", "مواقيت الصلاة", "🕌"], ["calendar", "التقويم", "📅"], ["photos", "صوري", "🖼️"], ["nature", "الطبيعة", "🏞️"], ["sea", "تحت الماء", "🐠"],
+  ["fire", "نار", "🔥"], ["text", "نص", "📜"], ["rain", "أمطار", "🌧️"], ["snow", "ثلج", "❄️"], ["galaxy", "درب التبانة", "🌌"],
+  ["moon", "القمر الليلة", "🌕"], ["clock", "ساعة كبيرة", "🕰️"], ["mix", "تنويع", "🔀"]];
 let lastAct = Date.now();
 let saverEl = null, saverTimer = 0, saverStop = null;
 function activity() { lastAct = Date.now(); }
@@ -1723,7 +1893,7 @@ function showSaver(night, kind) {
   if (night) { el.classList.add("night"); el.innerHTML = SCLOCK; tick(); return; }
   kind = kind || (isNightNow() && prayerOk() ? "prayer" : settings.saver_kind || "prayer");   // في الليل: مواقيت الصلاة بإضاءة خفيفة
   if (kind === "mix") {
-    const order = (LITE ? ["prayer", "text"] : ["prayer", "galaxy", "fire", "text", "rain"]).filter((k) => k !== "prayer" || prayerOk());
+    const order = (LITE ? ["prayer", "text", "calendar", "clock"] : ["prayer", "galaxy", "fire", "text", "rain", "calendar", "nature", "sea", "snow", "moon"]).filter((k) => k !== "prayer" || prayerOk());
     let i = Math.floor(Math.random() * order.length);
     const run = () => {
       if (el !== saverEl) return;
@@ -1739,7 +1909,8 @@ function showSaver(night, kind) {
 }
 function startSaver(el, kind) {
   if (kind === "prayer" && !prayerOk()) kind = "galaxy";
-  const fn = { prayer: svPrayer, photos: svPhotos, fire: svFire, text: svText, rain: svRain, galaxy: svGalaxy }[kind] || svPrayer;
+  const fn = { prayer: svPrayer, photos: svPhotos, fire: svFire, text: svText, rain: svRain, galaxy: svGalaxy,
+    calendar: svCalendar, nature: svNature, sea: svSea, snow: svSnow, moon: svMoon, clock: svClock }[kind] || svPrayer;
   el.classList.add("sv-" + kind);
   const stop = fn(el);
   tick();
@@ -2084,6 +2255,236 @@ function svGalaxy(el) {
   }, 20);
 }
 
+// ================================================================ البند 61: شاشات توقف جديدة (كلها مرسومة في الجهاز، بلا إنترنت)
+// التقويم: المناسبات الهجرية القادمة من تقويم أم القرى في المتصفح نفسه
+let fmtHijriNum = null;
+try { fmtHijriNum = new Intl.DateTimeFormat("en-u-ca-islamic-umalqura-nu-latn", { day: "numeric", month: "numeric" }); } catch { /* غير مدعوم */ }
+const OCCASIONS = [[9, 1, "رمضان المبارك", "🌙"], [10, 1, "عيد الفطر", "🎉"], [12, 10, "عيد الأضحى", "🐑"], [1, 1, "رأس السنة الهجرية", "📅"], [3, 12, "المولد النبوي", "✨"]];
+function hijriDM(d) {
+  if (!fmtHijriNum) return null;
+  const p = Object.fromEntries(fmtHijriNum.formatToParts(d).map((x) => [x.type, x.value]));
+  return [+p.month, +p.day];
+}
+function nextOccasions(n = 3) {
+  if (!fmtHijriNum) return [];
+  const out = [], seen = new Set(), d = new Date(); d.setHours(12, 0, 0, 0);
+  for (let i = 0; i < 390 && out.length < n; i++) {
+    const [m, dd] = hijriDM(d);
+    for (const [om, od, name, ic] of OCCASIONS) {
+      if (m === om && dd === od && !seen.has(name)) { seen.add(name); out.push({ name, ic, days: i }); }
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+const occDays = (n) => (n === 0 ? "اليوم" : n === 1 ? "غداً" : n === 2 ? "بعد يومين" : n <= 10 ? `بعد ${n} أيام` : `بعد ${n} يوماً`);
+const WEEK_AR = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+function monthGrid(now) {
+  const y = now.getFullYear(), m = now.getMonth(), first = new Date(y, m, 1).getDay(), days = new Date(y, m + 1, 0).getDate();
+  let cells = ["ح", "ن", "ث", "ر", "خ", "ج", "س"].map((w) => `<b>${w}</b>`).join("");
+  for (let i = 0; i < first; i++) cells += "<span></span>";
+  for (let d = 1; d <= days; d++) cells += `<span class="${d === now.getDate() ? "on" : ""}">${d}</span>`;
+  return cells;
+}
+function svCalendar(el) {
+  const draw = () => {
+    const now = new Date();
+    const mon = new Intl.DateTimeFormat(AR ? "ar" : LOC, { month: "long", year: "numeric", numberingSystem: "latn" }).format(now);
+    const occ = nextOccasions(3);
+    el.innerHTML = `<div class="cl-wrap">
+      <div class="cl-main"><div class="cl-day">${WEEK_AR[now.getDay()]}</div><div class="cl-num">${now.getDate()}</div>
+        <div class="cl-g js-dt"></div>${fmtHijri ? `<div class="cl-h">🌙 <span class="js-hj"></span></div>` : ""}<div class="cl-tm js-tm"></div></div>
+      <div class="cl-side"><div class="cl-mon">${esc(mon)}</div><div class="cl-grid">${monthGrid(now)}</div>
+        ${occ.length ? `<div class="cl-occ">${occ.map((o) => `<div><span>${o.ic}</span><b>${o.name}</b><i>${occDays(o.days)}</i></div>`).join("")}</div>` : ""}</div></div>`;
+    tick();
+  };
+  draw();
+  const wrap = () => el.querySelector(".cl-wrap");
+  let day = new Date().getDate();
+  const id = setInterval(() => {
+    if (new Date().getDate() !== day) { day = new Date().getDate(); draw(); }
+    const w = wrap(); if (w) w.style.transform = `translate(${rnd(-16, 16)}px, ${rnd(-10, 10)}px)`;
+  }, 60000);
+  return () => clearInterval(id);
+}
+
+// الطبيعة: جبال وبحيرة وأشجار، والسماء حسب وقت اليوم (فجر، نهار، غروب، ليل)
+function natureSky() {
+  const h0 = new Date().getHours();
+  if (h0 >= 5 && h0 < 7) return ["dawn", "#fbcfe8", "#fde68a", "#6d6a9c"];
+  if (h0 >= 7 && h0 < 17) return ["day", "#7dd3fc", "#e0f2fe", "#4b7f6b"];
+  if (h0 >= 17 && h0 < 19) return ["dusk", "#f97316", "#fcd34d", "#5b3a56"];
+  return ["night", "#0b1026", "#1e2a52", "#141c33"];
+}
+function ridge(seed, y0, amp, step = 40) {
+  let r = seed; const R = () => { r = (r * 9301 + 49297) % 233280; return r / 233280; };
+  let d = `M0 ${y0}`;
+  for (let x = 0; x <= 1280; x += step) d += ` L${x} ${(y0 - R() * amp).toFixed(0)}`;
+  return `${d} L1280 720 L0 720Z`;
+}
+function pines(seed, n, yMin, yMax, color) {
+  let r = seed; const R = () => { r = (r * 9301 + 49297) % 233280; return r / 233280; };
+  let s = "";
+  for (let i = 0; i < n; i++) {
+    const x = R() * 1280, y = yMin + R() * (yMax - yMin), hh = 40 + R() * 50, w = hh * 0.42;
+    s += `<path d="M${x.toFixed(0)} ${(y - hh).toFixed(0)}l${w.toFixed(0)} ${hh.toFixed(0)}h${(-2 * w).toFixed(0)}z"/>`;
+  }
+  return `<g fill="${color}">${s}</g>`;
+}
+function svNature(el) {
+  const [mode, top, bot, land] = natureSky();
+  const night = mode === "night";
+  el.style.background = `linear-gradient(180deg, ${top} 0%, ${bot} 62%, ${land} 100%)`;
+  const sun = night ? `<circle cx="1010" cy="150" r="46" fill="#fef3c7" opacity=".95"/>` : `<circle cx="${mode === "day" ? 980 : 640}" cy="${mode === "day" ? 140 : 380}" r="${mode === "day" ? 54 : 70}" fill="${mode === "day" ? "#fff7d6" : "#fde68a"}" opacity=".95"/>`;
+  const m1 = night ? "#1f2a4a" : mode === "day" ? "#6b8fb3" : "#7c5b8a", m2 = night ? "#18213b" : mode === "day" ? "#4e7a6a" : "#5a3f62", m3 = night ? "#0f1629" : mode === "day" ? "#2f5d45" : "#3b2a45";
+  el.innerHTML = `<svg class="nt-land" viewBox="0 0 1280 720" preserveAspectRatio="none" aria-hidden="true">${sun}
+    <path d="${ridge(11, 420, 170, 80)}" fill="${m1}"/><path d="${ridge(23, 470, 110, 60)}" fill="${m2}"/>
+    <rect x="0" y="500" width="1280" height="220" fill="${night ? "#0c1430" : mode === "day" ? "#5fa8d3" : "#b45f5a"}" opacity=".85"/>
+    <g opacity=".22" transform="translate(0,1000) scale(1,-1)"><path d="${ridge(23, 470, 110, 60)}" fill="${m2}"/></g>
+    <path d="M0 560 C 200 540, 360 600, 640 590 C 900 580, 1080 540, 1280 560 V720 H0Z" fill="${m3}"/>
+    ${pines(5, 26, 600, 700, night ? "#070b17" : "#1f4030")}</svg>${SCLOCK}`;
+  const { ctx } = svCanvas(el, "nt-fx");
+  const clouds = Array.from({ length: night ? 0 : 6 }, () => ({ x: rnd(0, 1280), y: rnd(40, 260), s: rnd(0.6, 1.4), v: rnd(6, 16) }));
+  const birds = [];
+  const flies = Array.from({ length: night ? 40 : 0 }, () => ({ x: rnd(0, 1280), y: rnd(560, 700), ph: rnd(0, 6.3), v: rnd(0.3, 1) }));
+  const stars = Array.from({ length: night ? 120 : 0 }, () => ({ x: rnd(0, 1280), y: rnd(0, 380), r: rnd(0.5, 1.5), ph: rnd(0, 6.3) }));
+  const ripple = [];
+  let nextBird = 3;
+  return frameLoop((dt, t) => {
+    ctx.clearRect(0, 0, 1280, 720);
+    for (const s of stars) { ctx.fillStyle = `rgba(255,255,255,${(0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * 1.3 + s.ph))).toFixed(2)})`; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 7); ctx.fill(); }
+    for (const c of clouds) {
+      c.x += c.v * dt; if (c.x > 1400) c.x = -200;
+      ctx.fillStyle = mode === "day" ? "rgba(255,255,255,.85)" : "rgba(255,220,200,.55)";
+      for (const [dx, dy, r] of [[0, 0, 34], [34, -12, 40], [72, 0, 32], [36, 10, 30]]) { ctx.beginPath(); ctx.arc(c.x + dx * c.s, c.y + dy * c.s, r * c.s, 0, 7); ctx.fill(); }
+    }
+    if (!night) {
+      nextBird -= dt;
+      if (nextBird < 0 && birds.length < 6) { nextBird = rnd(6, 14); const y = rnd(120, 300); for (let i = 0; i < 3; i++) birds.push({ x: -40 - i * 36, y: y + i * 14, ph: rnd(0, 6) }); }
+      ctx.strokeStyle = "rgba(30,30,40,.7)"; ctx.lineWidth = 2;
+      for (let i = birds.length - 1; i >= 0; i--) {
+        const b = birds[i]; b.x += 70 * dt; if (b.x > 1340) { birds.splice(i, 1); continue; }
+        const w = 8 * Math.sin(t * 8 + b.ph);
+        ctx.beginPath(); ctx.moveTo(b.x - 12, b.y - w); ctx.quadraticCurveTo(b.x - 5, b.y - 4, b.x, b.y); ctx.quadraticCurveTo(b.x + 5, b.y - 4, b.x + 12, b.y - w); ctx.stroke();
+      }
+    }
+    for (const f of flies) {
+      f.x += Math.cos(t * f.v + f.ph) * 12 * dt; f.y += Math.sin(t * f.v * 1.3 + f.ph) * 10 * dt;
+      const a = 0.5 + 0.5 * Math.sin(t * 2 + f.ph), g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, 7);
+      g.addColorStop(0, `rgba(253,230,138,${a})`); g.addColorStop(1, "rgba(253,230,138,0)");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(f.x, f.y, 7, 0, 7); ctx.fill();
+    }
+    // لمعان خفيف على سطح البحيرة
+    if (ripple.length < 30) ripple.push({ x: rnd(0, 1280), y: rnd(505, 570), l: rnd(10, 40), a: 0 , s: rnd(0.3, 0.8) });
+    for (let i = ripple.length - 1; i >= 0; i--) {
+      const r = ripple[i]; r.a += r.s * dt; const a = Math.sin(Math.min(Math.PI, r.a)) * 0.35;
+      if (r.a > Math.PI) { ripple.splice(i, 1); continue; }
+      ctx.strokeStyle = `rgba(255,255,255,${a.toFixed(2)})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(r.x, r.y); ctx.lineTo(r.x + r.l, r.y); ctx.stroke();
+    }
+  }, 24);
+}
+
+// تحت الماء: أسماك وفقاعات وأعشاب بحرية وأشعة ضوء
+const FISH_COLORS = [["#f97316", "#fdba74"], ["#facc15", "#fef08a"], ["#38bdf8", "#bae6fd"], ["#f472b6", "#fbcfe8"], ["#a78bfa", "#ddd6fe"], ["#34d399", "#a7f3d0"]];
+function svSea(el) {
+  el.innerHTML = `<div class="sea-bg"></div><div class="sea-rays"><i></i><i></i><i></i><i></i></div>${SCLOCK}`;
+  const { ctx } = svCanvas(el, "sea-fx");
+  const fish = Array.from({ length: LITE ? 6 : 11 }, () => {
+    const dir = Math.random() < 0.5 ? 1 : -1, [c1, c2] = FISH_COLORS[(Math.random() * FISH_COLORS.length) | 0];
+    return { x: rnd(0, 1280), y: rnd(120, 560), s: rnd(0.6, 1.5), v: rnd(30, 70) * dir, ph: rnd(0, 6.3), c1, c2 };
+  });
+  const bubbles = [], weeds = Array.from({ length: 16 }, (_, i) => ({ x: 30 + i * 82 + rnd(-20, 20), h: rnd(90, 200), ph: rnd(0, 6.3), c: Math.random() < 0.5 ? "#15803d" : "#166534" }));
+  const sand = (x) => 660 + Math.sin(x / 90) * 10 + Math.sin(x / 37) * 4;
+  return frameLoop((dt, t) => {
+    ctx.clearRect(0, 0, 1280, 720);
+    for (const w of weeds) {
+      ctx.strokeStyle = w.c; ctx.lineWidth = 9; ctx.lineCap = "round"; ctx.beginPath();
+      const by = sand(w.x); ctx.moveTo(w.x, by);
+      for (let k = 1; k <= 6; k++) { const yy = by - (w.h * k) / 6; ctx.lineTo(w.x + Math.sin(t * 1.1 + w.ph + k * 0.6) * k * 4, yy); }
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#c2a36b"; ctx.beginPath(); ctx.moveTo(0, 720);
+    for (let x = 0; x <= 1280; x += 20) ctx.lineTo(x, sand(x));
+    ctx.lineTo(1280, 720); ctx.fill();
+    for (const f of fish) {
+      f.x += f.v * dt; f.y += Math.sin(t * 0.8 + f.ph) * 8 * dt;
+      if (f.v > 0 && f.x > 1360) f.x = -80; if (f.v < 0 && f.x < -80) f.x = 1360;
+      const d = f.v > 0 ? 1 : -1, L = 46 * f.s, H = 20 * f.s, tail = Math.sin(t * 9 + f.ph) * 5 * f.s;
+      ctx.save(); ctx.translate(f.x, f.y); ctx.scale(d, 1);
+      ctx.fillStyle = f.c1; ctx.beginPath(); ctx.moveTo(-L * 0.45, 0); ctx.lineTo(-L * 0.85, -H * 0.7 + tail); ctx.lineTo(-L * 0.85, H * 0.7 + tail); ctx.fill();
+      const g = ctx.createLinearGradient(0, -H, 0, H); g.addColorStop(0, f.c2); g.addColorStop(1, f.c1);
+      ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, 0, L * 0.5, H * 0.5, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(L * 0.28, -H * 0.1, 3.4 * f.s, 0, 7); ctx.fill();
+      ctx.fillStyle = "#0f172a"; ctx.beginPath(); ctx.arc(L * 0.3, -H * 0.1, 1.8 * f.s, 0, 7); ctx.fill();
+      ctx.restore();
+      if (Math.random() < 0.006 && bubbles.length < 70) bubbles.push({ x: f.x + 20 * d * f.s, y: f.y, r: rnd(2, 4), v: rnd(30, 60), ph: rnd(0, 6) });
+    }
+    if (Math.random() < 0.15 && bubbles.length < 70) bubbles.push({ x: rnd(0, 1280), y: 700, r: rnd(2, 7), v: rnd(40, 90), ph: rnd(0, 6) });
+    ctx.strokeStyle = "rgba(255,255,255,.55)"; ctx.lineWidth = 1.2;
+    for (let i = bubbles.length - 1; i >= 0; i--) {
+      const b = bubbles[i]; b.y -= b.v * dt; b.x += Math.sin(t * 3 + b.ph) * 10 * dt;
+      if (b.y < -10) { bubbles.splice(i, 1); continue; }
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7); ctx.stroke();
+    }
+  }, 30);
+}
+
+// ثلج يتساقط على قرية في الليل
+function svSnow(el) {
+  el.innerHTML = `<div class="sn-sky"></div>${skyline(53, "#1e293b", 50, 140, true)}<div class="sn-ground"></div>${SCLOCK}`;
+  const { ctx } = svCanvas(el, "sn-fx");
+  const flakes = Array.from({ length: LITE ? 140 : 300 }, () => ({ x: rnd(0, 1280), y: rnd(-720, 720), z: Math.random(), ph: rnd(0, 6.3) }));
+  return frameLoop((dt, t) => {
+    ctx.clearRect(0, 0, 1280, 720);
+    for (const f of flakes) {
+      f.y += (25 + f.z * 60) * dt; f.x += Math.sin(t * 0.7 + f.ph) * (8 + f.z * 14) * dt;
+      if (f.y > 730) { f.y = -10; f.x = rnd(0, 1280); }
+      ctx.fillStyle = `rgba(255,255,255,${(0.35 + f.z * 0.6).toFixed(2)})`; ctx.beginPath(); ctx.arc(f.x, f.y, 0.8 + f.z * 2.6, 0, 7); ctx.fill();
+    }
+  }, 30);
+}
+
+// القمر والنجوم: شكل القمر الحقيقي الليلة (طور القمر) والتاريخ الهجري
+const MOON_NAMES = ["محاق", "هلال", "تربيع أول", "أحدب متزايد", "بدر", "أحدب متناقص", "تربيع أخير", "هلال أخير"];
+function moonPhase(d = new Date()) {
+  const syn = 29.530588853, ref = Date.UTC(2000, 0, 6, 18, 14);
+  return ((((d.getTime() - ref) / 86400000) % syn) + syn) % syn / syn;   // 0 محاق، 0.5 بدر
+}
+function svMoon(el) {
+  const ph = moonPhase(), name = MOON_NAMES[Math.round(ph * 8) % 8];
+  el.innerHTML = `<div class="mn-sky">${starsHtml(160)}</div><div class="mn-info"><b>${name}</b>${fmtHijri ? `<span class="js-hj"></span>` : ""}</div>${HILLS}${SCLOCK}`;
+  const { ctx } = svCanvas(el, "mn-fx");
+  const R = 120, cx = 640, cy = 300;
+  const drawMoon = (glow) => {
+    const g = ctx.createRadialGradient(cx, cy, R * 0.8, cx, cy, R * 2.4);
+    g.addColorStop(0, `rgba(254,243,199,${0.18 * glow})`); g.addColorStop(1, "rgba(254,243,199,0)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R * 2.4, 0, 7); ctx.fill();
+    ctx.fillStyle = "#1e2440"; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.fill();
+    // الجزء المضيء: نصف دائرة + قطع ناقص حسب الطور
+    const k = Math.cos(ph * 2 * Math.PI), wax = ph < 0.5;
+    ctx.fillStyle = "#fef3c7"; ctx.beginPath();
+    ctx.arc(cx, cy, R, -Math.PI / 2, Math.PI / 2, !wax);
+    ctx.ellipse(cx, cy, Math.abs(k) * R, R, 0, Math.PI / 2, -Math.PI / 2, (k > 0) === wax ? true : false);
+    ctx.fill();
+    ctx.fillStyle = "rgba(180,160,120,.18)";
+    for (const [dx, dy, r] of [[-30, -40, 18], [35, 20, 24], [-10, 50, 12], [50, -45, 10]]) { ctx.beginPath(); ctx.arc(cx + dx, cy + dy, r, 0, 7); ctx.fill(); }
+  };
+  return frameLoop((dt, t) => { ctx.clearRect(0, 0, 1280, 720); drawMoon(0.8 + 0.2 * Math.sin(t * 0.5)); }, 8);
+}
+
+// ساعة كبيرة بلون يتغير ببطء وتتحرك قليلاً (حتى لا تحترق الشاشة)
+function svClock(el) {
+  el.innerHTML = `<div class="ck-wrap"><div class="ck-tm"><span class="js-tm"></span><i class="ck-s"></i></div><div class="ck-dt"><span class="js-dt"></span>${fmtHijri ? ` · <span class="js-hj"></span>` : ""}</div></div>`;
+  const w = el.querySelector(".ck-wrap"), s = el.querySelector(".ck-s");
+  let hue = rnd(0, 360);
+  const id = setInterval(() => {
+    s.textContent = String(new Date().getSeconds()).padStart(2, "0");
+    hue = (hue + 0.4) % 360; w.style.setProperty("--h", hue.toFixed(0));
+  }, 1000);
+  const mv = setInterval(() => { w.style.transform = `translate(${rnd(-180, 180)}px, ${rnd(-120, 120)}px)`; }, 60000);
+  return () => { clearInterval(id); clearInterval(mv); };
+}
+
 let wakeLock = null;
 async function keepAwake() {
   if (!settings.nosleep || !navigator.wakeLock || document.visibilityState !== "visible") return;
@@ -2219,7 +2620,7 @@ function adhanTick() {
 setInterval(adhanTick, 15000);
 
 // ============================================================== يد التحكم (بلايستيشن وغيرها)
-// ✕ موافق، ○ رجوع، الأسهم أو العصا للتنقل، L1/R1 السابق/التالي، L2/R2 الصوت، Options تشغيل/إيقاف، PS الرئيسية.
+// الزر السفلي موافق، الأيمن رجوع، الأسهم أو العصا للتنقل، L1/R1 السابق/التالي، L2/R2 الصوت، Options تشغيل/إيقاف، PS الرئيسية.
 const padPrefs = { swap: false, rumble: true };
 try { Object.assign(padPrefs, JSON.parse(localStorage.getItem("tvpad") || "{}")); } catch { /* */ }
 const savePad = () => { try { localStorage.setItem("tvpad", JSON.stringify(padPrefs)); } catch { /* */ } };
@@ -2228,7 +2629,7 @@ let padPrev = {}, padRep = {}, padState = {}, padName = "";
 // أو اليد التي يختارها المدير («اختيار اليد الأساسية»، وتُحفظ باسمها فترجع أساسية عند اتصالها من جديد)
 let PADSEEN = [], PADMAIN = null;
 const MAIN_KEY = "hsef-pad-main";
-const livePads = () => { try { return [...navigator.getGamepads()].filter((g) => g && g.connected); } catch { return []; } };
+const livePads = () => { try { return [...navigator.getGamepads()].filter((g) => g && g.connected && !/motion sensors|touchpad|accelerometer|gyro/i.test(g.id || "")); } catch { return []; } };
 function setMainPad(i, save) {
   PADMAIN = i;
   const g = livePads().find((x) => x.index === i);
@@ -2249,10 +2650,36 @@ function rumble(gp, ms = 40) {
   if (!padPrefs.rumble) return;
   try { gp.vibrationActuator && gp.vibrationActuator.playEffect("dual-rumble", { duration: ms, strongMagnitude: 0.4, weakMagnitude: 0.6 }); } catch { /* */ }
 }
+// البند 4: نوع اليد من رقم الشركة والمنتج (Vendor/Product) في اسمها، مع تصحيح يدوي يُحفظ باسمها
+const PAD_KINDS = { ps: "بلايستيشن", xbox: "إكس بوكس", nintendo: "نينتندو", "8bitdo": "8BitDo", generic: "عامة" };
+const PAD_VENDORS = { "054c": "ps", "0f0d": "ps", "045e": "xbox", "0e6f": "xbox", "24c6": "xbox", "046d": "xbox", "0738": "xbox", "1532": "xbox",
+  "057e": "nintendo", "20d6": "nintendo", "2dc8": "8bitdo" };
+let PADKINDS = {};
+try { PADKINDS = JSON.parse(localStorage.getItem("hsef-padtypes") || "{}"); } catch { /* */ }
+function padIds(gp) {
+  const id = (gp && gp.id) || "";
+  const m = id.match(/Vendor:\s*([0-9a-f]{4}).*?Product:\s*([0-9a-f]{4})/i) || id.match(/^([0-9a-f]{4})-([0-9a-f]{4})-/i);
+  return m ? [m[1].toLowerCase(), m[2].toLowerCase()] : ["", ""];
+}
+function padKind(gp) {
+  if (!gp) return "generic";
+  if (PADKINDS[gp.id]) return PADKINDS[gp.id];
+  const [v] = padIds(gp);
+  return PAD_VENDORS[v] || (/dualsense|dualshock|wireless controller|playstation/i.test(gp.id) ? "ps" : /xbox|x-box/i.test(gp.id) ? "xbox"
+    : /nintendo|pro controller|joy-?con/i.test(gp.id) ? "nintendo" : "generic");
+}
+function setPadKind(gp, kind) {
+  if (kind) PADKINDS[gp.id] = kind; else delete PADKINDS[gp.id];
+  try { localStorage.setItem("hsef-padtypes", JSON.stringify(PADKINDS)); } catch { /* */ }
+}
+window.hsefPadKind = (i) => padKind(livePads().find((g) => g.index === i));
 function padFire(name, gp) {
   const t = top();
-  if (t && t.isGame) { if (name === "ps") padKey("Escape"); return; }  // داخل اللعبة: اليد للعبة، وزر PS للخروج
-  const okB = padPrefs.swap ? "circle" : "cross", backB = padPrefs.swap ? "cross" : "circle";
+  if (t && t.isGame && t.asking) { if (name === "ps") { t.closeAsk(true); return; } }   // البند 51: PS مرة ثانية = خروج
+  else if (t && t.isGame) { if (name === "ps") { if (t.askExit) t.askExit(); else padKey("Escape"); } return; }  // داخل اللعبة: اليد للعبة، وزر PS للخروج
+  // البند 52: «موافق» الزر السفلي و«رجوع» الأيمن في كل الأيادي (بلايستيشن ونينتندو وغير الأصلية)، إلا إن بدّلهما المستعمل
+  const swap = !!padPrefs.swap;
+  const okB = swap ? "circle" : "cross", backB = swap ? "cross" : "circle";
   const map = { up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight", options: "MediaPlayPause",
     l1: "MediaTrackPrevious", r1: "MediaTrackNext", l2: "AudioVolumeDown", r2: "AudioVolumeUp", ps: "Home",
     triangle: "ContextMenu", square: "F2" };
@@ -2325,7 +2752,7 @@ function oskScreen(opt, done) {
   const SYM = ["1234567890", "!#$%&*()+=", "/\\:;?,'[]{", "<>|~^`€£§}"];
   const el = h(`<div class="bg-dark osk"><div class="bhead"><button class="back f js-back">${A.CHEVRON}<span>رجوع</span></button><h1>${esc(opt.title)}</h1></div>
     <div class="osk-in ltr"><span class="v"></span><i class="caret"></i></div><div class="osk-keys ltr"></div>
-    ${hints([["موافق", "اختيار الحرف"], ["△", "حذف"], ["رجوع", "إلغاء"]])}</div>`);
+    ${hints([["موافق", "اختيار الحرف"], [faceIcon("up"), "حذف"], ["رجوع", "إلغاء"]])}</div>`);
   const draw = () => {
     el.querySelector(".v").textContent = show ? val : "•".repeat(val.length);
     const rows = (sym ? SYM : LET).map((r) => `<div class="osk-row">${[...r].map((c) => {
@@ -2366,21 +2793,27 @@ function oskScreen(opt, done) {
 }
 
 // ============================================================== إعدادات التلفاز (للمدير فقط)
+// البند 12: إعدادات التلفاز في مجموعات مثل لوحة التحكم
+const SET_GROUPS = [
+  ["التلفاز", [["screen", "الشاشة", "أي شاشة، والدقة", "#10b981,#0ea5e9"], ["audio", "الصوت", "مخرج الصوت وتجربته", "#f59e0b,#ea580c"],
+    ["saver", "التوقف", "مواقيت، نار، نجوم…", "#0ea5e9,#6366f1"]]],
+  ["الألعاب", [["pad", "يد التحكم", "اللاعبون، البطارية، الأزرار", "#a855f7,#ec4899"], ["bt", "البلوتوث", "ربط يد جديدة، وسماعات", "#8b5cf6,#06b6d4"]]],
+  ["الشبكة", [["wifi", "الوايفاي", "الاتصال بشبكة لاسلكية", "#06b6d4,#2563eb"]]],
+];
 function settingsScreen() {
-  const items = [["wifi", "الوايفاي", "الاتصال بشبكة لاسلكية", "#06b6d4,#2563eb"], ["bt", "البلوتوث", "يد بلايستيشن وأجهزة أخرى", "#8b5cf6,#06b6d4"],
-    ["pad", "يد التحكم", "الأزرار والاهتزاز وتجربتها", "#a855f7,#ec4899"], ["audio", "الصوت", "مخرج الصوت وتجربته", "#f59e0b,#ea580c"],
-    ["saver", "شاشة التوقف", "مواقيت، نار، أمطار، نجوم…", "#0ea5e9,#6366f1"]];
+  const card = ([k, t, s, c]) => `<button class="set-card f" data-k="${k}"><div class="ic" style="background:${A.gradient(c)}">${SET_ICON[k]}</div>
+      <b>${t}</b><span>${s}</span></button>`;
   const el = h(`<div class="bg-dark"><div class="bhead"><button class="back f js-back">${A.CHEVRON}<span>الرئيسية</span></button>
     <div class="ti" style="background:linear-gradient(135deg,#64748b,#1e293b)">${GEAR}</div><h1>الإعدادات</h1></div>
-    <div class="set-grid">${items.map(([k, t, s, c]) => `<button class="set-card f" data-k="${k}"><div class="ic" style="background:${A.gradient(c)}">${SET_ICON[k]}</div>
-      <b>${t}</b><span>${s}</span></button>`).join("")}</div>
+    <div class="set-groups">${SET_GROUPS.map(([g, items]) => `<div class="set-group" style="--n:${items.length}"><h2 class="set-gh">${g}</h2><div class="set-grid">${items.map(card).join("")}</div></div>`).join("")}</div>
     ${hints([["موافق", "فتح"], ["رجوع", "الرئيسية"]])}</div>`);
   el.querySelector(".js-back").addEventListener("click", pop);
-  el.querySelectorAll(".set-card").forEach((b) => b.addEventListener("click", () => ({ wifi: wifiScreen, bt: btScreen, pad: padScreen, audio: soundSetScreen, saver: saverSetScreen })[b.dataset.k]()));
+  el.querySelectorAll(".set-card").forEach((b) => b.addEventListener("click", () => ({ wifi: wifiScreen, bt: btScreen, pad: padScreen, audio: soundSetScreen, saver: saverSetScreen, screen: screenSetScreen })[b.dataset.k]()));
   push({ el, initial: () => el.querySelector(".set-card") });
 }
 const GEAR = `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>`;
 const SET_ICON = {
+  screen: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>`,
   saver: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/><path d="M17 3v3M15.5 4.5h3M20.5 8.5v2M19.5 9.5h2"/></svg>`,
   wifi: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1.2" fill="#fff"/></svg>`,
   bt: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7l10 10-5 5V2l5 5L7 17"/></svg>`,
@@ -2390,23 +2823,42 @@ const SET_ICON = {
 
 // اختيار شاشة التوقف من التلفاز: تظهر فوراً للتجربة
 function saverSetScreen() {
+  // البند 61: الأسماء في قائمة فوق بعضها، وعلى الطرف معاينة كبيرة متحركة للشاشة التي عليها التركيز
   const el = subScreen("شاشة التوقف", "saver"), body = el.querySelector(".set-body");
   const draw = () => {
     const cur = settings.saver_kind || "prayer";
-    body.innerHTML = `<p class="set-msg">اختر شاشة، وستظهر لك فوراً للتجربة. اضغط أي زر للرجوع.</p>
-      <div class="sv-grid">${SAVERS.map(([k, n, ic]) => `<button class="sv-card f${k === cur ? " on" : ""}" data-k="${k}"><span class="emo">${ic}</span><b>${n}</b>${k === cur ? "<i>✓ المختارة</i>" : ""}</button>`).join("")}</div>
-      <p class="set-msg">تظهر بعد ${+settings.saver_min || 0} دقيقة بلا استعمال (تغيّر المدة من لوحة تحكم السيرفر ← وضع التلفاز).</p>`;
-    body.querySelectorAll(".sv-card").forEach((b) => b.addEventListener("click", async () => {
+    body.innerHTML = `<div class="sv-split"><div class="sv-list">${SAVERS.map(([k, n, ic]) => `<button class="sv-row f${k === cur ? " on" : ""}" data-k="${k}"><span class="emo">${ic}</span><b>${n}</b>${k === cur ? "<i>✓</i>" : ""}</button>`).join("")}</div>
+      <div class="sv-side"><div class="sv-big"><span class="emo"></span></div><div class="sv-name"></div>
+        <p class="set-msg">«موافق» = اختيارها وتجربتها بكامل الشاشة، وأي زر للرجوع.<br>تظهر بعد ${+settings.saver_min || 0} دقيقة بلا استعمال (المدة من لوحة تحكم السيرفر ← وضع التلفاز).</p></div></div>`;
+    body.querySelectorAll(".sv-row").forEach((b) => b.addEventListener("click", async () => {
       const k = b.dataset.k;
       try { await api("/api/tv/admin/saver", { json: { kind: k } }); } catch (e) { toast(e.message); return; }
       settings.saver_kind = k;
-      draw();
-      setFocus(body.querySelector(`.sv-card[data-k="${k}"]`));
+      draw(); shown = null;
+      setFocus(body.querySelector(`.sv-row[data-k="${k}"]`));
       showSaver(false, k);
     }));
   };
   draw();
-  push({ el, initial: () => el.querySelector(".sv-card.on") || el.querySelector(".sv-card") });
+  push({ el, initial: () => el.querySelector(".sv-row.on") || el.querySelector(".sv-row"), onFocus: (f) => f.scrollIntoView?.({ block: "nearest" }) });
+  // معاينة واحدة فقط في كل مرة (أخف على الجهاز)، تتبدّل مع التركيز
+  let shown = null, pvStop = null;
+  const stopPv = () => { try { pvStop?.(); } catch { /* */ } pvStop = null; body.querySelector(".sv-big .sv-mini")?.remove(); };
+  const pvId = setInterval(() => {
+    if (!el.isConnected) { stopPv(); clearInterval(pvId); return; }
+    if (saverEl) { stopPv(); shown = null; return; }
+    const row = body.querySelector(".sv-row.focus") || body.querySelector(".sv-row.on");
+    const k = row?.dataset.k;
+    if (!k || k === shown) return;
+    stopPv(); shown = k;
+    const [, n, ic] = SAVERS.find((x) => x[0] === k);
+    body.querySelector(".sv-name").textContent = k === "mix" ? `${n}: تتبدّل الشاشات كل 4 دقائق` : n;
+    body.querySelector(".sv-big .emo").textContent = ic;
+    if (k === "mix") return;
+    const mini = h(`<div class="saver sv-mini"></div>`);
+    body.querySelector(".sv-big").appendChild(mini);
+    try { pvStop = startSaver(mini, k); } catch { stopPv(); }
+  }, 300);
 }
 
 function subScreen(title, iconKey) {
@@ -2500,10 +2952,10 @@ function padPairScreen(done) {
   });
 }
 
-// البند 49: اختيار اليد الأساسية: من يضغط ✕ تصير يده اللاعب 1 (في الواجهة وكل الألعاب)
+// البند 49: اختيار اليد الأساسية: من يضغط الزر السفلي تصير يده اللاعب 1 (في الواجهة وكل الألعاب)
 function padMainScreen(done) {
   const el = subScreen("اختيار اليد الأساسية", "pad"), body = el.querySelector(".set-body");
-  body.innerHTML = `<p class="set-msg" style="font-size:30px;font-weight:800;color:#fde68a">اضغط ✕ (أو A) في اليد التي تريدها أساسية</p>
+  body.innerHTML = `<p class="set-msg" style="font-size:30px;font-weight:800;color:#fde68a">اضغط ${faceIcon("down", 34)} الزر السفلي في اليد التي تريدها أساسية</p>
     <p class="set-msg">هذه اليد تصير «اللاعب 1»: تتحكم بقوائم الألعاب، وتبقى الأساسية كلما اتصلت.</p>
     <div class="set-list js-pl"></div>`;
   const prev = {};
@@ -2528,11 +2980,59 @@ function padMainScreen(done) {
 }
 
 // قائمة الأيادي الموصولة الآن بأرقام اللاعبين
+// البند 4: بطارية الأيادي (من السيرفر كل دقيقة)، وتنبيه عند ضعفها
+let PADBAT = [], batWarned = {};
+async function pollBattery() {
+  try { PADBAT = (await api("/api/tv/pads/battery")).pads || []; } catch { PADBAT = []; }
+  for (const b of PADBAT) {
+    const low = b.status !== "Charging" && ((b.capacity != null && b.capacity <= 15) || /low|critical/i.test(b.level || ""));
+    if (low && (!batWarned[b.id] || Date.now() - batWarned[b.id] > 30 * 60000)) {
+      batWarned[b.id] = Date.now();
+      toast(`🪫 بطارية ${b.model || b.name || "اليد"} ضعيفة${b.capacity != null ? ` (${b.capacity}%)` : ""}: اشحنها`, 6000);
+    }
+  }
+}
+setTimeout(pollBattery, 8000); setInterval(pollBattery, 60000);
+
+// البند 65: حفظ شحن القبضات. بعد مدة بلا لعب (إعداد «إطفاء القبضات»، افتراضياً 15 دقيقة) تُفصل القبضات الموصولة بالبلوتوث،
+// فتنطفئ وتبقى مربوطة: زر PS يعيد وصلها. أي زر أو حركة عصا في أي يد (في التلفاز أو داخل لعبة) يعيد العدّ.
+let padSeen = Date.now(), padSnap = "", padSlept = false;
+async function padsOff(manual = false) {
+  try {
+    const r = await api("/api/tv/pads/off", { json: {} });
+    if (manual) toast(r.off?.length ? `🔌 أُطفئت: ${r.off.join("، ")}. اضغط زر PS لإعادة وصلها` : "لا توجد قبضة بلوتوث موصولة", 4500);
+    return r.off || [];
+  } catch (e) { if (manual) toast(e.message); return []; }
+}
+setInterval(() => {
+  const pads = livePads();
+  if (!pads.length) { padSlept = false; padSeen = Date.now(); padSnap = ""; return; }
+  const snap = pads.map((g) => g.index + ":" + g.buttons.map((b) => (b.pressed ? 1 : 0)).join("") + ":" + g.axes.map((a) => (Math.abs(a) > 0.4 ? Math.sign(a) : 0)).join("")).join("|");
+  if (snap !== padSnap) { padSnap = snap; padSeen = Date.now(); padSlept = false; return; }
+  const mins = settings?.pad_sleep ?? 15;
+  if (!mins || padSlept || Date.now() - padSeen < mins * 60000) return;
+  padSlept = true;   // مرة واحدة حتى تُستعمل يد من جديد (اليد السلكية لا تُطفأ وتبقى ظاهرة)
+  padsOff().then((off) => { if (off.length) toast(`🔌 أُطفئت القبضات بعد ${mins} دقيقة بلا لعب. اضغط زر PS لإعادة وصلها`, 6000); });
+}, 5000);
+function batFor(g, used) {
+  const [v, p] = padIds(g), nm = g.id.replace(/\(.*\)/, "").trim().toLowerCase();
+  const b = PADBAT.find((x) => !used.has(x.id) && ((v && x.vendor === v && x.product === p) || (x.name || "").toLowerCase() === nm));
+  if (b) used.add(b.id);
+  return b;
+}
+function batHTML(b) {
+  if (!b) return "";
+  const pct = b.capacity != null ? `${b.capacity}%` : ({ Full: "ممتلئة", High: "جيدة", Normal: "متوسطة", Low: "ضعيفة", Critical: "فارغة" })[b.level] || "";
+  const ch = b.status === "Charging", full = b.status === "Full";
+  const low = !ch && ((b.capacity != null && b.capacity <= 15) || /low|critical/i.test(b.level || ""));
+  return `<span class="${low ? "bad" : "muted"}">${ch ? "⚡ يشحن" : full ? "🔋 مشحونة" : low ? "🪫" : "🔋"} ${pct}</span>`;
+}
 function playersHTML() {
-  const order = window.hsefPadOrder(), pads = livePads();
+  const order = window.hsefPadOrder(), pads = livePads(), used = new Set();
   const rest = pads.filter((g) => !order.includes(g.index));
   const row = (g, n) => `<div class="set-item"><span>${n === 1 ? "⭐" : "🎮"}</span><b>${n ? `اللاعب ${n}` : "لم تُستعمل بعد"}${n === 1 ? " (الأساسية)" : ""}</b>
-    <span class="ltr muted">${esc(g.id.replace(/\(.*\)/, "").trim() || "يد تحكم")}</span></div>`;
+    <span class="ltr muted">${esc(g.id.replace(/\(.*\)/, "").trim() || "يد تحكم")}</span> ${batHTML(batFor(g, used))}
+    <button class="btn f js-kind" data-i="${g.index}">النوع: ${PAD_KINDS[padKind(g)]}${PADKINDS[g.id] ? " ✎" : ""}</button></div>`;
   return pads.length ? order.map((i, k) => row(pads.find((g) => g.index === i), k + 1)).join("") + rest.map((g) => row(g, 0)).join("")
     : `<p class="set-msg">لا توجد يد متصلة الآن. اضغط زر PS (أو Home) في اليد لتتصل.</p>`;
 }
@@ -2577,6 +3077,66 @@ async function btScreen() {
   try { draw(await api("/api/tv/admin/bt")); } catch (e) { body.innerHTML = `<p class="set-msg">${esc(e.message)}</p>`; }
 }
 
+// البند 11: الشاشة والدقة من إعدادات التلفاز نفسه (نفس لوحة التحكم)
+async function screenSetScreen() {
+  const el = subScreen("الشاشة والدقة", "screen"), body = el.querySelector(".set-body");
+  push({ el });
+  const label = (x) => (x.internal || /^(eDP|LVDS|DSI)/.test(x.name) ? "شاشة اللابتوب" : x.name.replace(/-A-/, " ").replace(/-/g, " "))
+    + (x.model ? ` — ${x.model}` : "");
+  let r, sel = "";
+  const draw = () => {
+    const screens = r.screens || [], many = screens.length > 1;
+    const cur = screens.find((x) => x.name === sel) || { modes: r.modes || [], saved: r.saved, current: r.current, name: sel };
+    body.innerHTML = `${many ? `<p class="set-msg">موصول ${screens.length} شاشات. وضع التلفاز يظهر على واحدة:</p>
+        <div class="set-list">
+          <button class="set-item f" data-s="auto"><span>${!r.preferred ? "✅" : "🖥️"}</span><b>تلقائي</b><span class="muted">HDMI أولاً</span></button>
+          ${screens.map((x) => `<button class="set-item f" data-s="${esc(x.name)}"><span>${r.preferred === x.name ? "✅" : "🖥️"}</span><b class="ltr">${esc(label(x))}</b>
+            ${x.name === r.shown ? `<span class="ok">معروضة الآن</span>` : ""}</button>`).join("")}
+        </div>
+        <p class="set-msg">اختيار شاشة أخرى ينقل وضع التلفاز إليها 20 ثانية للتجربة، ثم يسألك: «حفظ» أو يرجع وحده.</p>` : ""}
+      <p class="set-msg">الدقة${many ? ` لـ <b class="ltr">${esc(label(cur))}</b>` : ""} — الحالية: <b class="ltr">${esc(cur.current || "—")}</b></p>
+      <div class="set-list">
+        <button class="set-item f" data-m=""><span>${!cur.saved ? "✅" : "▫️"}</span><b>تلقائي (أفضل دقة)</b></button>
+        ${(cur.modes || []).slice(0, 12).map((m) => `<button class="set-item f" data-m="${esc(m)}"><span>${m === cur.saved ? "✅" : "▫️"}</span><b class="ltr">${esc(m)}</b>
+          ${m === "1920x1080" ? `<span class="muted">أنعم للفيديو</span>` : ""}</button>`).join("")}
+      </div>
+      <p class="set-msg">تغيير الدقة يعيد تشغيل الشاشة ثوانٍ قليلة.</p>`;
+    body.querySelectorAll("[data-s]").forEach((b) => b.addEventListener("click", () => pickScreen(b.dataset.s)));
+    body.querySelectorAll("[data-m]").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.m)));
+    setFocus(body.querySelector(".f") || el.querySelector(".js-back"));
+  };
+  const load = async () => {
+    body.innerHTML = `<p class="set-msg">جارٍ قراءة الشاشات…</p>`;
+    try { r = await api("/api/tv/admin/display"); } catch (e) { body.innerHTML = `<p class="set-msg">${esc(e.message)}</p>`; return; }
+    if (r.error) { body.innerHTML = `<p class="set-msg">تعذرت قراءة الشاشة.</p>`; return; }
+    sel = r.preferred || r.shown || ((r.screens || [])[0] || {}).name || "";
+    draw();
+  };
+  const pickScreen = async (name) => {
+    if (name === "auto" || name === r.shown) {
+      try { await api("/api/tv/admin/screen", { json: { name } }); toast("تم ✓", 3000); } catch (e) { toast(e.message, 5000); }
+      return load();
+    }
+    // تجربة 20 ثانية: هذه الشاشة قد تفرغ. إن ظهر وضع التلفاز على الأخرى ووافق المدير هناك، يُحفظ
+    try {
+      await api("/api/tv/admin/screen", { json: { name, try: true } });
+      toast("وضع التلفاز ينتقل إلى الشاشة المختارة 20 ثانية… إن أعجبتك ارجع إلى هنا واضغط «حفظ»", 8000);
+      sel = name; draw();
+      body.insertAdjacentHTML("afterbegin", `<div class="set-row"><button class="btn gold f js-keep">💾 حفظ هذه الشاشة</button></div>`);
+      const k = body.querySelector(".js-keep");
+      k.addEventListener("click", async () => { try { await api("/api/tv/admin/screen", { json: { name } }); toast("حُفظت الشاشة ✓", 4000); } catch (e) { toast(e.message, 5000); } load(); });
+      setFocus(k);
+    } catch (e) { toast(e.message, 5000); }
+  };
+  const setMode = async (mode) => {
+    try {
+      await api("/api/tv/admin/display", { json: { mode, ...((r.screens || []).length > 1 ? { screen: sel } : {}) } });
+      toast("تم — تُعاد تشغيل الشاشة", 5000);
+    } catch (e) { toast(e.message, 6000); }
+  };
+  load();
+}
+
 async function soundSetScreen() {
   const el = subScreen("الصوت", "audio"), body = el.querySelector(".set-body");
   push({ el });
@@ -2588,7 +3148,7 @@ async function soundSetScreen() {
     body.innerHTML = `<div class="set-status"><div>المخرج الحالي: <b>${esc(cur ? cur.name : "—")}</b></div>
         <div>المستوى: <b class="ltr">${r.volume ?? "—"}%</b>${r.muted ? " <span class='bad'>صامت</span>" : ""} · الاختيار: <b>${r.auto ? "تلقائي" : "يدوي"}</b></div></div>
       <div class="set-row"><button class="btn gold f" data-a="test">🔔 تجربة الصوت</button><button class="btn f" data-a="auto">${r.auto ? "✓ " : ""}تلقائي (HDMI التلفاز)</button></div>
-      <div class="set-list">${r.outputs.map((o, i) => `<button class="set-item f" data-o="${i}"><span>${o.active ? "🔊" : "🔈"}</span><b>${esc(o.name)}</b>${o.plugged ? `<span class="ok">موصول</span>` : o.detected === false ? `<span class="muted">غير مكتشف، جرّبه</span>` : ""}</button>`).join("")}</div>
+      <div class="set-list">${r.outputs.map((o, i) => (o.surround && !o.active ? "" : `<button class="set-item f" data-o="${i}"><span>${o.active ? "🔊" : "🔈"}</span><b>${esc(o.name)}</b>${o.surround ? `<span class="muted">5.1/7.1: أغلب التلفازات لا تُخرج صوتها</span>` : o.plugged ? `<span class="ok">موصول</span>` : o.detected === false ? `<span class="muted">غير مكتشف، جرّبه</span>` : ""}</button>`)).join("")}</div>
       <p class="set-msg">إن لم تسمع صوتاً: اختر المخرج الذي فيه <b class="ltr">HDMI</b> وعليه «موصول»، ثم «تجربة الصوت». وتأكد أن صوت التلفاز نفسه ليس صامتاً.</p>`;
     body.querySelectorAll("[data-a]").forEach((b) => b.addEventListener("click", () => act({ action: b.dataset.a })));
     body.querySelectorAll("[data-o]").forEach((b) => b.addEventListener("click", () => { const o = r.outputs[+b.dataset.o]; act({ card: o.card, profile: o.profile }); }));
@@ -2605,9 +3165,10 @@ async function soundSetScreen() {
 }
 
 // ============================================================== إعداد يد جديدة (أي يد تحكم، حتى بلا ماركة)
-const PAD_STEPS = [["a", "اضغط زر الموافقة (✕ أو A)"], ["b", "اضغط زر الرجوع (○ أو B)"], ["up", "اضغط السهم ↑ أعلى"], ["down", "اضغط السهم ↓ أسفل"],
+const PAD_STEPS = [["a", "اضغط الزر السفلي من الأزرار الأربعة"], ["b", "اضغط الزر الأيمن من الأزرار الأربعة"], ["up", "اضغط السهم ↑ أعلى"], ["down", "اضغط السهم ↓ أسفل"],
   ["left", "اضغط السهم ← يسار"], ["right", "اضغط السهم → يمين"], ["home", "اضغط زر الخروج من اللعبة (PS أو Home أو Start)", true],
-  ["x", "اضغط الزر □ أو X", true], ["y", "اضغط الزر △ أو Y", true], ["l1", "اضغط L1 أو LB", true], ["r1", "اضغط R1 أو RB", true], ["start", "اضغط Options أو Start", true]];
+  ["x", "اضغط الزر الأيسر من الأزرار الأربعة", true], ["y", "اضغط الزر العلوي من الأزرار الأربعة", true], ["l1", "اضغط L1 أو LB", true], ["r1", "اضغط R1 أو RB", true], ["start", "اضغط Options أو Start", true]];
+const FACE_STEP = { a: "down", b: "right", x: "left", y: "up" };
 function padSetupScreen() {
   const el = subScreen("إعداد يد جديدة", "pad"), body = el.querySelector(".set-body");
   let step = 0, padId = null, rest = null, waitRelease = true, loop = 0;
@@ -2617,8 +3178,9 @@ function padSetupScreen() {
     const [k, msg, opt] = PAD_STEPS[step];
     body.innerHTML = `<div class="set-status"><div>اليد: <b class="ltr">${esc(padId || "اضغط أي زر في اليد التي تريد إعدادها")}</b></div></div>
       <p class="set-msg" style="font-size:30px;font-weight:800;color:#fde68a">${step + 1} / ${PAD_STEPS.length}: ${esc(msg)}</p>
+      ${FACE_STEP[k] ? `<div class="face-big">${faceIcon(FACE_STEP[k], 110)}</div><p class="set-msg">بالموقع لا بالرمز: الرموز تختلف بين بلايستيشن ونينتندو والأيادي غير الأصلية.</p>` : ""}
       ${opt ? `<p class="set-msg">اختياري: إن لم يكن في يدك هذا الزر، اضغط زر الرجوع الذي اخترته للتخطي.</p>` : ""}
-      <div class="pad-test ltr">${PAD_STEPS.map(([kk]) => `<span class="${map[kk] ? "on" : ""}">${kk.toUpperCase()}</span>`).join("")}</div>
+      <div class="pad-test ltr">${PAD_STEPS.map(([kk]) => `<span class="${map[kk] ? "on" : ""}">${FACE_STEP[kk] ? faceIcon(FACE_STEP[kk], 30) : kk.toUpperCase()}</span>`).join("")}</div>
       <p class="set-msg">للإلغاء: زر «رجوع» في الريموت أو Esc.</p>`;
     void k;
   };
@@ -2664,18 +3226,34 @@ function padSetupScreen() {
 
 function padScreen() {
   const el = subScreen("يد التحكم", "pad"), body = el.querySelector(".set-body");
-  const BTN = [["cross", "✕"], ["circle", "○"], ["square", "□"], ["triangle", "△"], ["up", "↑"], ["down", "↓"], ["left", "←"], ["right", "→"],
+  const BTN = [["cross", faceIcon("down", 30)], ["circle", faceIcon("right", 30)], ["square", faceIcon("left", 30)], ["triangle", faceIcon("up", 30)], ["up", "↑"], ["down", "↓"], ["left", "←"], ["right", "→"],
     ["l1", "L1"], ["r1", "R1"], ["l2", "L2"], ["r2", "R2"], ["options", "Options"], ["create", "Create"], ["ps", "PS"]];
   body.innerHTML = `<div class="set-row"><button class="btn gold f js-pair">🎮 ربط يد جديدة</button><button class="btn gold f js-main">⭐ اختيار اليد الأساسية</button></div>
     <div class="set-list js-players">${playersHTML()}</div>
     <div class="set-status"><div>آخر يد ضُغط فيها زر: <b class="ltr js-pn">اضغط أي زر في اليد…</b></div></div>
     <div class="pad-test ltr">${BTN.map(([k, t]) => `<span data-b="${k}">${t}</span>`).join("")}</div>
     <div class="set-row"><button class="btn f js-swap"></button><button class="btn f js-rum"></button><button class="btn gold f js-diag">🩺 تشخيص اليد</button></div>
+    <div class="set-row"><button class="btn f js-off">🔌 أطفئ القبضات الآن</button></div>
+    <p class="set-msg">لحفظ الشحن: تنطفئ القبضات وحدها بعد ${settings.pad_sleep ? `${settings.pad_sleep} دقيقة` : "— (مُعطّل)"} بلا لعب (المدة من لوحة تحكم السيرفر ← وضع التلفاز). زر PS يعيد وصلها.</p>
     <div class="set-row"><button class="btn gold f js-setup">🎮 إعداد يد جديدة</button>${Object.keys(PADMAPS).length ? `<button class="btn f js-reset">مسح إعدادات الأيادي (${Object.keys(PADMAPS).length})</button>` : ""}</div>
     <p class="set-msg">«إعداد يد جديدة»: لأي يد لا تعمل أزرارها صحيحة (يد عامة بلا ماركة): تضغط كل زر مرة عند السؤال، فتُحفظ لهذه اليد.</p>
-    <p class="set-msg">✕ موافق · ○ رجوع · الأسهم أو العصا للتنقل · L1/R1 السابق/التالي · L2/R2 الصوت · Options تشغيل/إيقاف · PS الرئيسية (وفي الألعاب: الخروج)</p>`;
+    <div class="pad-legend js-legend"></div>
+    <p class="set-msg">الأسهم أو العصا اليسرى للتوجيه دائماً · L1/R1 السابق/التالي · L2/R2 الصوت · Options تشغيل/إيقاف · PS الرئيسية (وفي الألعاب: الخروج)</p>`;
   el.querySelector(".js-diag").addEventListener("click", () => padDiagScreen());
+  el.querySelector(".js-off").addEventListener("click", () => padsOff(true));
   el.querySelector(".js-pair").addEventListener("click", () => { pop(); padPairScreen(() => padScreen()); });
+  // تصحيح نوع اليد يدوياً: تلقائي ← بلايستيشن ← إكس بوكس ← نينتندو ← عامة ← تلقائي
+  el.querySelector(".js-players").addEventListener("click", (e) => {
+    const b = e.target.closest(".js-kind");
+    if (!b) return;
+    const g = livePads().find((x) => x.index === +b.dataset.i);
+    if (!g) return;
+    const seq = [null, "ps", "xbox", "nintendo", "generic"], cur = PADKINDS[g.id] || null;
+    setPadKind(g, seq[(seq.indexOf(cur) + 1) % seq.length]);
+    toast(`🎮 النوع: ${PAD_KINDS[padKind(g)]}${PADKINDS[g.id] ? "" : " (تلقائي)"}`, 2500);
+    const pl = el.querySelector(".js-players"); pl.dataset.h = ""; 
+  });
+  pollBattery();
   el.querySelector(".js-main").addEventListener("click", () => { pop(); padMainScreen(() => padScreen()); });
   el.querySelector(".js-setup").addEventListener("click", () => { pop(); padSetupScreen(); });
   el.querySelector(".js-reset")?.addEventListener("click", async () => {
@@ -2683,7 +3261,9 @@ function padScreen() {
     localStorage.setItem("hsef-padmaps", JSON.stringify(PADMAPS)); toast("مُسحت إعدادات الأيادي", 3000); pop(); padScreen();
   });
   const lab = () => {
-    el.querySelector(".js-swap").textContent = padPrefs.swap ? "الموافقة بزر ○ (اضغط للتبديل)" : "الموافقة بزر ✕ (اضغط للتبديل)";
+    el.querySelector(".js-swap").textContent = padPrefs.swap ? "الموافقة بالزر الأيمن (اضغط للتبديل)" : "الموافقة بالزر السفلي (اضغط للتبديل)";
+    el.querySelector(".js-legend").innerHTML = [[okPos(), "موافق"], [backPos(), "رجوع"], ["left", "فعل إضافي"], ["up", "فعل إضافي"]]
+      .map(([pos, t]) => `<span>${faceIcon(pos, 34)}<b>${FACE_NAME[pos]}</b><i>${t}</i></span>`).join("");
     el.querySelector(".js-rum").textContent = padPrefs.rumble ? "الاهتزاز: يعمل" : "الاهتزاز: متوقف";
   };
   el.querySelector(".js-swap").addEventListener("click", () => { padPrefs.swap = !padPrefs.swap; savePad(); lab(); });

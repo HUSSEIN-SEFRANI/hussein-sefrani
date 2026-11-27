@@ -1,0 +1,64 @@
+/* الألعاب الأولمبية */
+#sky { --sky: linear-gradient(180deg, #38bdf8 0%, #bae6fd 62%, #fb923c 62%, #c2410c 100%); }
+.title h1 { font-size: 9vh; }
+
+/* القائمة */
+.evs { display: grid; grid-template-columns: repeat(4, 19vw); gap: 2.4vh 1.6vw; margin-top: 2vh; }
+.ev { height: 21vh; border: 0; border-radius: 4vh; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .4vh;
+  box-shadow: 0 1.2vh 2.4vh rgba(30,58,138,.3); text-align: center; padding: 1vh; }
+.ev > .emo { font-size: 8.5vh; }
+.ev b { font-size: 3.6vh; line-height: 1.15; }
+.ev small { font-size: 2.4vh; opacity: .95; }
+.ev small .emo { font-size: 2.6vh; }
+
+/* المسابقة */
+.ar { position: fixed; inset: 0; width: 100vw; height: 100vh; }
+.banner { position: fixed; left: 0; right: 0; top: 36vh; display: flex; justify-content: center; pointer-events: none; z-index: 5; }
+.banner span { font-size: 11vh; font-weight: 800; color: #fff; -webkit-text-stroke: .6vh #1e3a8a; paint-order: stroke fill; animation: pop .3s ease;
+  background: rgba(30,58,138,.25); border-radius: 4vh; padding: 0 4vh; }
+.hint { position: fixed; bottom: 1.5vh; left: 50%; transform: translateX(-50%); width: max-content; max-width: 94vw; font-size: 2.6vh; font-weight: 700;
+  background: rgba(255,255,255,.88); color: #1e3a8a; border-radius: 3vh; padding: .5vh 3vh; text-align: center; z-index: 5; }
+.hint b { color: #be185d; }
+
+/* منصة التتويج */
+.recd { color: #c2410c; }
+.podium { display: flex; align-items: flex-end; gap: 1.5vw; margin-top: 1vh; }
+.pod { display: flex; flex-direction: column; align-items: center; width: 19vw; color: #1e3a8a; }
+.pod .fl { font-size: 8vh; }
+.pod b { font-size: 3.2vh; }
+.pod small { font-size: 2.6vh; font-weight: 700; }
+.pod .blk { width: 100%; border-radius: 2vh 2vh 0 0; display: flex; justify-content: center; padding-top: 1vh; box-shadow: 0 1vh 2vh rgba(30,58,138,.25); }
+.pod .blk .emo { font-size: 7vh; }
+.p1 .blk { height: 20vh; background: linear-gradient(#fde047, #ca8a04); }
+.p2 .blk { height: 14vh; background: linear-gradient(#e2e8f0, #94a3b8); }
+.p3 .blk { height: 10vh; background: linear-gradient(#fdba74, #c2410c); }
+.pod.me b { background: #be185d; color: #fff; border-radius: 2vh; padding: 0 1.5vh; }
+.fourth { margin-top: 1.2vh; font-size: 3vh; font-weight: 700; background: rgba(255,255,255,.8); border-radius: 3vh; padding: .3vh 3vh; }
+.fourth.me { background: #be185d; color: #fff; }
+
+/* البطولة */
+.vs { display: flex; gap: 2vw; margin-top: 2vh; }
+.cty { width: 17vw; background: #fff; border-radius: 4vh; padding: 2vh 1vw; display: flex; flex-direction: column; align-items: center; box-shadow: 0 1vh 2vh rgba(30,58,138,.2); }
+.cty .emo { font-size: 10vh; }
+.cty b { font-size: 3.6vh; }
+.cty small { font-size: 2.4vh; }
+.cty.me { background: #fde047; box-shadow: 0 0 0 .7vh #be185d; }
+.evrow { display: flex; flex-wrap: wrap; justify-content: center; gap: 1vh 2vw; margin-top: 3vh; font-size: 3vh; font-weight: 700; }
+.evrow > span { background: rgba(255,255,255,.85); border-radius: 3vh; padding: .3vh 2vh; }
+.medt { margin-top: 2vh; border-collapse: separate; border-spacing: 0 .8vh; font-size: 3.6vh; font-weight: 700; }
+.medt th { font-size: 4vh; padding: 0 2vw; }
+.medt td { background: #fff; padding: .8vh 2vw; text-align: center; }
+.medt td:first-child { border-radius: 0 2vh 2vh 0; }
+.medt td:last-child { border-radius: 2vh 0 0 2vh; }
+.medt tr.me td { background: #fde047; }
+.medt.rec td:first-child { text-align: right; }
+.medt.rec { margin-top: 3vh; }
+
+/* البلدان */
+.flags { display: grid; grid-template-columns: repeat(9, 9.4vw); gap: 1.4vh .8vw; margin-top: 1.5vh; }
+.fla { height: 14.5vh; border: 0; border-radius: 2.5vh; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .2vh;
+  box-shadow: 0 .8vh 1.6vh rgba(30,58,138,.2); color: #1e3a8a; padding: .5vh; }
+.fla .emo { font-size: 7vh; }
+.fla small { font-size: 2.2vh; font-weight: 700; line-height: 1.1; }
+.fla.on { background: #fde047; }
+.medo { font-size: 6vh; }

@@ -1,0 +1,56 @@
+#sky { --sky: linear-gradient(180deg, #60a5fa 0%, #dbeafe 70%, #86c56b 70%, #4d9a3a 100%); }
+#cv { position: fixed; inset: 0; width: 100vw; height: 100vh; display: none; }
+body.playing #cv { display: block; }
+body.playing #sky { display: none; }
+body.playing #app { padding: 0; pointer-events: none; }
+body.playing #app .pause { pointer-events: auto; }
+#app { padding: 3vh 4vw 2.5vh; }
+.ttl { color: #fff; -webkit-text-stroke: .35vh #1e3a8a; paint-order: stroke fill; font-size: 6vh; margin: 0; }
+.ttl.small { font-size: 5vh; }
+.sub.big { font-size: 3.6vh; color: #1e3a8a; font-weight: 800; }
+.hero { display: flex; align-items: center; gap: 3vw; }
+.hero .ttl { font-size: 11vh; }
+.flag { direction: ltr; display: flex; height: 16vh; width: 22vh; border-radius: 2vh; overflow: hidden; box-shadow: 0 1vh 2vh rgba(0,0,0,.25); }
+.flag i { flex: 1; } .flag i:nth-child(1) { background: #111; } .flag i:nth-child(2) { background: #fdda24; } .flag i:nth-child(3) { background: #ef3340; }
+.modes .mode { width: 24vw; height: 36vh; }
+.pill.gold { margin-top: 3vh; color: #b45309; }
+.dia { width: 4.2vh; height: 4.2vh; vertical-align: middle; }
+
+/* المركبات */
+.vgrid { display: flex; gap: 1.1vw; margin-top: 5vh; flex-wrap: wrap; justify-content: center; }
+.vcard, .bcard { border: 0; border-radius: 4vh; background: #fff; color: #1e3a8a; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .8vh; box-shadow: 0 1vh 2vh rgba(30,58,138,.25); }
+.vcard { width: 13.4vw; height: 40vh; } .vcard .art { width: 12vw; height: auto; }
+.vcard b { font-size: 4vh; } .vcard small { font-size: 2.4vh; font-weight: 700; color: #475569; }
+.vcard.on, .bcard.on { background: #dcfce7; }
+.bgrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2.4vh 1.6vw; margin-top: 3vh; }
+.bcard { width: 16vw; height: 25vh; } .bcard .art { width: 13vw; height: auto; } .bcard b { font-size: 3.6vh; }
+
+/* المراحل */
+.sgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.2vh 1.8vw; margin-top: 2vh; }
+.scard { position: relative; width: 28vw; height: 22vh; border: 0; border-radius: 3.5vh; background: linear-gradient(160deg, var(--c), #fff 150%); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .2vh; box-shadow: 0 1vh 2vh rgba(30,58,138,.25); }
+.scard .num { position: absolute; top: 1.2vh; right: 1.6vw; width: 5.6vh; height: 5.6vh; border-radius: 50%; background: #fff; color: var(--c); font-size: 3.6vh; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.scard .emo { font-size: 5.4vh; } .scard b { font-size: 3.8vh; text-shadow: 0 .3vh 0 rgba(0,0,0,.25); line-height: 1.1; }
+.scard small { font-size: 2.8vh; font-weight: 800; text-shadow: 0 .2vh 0 rgba(0,0,0,.25); }
+.scard .st { font-size: 2.6vh; min-height: 3vh; } .scard .st i { font-style: normal; font-weight: 800; color: #fff; }
+.scard.locked { background: rgba(255,255,255,.4); color: #1e3a8a; box-shadow: none; } .scard.locked b, .scard.locked small { text-shadow: none; }
+.scard.locked .num { background: #94a3b8; color: #fff; }
+
+/* كيف ألعب */
+.note.how { margin-top: 3vh; display: flex; flex-direction: column; gap: 1.2vh; font-size: 3.3vh; line-height: 1.5; }
+
+/* الاستراحة */
+.pause { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 2.4vh; background: rgba(255,255,255,.95); border-radius: 5vh; padding: 4vh 6vw; box-shadow: 0 2vh 5vh rgba(0,0,0,.4); }
+.pause h1 { margin: 0 0 1vh; }
+.pause .btn { min-width: 34vw; font-size: 4vh; }
+body.playing #app .screen { height: 100vh; justify-content: center; }
+
+/* النتيجة */
+.res { display: flex; gap: 2.5vw; align-items: center; margin-top: 1.5vh; }
+.rmap { width: 56vw; height: auto; border-radius: 3vh; box-shadow: 0 1vh 2.5vh rgba(30,58,138,.3); background: #9bd27a; }
+.rinfo { background: rgba(255,255,255,.95); border-radius: 4vh; padding: 2.4vh 2.4vw; display: flex; flex-direction: column; gap: 1vh; min-width: 30vw; box-shadow: 0 1vh 2vh rgba(30,58,138,.2); }
+.rmsg { font-size: 3.6vh; font-weight: 800; color: #15803d; text-align: center; }
+.rinfo .stars { font-size: 9vh; text-align: center; }
+.row { font-size: 3.2vh; font-weight: 700; display: flex; align-items: center; gap: 1vw; } .row b { color: #1e3a8a; }
+.row.bad { color: #dc2626; }
+.dot { width: 4vh; height: 1.2vh; border-radius: 1vh; display: inline-block; } .dot.me { background: #2563eb; } .dot.best { background: repeating-linear-gradient(90deg, #16a34a 0 1.4vh, transparent 1.4vh 2.2vh); }
+#gl { position: fixed; inset: 0; width: 100vw; height: 100vh; display: none; }

@@ -19,15 +19,40 @@ export async function tvSection(sc, section) {
     + 'لكل شخص «ملف» على التلفاز، ولكل ملف «مربعات»، وكل مربع مرتبط بمجلد في ملفاته: ما تضعه في المجلد يظهر على التلفاز.',
     `<a class="btn primary" href="/tv" target="_blank" rel="noopener">${icon('external')} معاينة واجهة التلفاز</a>`);
 
-  p.appendChild(kioskCard(d, reload));
-  p.appendChild(prepCard());
-  p.appendChild(h('<h3 class="tv-h">الأشخاص على التلفاز</h3>'));
-  for (const u of d.users) p.appendChild(userCard(u, d, reload));
-  p.appendChild(h('<h3 class="tv-h">الألعاب والتعليم</h3>'));
-  p.appendChild(appsCard());
-  p.appendChild(h('<h3 class="tv-h">الشاشة والمواقيت</h3>'));
-  p.appendChild(settingsCard(d, reload));
+  // البند 60: الأجزاء في تبويبات. «المظهر» و«الصلاة والأذان» و«صفحة كل شخص» أجزاء من نموذج واحد (زر «حفظ» واحد يحفظ الكل)
+  const set = settingsCard(d, reload);
+  const panes = {
+    screen: [kioskCard(d, reload)],
+    people: d.users.map((u) => userCard(u, d, reload)),
+    apps: [appsCard()],
+    video: [prepCard()],
+    look: [set], prayer: [set], daily: [set],
+  };
+  const bar = h(`<div class="cp-tabs tv-tabs" role="tablist" style="padding:0;margin:0 0 14px;position:static">${TV_TABS.map(([id, label]) =>
+    `<button role="tab" data-t="${id}">${label}</button>`).join('')}</div>`);
+  const body = h('<div></div>');
+  p.appendChild(bar); p.appendChild(body);
+  const open = (id) => {
+    if (!panes[id]) id = 'screen';
+    tvTab = id;
+    $$('[data-t]', bar).forEach((b) => b.classList.toggle('on', b.dataset.t === id));
+    body.innerHTML = '';
+    panes[id].forEach((el) => body.appendChild(el));
+    set.dataset.part = id;
+  };
+  $$('[data-t]', bar).forEach((b) => (b.onclick = () => open(b.dataset.t)));
+  open(tvTab);
 }
+
+// البند 63: بطاقات الشاشة الرئيسية للبالغين (بترتيب العرض)
+const HOME_CARDS = [['prayer', '🕌 مواقيت الصلاة'], ['text', '📖 نص اليوم'], ['word', '🔤 كلمة اليوم'], ['calendar', '📅 التقويم والمناسبات'],
+  ['family', '👨‍👩‍👧 العائلة (أعياد الميلاد والنجوم)'], ['memory', '📸 ذكرى من هذا اليوم']];
+// التبويب المفتوح يبقى بعد الحفظ وإعادة التحميل
+let tvTab = 'screen';
+const TV_TABS = [
+  ['screen', '📺 الشاشة والصوت'], ['people', '👨‍👩‍👧 الأشخاص'], ['apps', '🎮 الألعاب والتعليم'], ['video', '🎬 الفيديو'],
+  ['look', '🎨 المظهر'], ['prayer', '🕌 الصلاة والأذان'], ['daily', '📖 صفحة كل شخص'],
+];
 
 // --------------------------------------------------------------------- الألعاب والتعليم
 // كل تطبيق إما في «الألعاب» (بلا نجوم) أو في «التعليم» (نجمة عند إنهاء الدرس). النقل لا يمس تقدّم الأطفال.
@@ -38,9 +63,27 @@ function appsCard() {
     <div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px">
       <label class="btn primary sm" style="cursor:pointer">${icon('upload')} إضافة تطبيق (ملف ZIP)<input type="file" accept=".zip" data-up="zip" hidden></label>
       <label class="btn sm" style="cursor:pointer">${icon('folder')} إضافة تطبيق (مجلد)<input type="file" webkitdirectory multiple data-up="dir" hidden></label>
+      <button class="btn sm" data-x="dupes">${icon('copy')} إزالة الألعاب المكررة</button>
       <span class="muted small up-st"></span></div>
     <div class="tv-apps muted">جارٍ القراءة…</div></div>`);
   const box = $('.tv-apps', c);
+  // البند 53: نسخة واحدة من كل لعبة. نعرض أولاً ما نُبقي وما ينتقل إلى سلة المحذوفات، وتقدّم الأطفال يتبع اللعبة باسمها
+  $('[data-x=dupes]', c).onclick = async () => {
+    const r = await guard(() => api.get('/api/admin/tv/apps/dupes')); if (!r) return;
+    if (!r.dupes.length) { toast('لا توجد ألعاب مكررة ✓', 'ok'); return; }
+    const n = r.dupes.reduce((k, d) => k + d.remove.length, 0);
+    const list = r.dupes.map((d) => `<li><b translate="no">${esc(d.name)}</b>
+      <div class="small">✅ نُبقي: <bdi translate="no">${esc(d.keep)}</bdi></div>
+      ${d.remove.map((x) => `<div class="small muted">🗑 إلى سلة المحذوفات: <bdi translate="no">${esc(x)}</bdi></div>`).join('')}</li>`).join('');
+    const ok = await modal({ title: `ألعاب مكررة: ${r.dupes.length}`, wide: true,
+      body: `<p class="small">نُبقي نسخة واحدة من كل لعبة، وننقل ${n} نسخة إلى سلة المحذوفات (تُسترجع منها خلال مدة السلة).
+        <b>تقدّم الأطفال لا يضيع:</b> يتبع اللعبة باسمها أينما كانت.</p><ul class="dupes" style="max-height:52vh;overflow:auto;margin:0;padding-inline-start:18px">${list}</ul>`,
+      buttons: [{ label: 'إلغاء', value: false }, { label: `إزالة ${n} نسخة مكررة`, cls: 'primary', value: true }] });
+    if (!ok) return;
+    const y = await guard(() => api.post('/api/admin/tv/apps/dupes', {})); if (!y) return;
+    toast(`✓ نُقلت ${y.moved.length} نسخة مكررة إلى سلة المحذوفات`, 'ok', 6000);
+    draw(y.apps);
+  };
   // البند 28: إضافة تطبيق من الكمبيوتر (ZIP أو مجلد كامل)
   $$('[data-up]', c).forEach((inp) => (inp.onchange = async () => {
     const files = [...inp.files]; inp.value = '';
@@ -266,6 +309,11 @@ function cecBox() {
         ${r.tv ? ` التلفاز: <b translate="no">${esc(r.tv)}</b>` : ''} ${r.adapter ? `<span class="muted small" translate="no">(${esc(r.adapter)})</span>` : ''}</p>
       <p class="muted small" style="margin:0 0 8px">استعمل أسهم ريموت التلفاز و«موافق» و«رجوع» و«الرئيسية» في وضع التلفاز. <b>زر الإطفاء في ريموت التلفاز يطفئ التلفاز فقط، ولا يوقف HOME ANAB أبداً.</b>
         ${r.power_ignored ? ` (تجاهلنا أمر الإطفاء ${r.power_ignored} مرة.)` : ''}</p>
+      ${!off && r.supported && !r.keys ? `<div class="alert warn small" style="margin:0 0 8px"><b>لم يصل أي زر من الريموت بعد${r.traffic ? '' : '، ولا أي رسالة من التلفاز'}.</b>
+        في تلفاز <b>سامسونغ</b>: الإعدادات ← عام ← <b>مدير الأجهزة الخارجية</b> ← فعّل <b translate="no">Anynet+ (HDMI-CEC)</b>.
+        (إل جي: <span translate="no">SIMPLINK</span>، سوني: <span translate="no">BRAVIA Sync</span>.) ثم اختر مدخل HDMI الموصول بـ HOME ANAB، وأطفئ التلفاز وشغّله مرة.
+        ${r.traffic ? '' : ' إن بقي العدد صفراً فمنفذ HDMI في هذا الجهاز لا يوصل سلك CEC: يلزم محوّل USB-CEC.'}
+        <span class="muted">(رسائل من التلفاز: ${r.traffic || 0})</span></div>` : ''}
       ${r.last_key && !off ? `<p class="small" style="margin:0 0 8px">آخر زر وصل: <span class="ltr" translate="no">0x${esc(r.last_key)}</span> <span class="muted ltr">${esc(r.last_at || '')}</span> — اضغط زراً في ريموت التلفاز ثم «تحديث» لتتأكد.</p>` : ''}
       <button class="btn sm" data-a="toggle">${off ? 'تشغيل الريموت' : 'إيقاف الريموت'}</button> <button class="btn sm" data-a="re">تحديث</button>`;
     $('[data-a=re]', cb).onclick = load;
@@ -288,7 +336,7 @@ function audioBox() {
     if (r.error) { ab.innerHTML = `<span class="muted">تعذرت قراءة مخارج الصوت.</span> <span class="small" translate="no">${esc(r.error)}</span>`; return; }
     ab.classList.remove('muted', 'small');
     ab.innerHTML = `<label class="lbl" style="margin-top:0">مخرج الصوت</label>
-      <select class="field" style="max-width:420px"><option value="auto" ${r.auto ? 'selected' : ''}>تلقائي: HDMI الموصول بالتلفاز (موصى به)</option>${r.outputs.map((o, i) => `<option value="${i}" ${!r.auto && o.active ? 'selected' : ''}>${esc(o.name)}${o.plugged ? ' — موصول' : o.detected === false ? ' — غير مكتشف، جرّبه' : ''}</option>`).join('')}</select>
+      <select class="field" style="max-width:420px"><option value="auto" ${r.auto ? 'selected' : ''}>تلقائي: HDMI الموصول بالتلفاز (موصى به)</option>${r.outputs.map((o, i) => (o.surround && !o.active ? '' : `<option value="${i}" ${!r.auto && o.active ? 'selected' : ''}>${esc(o.name)}${o.surround ? ' — 5.1/7.1: أغلب التلفازات لا تُخرج صوتها' : o.plugged ? ' — موصول' : o.detected === false ? ' — غير مكتشف، جرّبه' : ''}</option>`)).join('')}</select>
       <p class="muted small">لصوت التلفاز اختر المخرج الذي فيه <b translate="no">HDMI</b> أو <b translate="no">DisplayPort</b>. المستوى الحالي: <span translate="no">${r.volume ?? '—'}%</span>${r.muted ? ' (صامت)' : ''}</p>
       <button class="btn primary sm" data-a="set">تطبيق</button> <button class="btn sm" data-a="test">${icon('play')} تجربة الصوت</button>`;
     $('[data-a=set]', ab).onclick = async () => {
@@ -474,17 +522,21 @@ async function editTile(u, t, d, reload) {
 function settingsCard(d, reload) {
   const s = d.settings;
   const [nf, nt] = (s.night_off || '').split('-');
-  const c = h(`<div class="card">
-    <div class="tv-grid">
+  const c = h(`<div class="card tv-set">
+    <div data-p="look"><div class="tv-grid">
       <label>خلفية شاشة البالغين<select class="field" name="wallpaper">
         <option value="animated">سماء متحركة</option><option value="photos">صوري المفضلة (تتبدل)</option><option value="dark">ليلي هادئ</option>
         <option value="cars">🚗 سيارات</option><option value="islamic">🕌 إسلامية (مسجد وهلال وفوانيس)</option><option value="custom">🖼️ صورة من اختياري</option></select></label>
       <label>خلفية شاشة الأطفال<select class="field" name="kids_wallpaper">
         <option value="garden">🌳 حديقة وسماء</option><option value="cars">🚗 سيارات</option><option value="islamic">🕌 إسلامية</option><option value="custom">🖼️ صورة من اختياري</option></select></label>
       <label>شاشة التوقف بعد (دقيقة، 0 = أبداً)<input class="field" type="number" min="0" max="240" name="saver_min"></label>
+      <label>🎮 إطفاء القبضات بلا لعب بعد (لحفظ الشحن)<select class="field" name="pad_sleep">
+        <option value="5">5 دقائق</option><option value="10">10 دقائق</option><option value="15">15 دقيقة</option><option value="30">30 دقيقة</option><option value="60">ساعة</option><option value="0">أبداً</option></select></label>
       <label>نوع شاشة التوقف<select class="field" name="saver_kind">
         <option value="prayer">🕌 مواقيت الصلاة بكامل الشاشة</option><option value="photos">🖼️ صوري المفضلة</option><option value="fire">🔥 نار (مدفأة)</option>
         <option value="text">📜 نص: آيات وأحاديث وحِكم</option><option value="rain">🌧️ أمطار</option><option value="galaxy">🌌 درب التبانة</option>
+        <option value="calendar">📅 التقويم (ميلادي وهجري والمناسبات)</option><option value="nature">🏞️ الطبيعة (تتغير مع وقت اليوم)</option>
+        <option value="sea">🐠 تحت الماء</option><option value="snow">❄️ ثلج</option><option value="moon">🌕 القمر الليلة</option><option value="clock">🕰️ ساعة كبيرة</option>
         <option value="mix">🔀 تنويع (تتبدّل كل 4 دقائق)</option></select></label>
       <label>نص خاص لشاشة «نص» (اختياري، وإلا تُعرض الآيات والأحاديث)<input class="field" name="saver_text" maxlength="160" placeholder="مثال: سبحان الله وبحمده"></label>
       <label>إطفاء الشاشة ليلاً من<input class="field" type="time" name="night_from"></label>
@@ -496,8 +548,8 @@ function settingsCard(d, reload) {
       <label>الوضع الخفيف (للتلفاز أو الجهاز الضعيف)<select class="field" name="lite"><option value="auto">تلقائي حسب الجهاز</option><option value="on">مفعّل دائماً</option><option value="off">متوقف</option></select></label>
     </div>
     <div class="wall-files" style="margin:8px 0"></div>
-    <label class="check"><input type="checkbox" name="nosleep"> منع الشاشة من الانطفاء أثناء الاستخدام</label>
-    <h4 style="margin-top:16px">${icon('clock')} مواقيت الصلاة</h4>
+    <label class="check"><input type="checkbox" name="nosleep"> منع الشاشة من الانطفاء أثناء الاستخدام</label></div>
+    <div data-p="prayer"><h4>${icon('clock')} مواقيت الصلاة</h4>
     <label class="check"><input type="checkbox" name="prayer"> عرض مواقيت الصلاة على شاشة البالغين</label>
     <div class="tv-grid">
       <label>المدينة<select class="field" name="city"><option value="">— إحداثيات يدوية —</option>${d.cities.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select></label>
@@ -531,8 +583,11 @@ function settingsCard(d, reload) {
       </div>
       <label class="check"><input type="checkbox" name="ad_pause"> إيقاف الفيديو والأناشيد مؤقتاً أثناء الأذان</label>
       <div class="ad-files small" style="margin-top:6px"></div>
-    </div>
-    <h4 style="margin-top:16px">${icon('book')} كلمة اليوم</h4>
+    </div></div>
+    <div data-p="daily"><h4>🏠 البطاقات في الشاشة الرئيسية (للبالغين)</h4>
+    <div style="display:flex;gap:16px;flex-wrap:wrap">${HOME_CARDS.map(([k, n]) => `<label class="check" style="margin:0"><input type="checkbox" name="hc_${k}"> ${n}</label>`).join('')}</div>
+    <p class="muted small" style="margin:4px 0 12px">تظهر بهذا الترتيب في عمودين بجانب الساعة. إن لم يتسع المكان لكلها لا تظهر الأخيرة (أنسب عدد: 3 أو 4).</p>
+    <h4>${icon('book')} كلمة اليوم</h4>
     <label class="check" style="display:inline-flex;margin-inline-end:16px"><input type="checkbox" name="w_fr"> الفرنسية</label>
     <label class="check" style="display:inline-flex"><input type="checkbox" name="w_en"> الإنجليزية</label>
     <p class="muted small" style="margin:6px 0 0">تتغيّر الكلمة مع كل تسجيل دخول، وتظهر في صفحة كل شخص.</p>
@@ -545,8 +600,9 @@ function settingsCard(d, reload) {
     <p class="muted small" style="margin:4px 0 6px">يتناوب النوع المختار مع كل دخول. ألغِ الكل لإخفاء البطاقة.</p>
     <button class="btn sm" data-x="hlist">${icon('book')} مراجعة النصوص</button>
     <h4 style="margin-top:16px">☀️ درجة الحرارة</h4>
-    <label class="check"><input type="checkbox" name="weather"> عرض الطقس لمدينة المواقيت تحت الساعة (من Open-Meteo، بلا حساب)</label>
-    <div style="margin-top:14px"><button class="btn primary" data-x="save">حفظ</button></div></div>`);
+    <label class="check"><input type="checkbox" name="weather"> عرض الطقس لمدينة المواقيت تحت الساعة (من Open-Meteo، بلا حساب)</label></div>
+    <div style="margin-top:14px"><button class="btn primary" data-x="save">حفظ</button>
+      <span class="muted small" style="margin-inline-start:8px">يحفظ «المظهر» و«الصلاة والأذان» و«صفحة كل شخص» معاً</span></div></div>`);
   const f = (n) => $(`[name=${n}]`, c);
   f('wallpaper').value = s.wallpaper; f('kids_wallpaper').value = s.kids_wallpaper || 'garden'; f('saver_min').value = s.saver_min; f('nosleep').checked = s.nosleep; f('lite').value = s.lite || 'auto'; f('lang').value = s.lang || 'ar'; f('night_dim').value = s.night_dim || 'auto';
   f('zoom').value = s.zoom || 100; f('margin').value = s.margin || 0;
@@ -624,6 +680,8 @@ function settingsCard(d, reload) {
   for (const k of ['hadith', 'ayah', 'proverb', 'wisdom']) f('dk_' + k).checked = (s.daily_kinds || []).includes(k);
   f('saver_kind').value = s.saver_kind || 'prayer'; f('saver_text').value = s.saver_text || '';
   f('weather').checked = s.weather !== false;
+  f('pad_sleep').value = String(s.pad_sleep ?? 15);
+  for (const [k] of HOME_CARDS) f('hc_' + k).checked = (s.home_cards || ['prayer', 'text', 'word']).includes(k);
   $('[data-x=hlist]', c).onclick = async () => {
     const r = await guard(() => api.get('/api/admin/welcome/hadith')); if (!r) return;
     modal({ title: `نصوص اليوم — كلمات: ${r.words}`, wide: true, body: h(`<div style="max-height:60vh;overflow:auto">
@@ -653,6 +711,8 @@ function settingsCard(d, reload) {
       words: ['ar', ...(f('w_fr').checked ? ['fr'] : []), ...(f('w_en').checked ? ['en'] : [])],
       daily_kinds: ['hadith', 'ayah', 'wisdom', 'proverb'].filter((k) => f('dk_' + k).checked), weather: f('weather').checked,
       saver_kind: f('saver_kind').value, saver_text: f('saver_text').value,
+      pad_sleep: +f('pad_sleep').value,
+      home_cards: HOME_CARDS.map(([k]) => k).filter((k) => f('hc_' + k).checked),
       source: f('source').value,
       offsets: Object.fromEntries(['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'].map((k) => [k, +f('off_' + k).value || 0])),
       adhan: { on: f('ad_on').checked, volume: +f('ad_volume').value || 80, remind: +f('ad_remind').value || 0, pause: f('ad_pause').checked,

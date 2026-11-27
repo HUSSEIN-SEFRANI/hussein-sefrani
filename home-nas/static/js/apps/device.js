@@ -15,7 +15,7 @@ export async function deviceSection(sc, section) {
   p.appendChild(cableCard());
   p.appendChild(bootCard());
   p.appendChild(wifiCard(d.net.wifi || {}, reload));
-  p.appendChild(timeCard(d.sys, reload));
+  p.appendChild(timeCard({ ...d.sys, weather: !!d.weather }, reload));
   p.appendChild(btCard());
   p.appendChild(diagCard());
 }
@@ -104,6 +104,14 @@ function diagCard() {
       ${cd.length ? `<div>⚠️ <b>بطاقة USB تظهر كقرص تعريفات</b> (<span class="ltr">${cd.map((u) => esc(u.id)).join(', ')}</span>): ${r.modeswitch ? 'أخرجها وأدخلها مرة أخرى.' : 'تحتاج أداة التحويل: حدّث النظام ثم أعد إدخالها.'}</div>` : ''}
       <div>${ok(r.monitors.length)} <b>الشاشة على منفذ الصوت (HDMI/DP):</b> ${r.monitors.length ? r.monitors.map((m) => `${esc(m.name || 'شاشة')} <span class="ltr">(${esc(m.card)} ${esc(m.pin)})</span>`).join('، ') : 'لم تُكتشف شاشة تدعم الصوت'}</div>
       <div>${ok(outs.some((o) => o.active && o.plugged))} <b>مخرج الصوت:</b> ${outs.length ? outs.map((o) => `${o.active ? '🔊' : '🔈'} ${esc(o.name)}${o.plugged ? ' (موصول)' : ''}`).join('، ') : 'لا توجد مخارج (شاشة التلفاز غير مفعّلة أو الصوت لا يعمل)'}</div>
+      ${(r.gpu || []).length ? `<div>${ok(r.gpu.some((g) => g.driver))} <b>كرت الشاشة:</b> ${r.gpu.map((g) => `<span translate="no">${esc(g.name || g.id)}</span> <span class="muted ltr">(${esc(g.driver || 'بلا تعريف')})</span>`).join('، ')}</div>` : ''}
+      ${r.vaapi !== undefined ? `<div>${ok(r.vaapi && r.vaapi.decode && r.vaapi.decode.length)} <b>تسريع الفيديو بكرت الشاشة:</b> ${!r.vaapi ? 'لا يوجد' : r.vaapi.decode && r.vaapi.decode.length
+        ? `تشغيل <span class="ltr">${esc(r.vaapi.decode.join(' '))}</span>${r.vaapi.encode.length ? ` · تجهيز الفيديو للتلفاز أسرع (<span class="ltr">${esc(r.vaapi.encode.join(' '))}</span>)` : ''}`
+        : 'تعريفه غير مثبت (زر «تثبيت التعريفات الناقصة» أدناه)'}</div>` : ''}
+      ${(r.nodriver || []).map((x) => `<div>⚠️ <b>${x.kind === 'wifi' ? 'بطاقة وايفاي' : x.kind === 'ethernet' ? 'كرت شبكة' : 'كرت شاشة'} بلا تعريف:</b>
+        <span translate="no">${esc(x.name || '')}</span> <span class="ltr muted">${esc(x.id)}</span>
+        ${x.kind === 'wifi' ? '— غالباً أحدث من نظام التشغيل (وايفاي 6E/7). الحل الأسهل: الكابل، أو قطعة وايفاي USB صغيرة مدعومة. صوّر هذه الصفحة وأرسلها.' : '— صوّر هذه الصفحة وأرسلها.'}</div>`).join('')}
+      ${r.cameras !== undefined ? `<div>${(r.cameras || []).length ? '📷' : '▫️'} <b>كاميرا USB:</b> ${(r.cameras || []).length ? r.cameras.map((x) => `<span translate="no">${esc(x)}</span>`).join('، ') : 'لا توجد (كاميرات الشبكة لا تحتاج تعريفاً)'}</div>` : ''}
       <details style="margin-top:6px"><summary>أجهزة USB (${r.usb.length})</summary>${r.usb.map((u) => `<div class="ltr" style="text-align:left">${esc(u.id)} ${esc(u.name)} → ${u.drivers.length ? esc(u.drivers.join(', ')) : '<b style="color:#dc2626">بلا تعريف</b>'}</div>`).join('')}</details>
       ${nodrv.length ? `<div>⚠️ ${nodrv.length} جهاز USB بلا تعريف</div>` : ''}
       ${r.firmware.length ? `<details open style="margin-top:6px"><summary>أخطاء التعريفات</summary>${r.firmware.map((l) => `<div class="ltr small" style="text-align:left">${esc(l)}</div>`).join('')}</details>` : ''}
@@ -230,7 +238,13 @@ function timeCard(s, reload) {
     <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap"><input class="field" type="datetime-local" name="dt" style="max-width:260px"><button class="btn sm" data-x="set">ضبط</button></div>
     <hr style="border:0;border-top:1px solid var(--border);margin:14px 0">
     <label class="check"><input type="checkbox" name="off" ${s.offline ? 'checked' : ''}> <b>وضع بدون إنترنت</b></label>
-    <p class="muted small">يوقف كل اتصال يبدؤه السيرفر بالخارج: التحديثات التلقائية، وضبط الوقت من الإنترنت، والبحث عن تحديثات HOME ANAB. التحديث بعدها من فلاشة (لوحة التحكم ← عام).</p></div>`);
+    <p class="muted small">يوقف كل اتصال يبدؤه السيرفر بالخارج: التحديثات التلقائية، وضبط الوقت من الإنترنت، والبحث عن تحديثات HOME ANAB. التحديث بعدها من فلاشة (لوحة التحكم ← عام).</p>
+    <hr style="border:0;border-top:1px solid var(--border);margin:14px 0">
+    <p class="muted small">${icon('shield')} لا يتصل الجهاز وحده بأي جهة خارجية إلا بما تشغّله هنا. متصفح التلفاز لا يتصل إلا بالسيرفر نفسه.</p>
+    <label class="check"><input type="checkbox" name="au" ${s.auto_updates ? 'checked' : ''}> <b>تحديثات الأمان التلقائية</b></label>
+    <p class="muted small">مرة كل يوم من خوادم ديبيان (تسد ثغرات النظام). لا تُرسل أي بيانات للعائلة. مطفأة افتراضياً.</p>
+    <label class="check"><input type="checkbox" name="wx" ${s.weather ? 'checked' : ''}> <b>الطقس على التلفاز</b></label>
+    <p class="muted small">كل نصف ساعة من Open-Meteo، ويُرسل إحداثيات مدينة المواقيت فقط (لا البيت). مطفأ افتراضياً.</p></div>`);
   const pad = (x) => String(x).padStart(2, '0');
   const now = new Date();
   $('[name=dt]', c).value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
@@ -241,6 +255,15 @@ function timeCard(s, reload) {
     if (await guard(() => api.post('/api/admin/offline', { on: e.target.checked }))) { toast(e.target.checked ? 'وضع بدون إنترنت مفعّل' : 'تم إيقاف وضع بدون إنترنت', 'ok'); reload(); }
     else e.target.checked = !e.target.checked;
   };
+  // البند 57: الاتصالات التي يبدؤها الجهاز وحده (مطفأة افتراضياً)
+  const sw = (name, url, onMsg, offMsg) => {
+    $(`[name=${name}]`, c).onchange = async (e) => {
+      if (await guard(() => api.post(url, { on: e.target.checked }))) toast(e.target.checked ? onMsg : offMsg, 'ok');
+      else e.target.checked = !e.target.checked;
+    };
+  };
+  sw('au', '/api/admin/auto-updates', 'تحديثات الأمان التلقائية مفعّلة', 'تم إيقاف تحديثات الأمان التلقائية');
+  sw('wx', '/api/admin/weather', 'الطقس مفعّل على التلفاز', 'تم إيقاف الطقس');
   return c;
 }
 
@@ -285,6 +308,8 @@ function btCard() {
           ${dv.paired && !dv.connected ? '<button class="btn sm" data-p="pair">اتصال</button>' : ''}
           <button class="btn ghost icon sm danger" data-p="remove" title="إزالة من القائمة">${icon('trash')}</button></div>`);
         $('b', row).textContent = dv.name;
+        const bat = (window.__padBat || []).find((x) => x.mac && x.mac === (dv.mac || '').toUpperCase());   // البند 4
+        if (bat) $('.tv-tt', row).insertAdjacentHTML('beforeend', `<div class="small ${bat.status !== 'Charging' && bat.capacity != null && bat.capacity <= 15 ? 'bad' : 'muted'}">${bat.status === 'Charging' ? '⚡ يشحن' : bat.status === 'Full' ? '🔋 مشحونة' : '🔋 البطارية'} ${bat.capacity != null ? bat.capacity + '%' : esc(bat.level || '')}${bat.model ? ` · <span translate="no">${esc(bat.model)}</span>` : ''}</div>`);
         $$('[data-p]', row).forEach(x => x.onclick = async () => {
           if (x.dataset.p === 'remove' && dv.paired && !(await confirmBox(`إزالة «${dv.name}»؟ ${dv.icon === 'input-gaming' ? 'لاستعمال اليد مرة أخرى ستحتاج إلى ربطها من جديد.' : 'لاستعماله مرة أخرى ستحتاج إلى ربطه من جديد.'}`, { ok: 'إزالة', danger: true }))) return;
           act(x.dataset.p, dv.mac);
@@ -325,6 +350,7 @@ function btCard() {
     if (r) { draw(r); if (a === 'pair' || a === 'pairpad') toast(`تم ربط ${(r.paired && r.paired.name) || 'اليد'} ✓ اضغط أي زر فيها`, 'ok'); }
     else $$('button', b).forEach(x => { x.disabled = false; });
   };
-  api.get('/api/admin/bt').then(draw).catch(e => { b.textContent = e.message; });
+  api.get('/api/admin/pads/battery').then((r) => { window.__padBat = r.pads || []; }).catch(() => {})
+    .finally(() => api.get('/api/admin/bt').then(draw).catch(e => { b.textContent = e.message; }));
   return c;
 }

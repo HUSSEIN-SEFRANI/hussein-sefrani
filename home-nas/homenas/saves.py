@@ -41,14 +41,34 @@ def _key() -> str:
     return k
 
 
+def family(key: str) -> tuple[str, str]:
+    """البند 53: «اسم الحفظ» واسم مجلد اللعبة (آخر جزء من المسار). نسخ اللعبة نفسها في أماكن مختلفة لها العائلة نفسها."""
+    name, _, path = key.partition(":")
+    return name, path.rstrip("/").rsplit("/", 1)[-1]
+
+
+def _like(s: str) -> str:
+    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def find_save(d, uid: int, key: str):
+    """أحدث تقدّم للعبة نفسها أينما كان مجلدها (مباشرة في «الألعاب» أو داخل «الألعاب-22/…» أو في «التعليم»)،
+    فلا يضيع التقدّم إن نُقلت اللعبة أو أُزيلت نسختها المكررة."""
+    name, base = family(key)
+    rows = d.execute("SELECT key, value, updated FROM game_saves WHERE user_id=? AND key LIKE ? ESCAPE '\\'",
+                     (uid, _like(name) + ":%")).fetchall()
+    same = [r for r in rows if family(r["key"]) == (name, base)]
+    return max(same, key=lambda r: (r["updated"], r["key"] == key)) if same else None
+
+
 @bp.get("/api/tv/save")
 def get_save():
     from .tv import tv_user
     u = tv_user()
-    row = db().execute("SELECT value, updated FROM game_saves WHERE user_id=? AND key=?", (u["id"], _key())).fetchone()
+    row = find_save(db(), u["id"], _key())
     if not row:
         return jsonify(found=False)
-    return jsonify(found=True, value=json.loads(row["value"]), updated=row["updated"])
+    return jsonify(found=True, value=json.loads(row["value"]), updated=row["updated"], key=row["key"])
 
 
 @bp.put("/api/tv/save")

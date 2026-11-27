@@ -1,0 +1,48 @@
+/* «اكتشف بلجيكا»: ألوان علم بلجيكا (أسود، أصفر، أحمر) على سماء زرقاء */
+#sky { --sky: linear-gradient(180deg, #5bb8ee 0%, #dff3ff 72%, #8c8f96 72%, #70737a 100%); }
+#cv { position: fixed; inset: 0; width: 100vw; height: 100vh; display: none; }
+body.playing #cv { display: block; }
+body.playing #sky { display: none; }
+body.playing #app { padding: 0; pointer-events: none; }
+#app { padding: 3vh 4vw 2.5vh; }
+.ttl { color: #fff; -webkit-text-stroke: .3vh #1f2937; paint-order: stroke fill; font-size: 6vh; margin: 0; }
+
+/* الشاشة الأولى */
+.hero { display: flex; align-items: center; gap: 3vw; margin-top: 1vh; }
+.heroP { height: 26vh; width: auto; filter: drop-shadow(0 1vh 1vh rgba(0,0,0,.25)); }
+.logo { font-size: 13vh; -webkit-text-stroke: .7vh #1f2937; }
+.hero .sub { font-size: 4vh; color: #1f2937; margin: 0; }
+.flag { display: flex; direction: ltr; width: 18vh; height: 2.2vh; margin-top: 1.5vh; border-radius: 1vh; overflow: hidden; }
+.flag i { flex: 1; } .flag i:nth-child(1) { background: #141414; } .flag i:nth-child(2) { background: #FDDA24; } .flag i:nth-child(3) { background: #EF3340; }
+.modes .mode { width: 28vw; height: 32vh; }
+.sub.small { font-size: 3.2vh; margin-top: 2.5vh; color: #1f2937; }
+
+/* الشخصيات */
+.chgrid { display: grid; grid-template-columns: repeat(5, 16vw); gap: 1.8vh 1.4vw; margin-top: 1.5vh; }
+.ch { height: 19vh; border: 0; border-radius: 3vh; background: #fff; color: #1f2937; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
+  box-shadow: 0 .8vh 1.6vh rgba(31,41,55,.25); padding: .5vh; line-height: 1.15; }
+.ch canvas { height: 10.5vh; width: auto; }
+.ch b { font-size: 3.2vh; }
+.ch small { font-size: 2.4vh; color: #be123c; font-weight: 800; }
+.ch.on { background: #fef3c7; box-shadow: 0 0 0 .5vh #FDDA24, 0 .8vh 1.6vh rgba(31,41,55,.25); }
+.desc { margin-top: 1.6vh; min-height: 6vh; background: #141414; color: #FDDA24; border-radius: 3vh; padding: 1vh 4vw; font-size: 3.6vh; font-weight: 800; }
+
+/* المدن */
+.cgrid { display: grid; grid-template-columns: repeat(3, 27vw); gap: 3vh 2vw; margin-top: 3vh; }
+.city { height: 26vh; border: 0; border-radius: 4vh; background: #fff; color: #1f2937; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .6vh;
+  box-shadow: 0 1vh 2vh rgba(31,41,55,.25); border-bottom: 1.4vh solid #EF3340; }
+.city .big { font-size: 10vh; }
+.city b { font-size: 4.4vh; }
+.city small { font-size: 2.8vh; font-weight: 800; color: #92400e; }
+.city.no { background: rgba(255,255,255,.55); border-bottom-color: #9ca3af; }
+
+/* النوافذ فوق اللعبة */
+.ovl { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(10,10,15,.55); pointer-events: auto; }
+.ovl.on { display: flex; }
+.pcard { background: #fff; border-radius: 5vh; padding: 4vh 5vw; width: min(84vw, 150vh); text-align: center; border-top: 2vh solid #EF3340; box-shadow: 0 2vh 0 #FDDA24, 0 4vh 8vh rgba(0,0,0,.35);
+  display: flex; flex-direction: column; align-items: center; animation: pop .3s ease; }
+.pcard h1 { font-size: 8vh; -webkit-text-stroke: .5vh #1f2937; }
+.fact { font-size: 4.8vh; line-height: 1.6; color: #1f2937; font-weight: 800; margin: 2vh 0 1vh; }
+.pcard .sub { color: #92400e; }
+.pcard .opts.wide { width: 70vw; }
+.won { font-size: 5vh; }

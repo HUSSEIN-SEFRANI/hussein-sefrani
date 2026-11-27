@@ -293,6 +293,7 @@ def tv_settings() -> dict:
         "hanafi": g("tv_hanafi", "0") == "1", "prayer": g("tv_prayer", "1") == "1",
         "words": json.loads(g("tv_words", '["ar","fr","en"]')), "nosleep": g("tv_nosleep", "1") == "1",
         "saver_min": int(g("tv_saver_min", "10")), "night_off": g("tv_night_off", ""),
+        "pad_sleep": int(g("tv_pad_sleep", "15")),   # البند 65: دقائق بلا لعب ثم تُطفأ القبضات (0 = أبداً)
         "zoom": int(g("tv_zoom", "100")), "margin": int(g("tv_margin", "0")), "text": int(g("tv_text", "100")),
         "lite": g("tv_lite", "auto"),   # وضع خفيف للأجهزة الضعيفة: auto / on / off
         "lang": tv_lang(),               # لغة واجهة التلفاز يختارها الأبوان
@@ -300,13 +301,58 @@ def tv_settings() -> dict:
         "night_dim": g("tv_night_dim", "auto"),   # إضاءة خفيفة جداً في الليل (من العشاء حتى الشروق): auto / off
         "source": g("tv_prayer_source", "calc"), "offsets": json.loads(g("tv_prayer_off", "{}")),
         "adhan": {**ADHAN_DEFAULT, **json.loads(g("tv_adhan", "{}"))},
-        "weather": g("tv_weather", "1") == "1",
+        "weather": g("tv_weather", "0") == "1",   # البند 57: مطفأ حتى يفعّله الأبوان (يتصل بـ open-meteo)
         "daily_kinds": welcome.daily_kinds(),
         "saver_kind": g("tv_saver_kind", "prayer"), "saver_text": g("tv_saver_text", ""),
+        "home_cards": home_cards(g("tv_home_cards", "")),
     }
 
 
-SAVER_KINDS = ("prayer", "photos", "fire", "text", "rain", "galaxy", "mix")
+# البند 63: البطاقات في الشاشة الرئيسية للبالغين، يختارها المدير للجميع (الترتيب ثابت)
+HOME_CARDS = ("prayer", "text", "word", "calendar", "family", "memory")
+HOME_DEFAULT = ["prayer", "text", "word"]
+
+
+def home_cards(raw) -> list:
+    try:
+        v = json.loads(raw) if raw else HOME_DEFAULT
+    except ValueError:
+        v = HOME_DEFAULT
+    return [k for k in HOME_CARDS if k in (v if isinstance(v, list) else HOME_DEFAULT)]
+
+
+def home_family(db) -> dict:
+    """أعياد الميلاد القادمة وأكثر من جمع نجوماً (لبطاقة «العائلة»)."""
+    from .stars import balance, is_parent
+    people = [u for u in db.execute("SELECT * FROM users WHERE disabled=0") if (u["tv_role"] or "none") != "none"]
+    bdays = []
+    for u in people:
+        a = age_info(u["birthdate"])
+        if a.get("birthday_in") is not None:
+            bdays.append({"name": display_name(u), "in": a["birthday_in"], "age": (a.get("age") or 0) + (0 if a["birthday_in"] == 0 else 1)})
+    bdays.sort(key=lambda x: x["in"])
+    kids = [{"name": display_name(u), "stars": balance(db, u["id"])} for u in people if not is_parent(u)]
+    kids.sort(key=lambda x: -x["stars"])
+    db.commit()   # balance() قد يكتب رصيد البداية
+    return {"birthdays": bdays[:2], "stars": [k for k in kids if k["stars"] > 0][:3]}
+
+
+def home_memory(db, u):
+    """صورة التُقطت في مثل هذا اليوم في سنة سابقة (لبطاقة «ذكرى من هذا اليوم»)."""
+    import random
+    from .kids import onthisday_rows
+    try:
+        rows = onthisday_rows(db, u, limit=40)
+    except Exception:
+        return None
+    if not rows:
+        return None
+    r = random.choice(rows)
+    year = int(r["taken_at"][:4])
+    return {"id": r["id"], "year": year, "ago": datetime.now().year - year}
+
+
+SAVER_KINDS = ("prayer", "photos", "fire", "text", "rain", "galaxy", "mix", "calendar", "nature", "sea", "snow", "moon", "clock")
 
 
 def city_coords(s: dict):
@@ -533,6 +579,8 @@ def api_admin_tv_settings():
             set_setting(sk, str(max(lo, min(hi, int(d[key] or 0)))))
     if "saver_min" in d:
         set_setting("tv_saver_min", str(max(0, min(240, int(d["saver_min"] or 0)))))
+    if "pad_sleep" in d:
+        set_setting("tv_pad_sleep", str(max(0, min(240, int(d["pad_sleep"] or 0)))))
     if "words" in d:
         set_setting("tv_words", json.dumps([x for x in d["words"] if x in ("ar", "fr", "en")]))
     if "weather" in d:
@@ -543,6 +591,8 @@ def api_admin_tv_settings():
         set_setting("tv_saver_kind", d["saver_kind"])
     if "saver_text" in d:
         set_setting("tv_saver_text", str(d["saver_text"] or "").strip()[:160])
+    if isinstance(d.get("home_cards"), list):
+        set_setting("tv_home_cards", json.dumps([k for k in HOME_CARDS if k in d["home_cards"]]))
     if d.get("source") in ("calc", "mawaqit"):
         set_setting("tv_prayer_source", d["source"])
     if isinstance(d.get("offsets"), dict):
@@ -824,6 +874,93 @@ def api_admin_apps():
                    names={k: v[0] for k, v in SHARES.items()})
 
 
+# ----------------------------------------------------------------------------- البند 53: الألعاب المكررة
+def _app_copies(db) -> dict:
+    """كل نسخ التطبيقات في «الألعاب» و«التعليم»: مباشرة، أو داخل مجلد ZIP (مثل «الألعاب-22/…»)، أو داخل مجلد يغلّفها.
+    الاسم دائماً اسم مجلد التطبيق نفسه (الذي فيه index.html). يرجع {الاسم: [{"unit": ما يُنقل إلى السلة، "kind"، "share"،
+    "rank": 2 مباشرة في المجلد المشترك، 1 مغلّفة بمجلد وحدها، 0 داخل مجلد آخر، "app": مجلد التطبيق}]}."""
+    out: dict = {}
+    def entries(d: Path) -> list[Path]:
+        try:
+            return sorted((x for x in d.iterdir() if not x.name.startswith((".", "#", "@")) and x.name != RECYCLE), key=lambda x: x.name.casefold())
+        except OSError:
+            return []
+    def scan(d: Path, kind: str, root: Path, rank: int, depth: int):
+        if (d / "index.html").is_file():
+            out.setdefault(d.name, []).append({"unit": d, "kind": kind, "share": root, "rank": rank, "app": d})
+            return
+        if depth >= 2:
+            return
+        inner = entries(d)
+        subs = [x for x in inner if x.is_dir()]
+        if len(subs) == 1 and (subs[0] / "index.html").is_file():   # مجلد يغلّف تطبيقاً واحداً (بعد فك ZIP)
+            alone = len(inner) == 1
+            out.setdefault(subs[0].name, []).append({"unit": d if alone else subs[0], "kind": kind, "share": root,
+                                                     "rank": 1 if alone and rank == 2 else 0, "app": subs[0]})
+            return
+        for x in subs:
+            scan(x, kind, root, 0, depth + 1)
+    for kind in ("games", "learn"):
+        root = share_dir(db, paths(), kind)
+        for t in entries(root):
+            if t.is_dir():
+                scan(t, kind, root, 2, 0)
+    return out
+
+
+def _dupes(db) -> list[dict]:
+    """لكل تطبيق له أكثر من نسخة: أي نسخة نُبقي، وأيها تُنقل إلى سلة المحذوفات.
+    نُبقي النسخة المباشرة في المجلد الذي يقوله نوعها (حيث يضع النظام ألعابه)، ثم أي نسخة مباشرة، ثم الأحدث."""
+    def score(c):
+        declared = app_type(c["app"]) or app_type(c["unit"])
+        right = (declared == "education") == (c["kind"] == "learn") if declared else c["kind"] == "games"
+        try:
+            mtime = (c["app"] / "index.html").stat().st_mtime
+        except OSError:
+            mtime = 0
+        return (c["rank"] == 2 and right, c["rank"], right, mtime)
+    out = []
+    for name, copies in sorted(_app_copies(db).items(), key=lambda x: x[0].casefold()):
+        if len(copies) < 2:
+            continue
+        copies = sorted(copies, key=score, reverse=True)
+        rel = lambda c: f"{SHARES[c['kind']][0]}/{c['unit'].relative_to(c['share']).as_posix()}"
+        out.append({"name": name, "keep": rel(copies[0]), "remove": [rel(c) for c in copies[1:]], "_remove": copies[1:]})
+    return out
+
+
+@bp.get("/api/admin/tv/apps/dupes")
+@admin_required
+def api_admin_apps_dupes():
+    return jsonify(dupes=[{k: v for k, v in d.items() if not k.startswith("_")} for d in _dupes(get_db())])
+
+
+@bp.post("/api/admin/tv/apps/dupes")
+@admin_required
+def api_admin_apps_dupes_apply():
+    """ينقل النسخ المكررة إلى سلة المحذوفات في مجلدها المشترك (تُسترجع خلال مدة السلة). تقدّم الأطفال يتبع اللعبة باسمها."""
+    from .bundled import _to_recycle
+    moved, emptied = [], []
+    for d in _dupes(get_db()):
+        for c in d["_remove"]:
+            parent = c["unit"].parent
+            try:
+                _to_recycle(c["share"], c["unit"])
+                moved.append(f"{SHARES[c['kind']][0]}/{c['unit'].relative_to(c['share']).as_posix()}")
+            except OSError:
+                continue
+            if parent != c["share"]:   # مجلد ZIP صار فارغاً: لا داعي لبقائه
+                try:
+                    if not any(parent.iterdir()):
+                        parent.rmdir()
+                        emptied.append(parent.name)
+                except OSError:
+                    pass
+    if moved:
+        log_action("إزالة الألعاب المكررة", f"{len(moved)} نسخة إلى سلة المحذوفات")
+    return jsonify(ok=True, moved=moved, emptied=emptied, apps=api_admin_apps().get_json())
+
+
 @bp.post("/api/admin/tv/apps/move")
 @admin_required
 def api_admin_apps_move():
@@ -1019,6 +1156,46 @@ def api_admin_tv_screen():
     return jsonify(ok=True)
 
 
+# البند 11: نفس اختيار الشاشة والدقة من إعدادات التلفاز نفسه (للمدير على التلفاز)
+@bp.get("/api/tv/admin/display")
+def api_tv_admin_display():
+    tv_admin()
+    ok, out = kiosk_helper("tv-modes", timeout=60)
+    return jsonify(json.loads(out)) if ok else jsonify(error=out)
+
+
+@bp.post("/api/tv/admin/display")
+def api_tv_admin_display_set():
+    u = tv_admin()
+    d = body()
+    mode, screen = str(d.get("mode") or ""), str(d.get("screen") or "")
+    if mode and not re.fullmatch(r"\d{3,4}x\d{3,4}", mode):
+        abort(400)
+    if screen and not re.fullmatch(r"[A-Za-z0-9_.-]{1,40}", screen):
+        abort(400)
+    ok, out = kiosk_helper("tv-mode-set", mode, screen, timeout=900) if screen else \
+        kiosk_helper("tv-mode-set", *([mode] if mode else []), timeout=900)
+    if not ok:
+        abort(400, out or "error")
+    log_action("دقة شاشة التلفاز (من التلفاز)", f"{screen or ''} {mode or 'تلقائي'}".strip(), u["username"])
+    return jsonify(ok=True)
+
+
+@bp.post("/api/tv/admin/screen")
+def api_tv_admin_screen():
+    u = tv_admin()
+    d = body()
+    name = str(d.get("name") or "auto")
+    if name != "auto" and not re.fullmatch(r"[A-Za-z0-9_.-]{1,40}", name):
+        abort(400)
+    ok, out = kiosk_helper("tv-screen-set", name, *(["20"] if d.get("try") else []), timeout=30)
+    if not ok:
+        abort(400, out or "error")
+    if not d.get("try"):
+        log_action("شاشة التلفاز (من التلفاز)", "تلقائي" if name == "auto" else name, u["username"])
+    return jsonify(ok=True)
+
+
 @bp.get("/api/admin/tv/audio")
 @admin_required
 def api_admin_tv_audio():
@@ -1160,8 +1337,11 @@ def api_tv_home():
     daily = session.get("tv_daily")
     if not daily:
         daily = session["tv_daily"] = welcome.daily(u)
+    cards = s["home_cards"]
     return jsonify(user=profile_dict(u), tiles=tiles, settings=s, prayer=prayer_now(s), word=daily["word"],
-                   text=daily.get("text") if s["daily_kinds"] else None, weather=weather_now(s))
+                   text=daily.get("text") if s["daily_kinds"] else None, weather=weather_now(s),
+                   family=home_family(db) if "family" in cards else None,
+                   memory=home_memory(db, u) if "memory" in cards else None)
 
 
 THEMES = ("grape", "apple", "orange", "strawberry", "lemon", "watermelon")
@@ -1816,6 +1996,16 @@ def api_tv_admin_audio_set():
     if d.get("action") != "test":
         log_action("مخرج صوت التلفاز", d.get("profile") or d.get("action") or "", u["username"])
     return jsonify(ok=True)
+
+
+@bp.post("/api/tv/pads/off")
+def api_tv_pads_off():
+    """البند 65: إطفاء القبضات الموصولة بالبلوتوث (بعد مدة بلا لعب، أو بزر «أطفئ القبضات»). لا يحتاج رمز المدير، لكن يحتاج فرداً مختاراً على التلفاز."""
+    tv_user()
+    from .sysadmin import available, helper
+    if not available():
+        return jsonify(off=[])
+    return jsonify(helper("bt-pads-off", timeout=90, as_json=True) or {"off": []})
 
 
 @bp.get("/api/tv/admin/bt")

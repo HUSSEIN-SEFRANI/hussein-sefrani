@@ -35,8 +35,14 @@ PKGS="python3 python3-venv python3-pip ffmpeg avahi-daemon libnss-mdns sudo ca-c
     python3-flask python3-waitress python3-pil python3-psutil libheif-examples libheif-plugin-libde265 \
     poppler-utils usbmuxd libimobiledevice-utils ifuse"
 # بدون إنترنت (تحديث من فلاشة): نكمل إذا كانت الحزم الأساسية مثبتة مسبقاً
+# البند 57: إذا كانت كل الحزم مثبتة (الإيزو فيه كل شيء) فلا نتصل بخوادم ديبيان أصلاً
 OFFLINE=0
-if ! apt-get update >/dev/null 2>&1; then
+MISSING=""
+for p in $PKGS; do dpkg -s "$p" >/dev/null 2>&1 || MISSING="$MISSING $p"; done
+if [ -z "$MISSING" ]; then
+    OFFLINE=1
+    echo "all packages already installed - no internet needed"
+elif ! apt-get update >/dev/null 2>&1; then
     OFFLINE=1
     echo "warning: no internet - using the packages already installed"
 fi
@@ -50,7 +56,9 @@ if [ "$OFFLINE" -eq 1 ]; then
 fi
 
 # Windows network discovery (shows HOME ANAB under "Network" in Explorer)
-apt-get install -y --no-install-recommends wsdd2 >/dev/null 2>&1 || apt-get install -y --no-install-recommends wsdd >/dev/null 2>&1 || true
+if [ "$OFFLINE" -eq 0 ] && ! dpkg -s wsdd2 >/dev/null 2>&1 && ! dpkg -s wsdd >/dev/null 2>&1; then
+  apt-get install -y --no-install-recommends wsdd2 >/dev/null 2>&1 || apt-get install -y --no-install-recommends wsdd >/dev/null 2>&1 || true
+fi
 # تعريفات إضافية لبطاقات الوايفاي (ومنها USB) إن توفّر الإنترنت
 if [ "$OFFLINE" -eq 0 ]; then
   for p in firmware-mediatek firmware-brcm80211 firmware-libertas firmware-zd1211 usb-modeswitch usb-modeswitch-data firmware-sof-signed wireless-regdb firmware-amd-graphics firmware-realtek firmware-iwlwifi amd64-microcode intel-microcode \
@@ -62,6 +70,9 @@ fi
 log "Creating service user"
 id homenas >/dev/null 2>&1 || useradd --system --home-dir /var/lib/homenas --create-home \
     --shell /usr/sbin/nologin homenas
+
+# البند 8: برنامج السيرفر يستعمل كرت الشاشة لتجهيز الفيديو (VA-API) ← مجموعة render
+for g in render video; do getent group $g >/dev/null && usermod -aG $g homenas 2>/dev/null || true; done
 
 log "Installing application to $APP"
 mkdir -p /opt/homenas
@@ -216,10 +227,13 @@ cat > /etc/avahi/services/hsef-smb.service <<'EOF'
 </service-group>
 EOF
 
-# Automatic security updates
-cat > /etc/apt/apt.conf.d/20auto-upgrades <<'EOF'
-APT::Periodic::Update-Package-Lists "1";
-APT::Periodic::Unattended-Upgrade "1";
+# البند 57 (طلب صاحب المشروع): تحديثات الأمان التلقائية من ديبيان مطفأة افتراضياً، فلا يتصل الجهاز بأي جهة وحده.
+# يشغّلها المدير من لوحة التحكم (الجهاز ← الوقت والعمل بدون إنترنت)، واختياره يبقى بعد كل تحديث.
+AU=0
+[ "$(cat /etc/homenas/auto-updates 2>/dev/null)" = "1" ] && AU=1
+cat > /etc/apt/apt.conf.d/20auto-upgrades <<EOF
+APT::Periodic::Update-Package-Lists "$AU";
+APT::Periodic::Unattended-Upgrade "$AU";
 EOF
 
 if [ "$APPLIANCE" -eq 1 ]; then
@@ -306,7 +320,14 @@ if [ "$APPLIANCE" -eq 1 ]; then
     cat > /etc/udev/rules.d/71-homenas-cec-power.rules <<'EOF'
 SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="*[Cc][Ee][Cc]*", TAG-="power-switch"
 EOF
+    # البند 64: زر الإطفاء في ريموت USB (مثل Air Mouse بقطعة USB) أو في لوحة مفاتيح USB/بلوتوث لا يطفئ السيرفر.
+    # يبقى زر الإطفاء في الجهاز نفسه (ACPI) يعمل كما هو.
+    cat > /etc/udev/rules.d/71-homenas-remote-power.rules <<'EOF'
+SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_BUS}=="usb|bluetooth", TAG-="power-switch"
+EOF
     udevadm control --reload >/dev/null 2>&1 || true
+    # يُطبَّق فوراً على الأجهزة الموصولة الآن (logind يترك الزر عند حدث change بلا الوسم)
+    udevadm trigger --subsystem-match=input --action=change >/dev/null 2>&1 || true
     cat > /etc/systemd/system/hsef-cec.service <<'EOF'
 [Unit]
 Description=HOME ANAB: TV remote over HDMI-CEC

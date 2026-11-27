@@ -412,6 +412,9 @@ table.tbl tr:hover td { background: var(--surface-2); }
 .cp-tabs { display: flex; gap: 4px; flex-wrap: wrap; padding: 12px 18px 0; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); z-index: 2; }
 .cp-tabs button { border: 0; background: transparent; color: var(--muted); padding: 8px 14px; font: inherit; font-size: 14px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .cp-tabs button:hover { color: var(--text); }
+/* البند 60: أجزاء نموذج إعدادات التلفاز، يظهر منها جزء التبويب المفتوح فقط */
+.tv-set [data-p] { display: none; }
+.tv-set[data-part=look] [data-p=look], .tv-set[data-part=prayer] [data-p=prayer], .tv-set[data-part=daily] [data-p=daily] { display: block; }
 .cp-tabs button.on { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
 .perm-grid { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center; margin-top: 6px; }
 .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
@@ -669,3 +672,41 @@ pre.applog.big { max-height: 60vh; font-size: 12px; }
 .icon-picker .ip-icons.art button { height: 52px; }
 .icon-picker .ip-icons.art svg { width: 40px; height: 40px; }
 .icon-picker .ip-icons[hidden] { display: none; }
+
+/* البند 68: صفحة «حسابي»: البطاقتان الأوليان بجانب بعضهما */
+.acc-row { display: flex; gap: 14px; align-items: stretch; flex-wrap: wrap; max-width: 1100px; }
+.acc-row > .card { flex: 1 1 380px; margin: 0; min-width: 0; }
+.acc-row > .card:last-child { flex: 0 1 300px; min-width: 260px; }
+.acc-row .walls { flex-wrap: wrap; }
+/* البند 67: «ماذا يشغل المساحة؟» عرض حيّ */
+.us-tabs { display: flex; gap: 6px; margin: 4px 0 12px; }
+.us-wrap { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
+.us-chart { flex: 0 0 220px; position: sticky; top: 0; }
+.us-list { flex: 1; min-width: 260px; }
+.dn { width: 220px; height: 220px; display: block; }
+.dn-seg { stroke: var(--surface); stroke-width: 1.5; cursor: pointer; transition: opacity .2s, transform .2s; transform-origin: 100px 100px; }
+.dn-seg.dim { opacity: .25; }
+.dn-seg:not(.dim):hover { transform: scale(1.04); }
+.dn-big { font-size: 30px; font-weight: 800; fill: var(--text); }
+.dn-small { font-size: 12px; fill: var(--muted, #94a3b8); }
+.us-row { display: grid; grid-template-columns: 14px 1fr auto auto auto; align-items: center; gap: 4px 10px; padding: 7px 8px; border-radius: 10px; cursor: default; transition: background .15s; }
+.us-row.has { cursor: pointer; }
+.us-row.hl, .us-row:focus-visible { background: var(--surface-2, rgba(127,127,127,.08)); outline: none; }
+.us-row .dot { width: 12px; height: 12px; border-radius: 4px; }
+.us-row.free .dot { border: 1px dashed var(--muted, #94a3b8); }
+.us-row .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.us-row .arr { font-style: normal; display: inline-block; transition: transform .2s; opacity: .6; }
+.us-row.open .arr { transform: rotate(-90deg); }
+.us-row .pc { font-size: 12px; min-width: 38px; text-align: end; }
+.us-row .sz { min-width: 74px; text-align: end; }
+.us-bar { grid-column: 2 / -1; height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+.us-bar.sm { height: 4px; }
+.us-bar i { display: block; height: 100%; width: 0; border-radius: 3px; transition: width .7s cubic-bezier(.2,.8,.2,1); }
+.grown .us-bar i { width: var(--w); }
+.us-kids { grid-column: 2 / -1; padding: 6px 0 2px; }
+.us-kid { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: 13px; margin-top: 6px; }
+.us-kid .us-bar { grid-column: 1 / -1; }
+@media (max-width: 640px) { .us-chart { flex-basis: 100%; position: static; } .dn { margin: 0 auto; } }
+.us-disk { height: 12px; border-radius: 6px; background: var(--surface-3); overflow: hidden; }
+.us-disk i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #6366f1, #ec4899); border-radius: 6px; transition: width .9s cubic-bezier(.2,.8,.2,1); }
+.grown .us-disk i { width: var(--w); }

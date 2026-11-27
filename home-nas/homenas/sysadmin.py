@@ -50,7 +50,9 @@ def is_offline() -> bool:
 def api_device():
     if not available():
         return jsonify(available=False)
-    return jsonify(available=True, net=helper("net-status", as_json=True), sys=helper("sys-status", as_json=True))
+    from .core import get_setting
+    return jsonify(available=True, net=helper("net-status", as_json=True), sys=helper("sys-status", as_json=True),
+                   weather=get_setting("tv_weather") == "1")
 
 
 @bp.get("/api/admin/net/diag")
@@ -174,6 +176,27 @@ def api_offline():
     on = bool(body().get("on"))
     helper("offline", "on" if on else "off")
     log_action("وضع بدون إنترنت", "تشغيل" if on else "إيقاف")
+    return jsonify(ok=True)
+
+
+@bp.post("/api/admin/auto-updates")
+@admin_required
+def api_auto_updates():
+    """البند 57: تحديثات الأمان التلقائية من ديبيان (مطفأة افتراضياً حتى لا يتصل الجهاز بأي جهة وحده)."""
+    on = bool(body().get("on"))
+    helper("auto-updates", "on" if on else "off")
+    log_action("تحديثات الأمان التلقائية", "تشغيل" if on else "إيقاف")
+    return jsonify(ok=True)
+
+
+@bp.post("/api/admin/weather")
+@admin_required
+def api_weather():
+    """البند 57: الطقس على التلفاز (من Open-Meteo، مطفأ افتراضياً). نفس إعداد «الطقس» في إعدادات التلفاز."""
+    from .core import set_setting
+    on = bool(body().get("on"))
+    set_setting("tv_weather", "1" if on else "0")
+    log_action("الطقس على التلفاز", "تشغيل" if on else "إيقاف")
     return jsonify(ok=True)
 
 

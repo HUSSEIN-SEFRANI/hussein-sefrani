@@ -19,6 +19,14 @@ on:
         description: 'Delete old releases from before versioning (tags homenas-*)'
         type: boolean
         default: false
+      keep:
+        description: 'How many of the newest releases to keep (older ones are deleted)'
+        type: string
+        default: '5'
+      drop_tags:
+        description: 'Also delete the tags of all older versions'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -135,4 +143,32 @@ jobs:
           for t in $(gh release list --limit 100 --json tagName -q '.[].tagName' | grep '^homenas-' || true); do
             echo "Deleting old release $t"
             gh release delete "$t" --yes --cleanup-tag
+          done
+
+      # تنظيف مع كل نشر (طلب صاحب المشروع، 2026-11-20): آخر 5 إصدارات فقط (keep)، والوسوم تبقى إلا مع drop_tags
+      # (v2.0: «امسح جميع الإصدارات السابقة» ← keep=1 وdrop_tags=true)،
+      # وحذف فروع البنود التي دُمجت (feature/ fix/ docs/ chore/). الفروع غير المدموجة لا تُلمس.
+      - name: Keep only the newest releases, delete merged branches
+        if: github.event_name == 'workflow_dispatch' && inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KEEP: ${{ inputs.keep }}
+          DROP_TAGS: ${{ inputs.drop_tags }}
+        run: |
+          case "$KEEP" in ''|*[!0-9]*|0) echo "::error::keep must be a number >= 1"; exit 1;; esac
+          gh release list --limit 200 --json tagName,createdAt -q "sort_by(.createdAt) | reverse | .[$KEEP:] | .[].tagName" |
+          while read -r t; do echo "Deleting release $t"; gh release delete "$t" --yes || true; done
+          if [ "$DROP_TAGS" = "true" ]; then
+            kept=$(gh release list --limit 200 --json tagName -q '.[].tagName')
+            gh api "repos/$GITHUB_REPOSITORY/tags?per_page=100" --paginate -q '.[].name' |
+            while read -r t; do
+              echo "$kept" | grep -qxF "$t" && continue
+              gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$t" >/dev/null && echo "Deleted tag $t" || true
+            done
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/pulls?state=closed&per_page=100" --paginate -q '.[] | select(.merged_at != null) | .head.ref' |
+          sort -u | grep -E '^(feature|fix|docs|chore)/' |
+          while read -r b; do
+            open=$(gh api "repos/$GITHUB_REPOSITORY/pulls?state=open&head=${GITHUB_REPOSITORY%%/*}:$b" -q 'length')
+            [ "$open" = "0" ] && gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$b" >/dev/null 2>&1 && echo "Deleted branch $b" || true
           done

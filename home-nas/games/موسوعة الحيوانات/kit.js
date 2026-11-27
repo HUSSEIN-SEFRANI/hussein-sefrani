@@ -1,5 +1,6 @@
 // kit.js — أدوات مشتركة لألعاب الأطفال على تلفاز H.SEF (نسخة في كل مجلد لعبة، تعمل بدون إنترنت)
-// التحكم: الأسهم للتنقل، Enter أو ✕ للاختيار، Backspace أو ○ للرجوع. Escape محجوز للتلفاز (الخروج من اللعبة).
+// التحكم: الأسهم للتنقل، Enter أو ✕ للاختيار، Backspace أو ○ للرجوع (أو العكس كما في إعداد التلفاز).
+// زر PS وEscape محجوزان للتلفاز: الخروج من اللعبة بعد رسالة تأكيد (البند 51).
 (() => {
   "use strict";
   const K = (window.K = {});
@@ -92,6 +93,7 @@
   const voices = () => { try { return speechSynthesis.getVoices(); } catch { return []; } };
   if ("speechSynthesis" in window) { voices(); speechSynthesis.onvoiceschanged = voices; }
   K.voice = (lang = "ar") => voices().find((v) => v.lang && v.lang.toLowerCase().startsWith(lang)) || null;
+  // البند 66: لا صوت آلي من السيرفر (أُلغي البند 58 بطلب صاحب المشروع): القراءة بصوت المتصفح العربي فقط إن وُجد
   K.tts = (text, lang = "ar", rate = 0.85) => {
     const v = K.voice(lang);
     if (!v || !text) return false;
@@ -227,36 +229,46 @@
   try { padMaps = JSON.parse(localStorage.getItem("hsef-padmaps") || "{}"); } catch {}
   // اللاعب 1 = اليد الأساسية في التلفاز (window.hsefPadOrder في الصفحة الأم)، فيبقى نفسه في كل الألعاب
   const tvOrder = () => { try { return window.parent !== window && typeof window.parent.hsefPadOrder === "function" ? window.parent.hsefPadOrder() : null; } catch { return null; } };
+  // مستشعر الحركة ولوحة اللمس في يد PS4/PS5 يظهران في لينكس كـ«يد» ثانية تتحرك أرقامها وحدها: ليست لاعباً
+  const NOT_PAD = /motion sensors|touchpad|accelerometer|gyro/i;
   K.pads = () => {
     const all = [];
-    try { for (const g of navigator.getGamepads ? navigator.getGamepads() : []) if (g && g.connected) all.push(padNorm(g, padMaps)); } catch {}
+    try { for (const g of navigator.getGamepads ? navigator.getGamepads() : []) if (g && g.connected && !NOT_PAD.test(g.id || "")) all.push(padNorm(g, padMaps)); } catch {}
     for (const g of all) if (!padOrder.includes(g.index) && padTouched(g)) padOrder.push(g.index);
-    const tv = tvOrder() || [];
+    // اللاعبون = الأيادي التي ضُغط فيها شيء في هذه اللعبة فقط. ترتيب التلفاز (اليد الأساسية أولاً) يرتّبها فيما بينها،
+    // فيد موضوعة جانباً (ولو كانت «الأساسية» في الشاشة الرئيسية) لا تأخذ مكان من يلعب فعلاً
+    const tv = (tvOrder() || []).filter((i) => padOrder.includes(i));
     const ord = [...tv, ...padOrder].filter((i, k, x) => x.indexOf(i) === k);
     return ord.map((i) => all.find((g) => g.index === i)).filter(Boolean);
   };
   K.mainPad = () => K.pads()[0] || null;
+  // البند 51: «موافق» و«رجوع» كما في التلفاز (إعداد «الموافقة بزر ○»، ويد نينتندو معكوسة)، فلا يختلط الزران بين القوائم واللعبة
+  const tvSwap = (g) => { try { return window.parent !== window && typeof window.parent.hsefPadSwap === "function" && !!window.parent.hsefPadSwap(g); } catch { return false; } };
   function poll(ts) {
     const pads = K.pads();
     if (!(K.mode && K.mode.poll && K.mode.poll(pads, ts)) && pads.length) {
-      const g = pads[0];
-      const b = (i) => !!(g.buttons[i] && g.buttons[i].pressed);
-      const ax = g.axes[0] || 0, ay = g.axes[1] || 0;
+      // القوائم تتحرك بأي يد يلعب بها أحد (لا اليد الأولى وحدها)
+      const b = (i) => pads.some((g) => g.buttons[i] && g.buttons[i].pressed);
+      const big = (k) => pads.reduce((m, g) => (Math.abs(g.axes[k] || 0) > Math.abs(m) ? g.axes[k] || 0 : m), 0);
+      const ax = big(0), ay = big(1);
       const dir = b(12) || ay < -0.6 ? "up" : b(13) || ay > 0.6 ? "down" : b(14) || ax < -0.6 ? "left" : b(15) || ax > 0.6 ? "right" : null;
       if (dir && (dir !== pad.dir || ts > pad.next)) {
         if (!(K.mode && K.mode.key && K.mode.key({ key: "Arrow" + dir[0].toUpperCase() + dir.slice(1), pad: true }))) K.move(dir);
         pad.next = ts + (dir !== pad.dir ? 400 : 170);
       }
       pad.dir = dir;
-      if (b(0) && !pad.a) { K.audioCtx(); if (!(K.mode && K.mode.key && K.mode.key({ key: "Enter", pad: true }))) K.press(); }
-      if (b(1) && !pad.b) { if (!(K.mode && K.mode.key && K.mode.key({ key: "Backspace", pad: true }))) K.back(); }
-      pad.a = b(0); pad.b = b(1);
+      const sw = pads.map(tvSwap);
+      const okOn = pads.some((g, k) => g.buttons[sw[k] ? 1 : 0] && g.buttons[sw[k] ? 1 : 0].pressed);
+      const backOn = pads.some((g, k) => g.buttons[sw[k] ? 0 : 1] && g.buttons[sw[k] ? 0 : 1].pressed);
+      if (okOn && !pad.a) { K.audioCtx(); if (!(K.mode && K.mode.key && K.mode.key({ key: "Enter", pad: true }))) K.press(); }
+      if (backOn && !pad.b) { if (!(K.mode && K.mode.key && K.mode.key({ key: "Backspace", pad: true }))) K.back(); }
+      pad.a = okOn; pad.b = backOn;
     }
     requestAnimationFrame(poll);
   }
   requestAnimationFrame(poll);
 
-  K.HELP = `<div class="help"><b>الأسهم</b> للتنقل · <b>Enter</b> أو <b>✕</b> للاختيار · <b>Backspace</b> أو <b>○</b> للرجوع</div>`;
+  K.HELP = `<div class="help"><b>الأسهم</b> للتنقل · <b>Enter</b> أو <b>✕</b> للاختيار · <b>Backspace</b> أو <b>○</b> للرجوع · <b>PS</b> للخروج من اللعبة</div>`;
   K.backBtn = (label = "→ رجوع") => `<button class="btn f" ${K.act("back", K.back)}>${label}</button>`;
 
   // ---------------------------------------------------------------- صور من السيرفر
