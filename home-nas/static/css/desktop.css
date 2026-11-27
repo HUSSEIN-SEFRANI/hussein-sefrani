@@ -673,13 +673,11 @@ pre.applog.big { max-height: 60vh; font-size: 12px; }
 .icon-picker .ip-icons.art svg { width: 40px; height: 40px; }
 .icon-picker .ip-icons[hidden] { display: none; }
 
-<<<<<<< HEAD
 /* البند 68: صفحة «حسابي»: البطاقتان الأوليان بجانب بعضهما */
 .acc-row { display: flex; gap: 14px; align-items: stretch; flex-wrap: wrap; max-width: 1100px; }
 .acc-row > .card { flex: 1 1 380px; margin: 0; min-width: 0; }
 .acc-row > .card:last-child { flex: 0 1 300px; min-width: 260px; }
 .acc-row .walls { flex-wrap: wrap; }
-=======
 /* البند 67: «ماذا يشغل المساحة؟» عرض حيّ */
 .us-tabs { display: flex; gap: 6px; margin: 4px 0 12px; }
 .us-wrap { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
@@ -712,4 +710,3 @@ pre.applog.big { max-height: 60vh; font-size: 12px; }
 .us-disk { height: 12px; border-radius: 6px; background: var(--surface-3); overflow: hidden; }
 .us-disk i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #6366f1, #ec4899); border-radius: 6px; transition: width .9s cubic-bezier(.2,.8,.2,1); }
 .grown .us-disk i { width: var(--w); }
->>>>>>> origin/claude/eager-wright-ytkzo1
