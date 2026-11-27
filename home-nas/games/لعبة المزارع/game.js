@@ -6,8 +6,39 @@
   "use strict";
   const D = window.FD, L = window.FL, t = L.t, nm = L.n;
   const N = D.COLS * D.ROWS;
-  const save = K.store("farmgame", { lang: "", farms: [], cur: 0, lastCrop: "corn" });
-  if (save.lang) L.set(save.lang);
+  // ---------------------------------------------------------------- الحفظ
+  // على التلفاز: في مجلد اللاعب على السيرفر (<مجلده>/تلفاز/تطبيقات/لعبة المزارع/حفظ.json)، فلكل طفل مزرعته
+  // ويجدها في «الملفات». خارج التلفاز (أو إن تعذّر السيرفر): في المتصفح (localStorage) كما في باقي الألعاب.
+  const DEF = () => ({ lang: "", farms: [], cur: 0, lastCrop: "corn" });
+  const save = K.store("farmgame", DEF());
+  const localSave = save.save;
+  const srv = { on: false, timer: 0, busy: false, again: false };
+  const body = () => { const { save: _s, ...rest } = save; return JSON.stringify(rest); };
+  function put(keepalive) {
+    clearTimeout(srv.timer); srv.timer = 0;
+    if (srv.busy && !keepalive) { srv.again = true; return; }
+    srv.busy = true;
+    fetch("/api/tv/gamesave", { method: "PUT", credentials: "same-origin", keepalive: !!keepalive, headers: { "Content-Type": "application/json" }, body: body() })
+      .catch(() => {}).finally(() => { srv.busy = false; if (srv.again) { srv.again = false; put(); } });
+  }
+  save.save = () => {
+    save.ts = Date.now();
+    if (srv.on) { if (!srv.timer) srv.timer = setTimeout(put, 1200); }
+    else localSave();
+  };
+  async function loadServer() {
+    if (!K.gameInfo()) return;
+    try {
+      const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 5000);
+      const r = await fetch("/api/tv/gamesave", { credentials: "same-origin", signal: ctl.signal });
+      clearTimeout(to);
+      if (!r.ok) return;
+      const d = (await r.json()).data;
+      srv.on = true;
+      for (const k of Object.keys(save)) if (k !== "save") delete save[k];
+      Object.assign(save, DEF(), d && typeof d === "object" ? d : {});
+    } catch {}
+  }
   const LITE = (() => {
     try { if (parent !== window && parent.document.documentElement.classList.contains("lite")) return true; } catch {}
     return (navigator.deviceMemory || 8) <= 2 || (navigator.hardwareConcurrency || 8) <= 2;
@@ -398,6 +429,12 @@
   }
 
   // إغلاق اللعبة أثناء وضع شيء اشتراه الطفل: نعيد نقوده ونحفظ
-  addEventListener("pagehide", () => { if (placing && placing.refund) { F().coins += placing.refund; placing = null; } save.save(); });
-  K.start(homeScreen);
+  addEventListener("pagehide", () => {
+    if (placing && placing.refund) { F().coins += placing.refund; placing = null; }
+    save.save();
+    if (srv.on && srv.timer) put(true);   // keepalive: يصل حتى بعد إغلاق اللعبة
+  });
+  document.addEventListener("visibilitychange", () => { if (document.hidden && srv.on && srv.timer) put(true); });
+  K.paint(`<div class="title"><span class="mascot emo">🚜</span><h1>${t("title")}</h1></div>`);
+  loadServer().then(() => { if (save.lang) L.set(save.lang); K.start(homeScreen); });
 })();
