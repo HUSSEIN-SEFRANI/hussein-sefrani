@@ -306,7 +306,7 @@ def tv_settings() -> dict:
     }
 
 
-SAVER_KINDS = ("prayer", "photos", "fire", "text", "rain", "galaxy", "mix")
+SAVER_KINDS = ("prayer", "photos", "fire", "text", "rain", "galaxy", "mix", "calendar", "nature", "sea", "snow", "moon", "clock")
 
 
 def city_coords(s: dict):

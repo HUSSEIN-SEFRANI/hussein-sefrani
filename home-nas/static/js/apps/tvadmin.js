@@ -530,6 +530,8 @@ function settingsCard(d, reload) {
       <label>نوع شاشة التوقف<select class="field" name="saver_kind">
         <option value="prayer">🕌 مواقيت الصلاة بكامل الشاشة</option><option value="photos">🖼️ صوري المفضلة</option><option value="fire">🔥 نار (مدفأة)</option>
         <option value="text">📜 نص: آيات وأحاديث وحِكم</option><option value="rain">🌧️ أمطار</option><option value="galaxy">🌌 درب التبانة</option>
+        <option value="calendar">📅 التقويم (ميلادي وهجري والمناسبات)</option><option value="nature">🏞️ الطبيعة (تتغير مع وقت اليوم)</option>
+        <option value="sea">🐠 تحت الماء</option><option value="snow">❄️ ثلج</option><option value="moon">🌕 القمر الليلة</option><option value="clock">🕰️ ساعة كبيرة</option>
         <option value="mix">🔀 تنويع (تتبدّل كل 4 دقائق)</option></select></label>
       <label>نص خاص لشاشة «نص» (اختياري، وإلا تُعرض الآيات والأحاديث)<input class="field" name="saver_text" maxlength="160" placeholder="مثال: سبحان الله وبحمده"></label>
       <label>إطفاء الشاشة ليلاً من<input class="field" type="time" name="night_from"></label>
