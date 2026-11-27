@@ -531,6 +531,7 @@ function loadQR() {
 }
 
 async function whoScreen(boot = false) {
+  stopBg();   // البند 62
   stopKidWatch();
   let d;
   try { d = await api("/api/tv/profiles"); } catch (e) { toast(e.message); return; }
@@ -938,6 +939,7 @@ async function browseScreen(t, sub) {
 
 // ============================================================== الفيديو
 function videoScreen(t, paths, idx) {
+  stopBg();   // البند 62
   const el = h(`<div class="player"><video autoplay playsinline></video>${PREP}
     <div class="bigplay" hidden>${A.PAUSE}</div><div class="counter"></div>
     <div class="osd"><div class="tt"></div><div class="bar"><i></i></div><div class="row"><span class="ct">0:00</span><span class="du">0:00</span></div>
@@ -998,7 +1000,42 @@ function videoScreen(t, paths, idx) {
 // ============================================================== الصوتيات (أناشيد، قرآن، تسجيلات)
 // أربع طرق عرض (تُحفظ لكل مربع): قائمة، أسطوانة دوّارة، موجات صوتية، شاشة كبيرة. مع تكرار وتشغيل عشوائي
 const AUDIO_VIEWS = [["list", "📋", "قائمة"], ["vinyl", "💿", "أسطوانة"], ["waves", "🌊", "موجات"], ["big", "🖥️", "شاشة كبيرة"]];
+// البند 62: الموسيقى تستمر بعد الخروج من تطبيق الصوت، مع إشعار صغير أعلى الشاشة.
+// تتوقف عند فتح فيديو أو لعبة أو تطبيق أو كاميرا أو قصة، أو تبديل المستخدم. والضغط على الإشعار (أو فتح المربع نفسه) يرجع إلى المشغّل.
+let bgPlay = null;
+function stopBg() {
+  if (!bgPlay) return;
+  const b = bgPlay; bgPlay = null;
+  clearInterval(b.timer);
+  try { b.au.pause(); b.au.removeAttribute("src"); b.au.load(); } catch { /* */ }
+  b.au.remove(); b.pill.remove();
+}
+function startBg(t, paths, au, cur, reopen) {
+  stopBg();
+  const pill = h(`<button class="bgmusic" aria-label="الموسيقى قيد التشغيل"><span class="eq"><i></i><i></i><i></i></span><span class="tt"></span><b class="st"></b></button>`);
+  const draw = () => {
+    pill.querySelector(".tt").textContent = cur();
+    pill.querySelector(".st").textContent = au.paused ? "⏸ متوقفة" : "🎵 قيد التشغيل";
+    pill.classList.toggle("paused", au.paused);
+  };
+  au.hidden = true;
+  stage.appendChild(au); stage.appendChild(pill);
+  bgPlay = { t, au, pill, timer: setInterval(draw, 1000), reopen };
+  pill.addEventListener("click", () => { const r = bgPlay?.reopen; if (r) r(); });
+  draw();
+  toast("🎵 الموسيقى مستمرة. افتح المربع نفسه للتحكم بها");
+}
+document.addEventListener("keydown", (e) => {
+  if (!bgPlay) return;
+  if (e.key === "MediaPlayPause" && !top()?.busy?.()) { bgPlay.au.paused ? bgPlay.au.play().catch(() => {}) : bgPlay.au.pause(); }
+  else if (e.key === "MediaStop") stopBg();
+});
+
 function audioScreen(t, paths, idx) {
+  // نفس المربع والموسيقى مستمرة: نكمل من حيث وصلت
+  const resume = bgPlay && bgPlay.t.id === t.id && bgPlay.paths?.join("\n") === paths.join("\n") ? { i: bgPlay.idx(), at: bgPlay.au.currentTime } : null;
+  if (resume) idx = resume.i;
+  stopBg();
   const names = paths.map((p) => p.split("/").pop().replace(/\.[^.]+$/, ""));
   const vkey = `hsef-aview-${t.id}`;
   let view = "list", repeat = "all", shuffle = false;
@@ -1014,7 +1051,7 @@ function audioScreen(t, paths, idx) {
     <div class="now"><div class="tt"></div><div class="bar"><i></i></div><div class="tms"><span class="cur">0:00</span><span class="dur"></span></div>
       <div class="vbtns"><button class="btn f js-vd">${VOL_ICON(false).replace(/34/g, "24")} −</button><button class="btn f js-vm">${VOL_ICON(true).replace(/34/g, "24")}</button><button class="btn f js-vu">${VOL_ICON(false).replace(/34/g, "24")} +</button></div>
       <div class="vbtns"><button class="btn f js-view"></button><button class="btn f js-rep"></button><button class="btn f js-shuf"></button></div></div>
-    <div class="list">${list}</div><audio autoplay></audio>
+    <div class="list">${list}</div><audio autoplay preload="auto"></audio>
     ${hints([["موافق", "تشغيل"], ["+ −", "الصوت"], [faceIcon("up"), "طريقة العرض"], [faceIcon("left"), "تكرار"], ["رجوع", "خروج"]])}</div>`);
   const au = el.querySelector("audio"), bar = el.querySelector(".now .bar i"), cover = el.querySelector(".cover");
   const fmt = (x) => (isFinite(x) ? `${Math.floor(x / 60)}:${pad(Math.floor(x % 60))}` : "");
@@ -1082,7 +1119,10 @@ function audioScreen(t, paths, idx) {
   au.addEventListener("pause", () => { cover.classList.remove("playing"); el.classList.remove("playing"); });
   au.addEventListener("ended", () => { const j = nextIdx(); if (j >= 0) load(j); });
   au.addEventListener("error", () => { toast("لا يمكن تشغيل هذا الملف"); if (idx + 1 < paths.length) setTimeout(() => load(idx + 1), 1500); });
-  el.querySelector(".js-back").addEventListener("click", pop);
+  // الخروج بزر «رجوع»: إن كان الصوت يعمل يستمر في الخلفية
+  let keep = false;
+  const leave = () => { keep = !au.paused; pop(); };
+  el.querySelector(".js-back").addEventListener("click", leave);
   el.querySelector(".js-vd").addEventListener("click", volDown);
   el.querySelector(".js-vu").addEventListener("click", volUp);
   el.querySelector(".js-vm").addEventListener("click", volMute);
@@ -1097,7 +1137,16 @@ function audioScreen(t, paths, idx) {
     el,
     initial: () => (view === "list" ? el.querySelector(`.trk[data-i="${idx}"]`) : el.querySelector(".js-view")),
     busy: () => !au.paused,
-    destroy() { stopWaves?.(); au.pause(); au.removeAttribute("src"); au.load(); },
+    back: leave,
+    destroy() {
+      stopWaves?.();
+      if (keep) {
+        startBg(t, paths, au, () => names[idx], () => { if (bgPlay) audioScreen(t, paths, idx); });
+        bgPlay.paths = paths; bgPlay.idx = () => idx;
+        return;
+      }
+      au.pause(); au.removeAttribute("src"); au.load();
+    },
     key(e) {
       if (e.key === " " || e.key === "MediaPlayPause") { au.paused ? au.play() : au.pause(); return true; }
       if (e.key === "v" || e.key === "V" || e.key === "ContextMenu") { el.querySelector(".js-view").click(); return true; }
@@ -1110,6 +1159,7 @@ function audioScreen(t, paths, idx) {
   setView(view);
   drawModes();
   load(idx);
+  if (resume && resume.at > 1) au.addEventListener("loadedmetadata", () => { try { au.currentTime = resume.at; } catch { /* */ } }, { once: true });
 }
 
 // ============================================================== عارض الصور وعرض الشرائح
@@ -1317,6 +1367,7 @@ async function camerasScreen(t) {
 }
 
 function camLiveScreen(cams, idx, auto = false) {
+  stopBg();   // البند 62
   const SEQ_SEC = 10;
   const el = h(`<div class="player cam-live"><video autoplay playsinline></video><img class="cam-img" alt="" hidden>
     <div class="osd"><div class="tt"></div><div class="keys"><span><b>← →</b>كاميرا أخرى</span><span><b>موافق</b>التسجيلات</span><span><b>⬆</b>${auto ? "إيقاف التبديل" : "تبديل تلقائي"}</span><span><b>رجوع</b>كل الكاميرات</span></div></div></div>`);
@@ -1492,6 +1543,7 @@ function carryProgress(tid, path) {
 }
 
 async function gameScreen(t, path) {
+  stopBg();   // البند 62
   const gname = gameName(t, path);
   carryProgress(t.id, path);
   if (isKid()) {
@@ -1537,6 +1589,7 @@ async function gameScreen(t, path) {
 
 // البند 46: تطبيق مدمج في النظام (مثل «الرسائل») داخل إطار، و«رجوع» يخرج منه ويحدّث الشاشة الرئيسية
 function appScreen(url, title) {
+  stopBg();   // البند 62
   const el = h(`<div class="game"><iframe src="${url}" allow="autoplay; fullscreen; gamepad" title="${esc(title)}"></iframe>
     <div class="exit">للخروج اضغط «رجوع» (Esc)</div></div>`);
   const fr = el.querySelector("iframe");
@@ -1632,6 +1685,7 @@ async function storiesScreen(t) {
   push({ el, initial: () => el.querySelector(".kcard") || el.querySelector(".js-back") });
 }
 function storyPlayer(t, x) {
+  stopBg();   // البند 62
   const el = h(`<div class="bg-dark kplay" style="--glow1:#ec489966">
     <div class="cover" style="background:${A.gradient(t.color)}"><span class="emo">🎧</span></div>
     <h1>${esc(x.title)}</h1><div class="by">${x.by ? `بصوت ${nm(esc(x.by))}` : ""}</div>
