@@ -320,7 +320,14 @@ if [ "$APPLIANCE" -eq 1 ]; then
     cat > /etc/udev/rules.d/71-homenas-cec-power.rules <<'EOF'
 SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="*[Cc][Ee][Cc]*", TAG-="power-switch"
 EOF
+    # البند 64: زر الإطفاء في ريموت USB (مثل Air Mouse بقطعة USB) أو في لوحة مفاتيح USB/بلوتوث لا يطفئ السيرفر.
+    # يبقى زر الإطفاء في الجهاز نفسه (ACPI) يعمل كما هو.
+    cat > /etc/udev/rules.d/71-homenas-remote-power.rules <<'EOF'
+SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_BUS}=="usb|bluetooth", TAG-="power-switch"
+EOF
     udevadm control --reload >/dev/null 2>&1 || true
+    # يُطبَّق فوراً على الأجهزة الموصولة الآن (logind يترك الزر عند حدث change بلا الوسم)
+    udevadm trigger --subsystem-match=input --action=change >/dev/null 2>&1 || true
     cat > /etc/systemd/system/hsef-cec.service <<'EOF'
 [Unit]
 Description=HOME ANAB: TV remote over HDMI-CEC
