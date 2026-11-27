@@ -672,3 +672,9 @@ pre.applog.big { max-height: 60vh; font-size: 12px; }
 .icon-picker .ip-icons.art button { height: 52px; }
 .icon-picker .ip-icons.art svg { width: 40px; height: 40px; }
 .icon-picker .ip-icons[hidden] { display: none; }
+
+/* البند 68: صفحة «حسابي»: البطاقتان الأوليان بجانب بعضهما */
+.acc-row { display: flex; gap: 14px; align-items: stretch; flex-wrap: wrap; max-width: 1100px; }
+.acc-row > .card { flex: 1 1 380px; margin: 0; min-width: 0; }
+.acc-row > .card:last-child { flex: 0 1 300px; min-width: 260px; }
+.acc-row .walls { flex-wrap: wrap; }
