@@ -2993,6 +2993,27 @@ async function pollBattery() {
   }
 }
 setTimeout(pollBattery, 8000); setInterval(pollBattery, 60000);
+
+// البند 65: حفظ شحن القبضات. بعد مدة بلا لعب (إعداد «إطفاء القبضات»، افتراضياً 15 دقيقة) تُفصل القبضات الموصولة بالبلوتوث،
+// فتنطفئ وتبقى مربوطة: زر PS يعيد وصلها. أي زر أو حركة عصا في أي يد (في التلفاز أو داخل لعبة) يعيد العدّ.
+let padSeen = Date.now(), padSnap = "", padSlept = false;
+async function padsOff(manual = false) {
+  try {
+    const r = await api("/api/tv/pads/off", { json: {} });
+    if (manual) toast(r.off?.length ? `🔌 أُطفئت: ${r.off.join("، ")}. اضغط زر PS لإعادة وصلها` : "لا توجد قبضة بلوتوث موصولة", 4500);
+    return r.off || [];
+  } catch (e) { if (manual) toast(e.message); return []; }
+}
+setInterval(() => {
+  const pads = livePads();
+  if (!pads.length) { padSlept = false; padSeen = Date.now(); padSnap = ""; return; }
+  const snap = pads.map((g) => g.index + ":" + g.buttons.map((b) => (b.pressed ? 1 : 0)).join("") + ":" + g.axes.map((a) => (Math.abs(a) > 0.4 ? Math.sign(a) : 0)).join("")).join("|");
+  if (snap !== padSnap) { padSnap = snap; padSeen = Date.now(); padSlept = false; return; }
+  const mins = settings?.pad_sleep ?? 15;
+  if (!mins || padSlept || Date.now() - padSeen < mins * 60000) return;
+  padSlept = true;   // مرة واحدة حتى تُستعمل يد من جديد (اليد السلكية لا تُطفأ وتبقى ظاهرة)
+  padsOff().then((off) => { if (off.length) toast(`🔌 أُطفئت القبضات بعد ${mins} دقيقة بلا لعب. اضغط زر PS لإعادة وصلها`, 6000); });
+}, 5000);
 function batFor(g, used) {
   const [v, p] = padIds(g), nm = g.id.replace(/\(.*\)/, "").trim().toLowerCase();
   const b = PADBAT.find((x) => !used.has(x.id) && ((v && x.vendor === v && x.product === p) || (x.name || "").toLowerCase() === nm));
@@ -3212,11 +3233,14 @@ function padScreen() {
     <div class="set-status"><div>آخر يد ضُغط فيها زر: <b class="ltr js-pn">اضغط أي زر في اليد…</b></div></div>
     <div class="pad-test ltr">${BTN.map(([k, t]) => `<span data-b="${k}">${t}</span>`).join("")}</div>
     <div class="set-row"><button class="btn f js-swap"></button><button class="btn f js-rum"></button><button class="btn gold f js-diag">🩺 تشخيص اليد</button></div>
+    <div class="set-row"><button class="btn f js-off">🔌 أطفئ القبضات الآن</button></div>
+    <p class="set-msg">لحفظ الشحن: تنطفئ القبضات وحدها بعد ${settings.pad_sleep ? `${settings.pad_sleep} دقيقة` : "— (مُعطّل)"} بلا لعب (المدة من لوحة تحكم السيرفر ← وضع التلفاز). زر PS يعيد وصلها.</p>
     <div class="set-row"><button class="btn gold f js-setup">🎮 إعداد يد جديدة</button>${Object.keys(PADMAPS).length ? `<button class="btn f js-reset">مسح إعدادات الأيادي (${Object.keys(PADMAPS).length})</button>` : ""}</div>
     <p class="set-msg">«إعداد يد جديدة»: لأي يد لا تعمل أزرارها صحيحة (يد عامة بلا ماركة): تضغط كل زر مرة عند السؤال، فتُحفظ لهذه اليد.</p>
     <div class="pad-legend js-legend"></div>
     <p class="set-msg">الأسهم أو العصا اليسرى للتوجيه دائماً · L1/R1 السابق/التالي · L2/R2 الصوت · Options تشغيل/إيقاف · PS الرئيسية (وفي الألعاب: الخروج)</p>`;
   el.querySelector(".js-diag").addEventListener("click", () => padDiagScreen());
+  el.querySelector(".js-off").addEventListener("click", () => padsOff(true));
   el.querySelector(".js-pair").addEventListener("click", () => { pop(); padPairScreen(() => padScreen()); });
   // تصحيح نوع اليد يدوياً: تلقائي ← بلايستيشن ← إكس بوكس ← نينتندو ← عامة ← تلقائي
   el.querySelector(".js-players").addEventListener("click", (e) => {

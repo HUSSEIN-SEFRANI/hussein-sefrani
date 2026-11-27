@@ -530,6 +530,8 @@ function settingsCard(d, reload) {
       <label>خلفية شاشة الأطفال<select class="field" name="kids_wallpaper">
         <option value="garden">🌳 حديقة وسماء</option><option value="cars">🚗 سيارات</option><option value="islamic">🕌 إسلامية</option><option value="custom">🖼️ صورة من اختياري</option></select></label>
       <label>شاشة التوقف بعد (دقيقة، 0 = أبداً)<input class="field" type="number" min="0" max="240" name="saver_min"></label>
+      <label>🎮 إطفاء القبضات بلا لعب بعد (لحفظ الشحن)<select class="field" name="pad_sleep">
+        <option value="5">5 دقائق</option><option value="10">10 دقائق</option><option value="15">15 دقيقة</option><option value="30">30 دقيقة</option><option value="60">ساعة</option><option value="0">أبداً</option></select></label>
       <label>نوع شاشة التوقف<select class="field" name="saver_kind">
         <option value="prayer">🕌 مواقيت الصلاة بكامل الشاشة</option><option value="photos">🖼️ صوري المفضلة</option><option value="fire">🔥 نار (مدفأة)</option>
         <option value="text">📜 نص: آيات وأحاديث وحِكم</option><option value="rain">🌧️ أمطار</option><option value="galaxy">🌌 درب التبانة</option>
@@ -678,6 +680,7 @@ function settingsCard(d, reload) {
   for (const k of ['hadith', 'ayah', 'proverb', 'wisdom']) f('dk_' + k).checked = (s.daily_kinds || []).includes(k);
   f('saver_kind').value = s.saver_kind || 'prayer'; f('saver_text').value = s.saver_text || '';
   f('weather').checked = s.weather !== false;
+  f('pad_sleep').value = String(s.pad_sleep ?? 15);
   for (const [k] of HOME_CARDS) f('hc_' + k).checked = (s.home_cards || ['prayer', 'text', 'word']).includes(k);
   $('[data-x=hlist]', c).onclick = async () => {
     const r = await guard(() => api.get('/api/admin/welcome/hadith')); if (!r) return;
@@ -708,6 +711,7 @@ function settingsCard(d, reload) {
       words: ['ar', ...(f('w_fr').checked ? ['fr'] : []), ...(f('w_en').checked ? ['en'] : [])],
       daily_kinds: ['hadith', 'ayah', 'wisdom', 'proverb'].filter((k) => f('dk_' + k).checked), weather: f('weather').checked,
       saver_kind: f('saver_kind').value, saver_text: f('saver_text').value,
+      pad_sleep: +f('pad_sleep').value,
       home_cards: HOME_CARDS.map(([k]) => k).filter((k) => f('hc_' + k).checked),
       source: f('source').value,
       offsets: Object.fromEntries(['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'].map((k) => [k, +f('off_' + k).value || 0])),
