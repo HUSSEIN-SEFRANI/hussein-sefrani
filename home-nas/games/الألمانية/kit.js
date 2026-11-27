@@ -93,6 +93,7 @@
   const voices = () => { try { return speechSynthesis.getVoices(); } catch { return []; } };
   if ("speechSynthesis" in window) { voices(); speechSynthesis.onvoiceschanged = voices; }
   K.voice = (lang = "ar") => voices().find((v) => v.lang && v.lang.toLowerCase().startsWith(lang)) || null;
+  // البند 66: لا صوت آلي من السيرفر (أُلغي البند 58 بطلب صاحب المشروع): القراءة بصوت المتصفح العربي فقط إن وُجد
   K.tts = (text, lang = "ar", rate = 0.85) => {
     const v = K.voice(lang);
     if (!v || !text) return false;

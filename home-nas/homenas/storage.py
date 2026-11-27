@@ -52,38 +52,71 @@ def available() -> bool:
 
 
 # ----------------------------------------------------------------------------- ماذا يشغل المساحة؟
-def _size(p: Path) -> int:
-    n = 0
+# البند 67: نوع كل ملف (للعرض «حسب النوع»)
+KINDS = {
+    "photo": {"jpg", "jpeg", "png", "heic", "heif", "dng", "gif", "webp", "bmp", "tif", "tiff", "raw", "cr2", "nef", "arw"},
+    "video": {"mp4", "mkv", "mov", "avi", "m4v", "webm", "ts", "mts", "m2ts", "wmv", "3gp", "mpg", "mpeg"},
+    "audio": {"mp3", "m4a", "wav", "flac", "aac", "ogg", "opus", "wma"},
+    "doc": {"pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "odt", "ods", "odp", "rtf", "csv", "md", "epub"},
+    "archive": {"zip", "rar", "7z", "iso", "tar", "gz", "xz", "bz2", "exe", "msi", "apk", "dmg", "img"},
+}
+_EXT = {e: k for k, es in KINDS.items() for e in es}
+
+
+def _walk(p: Path, kinds: dict | None = None, top: int = 6) -> dict:
+    """الحجم الكلي، وأكبر المجلدات الفرعية المباشرة، ويُضاف حجم كل نوع ملف إلى kinds."""
+    total, children, loose = 0, {}, 0
     for r, ds, fs in os.walk(p, onerror=lambda e: None):
         ds[:] = [d for d in ds if not os.path.islink(os.path.join(r, d))]
+        rel = os.path.relpath(r, p)
+        child = None if rel == "." else rel.split(os.sep, 1)[0]
         for f in fs:
             try:
-                n += os.lstat(os.path.join(r, f)).st_size
+                n = os.lstat(os.path.join(r, f)).st_size
             except OSError:
-                pass
-    return n
+                continue
+            total += n
+            if child is None:
+                loose += n
+            else:
+                children[child] = children.get(child, 0) + n
+            if kinds is not None:
+                k = _EXT.get(f.rsplit(".", 1)[-1].lower() if "." in f else "", "other")
+                kinds[k] = kinds.get(k, 0) + n
+    items = sorted(({"name": "سلة المحذوفات" if k == "#recycle" else k, "total": v} for k, v in children.items() if v), key=lambda x: -x["total"])
+    rest = sum(x["total"] for x in items[top:]) + loose
+    items = items[:top] + ([{"name": "ملفات أخرى", "total": rest}] if rest else [])
+    return {"total": total, "children": items}
+
+
+def _size(p: Path) -> int:
+    return _walk(p)["total"]
 
 
 def _compute(data_paths, folders: list[tuple[str, str]], users: dict):
     try:
+        kinds = {}
         people = []
         for u in sorted(os.listdir(data_paths.homes)):
             d = data_paths.homes / u
             if d.is_dir():
+                w = _walk(d, kinds)
                 photos = _size(d / "Photos") if (d / "Photos").is_dir() else 0
-                people.append({"name": users.get(u, u), "total": _size(d), "photos": photos})
+                people.append({"name": users.get(u, u), "total": w["total"], "photos": photos, "children": w["children"]})
         shares, seen = [], set()
         for name, path in folders:
             p = Path(path)
             if p.is_dir() and str(p.resolve()) not in seen:
                 seen.add(str(p.resolve()))
-                shares.append({"name": name, "total": _size(p)})
+                w = _walk(p, kinds)
+                shares.append({"name": name, "total": w["total"], "children": w["children"]})
         thumbs = sum(_size(data_paths.cache / d) for d in THUMB_DIRS if (data_paths.cache / d).is_dir())
         other = [{"name": "تسجيلات الكاميرات", "total": _size(data_paths.system / "cameras")},
                  {"name": "فيديو التلفاز المجهّز", "total": _size(data_paths.cache / "tv-video"), "clear": "tv-video"},
                  {"name": "مصغرات الصور والمعاينات", "total": thumbs, "clear": "thumbs"}]
         res = {"t": int(time.time()), "people": sorted(people, key=lambda x: -x["total"]),
-               "shares": sorted(shares, key=lambda x: -x["total"]), "other": [x for x in other if x["total"]]}
+               "shares": sorted(shares, key=lambda x: -x["total"]), "other": [x for x in other if x["total"]],
+               "kinds": {k: v for k, v in kinds.items() if v}}
         try:
             (data_paths.cache / "storage-usage.json").write_text(json.dumps(res, ensure_ascii=False))
         except OSError:

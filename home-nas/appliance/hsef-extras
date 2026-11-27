@@ -162,11 +162,19 @@ TV_HOME = Path("/var/lib/hseftv")
 TV_UNIT = Path("/etc/systemd/system/hsef-tv.service")
 TV_LOG = Path("/var/lib/homenas/tv-setup.log")
 TV_PKGS = ("cage", "chromium", "fonts-noto-core", "fonts-noto-color-emoji", "pipewire-audio", "wireplumber", "pulseaudio-utils", "wlr-randr")
+# البند 57: متصفح التلفاز لا يحتاج إلا السيرفر نفسه (127.0.0.1)، فلا يتصل بأي جهة خارجية:
+# وسيط ميت (127.0.0.1:9) لكل العناوين الخارجية، والسيرفر نفسه يتجاوزه، وخدمات Google الخلفية مطفأة.
+TV_PROXY = "127.0.0.1:9"
+TV_PROXY_BYPASS = "127.0.0.1;localhost;[::1]"   # لا «<-loopback>»: تلك تمرّر السيرفر نفسه إلى الوسيط فلا تفتح صفحة التلفاز
 CHROMIUM_FLAGS = ("--kiosk --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble "
-                  "--disable-features=Translate,TranslateUI,MediaRouter --autoplay-policy=no-user-gesture-required "
+                  "--disable-features=Translate,TranslateUI,MediaRouter,NetworkTimeServiceQuerying,OptimizationHints "
+                  "--autoplay-policy=no-user-gesture-required "
                   "--check-for-update-interval=31536000 --password-store=basic --ozone-platform=wayland "
                   "--disable-pinch --overscroll-history-navigation=0 --user-data-dir=/var/lib/hseftv/chromium "
-                  "--ignore-gpu-blocklist --enable-gpu-rasterization")
+                  "--ignore-gpu-blocklist --enable-gpu-rasterization "
+                  f"--proxy-server=http://{TV_PROXY} --proxy-bypass-list={TV_PROXY_BYPASS} "
+                  "--disable-background-networking --disable-component-update --disable-domain-reliability "
+                  "--disable-sync --no-pings --disable-breakpad")
 
 
 def unit_active(name: str) -> bool:
@@ -193,7 +201,13 @@ def tv_write():
         "SyncDisabled": True, "MetricsReportingEnabled": False, "SpellcheckEnabled": False,
         "AutoplayAllowed": True, "HardwareAccelerationModeEnabled": True,
         "URLAllowlist": ["127.0.0.1", "localhost", "about:blank"], "URLBlocklist": ["*"],
-        "DownloadRestrictions": 3, "DeveloperToolsAvailability": 2, "PrintingEnabled": False}, indent=1))
+        "DownloadRestrictions": 3, "DeveloperToolsAvailability": 2, "PrintingEnabled": False,
+        # البند 57: لا اتصال بأي جهة خارجية (مثل العلامات في CHROMIUM_FLAGS)
+        "ProxySettings": {"ProxyMode": "fixed_servers", "ProxyServer": TV_PROXY, "ProxyBypassList": TV_PROXY_BYPASS},
+        "ComponentUpdatesEnabled": False, "SafeBrowsingProtectionLevel": 0, "NetworkPredictionOptions": 2,
+        "SearchSuggestEnabled": False, "AlternateErrorPagesEnabled": False, "UrlKeyedAnonymizedDataCollectionEnabled": False,
+        "SpellCheckServiceEnabled": False, "BackgroundModeEnabled": False, "DomainReliabilityAllowed": False,
+        "PasswordLeakDetectionEnabled": False, "DnsOverHttpsMode": "off", "WebRtcIPHandling": "disable_non_proxied_udp"}, indent=1))
     TV_UNIT.write_text(f"""[Unit]
 Description=HOME ANAB TV screen (shows /tv on the attached screen)
 After=systemd-user-sessions.service plymouth-quit-wait.service homenas.service
@@ -315,6 +329,28 @@ def tv_pactl(*args, check=False):
 TV_AUDIO_CHOICE = TV_HOME / "audio-choice.json"
 
 
+def card_sinks(card: dict, sinks: list) -> list:
+    """البند 56: مخارج (sinks) كرت صوت. pactl -f json لا يكتب «card» في المخارج، فنطابق برقم كرت ALSA في الخصائص
+    أو بالاسم (alsa_card.X ← alsa_output.X.*). كان النظام لا يجدها، فيبقى المخرج الافتراضي سماعة الجهاز
+    في الأجهزة التي صوت HDMI فيها كرت منفصل (AMD مثل HP ProDesk 405 G6)."""
+    cp = card.get("properties") or {}
+    calsa = str(cp.get("alsa.card") or cp.get("api.alsa.card") or "")
+    stem = str(card.get("name") or "")
+    stem = stem[len("alsa_card."):] if stem.startswith("alsa_card.") else None
+    out = []
+    for x in sinks:
+        xp = x.get("properties") or {}
+        if x.get("card") is not None and x.get("card") == card.get("index"):
+            out.append(x)
+        elif calsa and str(xp.get("alsa.card") or xp.get("api.alsa.card") or "") == calsa:
+            out.append(x)
+        elif stem and str(x.get("name") or "").startswith(f"alsa_output.{stem}."):
+            out.append(x)
+        elif stem and xp.get("device.name") == card.get("name"):
+            out.append(x)
+    return out
+
+
 def audio_pick(pactl) -> dict:
     """يختار مخرج الصوت: اختيار المدير إن وُجد، وإلا HDMI الموصول فعلاً (التلفاز). pactl(*args) -> stdout"""
     cards = json.loads(pactl("-f", "json", "list", "cards") or "[]")
@@ -355,12 +391,19 @@ def audio_pick(pactl) -> dict:
         pactl("set-card-profile", card["name"], prof)
         changed = True
     sinks = json.loads(pactl("-f", "json", "list", "sinks") or "[]")
-    mine = [x for x in sinks if x.get("card") == card.get("index")]
+    mine = card_sinks(card, sinks)
     if mine:
         name = mine[0]["name"]
         if pactl("get-default-sink").strip() != name:
             pactl("set-default-sink", name)
             changed = True
+        # الأصوات التي تعمل الآن (المتصفح) تنتقل إلى التلفاز أيضاً، لا تبقى على سماعة الجهاز
+        try:
+            for si in json.loads(pactl("-f", "json", "list", "sink-inputs") or "[]"):
+                if str(si.get("sink")) != str(mine[0].get("index")):
+                    pactl("move-sink-input", str(si.get("index")), name)
+        except ValueError:
+            pass
         pactl("set-sink-mute", name, "0")
     return {"changed": changed, "output": (card.get("profiles") or {}).get(prof, {}).get("description") or prof}
 
@@ -384,6 +427,10 @@ def audio_watch():
             pass
         tries += 1
         _time.sleep(5 if tries < 24 else 30)
+
+
+# البند 56: رسائل لا تعني أن شيئاً ناقصاً (ملفات اختيارية أو للتصحيح، وملاحظات BIOS)، فلا تُعرض كأخطاء
+HARMLESS_FW = r"Optional firmware|iwl-debug-yoyo|_ip_discovery\.bin|\[Firmware Bug\]|regulatory\.db\.p7s"
 
 
 def hw_diag():
@@ -442,7 +489,8 @@ def hw_diag():
     try:
         log = subprocess.run(["journalctl", "-k", "-b", "--no-pager", "-o", "cat"], capture_output=True, text=True, timeout=20).stdout
         out["firmware"] = [l for l in log.splitlines() if _re.search(r"firmware|bluetooth: hci|rtw|mt7|iwlwifi|ath|brcm", l, _re.I)
-                           and _re.search(r"fail|error|not found|direct firmware|unable|timeout", l, _re.I)][-15:]
+                           and _re.search(r"fail|error|not found|direct firmware|unable|timeout", l, _re.I)
+                           and not _re.search(HARMLESS_FW, l, _re.I)][-15:]
     except Exception:
         pass
     out["sof_missing"] = any("sof" in l.lower() for l in out["firmware"]) and "no soundcards" in out["sound"]
@@ -637,6 +685,7 @@ def audio_selfheal():
 def tv_audio_status():
     if FAKE:
         print(json.dumps({"outputs": [{"card": "c0", "profile": "output:hdmi-stereo", "name": "HDMI (التلفاز)", "active": True, "plugged": True},
+                                      {"card": "c0", "profile": "output:hdmi-surround", "name": "Digital Surround 5.1 (HDMI)", "plugged": True, "surround": True},
                                       {"card": "c0", "profile": "output:analog-stereo", "name": "Analog", "plugged": False}],
                           "volume": 100, "muted": False, "auto": True, "sink": "fake"}))
         return
@@ -651,7 +700,8 @@ def tv_audio_status():
             # نعرض كل المخارج، حتى غير المكتشفة: بعض منافذ HDMI لا تُبلغ أن التلفاز موصول، فيختارها المدير ويجرّبها
             plugged = any(name in (pt.get("profiles") or []) and pt.get("availability") == "available" for pt in ports.values())
             outs.append({"card": c["name"], "profile": name, "name": prof.get("description") or name, "active": name == active,
-                         "plugged": plugged, "detected": prof.get("available") is not False})
+                         "plugged": plugged, "detected": prof.get("available") is not False,
+                         "surround": "surround" in name or "5.1" in str(prof.get("description")) or "7.1" in str(prof.get("description"))})
     vol, muted = None, None
     sink = tv_pactl("get-default-sink").stdout.strip()
     if sink:
@@ -913,6 +963,9 @@ IFACES_BAK = Path("/etc/network/interfaces.hsef-bak")
 RESOLV_BAK = Path("/etc/resolv.conf.hsef-bak")
 WIFI_FILE = Path("/etc/network/interfaces.d/hsef-wifi")
 OFFLINE_FLAG = Path("/etc/homenas/offline")
+# البند 57: تحديثات الأمان التلقائية من ديبيان (مطفأة افتراضياً). اختيار صاحب الجهاز في AUTO_CHOICE يحترمه install.sh في كل تحديث.
+AUTO_UPGRADES = Path(os.environ.get("HSEF_APT_AUTO") or "/etc/apt/apt.conf.d/20auto-upgrades")
+AUTO_CHOICE = Path(os.environ.get("HSEF_APT_CHOICE") or "/etc/homenas/auto-updates")
 TV_MODE = Path("/etc/homenas/tv-mode")
 IP_RE = _re.compile(r"^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$")
 FAKE_ARP = {"192.168.1.77": ["aa:bb:cc:dd:ee:ff"]}   # للاختبار فقط: عنوان «مستعمل» في وضع FAKE
@@ -1439,9 +1492,27 @@ def offline_set(on: bool):
         subprocess.run(["timedatectl", "set-ntp", "true"], capture_output=True)
 
 
+def auto_updates_on() -> bool:
+    try:
+        return bool(_re.search(r'Unattended-Upgrade\s+"1"', AUTO_UPGRADES.read_text()))
+    except OSError:
+        return False
+
+
+def auto_updates_set(on: bool):
+    if FAKE and not os.environ.get("HSEF_APT_AUTO"):
+        return
+    v = "1" if on else "0"
+    AUTO_UPGRADES.parent.mkdir(parents=True, exist_ok=True)
+    AUTO_UPGRADES.write_text(f'APT::Periodic::Update-Package-Lists "{v}";\nAPT::Periodic::Unattended-Upgrade "{v}";\n')
+    AUTO_CHOICE.parent.mkdir(parents=True, exist_ok=True)
+    AUTO_CHOICE.write_text(v + "\n")
+
+
 def sys_status():
     ntp = subprocess.run(["timedatectl", "show", "-p", "NTP", "--value"], capture_output=True, text=True).stdout.strip() if not FAKE else "no"
-    print(json.dumps({"offline": OFFLINE_FLAG.exists(), "ntp": ntp == "yes", "now": _time.strftime("%Y-%m-%d %H:%M:%S")}))
+    print(json.dumps({"offline": OFFLINE_FLAG.exists(), "ntp": ntp == "yes", "now": _time.strftime("%Y-%m-%d %H:%M:%S"),
+                      "auto_updates": auto_updates_on()}))
 
 
 # ----------------------------------------------------------------------------- البلوتوث (ويد بلايستيشن 5)
@@ -1675,6 +1746,23 @@ def bt_pair_pad(wait: int = 45):
         die("no controller in pairing mode was found")
     bt_pair(found["mac"])
     print(json.dumps({"mac": found["mac"], "name": found["name"]}))
+
+
+# البند 65: إطفاء القبضات الموصولة بالبلوتوث حفاظاً على شحنها (تبقى مربوطة، وزر PS يعيد وصلها)
+def bt_pads_off():
+    if FAKE:
+        print(json.dumps({"off": ["DualSense Wireless Controller"]}))
+        return
+    if not shutil.which("bluetoothctl") or not any(Path("/sys/class/bluetooth").glob("hci*")):
+        print(json.dumps({"off": []}))
+        return
+    off = []
+    for d in bt_devices():
+        if d["connected"] and is_pad(d):
+            r = subprocess.run(["bluetoothctl", "disconnect", d["mac"]], capture_output=True, text=True, timeout=20)
+            if r.returncode == 0:
+                off.append(d["name"])
+    print(json.dumps({"off": off}))
 
 
 PAD_GENERIC = Path("/etc/modprobe.d/hsef-pads.conf")
@@ -2612,6 +2700,8 @@ def main():
         time_set(a[1])
     elif a in (["offline", "on"], ["offline", "off"]):
         offline_set(a[1] == "on")
+    elif a in (["auto-updates", "on"], ["auto-updates", "off"]):
+        auto_updates_set(a[1] == "on")
     elif a == ["sys-status"]:
         sys_status()
     elif a == ["bt-install"]:
@@ -2624,6 +2714,8 @@ def main():
         bt_pair(a[1])
     elif a == ["bt-pair-pad"]:
         bt_pair_pad()
+    elif a == ["bt-pads-off"]:
+        bt_pads_off()
     elif len(a) == 2 and a[0] == "bt-remove":
         bt_remove(a[1])
     elif a == ["pad-diag"]:
