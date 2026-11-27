@@ -19,15 +19,37 @@ export async function tvSection(sc, section) {
     + 'لكل شخص «ملف» على التلفاز، ولكل ملف «مربعات»، وكل مربع مرتبط بمجلد في ملفاته: ما تضعه في المجلد يظهر على التلفاز.',
     `<a class="btn primary" href="/tv" target="_blank" rel="noopener">${icon('external')} معاينة واجهة التلفاز</a>`);
 
-  p.appendChild(kioskCard(d, reload));
-  p.appendChild(prepCard());
-  p.appendChild(h('<h3 class="tv-h">الأشخاص على التلفاز</h3>'));
-  for (const u of d.users) p.appendChild(userCard(u, d, reload));
-  p.appendChild(h('<h3 class="tv-h">الألعاب والتعليم</h3>'));
-  p.appendChild(appsCard());
-  p.appendChild(h('<h3 class="tv-h">الشاشة والمواقيت</h3>'));
-  p.appendChild(settingsCard(d, reload));
+  // البند 60: الأجزاء في تبويبات. «المظهر» و«الصلاة والأذان» و«صفحة كل شخص» أجزاء من نموذج واحد (زر «حفظ» واحد يحفظ الكل)
+  const set = settingsCard(d, reload);
+  const panes = {
+    screen: [kioskCard(d, reload)],
+    people: d.users.map((u) => userCard(u, d, reload)),
+    apps: [appsCard()],
+    video: [prepCard()],
+    look: [set], prayer: [set], daily: [set],
+  };
+  const bar = h(`<div class="cp-tabs tv-tabs" role="tablist" style="padding:0;margin:0 0 14px;position:static">${TV_TABS.map(([id, label]) =>
+    `<button role="tab" data-t="${id}">${label}</button>`).join('')}</div>`);
+  const body = h('<div></div>');
+  p.appendChild(bar); p.appendChild(body);
+  const open = (id) => {
+    if (!panes[id]) id = 'screen';
+    tvTab = id;
+    $$('[data-t]', bar).forEach((b) => b.classList.toggle('on', b.dataset.t === id));
+    body.innerHTML = '';
+    panes[id].forEach((el) => body.appendChild(el));
+    set.dataset.part = id;
+  };
+  $$('[data-t]', bar).forEach((b) => (b.onclick = () => open(b.dataset.t)));
+  open(tvTab);
 }
+
+// التبويب المفتوح يبقى بعد الحفظ وإعادة التحميل
+let tvTab = 'screen';
+const TV_TABS = [
+  ['screen', '📺 الشاشة والصوت'], ['people', '👨‍👩‍👧 الأشخاص'], ['apps', '🎮 الألعاب والتعليم'], ['video', '🎬 الفيديو'],
+  ['look', '🎨 المظهر'], ['prayer', '🕌 الصلاة والأذان'], ['daily', '📖 صفحة كل شخص'],
+];
 
 // --------------------------------------------------------------------- الألعاب والتعليم
 // كل تطبيق إما في «الألعاب» (بلا نجوم) أو في «التعليم» (نجمة عند إنهاء الدرس). النقل لا يمس تقدّم الأطفال.
@@ -497,8 +519,8 @@ async function editTile(u, t, d, reload) {
 function settingsCard(d, reload) {
   const s = d.settings;
   const [nf, nt] = (s.night_off || '').split('-');
-  const c = h(`<div class="card">
-    <div class="tv-grid">
+  const c = h(`<div class="card tv-set">
+    <div data-p="look"><div class="tv-grid">
       <label>خلفية شاشة البالغين<select class="field" name="wallpaper">
         <option value="animated">سماء متحركة</option><option value="photos">صوري المفضلة (تتبدل)</option><option value="dark">ليلي هادئ</option>
         <option value="cars">🚗 سيارات</option><option value="islamic">🕌 إسلامية (مسجد وهلال وفوانيس)</option><option value="custom">🖼️ صورة من اختياري</option></select></label>
@@ -521,8 +543,8 @@ function settingsCard(d, reload) {
       <label>الوضع الخفيف (للتلفاز أو الجهاز الضعيف)<select class="field" name="lite"><option value="auto">تلقائي حسب الجهاز</option><option value="on">مفعّل دائماً</option><option value="off">متوقف</option></select></label>
     </div>
     <div class="wall-files" style="margin:8px 0"></div>
-    <label class="check"><input type="checkbox" name="nosleep"> منع الشاشة من الانطفاء أثناء الاستخدام</label>
-    <h4 style="margin-top:16px">${icon('clock')} مواقيت الصلاة</h4>
+    <label class="check"><input type="checkbox" name="nosleep"> منع الشاشة من الانطفاء أثناء الاستخدام</label></div>
+    <div data-p="prayer"><h4>${icon('clock')} مواقيت الصلاة</h4>
     <label class="check"><input type="checkbox" name="prayer"> عرض مواقيت الصلاة على شاشة البالغين</label>
     <div class="tv-grid">
       <label>المدينة<select class="field" name="city"><option value="">— إحداثيات يدوية —</option>${d.cities.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select></label>
@@ -556,8 +578,8 @@ function settingsCard(d, reload) {
       </div>
       <label class="check"><input type="checkbox" name="ad_pause"> إيقاف الفيديو والأناشيد مؤقتاً أثناء الأذان</label>
       <div class="ad-files small" style="margin-top:6px"></div>
-    </div>
-    <h4 style="margin-top:16px">${icon('book')} كلمة اليوم</h4>
+    </div></div>
+    <div data-p="daily"><h4>${icon('book')} كلمة اليوم</h4>
     <label class="check" style="display:inline-flex;margin-inline-end:16px"><input type="checkbox" name="w_fr"> الفرنسية</label>
     <label class="check" style="display:inline-flex"><input type="checkbox" name="w_en"> الإنجليزية</label>
     <p class="muted small" style="margin:6px 0 0">تتغيّر الكلمة مع كل تسجيل دخول، وتظهر في صفحة كل شخص.</p>
@@ -570,8 +592,9 @@ function settingsCard(d, reload) {
     <p class="muted small" style="margin:4px 0 6px">يتناوب النوع المختار مع كل دخول. ألغِ الكل لإخفاء البطاقة.</p>
     <button class="btn sm" data-x="hlist">${icon('book')} مراجعة النصوص</button>
     <h4 style="margin-top:16px">☀️ درجة الحرارة</h4>
-    <label class="check"><input type="checkbox" name="weather"> عرض الطقس لمدينة المواقيت تحت الساعة (من Open-Meteo، بلا حساب)</label>
-    <div style="margin-top:14px"><button class="btn primary" data-x="save">حفظ</button></div></div>`);
+    <label class="check"><input type="checkbox" name="weather"> عرض الطقس لمدينة المواقيت تحت الساعة (من Open-Meteo، بلا حساب)</label></div>
+    <div style="margin-top:14px"><button class="btn primary" data-x="save">حفظ</button>
+      <span class="muted small" style="margin-inline-start:8px">يحفظ «المظهر» و«الصلاة والأذان» و«صفحة كل شخص» معاً</span></div></div>`);
   const f = (n) => $(`[name=${n}]`, c);
   f('wallpaper').value = s.wallpaper; f('kids_wallpaper').value = s.kids_wallpaper || 'garden'; f('saver_min').value = s.saver_min; f('nosleep').checked = s.nosleep; f('lite').value = s.lite || 'auto'; f('lang').value = s.lang || 'ar'; f('night_dim').value = s.night_dim || 'auto';
   f('zoom').value = s.zoom || 100; f('margin').value = s.margin || 0;
