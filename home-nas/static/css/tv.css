@@ -508,11 +508,55 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 @keyframes gxspin { to { transform: rotate(360deg); } }
 .gx-hills { position: absolute; left: 0; bottom: 0; width: 1280px; height: 200px; }
 
-/* اختيار شاشة التوقف من إعدادات التلفاز */
-.sv-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin: 18px 0; }
-.sv-card { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 22px 10px; border-radius: 26px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); transition: transform .2s, box-shadow .2s; position: relative; }
-.sv-card .emo { font-size: 58px; line-height: 1; }
-.sv-card b { font-family: "Baloo Bhaijaan 2", sans-serif; font-size: 26px; }
+/* البند 61: شاشات التوقف الجديدة */
+.saver.sv-calendar { background: radial-gradient(circle at 25% 30%, #1e3a8a 0%, #0b1026 60%, #050816 100%); }
+.cl-wrap { position: absolute; inset: 70px 80px; display: flex; gap: 70px; align-items: center; transition: transform 3s; }
+.cl-main { flex: 1; text-align: center; }
+.cl-day { font-size: 46px; font-weight: 700; color: #93c5fd; }
+.cl-num { font-family: "Baloo Bhaijaan 2", sans-serif; font-weight: 800; font-size: 220px; line-height: .9; color: #fff; text-shadow: 0 10px 40px rgba(59,130,246,.5); }
+.cl-g { font-size: 30px; font-weight: 600; margin-top: 8px; }
+.cl-h { font-size: 28px; color: #fde68a; margin-top: 6px; }
+.cl-tm { font-family: "Baloo Bhaijaan 2", sans-serif; font-size: 60px; font-weight: 800; margin-top: 14px; direction: ltr; opacity: .85; }
+.cl-side { width: 470px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); border-radius: 30px; padding: 24px 26px; }
+.cl-mon { font-size: 30px; font-weight: 800; text-align: center; margin-bottom: 12px; }
+.cl-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; font-size: 22px; }
+.cl-grid b { font-size: 16px; color: #93c5fd; }
+.cl-grid span { padding: 5px 0; border-radius: 12px; }
+.cl-grid span.on { background: #3b82f6; font-weight: 800; box-shadow: 0 0 18px rgba(59,130,246,.8); }
+.cl-occ { margin-top: 16px; display: grid; gap: 8px; }
+.cl-occ div { display: flex; align-items: center; gap: 12px; background: rgba(253,230,138,.1); border-radius: 16px; padding: 8px 14px; font-size: 22px; }
+.cl-occ b { flex: 1; } .cl-occ i { font-style: normal; color: #fde68a; font-size: 19px; }
+.nt-land { position: absolute; inset: 0; width: 1280px; height: 720px; }
+.saver.sv-sea { background: #02223f; overflow: hidden; }
+.sea-bg { position: absolute; inset: 0; background: linear-gradient(180deg, #0ea5e9 0%, #0369a1 35%, #0c4a6e 70%, #082f49 100%); }
+.sea-rays i { position: absolute; top: -60px; width: 120px; height: 760px; background: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0)); transform-origin: 50% 0; animation: ray 9s ease-in-out infinite alternate; }
+.sea-rays i:nth-child(1) { left: 180px; transform: rotate(14deg); } .sea-rays i:nth-child(2) { left: 470px; transform: rotate(8deg); animation-delay: -3s; }
+.sea-rays i:nth-child(3) { left: 760px; transform: rotate(-6deg); animation-delay: -5s; } .sea-rays i:nth-child(4) { left: 1040px; transform: rotate(-12deg); animation-delay: -7s; }
+@keyframes ray { from { opacity: .35; } to { opacity: .9; } }
+.saver.sv-snow { background: #0b1220; }
+.sn-sky { position: absolute; inset: 0; background: linear-gradient(180deg, #0f1b33 0%, #23324f 70%, #34476b 100%); }
+.sn-ground { position: absolute; left: 0; right: 0; bottom: 0; height: 70px; background: linear-gradient(180deg, #e2e8f0, #cbd5e1); border-radius: 50% 50% 0 0 / 30px 30px 0 0; }
+.saver.sv-moon { background: #050816; }
+.mn-sky { position: absolute; inset: 0; } .mn-sky i { position: absolute; width: var(--s); height: var(--s); border-radius: 50%; background: #fff; animation: twinkle var(--d) ease-in-out infinite; }
+.mn-info { position: absolute; top: 470px; left: 0; right: 0; text-align: center; display: flex; flex-direction: column; gap: 4px; }
+.mn-info b { font-size: 40px; color: #fef3c7; } .mn-info span { font-size: 24px; opacity: .8; }
+.saver.sv-clock { background: #000; }
+.ck-wrap { --h: 200; position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: transform 4s; }
+.ck-tm { font-family: "Baloo Bhaijaan 2", sans-serif; font-weight: 800; font-size: 230px; line-height: 1; direction: ltr; color: hsl(var(--h) 85% 70%); text-shadow: 0 0 60px hsl(var(--h) 90% 50% / .45); transition: color 1s; }
+.ck-s { font-style: normal; font-size: 70px; opacity: .55; margin-inline-start: 18px; }
+.ck-dt { font-size: 34px; font-weight: 600; opacity: .8; margin-top: 10px; }
+.saver.sv-nature .sclock, .saver.sv-sea .sclock, .saver.sv-snow .sclock, .saver.sv-moon .sclock { bottom: auto; top: 36px; right: 48px; opacity: .85; }
+.saver.sv-nature .sclock .tm, .saver.sv-sea .sclock .tm, .saver.sv-snow .sclock .tm, .saver.sv-moon .sclock .tm { font-size: 58px; }
+.saver.sv-nature .sclock .dt, .saver.sv-sea .sclock .dt, .saver.sv-snow .sclock .dt, .saver.sv-moon .sclock .dt { font-size: 18px; }
+
+/* اختيار شاشة التوقف من إعدادات التلفاز (مع معاينة صغيرة متحركة للشاشة المختارة بالتركيز) */
+.sv-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin: 14px 0; }
+.sv-prev { position: relative; width: 192px; height: 108px; border-radius: 16px; overflow: hidden; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; }
+.sv-prev .emo { font-size: 54px; }
+.saver.sv-mini { inset: auto; left: 0; top: 0; width: 1280px; height: 720px; transform: scale(.15); transform-origin: 0 0; z-index: 1; pointer-events: none; }
+.sv-card { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 8px 12px; border-radius: 26px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); transition: transform .2s, box-shadow .2s; position: relative; }
+.sv-card .emo { line-height: 1; }
+.sv-card b { font-family: "Baloo Bhaijaan 2", sans-serif; font-size: 22px; }
 .sv-card i { font-style: normal; font-size: 15px; color: #86efac; }
 .sv-card.on { border-color: #86efac; background: rgba(34,197,94,.14); }
 .sv-card.focus { transform: scale(1.06); box-shadow: 0 0 0 5px #fff, 0 16px 34px rgba(0,0,0,.5); }
