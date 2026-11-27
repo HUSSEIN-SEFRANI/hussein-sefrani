@@ -514,18 +514,86 @@ const CP = {
     const uc = h(`<div class="card" style="margin-top:14px"><div class="ov-row"><h4 style="margin:0">${icon('grid')} ماذا يشغل المساحة؟</h4>
       <button class="btn ghost sm" data-x="usage">${icon('refresh')} احسب الآن</button></div><div class="ub"></div></div>`);
     p.appendChild(uc);
+    // البند 67: عرض حيّ: حلقة للقرص كله (حسب المكان أو حسب النوع)، والمرور على سطر يضيء جزءه، والضغط يفتح ما بداخله
+    const PAL = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#8b5cf6', '#ef4444', '#84cc16', '#f97316', '#14b8a6', '#a855f7', '#eab308'];
+    const KIND = { photo: ['🖼️ صور', '#ec4899'], video: ['🎬 فيديو', '#8b5cf6'], audio: ['🎵 صوت', '#06b6d4'], doc: ['📄 مستندات', '#f59e0b'], archive: ['📦 أرشيف وبرامج', '#84cc16'], other: ['📁 أخرى', '#94a3b8'] };
+    let usageView = 'place';
+    const donut = (segs, total, center) => {
+      let a0 = -Math.PI / 2;
+      const R = 80, r = 54, cx = 100, cy = 100;
+      const arc = (s0, s1, cls, col, i) => {
+        const big = s1 - s0 > Math.PI ? 1 : 0, p = (a, rad) => `${(cx + rad * Math.cos(a)).toFixed(2)} ${(cy + rad * Math.sin(a)).toFixed(2)}`;
+        return `<path class="dn-seg ${cls}" data-i="${i}" fill="${col}" d="M${p(s0, R)} A${R} ${R} 0 ${big} 1 ${p(s1, R)} L${p(s1, r)} A${r} ${r} 0 ${big} 0 ${p(s0, r)}Z"><title>${esc(segs[i].name)}: ${fmtSize(segs[i].total)}</title></path>`;
+      };
+      const paths = segs.map((x, i) => {
+        const f = Math.max(0, x.total) / Math.max(1, total);
+        if (f <= 0.0005) return '';
+        const s0 = a0, s1 = a0 + Math.min(f, 0.9999) * 2 * Math.PI; a0 = s1;
+        return arc(s0, s1, x.free ? 'free' : '', x.color, i);
+      }).join('');
+      return `<svg viewBox="0 0 200 200" class="dn" role="img" aria-label="${esc(center[0])}">${paths}
+        <text x="100" y="96" text-anchor="middle" class="dn-big">${esc(center[0])}</text><text x="100" y="118" text-anchor="middle" class="dn-small">${esc(center[1])}</text></svg>`;
+    };
     const drawUsage = (u, running) => {
       const ub = $('.ub', uc);
       if (!u) { ub.innerHTML = `<p class="muted small">${running ? 'يُحسب الآن في الخلفية… قد يأخذ دقائق على الأقراص الكبيرة.' : 'لم يُحسب بعد.'}</p>`; return; }
-      const all = [...u.people.map((x) => x.total), ...u.shares.map((x) => x.total), ...u.other.map((x) => x.total)];
-      const max = Math.max(1, ...all);
-      const rows = (list, sub) => list.map((x) => `<div class="ov-row small" style="margin-top:8px"><span translate="no">${esc(x.name)}${x.clear && x.total ? ` <button class="btn ghost sm" data-clear="${x.clear}" style="padding:0 8px">تفريغ</button>` : ''}</span><span class="muted" dir="ltr" translate="no">${fmtSize(x.total)}</span></div>
-        <div class="ov-bar"><i style="width:${Math.max(1, 100 * x.total / max)}%"></i></div>${sub && x.photos ? `<div class="muted small" style="margin-top:-2px">منها الصور والفيديو: <span dir="ltr" translate="no">${fmtSize(x.photos)}</span></div>` : ''}`).join('');
-      ub.innerHTML = `${u.people.length ? `<h5 class="ov-sub">أفراد العائلة</h5>${rows(u.people, true)}` : ''}
-        ${u.shares.length ? `<h5 class="ov-sub">المجلدات المشتركة</h5>${rows(u.shares)}` : ''}
-        ${u.other.length ? `<h5 class="ov-sub">النظام</h5>${rows(u.other)}` : ''}
-        ${u.other.some((x) => x.clear) ? '<p class="muted small" style="margin:6px 0 0">الفيديو المجهّز والمصغرات ذاكرة مؤقتة: الأصل لا يُمس، وتُصنع من جديد عند الحاجة (أول تشغيل أو عرض يكون أبطأ قليلاً).</p>' : ''}
+      const vol = (d.volumes || [])[0];
+      const sum = (l) => l.reduce((n, x) => n + (x.total || 0), 0);
+      const known = sum(u.people) + sum(u.shares) + sum(u.other);
+      let segs;
+      if (usageView === 'kind' && u.kinds) {
+        segs = Object.entries(u.kinds).sort((x, y) => y[1] - x[1]).map(([k, v]) => ({ name: (KIND[k] || [k])[0], total: v, color: (KIND[k] || [0, '#94a3b8'])[1] }));
+      } else {
+        segs = [...u.people.map((x) => ({ ...x, group: 'أفراد العائلة' })), ...u.shares.map((x) => ({ ...x, group: 'المجلدات المشتركة' })), ...u.other.map((x) => ({ ...x, group: 'النظام' }))]
+          .filter((x) => x.total).map((x, i) => ({ ...x, color: PAL[i % PAL.length] }));
+      }
+      if (vol) {
+        const sys = Math.max(0, vol.used - (usageView === 'kind' ? sum(segs) : known));
+        if (sys > vol.total * 0.005) segs.push({ name: '⚙️ النظام والبرامج', total: sys, color: '#64748b', group: 'النظام', sys: true });
+      }
+      // الحلقة = المستعمل فقط (حتى تظهر الأجزاء الصغيرة)، والشريط فوق القائمة = القرص كله: مستعمل وفارغ
+      const used = Math.max(1, sum(segs));
+      const disk = vol ? vol.used + vol.free : used;
+      const top = Math.max(1, ...segs.map((x) => x.total || 0));
+      if (vol) segs.push({ name: 'مساحة فارغة', total: vol.free, color: 'var(--surface-3)', free: true });
+      const total = disk;
+      const pct = (n) => `${(100 * n / Math.max(1, total)).toFixed(n / total < 0.01 ? 1 : 0)}%`;
+      const center = vol ? [`${Math.round(100 * vol.used / (vol.used + vol.free))}%`, `من القرص مستعمل`] : [fmtSize(known), 'المجموع'];
+      let lastGroup = '';
+      const rows = segs.map((x, i) => {
+        const head = usageView === 'place' && x.group && x.group !== lastGroup ? `<h5 class="ov-sub">${esc((lastGroup = x.group))}</h5>` : '';
+        const kids = (x.children || []).filter((c) => c.total);
+        return `${head}<div class="us-row${kids.length ? ' has' : ''}${x.free ? ' free' : ''}" data-i="${i}" tabindex="0">
+          <span class="dot" style="background:${x.color}"></span><span class="nm" translate="no">${esc(x.name)}${kids.length ? ' <i class="arr">‹</i>' : ''}</span>
+          ${x.clear && x.total ? `<button class="btn ghost sm" data-clear="${x.clear}" style="padding:0 8px">تفريغ</button>` : ''}
+          <span class="pc muted">${pct(x.total)}</span><b class="sz" dir="ltr" translate="no">${fmtSize(x.total)}</b>
+          ${x.free ? '' : `<div class="us-bar"><i style="--w:${Math.max(0.5, 100 * x.total / top)}%;background:${x.color}"></i></div>`}
+          ${kids.length ? `<div class="us-kids" hidden>${kids.map((c) => `<div class="us-kid"><span translate="no">${esc(c.name)}</span><span dir="ltr" class="muted" translate="no">${fmtSize(c.total)}</span>
+            <div class="us-bar sm"><i style="--w:${Math.max(1, 100 * c.total / Math.max(1, x.total))}%;background:${x.color}"></i></div></div>`).join('')}
+            ${x.photos ? `<div class="muted small" style="margin-top:4px">منها الصور والفيديو في «الصور»: <span dir="ltr" translate="no">${fmtSize(x.photos)}</span></div>` : ''}</div>` : ''}
+        </div>`;
+      }).join('');
+      ub.innerHTML = `<div class="us-tabs"><button class="btn sm ${usageView === 'place' ? 'primary' : 'ghost'}" data-v="place">حسب المكان</button>
+          <button class="btn sm ${usageView === 'kind' ? 'primary' : 'ghost'}" data-v="kind" ${u.kinds ? '' : 'disabled title="احسب الآن لتظهر الأنواع"'}>حسب النوع</button></div>
+        <div class="us-wrap"><div class="us-chart">${donut(segs.filter((x) => !x.free), used, center)}${vol ? `<div class="muted small" style="text-align:center">الحلقة: ما يشغل <span dir="ltr">${fmtSize(vol.used)}</span></div>` : ''}</div>
+          <div class="us-list">${vol ? `<div class="us-disk" title="القرص كله"><i style="--w:${(100 * vol.used / disk).toFixed(1)}%"></i></div>
+            <div class="muted small" style="display:flex;justify-content:space-between;margin:2px 0 8px"><span>مستعمل <b dir="ltr">${fmtSize(vol.used)}</b></span><span>فارغ <b dir="ltr">${fmtSize(vol.free)}</b></span></div>` : ''}${rows}</div></div>
+        ${u.other.some((x) => x.clear) && usageView === 'place' ? '<p class="muted small" style="margin:6px 0 0">الفيديو المجهّز والمصغرات ذاكرة مؤقتة: الأصل لا يُمس، وتُصنع من جديد عند الحاجة (أول تشغيل أو عرض يكون أبطأ قليلاً).</p>' : ''}
         <p class="muted small" style="margin:10px 0 0">آخر حساب: <bdi>${esc(fmtDateTime(new Date(u.t * 1000).toISOString()))}</bdi>${running ? ' · يُعاد الحساب الآن…' : ''}</p>`;
+      // الأشرطة تنمو بعد الرسم
+      requestAnimationFrame(() => requestAnimationFrame(() => ub.classList.add('grown')));
+      const hl = (i) => { $$('.dn-seg', ub).forEach((x) => x.classList.toggle('dim', i != null && x.dataset.i !== String(i))); $$('.us-row', ub).forEach((x) => x.classList.toggle('hl', x.dataset.i === String(i))); };
+      $$('.us-row', ub).forEach((row) => {
+        row.onmouseenter = row.onfocus = () => hl(row.dataset.i);
+        row.onmouseleave = row.onblur = () => hl(null);
+        row.onclick = (e) => { if (e.target.closest('[data-clear]')) return; const k = $('.us-kids', row); if (k) { k.hidden = !k.hidden; row.classList.toggle('open', !k.hidden); } };
+        row.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.onclick(e); } };
+      });
+      $$('.dn-seg', ub).forEach((sg) => {
+        sg.onmouseenter = () => hl(sg.dataset.i); sg.onmouseleave = () => hl(null);
+        sg.onclick = () => { const row = $(`.us-row[data-i="${sg.dataset.i}"]`, ub); if (row) { row.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); row.click(); } };
+      });
+      $$('[data-v]', ub).forEach((b) => (b.onclick = () => { usageView = b.dataset.v; drawUsage(u, running); }));
       $$('[data-clear]', ub).forEach((b) => (b.onclick = async () => {
         const tv = b.dataset.clear === 'tv-video';
         if (!(await confirmBox(tv ? 'تُحذف كل نسخ الفيديو المجهّزة للتلفاز. الأصل لا يُمس، ويُجهَّز الفيديو من جديد عند تشغيله أو في الخلفية.' : 'تُحذف كل مصغرات الصور والمعاينات، وتُصنع من جديد عند فتح الصور.', { ok: 'تفريغ' }))) return;
