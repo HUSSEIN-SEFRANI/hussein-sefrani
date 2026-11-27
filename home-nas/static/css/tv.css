@@ -755,3 +755,13 @@ svg.face { vertical-align: middle; display: inline-block; }
 .pad-test span svg.face { margin: -6px 0; }
 .pad-test span.on svg.face circle[r="4.8"] { fill: #1e293b; }
 .pad-test span.on svg.face circle:not([r="4.8"]) { fill: rgba(30,41,59,.35); }
+
+/* البند 63: بطاقات الشاشة الرئيسية الجديدة (التقويم، العائلة، ذكرى من هذا اليوم) */
+.card.hcal, .card.hfam { height: 124px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.hcal .lbl, .hfam .lbl { font-size: 14px; font-weight: 700; color: #fde68a; }
+.hcal .hd2 { display: flex; align-items: center; gap: 12px; } .hcal .emo { font-size: 40px; }
+.hcal b { font-size: 21px; } .hcal .occ { font-size: 16px; opacity: .92; } .hcal .occ b { font-size: 16px; color: #fde68a; }
+.hfam div { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card.hmem { padding: 0; overflow: hidden; box-sizing: border-box; }
+.hmem img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hmem .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 16px; font-size: 16px; font-weight: 700; background: linear-gradient(0deg, rgba(0,0,0,.7), transparent); }
