@@ -753,8 +753,12 @@ const CP = {
       if (v('new') !== v('new2')) return toast('كلمتا المرور غير متطابقتين', 'err');
       if (await guard(() => api.post('/api/me/password', { old: v('old'), new: v('new') }))) { toast('تم تغيير كلمة المرور', 'ok'); $$('input', card).forEach(i => i.value = ''); }
     };
-    p.appendChild(card);
-    p.appendChild(await lookCard());
+    // البند 68: «صورتي وخلفية سطح المكتب» و«تغيير كلمة المرور» بجانب بعضهما (وتحت بعضهما في الشاشة الضيقة)
+    const row = h('<div class="acc-row"></div>');
+    const look = await lookCard();
+    look.style.marginTop = '0'; look.style.maxWidth = ''; card.style.maxWidth = '';
+    row.append(look, card);
+    p.appendChild(row);
     if (window.I18N && I18N.switcher) {
       const lc = h(`<div class="card" style="max-width:460px;margin-top:14px"><h4 translate="no">${icon('info')} Language · اللغة · Langue</h4></div>`);
       const sw = I18N.switcher(); sw.style.justifyContent = 'flex-start'; sw.style.marginTop = '0'; lc.appendChild(sw); p.appendChild(lc);
