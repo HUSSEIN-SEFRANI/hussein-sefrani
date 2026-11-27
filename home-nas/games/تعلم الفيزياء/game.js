@@ -1,7 +1,8 @@
 // تعلم الفيزياء — درس تعليمي (نجمة عند إنهاء كل درس). خمسة مستويات من البسيط إلى الأصعب:
 // 1 الجاذبية، 2 المادة وحالاتها (أول الكيمياء)، 3 المغناطيس والكهرباء، 4 القوى والحركة، 5 الطاقة والفضاء.
 // كل درس = تجربتان يلعبها الطفل بيده (مختبر) + ستة أسئلة مع شرح «لماذا؟». و«المختبر الحر» للعب بالتجارب بلا درس.
-// الأزرار بالموقع (البند 52): السفلي موافق، الأيمن رجوع، الأيسر 💡 مساعدة، العلوي 🔊 اسمع. الأسهم للتوجيه.
+// الأزرار بالموقع (البند 52): السفلي موافق، الأيمن رجوع، الأيسر 💡 مساعدة، العلوي 🔄 أعد التجربة. الأسهم للتوجيه.
+// بلا صوت عربي (البند 66): كل الكلام مكتوب على الشاشة، وأصوات اللعب (النغمات) فقط.
 (() => {
   "use strict";
   // window.physLab: حالة التجربة الحالية (للتجربة الآلية فقط)
@@ -39,14 +40,13 @@
     () => [LAB.earth, LAB.moon],
   ];
 
-  const say = (t, rate = 0.85) => { if (t) K.tts(t, "ar", rate); };
   const report = (topic, ok) => {
     if (!K.gameInfo()) return;
     fetch("/api/tv/learn/result", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ game: GAME, topic: String(topic).slice(0, 80), ok }) }).catch(() => {});
   };
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  const HELP = `<div class="help"><b>الأسهم</b> للتنقل · <b>الزر السفلي</b> أو <b>Enter</b>: موافق · <b>الزر الأيمن</b> أو <b>Backspace</b>: رجوع · <b>الأيسر</b>: 💡 مساعدة · <b>العلوي</b>: 🔊 اسمع · <b>PS</b> للخروج</div>`;
+  const HELP = `<div class="help"><b>الأسهم</b> للتنقل · <b>الزر السفلي</b> أو <b>Enter</b>: موافق · <b>الزر الأيمن</b> أو <b>Backspace</b>: رجوع · <b>الأيسر</b>: 💡 مساعدة · <b>العلوي</b> أو <b>R</b>: 🔄 أعد التجربة · <b>PS</b> للخروج</div>`;
 
   // لا يتكرر السؤال حتى تنتهي أسئلة المستوى
   function take(list, key, n) {
@@ -96,7 +96,7 @@
         if (DIR[e.key] && !e.pad) S.kb[DIR[e.key]] = true;
         if (S.skip && (e.key === "Enter" || e.key === " ")) { S.skip(); return true; }
         if (!e.pad && (e.code === "KeyH" || e.key === "?" || e.key === "؟")) { S.help && S.help(); return true; }
-        if (!e.pad && e.code === "KeyS") { S.listen && S.listen(); return true; }
+        if (!e.pad && e.code === "KeyR") { S.redo && S.redo(); return true; }
         return S.key ? S.key(e) : false;
       },
       keyup(e) { if (DIR[e.key]) S.kb[DIR[e.key]] = false; },
@@ -107,7 +107,7 @@
         S.pad = { left: on(14) || x < -0.5, right: on(15) || x > 0.5, up: on(12) || y < -0.5, down: on(13) || y > 0.5 };
         const h = on(2), s = on(3);
         if (h && !held.h && S.help) S.help();
-        if (s && !held.s && S.listen) S.listen();
+        if (s && !held.s && S.redo) S.redo();
         held.h = h; held.s = s;
         return false;
       },
@@ -116,19 +116,30 @@
 
     function next() {
       if (S.stop) S.stop();
-      S.stop = S.key = S.help = S.listen = S.skip = null;
+      S.stop = S.key = S.help = S.redo = S.skip = null;
       if (S.i >= steps.length) return finish();
       K.top().focus = null;
       const st = steps[S.i];
       if (st.t === "q") question(st.q);
-      else LABS[st.lab.id](st.lab);
+      else runLab(st.lab);
+    }
+    // التجربة من جديد (الزر العلوي): فقط قبل أن تنتهي
+    function runLab(spec) {
+      S.redo = () => {
+        if (S.res[S.i] !== undefined) return;
+        if (S.stop) S.stop();
+        S.stop = S.key = S.help = null;
+        K.sfx.tick();
+        runLab(spec);
+      };
+      LABS[spec.id](spec);
     }
     function dots() {
       return steps.length < 2 ? "<span></span>" : `<div class="dots">${steps.map((s, k) => `<i class="${k < S.i ? (S.res[k] ? "ok" : "") : k === S.i ? "now" : ""} ${s.t === "lab" ? "lab" : ""}"></i>`).join("")}</div>`;
     }
-    function top(title) {
+    function top(title, lab) {
       return `<div class="top">${K.backBtn()}<span class="pill">${L.e} ${L.n}</span>${dots()}
-        <button class="btn f" ${K.act("say", () => S.listen && S.listen())}><span class="emo">🔊</span> اسمع</button></div>
+        ${lab ? `<button class="btn f" ${K.act("redo", () => S.redo && S.redo())}><span class="emo">🔄</span> من جديد</button>` : "<span></span>"}</div>
         <h2 class="ask">${title}</h2>`;
     }
     const cheer = (h) => { const c = K.app.querySelector(".cheer"); if (c) c.innerHTML = h; };
@@ -137,7 +148,7 @@
       S.res[S.i] = ok;
       if (ok) S.score++;
       report(topic, ok);
-      if (why) { say(why); cheer(`${ok ? K.pick(["أحسنت! 👏", "رائع! 🌟", "ممتاز! 🎉", "عالِم صغير! 🔬"]) : "أكملتها! 💪"}<div class="why">💡 ${K.esc(why)}</div><div class="cont">اضغط موافق للمتابعة ←</div>`); }
+      if (why) { cheer(`${ok ? K.pick(["أحسنت! 👏", "رائع! 🌟", "ممتاز! 🎉", "عالِم صغير! 🔬"]) : "أكملتها! 💪"}<div class="why">💡 ${K.esc(why)}</div><div class="cont">اضغط موافق للمتابعة ←</div>`); }
       S.help = null;
       const go = () => { S.skip = null; clearTimeout(t); S.i++; next(); };
       const t = K.later(go, why ? Math.max(5000, why.length * 110) : 1500);
@@ -171,14 +182,12 @@
         <div class="qcard"><span class="emo qe">${q.e}</span><b class="qt">${K.esc(q.q)}</b></div>
         <div class="opts ph ${opts.length > 3 ? "four" : ""}">${opts.map((x, j) => `<button class="opt f" ${K.act("o" + j, (el) => pick(x, el))}><span class="emo">${x.o[0]}</span><span>${K.esc(x.o[1])}</span></button>`).join("")}</div>
         <div class="cheer"></div>`, "o0");
-      S.listen = () => say(q.q + " … " + opts.map((x) => x.o[1]).join("، أو "));
       S.help = () => {   // يشطب خياراً خاطئاً
         const els = [...K.app.querySelectorAll(".opt")].filter((e, j) => !opts[j].ok && !e.dataset.dead);
         if (els.length < 1 || K.app.querySelectorAll(".opt:not(.dead)").length <= 2) return;
         const e = K.pick(els); e.dataset.dead = "1"; e.classList.add("dead"); st.wrong = true;
         cheer("💡 حذفنا خياراً خاطئاً");
       };
-      S.listen();
       function pick(x, el) {
         if (st.locked || el.dataset.dead) return;
         if (x.ok) {
@@ -195,13 +204,11 @@
     // extra: دالة ترجع أزراراً تحت التجربة (تُستدعى بعد K.begin حتى لا تضيع أفعالها)
     function labScreen(spec, title, ctl, extra = null, short = false) {
       K.begin();
-      K.paint(`${top(`${spec.e} ${title}`)}
+      K.paint(`${top(`${spec.e} ${title}`, true)}
         <canvas class="lab ${short ? "short" : ""}" width="1000" height="400"></canvas>
-        ${extra ? extra() : ""}<div class="ctl">${ctl}</div><div class="cheer"></div>`, extra ? "o0" : "say");
+        ${extra ? extra() : ""}<div class="ctl">${ctl}</div><div class="cheer"></div>`, extra ? "o0" : "redo");
       const cv = K.app.querySelector("canvas.lab");
       const c = cv.getContext("2d");
-      S.listen = () => say(title);
-      say(title);
       return c;
     }
     // حلقة رسم تتوقف مع الخطوة أو الشاشة
