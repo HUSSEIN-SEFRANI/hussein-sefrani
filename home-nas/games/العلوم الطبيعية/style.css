@@ -1,0 +1,93 @@
+/* العلوم الطبيعية — شاشة تلفاز 1280×720 تُرى من بعيد */
+#sky { --sky: linear-gradient(180deg, #67e8f9 0%, #a5f3fc 64%, #86efac 64%, #22c55e 100%); }
+.ct { display: flex; align-items: center; gap: 1.5vh; font-size: 5.6vh; color: #fff; -webkit-text-stroke: .35vh #1e40af; paint-order: stroke fill; }
+.title h1 { font-size: 9vh; }
+
+/* الشاشة الأولى */
+.modes.g3 { display: grid; grid-template-columns: repeat(3, auto); gap: 2.4vh 2.2vw; margin-top: 1.5vh; }
+.modes.g3 .mode { width: 27vw; height: 24vh; border-radius: 4vh; gap: .3vh; }
+.modes.g3 .mode .big { font-size: 8vh; }
+.modes.g3 .mode b { font-size: 4.2vh; }
+.modes.g3 .mode small { font-size: 2.4vh; }
+.mini { margin-top: 2.4vh; }
+.mini .btn { font-size: 3.8vh; padding: 1.4vh 4vh; }
+
+/* قائمة الدروس */
+.lessons { display: grid; grid-template-columns: repeat(4, auto); gap: 2.4vh 2vw; margin-top: 1vh; justify-content: center; }
+.les { width: 20vw; height: 24vh; border: 0; border-radius: 4vh; background: #fff; color: #1e3a8a; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .6vh;
+  box-shadow: 0 1vh 2vh rgba(30,58,138,.25); padding: 1vh 1vw; text-align: center; position: relative; overflow: hidden; }
+.les::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 1.4vh; background: var(--c); }
+.les .emo { font-size: 9vh; }
+.les b { font-size: 3.4vh; line-height: 1.2; }
+.les small { font-size: 2.4vh; color: #475569; font-weight: 700; }
+.les small .emo { font-size: 3vh; }
+.les.done { background: #f0fdf4; }
+.les.done::after { content: "✔"; position: absolute; top: 2vh; left: 1.6vh; width: 4.4vh; height: 4.4vh; border-radius: 50%; background: #22c55e; color: #fff; font-size: 2.8vh; display: grid; place-items: center; }
+.labs .les { height: 22vh; }
+.labs .les .emo { font-size: 8vh; }
+
+/* بطاقة الدرس */
+.card { margin-top: 2vh; width: 86vw; height: 52vh; background: #fff; border-radius: 5vh; box-shadow: 0 2vh 5vh rgba(30,58,138,.25); display: flex; align-items: stretch; overflow: hidden; animation: pop .35s ease; }
+.card .art { flex: 0 0 38%; background: var(--c); display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.15; padding: 2vh; word-break: break-all; }
+.card .art.n0, .card .art.n1 { font-size: 30vh; }
+.card .art.n2 { font-size: 19vh; }
+.card .art.n3 { font-size: 13vh; }
+.card .art.n4 { font-size: 10.5vh; }
+.card p { flex: 1; margin: 0; padding: 3vh 3.5vw; display: flex; align-items: center; font-size: 5vh; font-weight: 700; line-height: 1.6; color: #1e293b; }
+.top .dots i { width: 2.6vh; height: 2.6vh; }
+
+/* الأسئلة */
+.prompt { min-height: 26vh; }
+.prompt .pic { font-size: 16vh; }
+.prompt .q { font-size: 5.2vh; max-width: 58vw; line-height: 1.35; }
+.prompt .col .q { font-size: 4.6vh; }
+.prompt .q.ask { font-size: 4.4vh; max-width: 46vw; }
+.prompt .q.ask b { color: #15803d; }
+.opts.sci { margin-top: 3vh; gap: 2.4vh 2.4vw; }
+.opts.sci .opt { height: 14vh; min-width: 26vw; max-width: 40vw; font-size: 4.4vh; line-height: 1.3; padding: 1vh 2.4vw; text-align: center; }
+.opts.sci.four { display: grid; grid-template-columns: repeat(2, 40vw); gap: 2vh 2vw; }
+.opts.sci.four .opt { height: 11vh; max-width: none; }
+.opts.sci.bins .opt { height: 20vh; min-width: 24vw; font-size: 6vh; gap: 1.5vw; }
+.opts.sci.bins .opt .emo { font-size: 9vh; }
+
+/* المختبر */
+.lab { display: flex; gap: 4vw; align-items: center; margin-top: 2vh; width: 88vw; flex: 1; min-height: 0; }
+.side { flex: 1; display: flex; flex-direction: column; gap: 2.4vh; align-items: stretch; }
+.msg { margin: 0; background: #fff; border-radius: 4vh; padding: 2.4vh 3vw; font-size: 4.2vh; font-weight: 700; line-height: 1.55; color: #1e293b; box-shadow: 0 1.2vh 2.4vh rgba(30,58,138,.2); min-height: 18vh; }
+.msg.wide { width: 86vw; min-height: 0; margin-top: 1.5vh; padding: 1.6vh 3vw; font-size: 4vh; text-align: center; }
+.q2 { font-size: 4.2vh; font-weight: 800; color: #fff; -webkit-text-stroke: .3vh #1e40af; paint-order: stroke fill; }
+.ings { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2vh 1.5vw; }
+.ings.col1 { grid-template-columns: 1fr; gap: 1.6vh; }
+.ing { border: 0; border-radius: 3.4vh; background: #fff; color: #1e3a8a; font-size: 4vh; font-weight: 800; padding: 1.4vh 2vw; display: flex; align-items: center; gap: 1.5vw; box-shadow: 0 1vh 2vh rgba(30,58,138,.22); text-align: start; }
+.ing .emo { font-size: 7vh; }
+.ing.used { background: #e0f2fe; opacity: .75; }
+
+/* البركان */
+.volc { position: relative; flex: 0 0 40vw; height: 54vh; }
+.mount { position: absolute; bottom: 0; left: 0; right: 0; height: 64%; background: linear-gradient(180deg, #a16207, #713f12); clip-path: polygon(40% 0, 60% 0, 100% 100%, 0 100%); }
+.cup { position: absolute; bottom: 58%; left: 50%; transform: translateX(-50%); width: 9vw; height: 11vh; background: rgba(255,255,255,.7); border: .5vh solid #fff; border-radius: 0 0 2vh 2vh; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: center; font-size: 4.2vh; z-index: 2; }
+.foam { position: absolute; inset: 0; z-index: 3; pointer-events: none; overflow: hidden; }
+.volc.boom .mount::after { content: ""; position: absolute; top: 0; left: 40%; right: 40%; height: 0; background: linear-gradient(180deg, #ef4444, #f97316 70%, #fde68a); animation: lava 2.2s ease-out forwards; border-radius: 0 0 40% 40%; }
+@keyframes lava { to { height: 80%; left: 22%; right: 22%; } }
+.volc.boom .cup { background: #fecaca; }
+.bub { position: absolute; bottom: 52%; font-style: normal; font-size: 5vh; animation: rise linear forwards; }
+@keyframes rise { from { transform: translateY(0) scale(.6); opacity: 1; } to { transform: translateY(-46vh) scale(1.3); opacity: 0; } }
+
+/* بذرة العدس */
+.dish { position: relative; flex: 0 0 36vw; height: 54vh; }
+.plate { position: absolute; bottom: 4vh; left: 4%; right: 4%; height: 9vh; border-radius: 50%; background: radial-gradient(ellipse at center, #e2e8f0 50%, #94a3b8 100%); box-shadow: 0 1.5vh 3vh rgba(0,0,0,.2); }
+.cotton { position: absolute; bottom: 7vh; left: 16%; right: 16%; height: 8vh; border-radius: 4vh; background: #fff; box-shadow: inset 0 -1vh 0 #e5e7eb; z-index: 2; }
+.plant { position: absolute; left: 50%; bottom: 13vh; transform: translateX(-50%); line-height: 1; z-index: 3; transition: font-size .6s; font-size: 6vh; }
+.dish.s1 .plant, .dish.s2 .plant { font-size: 8vh; }
+.dish.s3 .plant { font-size: 12vh; } .dish.s4 .plant { font-size: 17vh; } .dish.s5 .plant { font-size: 23vh; } .dish.s6 .plant { font-size: 30vh; }
+.root { position: absolute; left: 50%; bottom: 8vh; width: .8vh; height: 7vh; background: #fef3c7; border-radius: .4vh; transform: rotate(8deg); z-index: 4; box-shadow: 0 0 0 .2vh #d97706; }
+.dish.pale .plant { filter: sepia(1) saturate(2) hue-rotate(10deg) brightness(1.15); }
+
+/* الظل */
+.sky2 { position: relative; width: 86vw; height: 44vh; margin-top: 1.5vh; border-radius: 4vh; overflow: hidden; direction: ltr;
+  background: linear-gradient(180deg, #38bdf8, #bae6fd); filter: brightness(calc(.75 + var(--dim, 1) * .25)); box-shadow: 0 1.5vh 3vh rgba(30,58,138,.25); }
+.ground { position: absolute; left: 0; right: 0; bottom: 0; height: 22%; background: linear-gradient(180deg, #4ade80, #16a34a); }
+.tree { position: absolute; left: 50%; bottom: 16%; transform: translateX(-50%); font-size: 17vh; line-height: 1; z-index: 2; }
+.shade { position: absolute; bottom: calc(22% - 3.2vh); height: 5vh; background: rgba(15,23,42,.5); filter: blur(.4vh); transition: width .15s, left .15s; z-index: 1; }
+.sunm { position: absolute; font-size: 10vh; transform: translate(-50%, -50%); transition: left .15s, top .15s; filter: drop-shadow(0 0 3vh #fde047); }
+.nav.ltr { direction: ltr; }

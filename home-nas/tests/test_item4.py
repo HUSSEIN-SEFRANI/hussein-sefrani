@@ -49,7 +49,7 @@ v = json.loads(out.stdout) if out.returncode == 0 else {}
 res.append(ok(v.get("a") == ["ps", "nintendo", "xbox", "generic"], f"النوع من Vendor/Product: بلايستيشن، نينتندو، إكس بوكس، عامة ← {v.get('a') or out.stderr[-200:]}"))
 res.append(ok(v.get("b") == "nintendo" and v.get("c") == "generic", "التصحيح اليدوي يُحفظ، و«تلقائي» يرجعه"))
 res.append(ok("const swap = !!padPrefs.swap;" in js, "يد نينتندو: نفس الموقع كباقي الأيادي (البند 52 ألغى العكس)"))
-res.append(ok("function pollBattery" in js and "ضعيفة" in js and "js-kind" in js and "batHTML(batFor(g, used))" in js, "التلفاز: البطارية والشحن لكل لاعب، وتنبيه البطارية الضعيفة، وزر «النوع»"))
+res.append(ok("function pollBattery" in js and "ضعيفة" in js and "PAD_KIND_LIST" in js and "setPadKind(g, p.kind)" in js and "batBar(" in js and "batFor(g, new Set())" in js, "التلفاز: البطارية والشحن لكل يد، وتنبيه البطارية الضعيفة، و«نوع اليد» (منذ البند 73 في «تعديل» القبضة)"))
 dj = (APP / "static/js/apps/device.js").read_text(encoding="utf-8")
 res.append(ok("/api/admin/pads/battery" in dj and "window.__padBat" in dj, "لوحة التحكم: البطارية بجانب اليد المربوطة"))
 res.append(ok(all(subprocess.run(["node", "--check", str(APP / f)]).returncode == 0 for f in ("static/js/tv.js", "static/js/apps/device.js")), "ملفات JS سليمة"))

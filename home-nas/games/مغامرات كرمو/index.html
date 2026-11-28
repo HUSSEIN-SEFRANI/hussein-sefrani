@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>مغامرات كرمو</title>
+<link rel="stylesheet" href="kit.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="hud" class="off">
+  <div class="hb tr"><b id="hLevel"></b><small id="hLeg"></small></div>
+  <div class="hb tc" id="hSteps"></div>
+  <div class="hb tl"><span class="emo">⭐</span> <b id="hStars">0</b></div>
+  <canvas id="map" width="200" height="200"></canvas>
+  <div class="hb dist" id="hDist"></div>
+  <div class="hb speed" dir="ltr"><b id="hSpeed">0</b><small>كم/س</small></div>
+  <div class="hb hhelp" id="hHelp"></div>
+  <div class="msg" id="hMsg"></div>
+  <div class="intro" id="hIntro"></div>
+  <div class="fade" id="hFade"></div>
+  <div class="touch" id="touch">
+    <i data-k="left">◀</i><i data-k="up">▲</i><i data-k="down">▼</i><i data-k="right">▶</i><i data-k="a">●</i><i data-k="pause">⏸</i>
+  </div>
+</div>
+<main id="app"></main>
+<div id="fx"></div>
+<script src="kit.js"></script>
+<script type="module" src="game.js"></script>
+</body>
+</html>

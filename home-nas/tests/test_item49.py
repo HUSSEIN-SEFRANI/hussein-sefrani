@@ -43,7 +43,7 @@ res.append(ok(r2.status_code in (200, 401, 403), f"لوحة التحكم: ‎/ap
 js = (APP / "static/js/tv.js").read_text(encoding="utf-8")
 res.append(ok("function padPairScreen" in js and "/api/tv/admin/bt/pairpad" in js and "js-pairpad" in js and "أجهزة أخرى" in js,
               "التلفاز: «ربط يد جديدة» أولاً، والأيادي المربوطة، و«أجهزة أخرى» مطوية"))
-res.append(ok("window.hsefPadOrder" in js and "function padMainScreen" in js and "MAIN_KEY" in js and "padTouch(gp)" in js and "gamepaddisconnected" in js,
+res.append(ok("window.hsefPadOrder" in js and "setMainPad(g.index, true)" in js and "MAIN_KEY" in js and "padTouch(gp)" in js and "gamepaddisconnected" in js,
               "التلفاز: اليد الأساسية (أول يد، أو المختارة وتُحفظ باسمها) وترتيب اللاعبين"))
 kit = (APP / "static/kit/kit.js").read_text(encoding="utf-8")
 res.append(ok("window.parent.hsefPadOrder" in kit and "K.mainPad" in kit, "الألعاب تأخذ ترتيب اللاعبين من التلفاز (اللاعب 1 نفسه في كل لعبة)"))

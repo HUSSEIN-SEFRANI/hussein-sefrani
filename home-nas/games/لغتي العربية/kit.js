@@ -92,7 +92,10 @@
   let audio = null;
   const voices = () => { try { return speechSynthesis.getVoices(); } catch { return []; } };
   if ("speechSynthesis" in window) { voices(); speechSynthesis.onvoiceschanged = voices; }
-  K.voice = (lang = "ar") => voices().find((v) => v.lang && v.lang.toLowerCase().startsWith(lang)) || null;
+  // البند 70: لا قراءة عربية آلية أبداً، ولو كان في المتصفح صوت عربي (صاحب المشروع: «احذفه نهائياً»).
+  // فتختفي أزرار «اسمع» العربية ولا تُقرأ الجمل. النطق بلغة أخرى في ألعاب اللغات يبقى للتعلم، والملفات الصوتية المسجّلة تبقى.
+  const NO_VOICE = /^ar/i;
+  K.voice = (lang = "ar") => NO_VOICE.test(String(lang)) ? null : (voices().find((v) => v.lang && v.lang.toLowerCase().startsWith(lang)) || null);
   // البند 66: لا صوت آلي من السيرفر (أُلغي البند 58 بطلب صاحب المشروع): القراءة بصوت المتصفح العربي فقط إن وُجد
   K.tts = (text, lang = "ar", rate = 0.85) => {
     const v = K.voice(lang);

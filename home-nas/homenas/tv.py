@@ -554,7 +554,13 @@ def api_admin_tv():
 @bp.post("/api/admin/tv/settings")
 @admin_required
 def api_admin_tv_settings():
-    d = body()
+    apply_tv_settings(body())
+    log_action("تعديل إعدادات وضع التلفاز")
+    return jsonify(ok=True)
+
+
+def apply_tv_settings(d: dict):
+    """حفظ إعدادات التلفاز (من لوحة التحكم، ومن إعدادات التلفاز نفسه منذ البند 72)."""
     for key, sk in (("theme", "tv_theme"), ("wallpaper", "tv_wallpaper"), ("kids_wallpaper", "tv_kids_wallpaper"),
                     ("city", "tv_city"), ("method", "tv_method"), ("night_off", "tv_night_off")):
         if key in d:
@@ -603,8 +609,6 @@ def api_admin_tv_settings():
             "on": bool(a.get("on")), "pause": bool(a.get("pause", True)),
             "prayers": [k for k in a.get("prayers") or [] if k in PRAYER_KEYS and k != "sunrise"],
             "volume": max(10, min(100, int(a.get("volume") or 80))), "remind": max(0, min(60, int(a.get("remind") or 0)))}))
-    log_action("تعديل إعدادات وضع التلفاز")
-    return jsonify(ok=True)
 
 
 @bp.post("/api/admin/tv/mawaqit")
@@ -1977,6 +1981,82 @@ def api_tv_admin_saver():
     return jsonify(ok=True, kind=k)
 
 
+# البند 72: إعدادات أكثر من التلفاز نفسه (بالرمز PIN للمدير)، بالدالة نفسها التي تحفظ من لوحة التحكم
+TV_SET_KEYS = ("zoom", "margin", "night_dim", "night_off", "saver_min", "pad_sleep", "wallpaper", "kids_wallpaper",
+               "lang", "lite", "weather", "home_cards", "prayer", "adhan")
+
+
+@bp.post("/api/tv/admin/settings")
+def api_tv_admin_settings():
+    u = tv_admin()
+    d = {k: v for k, v in (body() or {}).items() if k in TV_SET_KEYS}
+    if not d:
+        abort(400, "لا شيء للحفظ")
+    try:
+        apply_tv_settings(d)
+    except (TypeError, ValueError):
+        abort(400, "قيمة غير صالحة")
+    log_action("إعدادات التلفاز من التلفاز", "، ".join(sorted(d)), u["username"])
+    return jsonify(ok=True, settings=tv_settings())
+
+
+@bp.get("/api/tv/admin/about")
+def api_tv_admin_about():
+    """«عن الجهاز»: الإصدار، والاسم والعنوان في الشبكة، والمساحة، ومدة التشغيل. لا يتصل بالإنترنت."""
+    tv_admin()
+    from . import __version__
+    from .system import mdns_name
+    out = {"version": __version__, "name": mdns_name(), "appliance": APPLIANCE, "addresses": [], "uptime": None, "disk": None}
+    if shutil.which("ip"):
+        try:
+            r = subprocess.run(["ip", "-4", "-o", "addr", "show", "scope", "global"], capture_output=True, text=True, timeout=5)
+            out["addresses"] = [ln.split()[3].split("/")[0] for ln in r.stdout.splitlines() if len(ln.split()) > 3][:4]
+        except (OSError, subprocess.SubprocessError):
+            pass
+    try:
+        out["uptime"] = int(float(Path("/proc/uptime").read_text().split()[0]))
+    except (OSError, ValueError, IndexError):
+        pass
+    try:
+        du = shutil.disk_usage(paths().data)
+        out["disk"] = {"total": du.total, "free": du.free}
+    except OSError:
+        pass
+    return jsonify(out)
+
+
+@bp.get("/api/tv/admin/update")
+def api_tv_admin_update():
+    """البحث عن تحديث: يتصل بـ GitHub فقط عند الضغط على «ابحث عن تحديث» (البند 57)."""
+    tv_admin()
+    from .system import update_info
+    return jsonify(update_info())
+
+
+@bp.post("/api/tv/admin/update")
+def api_tv_admin_update_run():
+    u = tv_admin()
+    from .system import update_run
+    update_run()
+    log_action("تحديث النظام من التلفاز", "", u["username"])
+    return jsonify(ok=True)
+
+
+@bp.post("/api/tv/admin/power")
+def api_tv_admin_power():
+    """إعادة تشغيل التلفاز (المتصفح) أو الجهاز كله."""
+    u = tv_admin()
+    action = body().get("action")
+    if not APPLIANCE or action not in ("tv", "reboot"):
+        abort(400, "غير متاح على هذا الجهاز")
+    log_action("إعادة تشغيل التلفاز" if action == "tv" else "إعادة تشغيل الجهاز", "من التلفاز", u["username"])
+    if action == "tv":
+        subprocess.Popen(["sudo", "-n", HELPER, "tv-restart"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    else:
+        subprocess.Popen(["sudo", "-n", "/usr/bin/systemctl", "reboot"])
+    return jsonify(ok=True)
+
+
 @bp.get("/api/tv/admin/audio")
 def api_tv_admin_audio():
     tv_admin()
@@ -2049,7 +2129,7 @@ def api_tv_admin_bt_action(action):
         r = helper("bt-pair-pad", timeout=150, as_json=True) or {}
         log_action("بلوتوث من التلفاز", f"ربط يد {r.get('name', '')} {r.get('mac', '')}", u["username"])
         return jsonify(available=True, paired=r, **helper("bt-status", as_json=True))
-    elif action in ("pair", "remove"):
+    elif action in ("pair", "remove", "disconnect"):   # البند 73: disconnect = فصل يد واحدة
         if not re.fullmatch(r"[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}", mac):
             abort(400)
         helper(f"bt-{action}", mac, timeout=150)

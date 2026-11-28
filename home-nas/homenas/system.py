@@ -705,33 +705,42 @@ def _extras(*args, timeout=60) -> tuple[bool, str]:
     return r.returncode == 0, (r.stdout if r.returncode == 0 else (r.stderr or r.stdout)).strip()
 
 
-@bp.get("/api/admin/update")
-@admin_required
-def api_update_check():
+def update_info() -> dict:
+    """هل يوجد تحديث؟ (لوحة التحكم، و«عن الجهاز» في التلفاز منذ البند 72)"""
     from . import __version__
     if not APPLIANCE:
-        return jsonify(available=False, appliance=False, current=__version__)
+        return dict(available=False, appliance=False, current=__version__)
     ok, st = _extras("update-status")
     status = json.loads(st) if ok else {}
     if status.get("running"):
-        return jsonify(appliance=True, current=__version__, status=status)
+        return dict(appliance=True, current=__version__, status=status)
     from .sysadmin import is_offline
     if is_offline():
-        return jsonify(appliance=True, current=__version__, status=status, offline=True, error="offline")
+        return dict(appliance=True, current=__version__, status=status, offline=True, error="offline")
     ok, out = _extras("update-check")
     if not ok:
-        return jsonify(appliance=True, current=__version__, error=out, status=status)
-    return jsonify(appliance=True, status=status, **json.loads(out))
+        return dict(appliance=True, current=__version__, error=out, status=status)
+    return dict(appliance=True, status=status, **json.loads(out))
 
 
-@bp.post("/api/admin/update")
-@admin_required
-def api_update_run():
+def update_run():
     from .activation import require_active
     require_active()
     ok, out = _extras("update-run")
     if not ok:
         abort(400, out or "error")
+
+
+@bp.get("/api/admin/update")
+@admin_required
+def api_update_check():
+    return jsonify(update_info())
+
+
+@bp.post("/api/admin/update")
+@admin_required
+def api_update_run():
+    update_run()
     log_action("تحديث النظام")
     return jsonify(ok=True)
 

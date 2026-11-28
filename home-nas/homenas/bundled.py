@@ -5,6 +5,7 @@
 - تطبيق وضعناه من قبل ثم حذفه المدير لا يرجع.
 - تطبيق لم يغيّره أحد يُحدَّث إلى النسخة الجديدة (القديمة تذهب إلى سلة المحذوفات في المجلد).
 - تطبيق غيّره المدير (أو نسخة رفعها بنفسه وتختلف) يبقى كما هو.
+- تطبيق أُزيل من النظام (`REMOVED`، البند 74) يُنقل من الأجهزة إلى سلة المحذوفات عند أول تشغيل بعد التحديث (يُسترجع منها).
 الحالة في الإعداد `bundled_apps`: {الاسم: بصمة المحتوى كما وضعناه}.
 """
 from __future__ import annotations
@@ -23,6 +24,9 @@ SKIP_FILES = {"kit.js", "kit.css", "app.json"}   # kit يعطيها السيرف
 # وتُنقل كما هي إلى النسخة الجديدة عند التحديث
 USER_DIRS = {"كلماتي"}
 STATE_KEY, STAMP_KEY = "bundled_apps", "bundled_stamp"
+# البند 74: تطبيقات كانت مع النظام ثم أُزيلت بطلب صاحب المشروع: التحديث ينقلها من الأجهزة إلى سلة المحذوفات
+# (فقط النسخة التي وضعناها نحن، أي المسجلة في الحالة؛ نسخة يضيفها المدير بنفسه بعد ذلك لا تُلمس)
+REMOVED = {"شوارع بلجيكا"}
 
 
 def bundle_apps(root: Path = BUNDLE) -> list[Path]:
@@ -137,7 +141,7 @@ def seed(db, data_paths, root: Path = BUNDLE, force: bool = False) -> dict:
     """يضع التطبيقات المرفقة في المجلدين المشتركين. يرجع {added, updated, kept, skipped} بأسماء التطبيقات."""
     from .tv import share_dir
     apps = bundle_apps(root)
-    out = {"added": [], "updated": [], "kept": [], "skipped": []}
+    out = {"added": [], "updated": [], "kept": [], "skipped": [], "removed": []}
     if not apps:
         return out
     stamp = hashlib.sha1("".join(f"{a.name}:{int(a.stat().st_mtime)}:{sum(1 for _ in a.rglob('*'))}|" for a in apps).encode()).hexdigest()
@@ -145,6 +149,19 @@ def seed(db, data_paths, root: Path = BUNDLE, force: bool = False) -> dict:
         return out   # نفس التطبيقات التي وضعناها في التشغيل السابق: لا شيء نعمله
     state = _get(db, STATE_KEY, {})
     shares = {k: share_dir(db, data_paths, k) for k in ("games", "learn")}
+    for name in sorted(REMOVED - {a.name for a in apps}):   # البند 74
+        if name not in state:
+            continue
+        try:
+            for _ in range(5):                 # قد توجد أكثر من نسخة (مباشرة، وداخل مجلد ZIP)
+                where = find(shares, name)
+                if where is None:
+                    break
+                _to_recycle(next(v for v in shares.values() if v == where.parent or v in where.parents), where)
+            state.pop(name, None)
+            out["removed"].append(name)
+        except (OSError, StopIteration):
+            out["skipped"].append(name)
     for app in apps:
         name, new = app.name, fingerprint(app)
         where = find(shares, name)
