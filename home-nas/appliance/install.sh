@@ -67,6 +67,17 @@ if [ "$OFFLINE" -eq 0 ]; then
   done
 fi
 
+# البند 69: إزالة الصوت الآلي espeak-ng الذي ثبّته 2.0.1 (البند 58 الملغى بالبند 66). بلا إنترنت.
+# يُزال مع المكتبات التي جاءت معه فقط (لم يكن شيء منها قبل 2.0.1)؛ وإن كان برنامج آخر يحتاج المكتبات يُزال البرنامج وحده.
+if [ "$APPLIANCE" -eq 1 ] && dpkg -s espeak-ng >/dev/null 2>&1; then
+  ESPEAK=""
+  for p in espeak-ng espeak-ng-data libespeak-ng1 libsonic0 libpcaudio0; do dpkg -s "$p" >/dev/null 2>&1 && ESPEAK="$ESPEAK $p"; done
+  OTHER=$(apt-get -s purge $ESPEAK 2>/dev/null | awk '/^Purg /{print $2}' | grep -vxE 'espeak-ng|espeak-ng-data|libespeak-ng1|libsonic0|libpcaudio0' || true)
+  [ -n "$OTHER" ] && ESPEAK="espeak-ng"
+  apt-get purge -y $ESPEAK >/dev/null 2>&1 || true
+  echo "removed:$ESPEAK"
+fi
+
 log "Creating service user"
 id homenas >/dev/null 2>&1 || useradd --system --home-dir /var/lib/homenas --create-home \
     --shell /usr/sbin/nologin homenas

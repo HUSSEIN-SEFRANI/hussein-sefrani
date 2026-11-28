@@ -10,8 +10,11 @@ main = (APP / "games/_kit/kit.js").read_text(encoding="utf-8")
 res.append(ok(kits and all(p.read_text(encoding="utf-8") == main for p in kits), f"كل نسخ kit.js ({len(kits)}) مثل _kit"))
 res.append(ok("serverTts" not in main and "/api/tv/tts" not in main and "if (!v || !text) return false;" in main, "K.tts بلا صوت السيرفر"))
 res.append(ok(not (APP / "homenas/tts.py").exists(), "لا وحدة tts في السيرفر"))
-sh = (APP / "appliance/install.sh").read_text(encoding="utf-8") + (APP / "installer/build-installer-iso.sh").read_text(encoding="utf-8")
-res.append(ok("espeak" not in sh, "espeak-ng ليس في الحزم ولا في الإيزو (فلا يتصل التحديث بالإنترنت لأجله)"))
+inst = (APP / "appliance/install.sh").read_text(encoding="utf-8")
+pkgs = inst[inst.index('PKGS="'):inst.index('"', inst.index('PKGS="') + 6)]   # البند 69 يذكر espeak-ng في install.sh ليُزيله، لا ليثبّته
+sh = pkgs + (APP / "installer/build-installer-iso.sh").read_text(encoding="utf-8")
+res.append(ok("espeak" not in sh and "apt-get install -y --no-install-recommends espeak" not in inst,
+              "espeak-ng ليس في الحزم ولا في الإيزو (فلا يتصل التحديث بالإنترنت لأجله)"))
 from homenas import create_app
 T = Path(tempfile.mkdtemp())
 app = create_app({"secret_key": "t", "data_dir": str(T / "d"), "port": 1, "host": "127.0.0.1", "max_upload_gb": 1}, start_indexer=False)
