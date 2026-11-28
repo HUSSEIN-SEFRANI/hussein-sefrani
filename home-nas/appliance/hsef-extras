@@ -1857,6 +1857,17 @@ def pad_diag():
                       "generic": PAD_GENERIC.exists(), "nintendo_failed": nintendo_failed()}))
 
 
+def bt_disconnect(mac: str):
+    """البند 73: فصل يد واحدة (تنطفئ وتبقى مقترنة، وزر PS يعيدها)."""
+    if not MAC_RE.match(mac):
+        die("invalid device")
+    if FAKE:
+        return
+    r = subprocess.run(["bluetoothctl", "disconnect", mac], capture_output=True, text=True, timeout=20)
+    if r.returncode != 0 and "not connected" not in (r.stdout + r.stderr).lower():
+        die("could not disconnect the device")
+
+
 def bt_remove(mac: str):
     """v1.9.8: إزالة أي جهاز من القائمة (مقترن أو لا). جهاز متصل: نقطع الاتصال أولاً، ونتأكد أنه أُزيل فعلاً."""
     if not MAC_RE.match(mac):
@@ -2718,6 +2729,8 @@ def main():
         bt_pads_off()
     elif len(a) == 2 and a[0] == "bt-remove":
         bt_remove(a[1])
+    elif len(a) == 2 and a[0] == "bt-disconnect":
+        bt_disconnect(a[1])
     elif a == ["pad-diag"]:
         pad_diag()
     elif a == ["hw-diag"]:

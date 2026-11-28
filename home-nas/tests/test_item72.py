@@ -65,7 +65,7 @@ else:
     cookie = baba.get_cookie("session").value
     js = r"""
 const { chromium } = require('playwright');
-const FNS = ['settingsScreen', 'sizeSetScreen', 'nightSetScreen', 'aboutScreen', 'padScreen', 'saverSetScreen'];
+const FNS = ['settingsScreen', 'sizeSetScreen', 'nightSetScreen', 'aboutScreen', 'padEditScreen', 'saverSetScreen'];
 (async () => {
   const b = await chromium.launch(); const ctx = await b.newContext({ viewport: { width: 1280, height: 720 } });
   await ctx.addCookies([{ name: 'session', value: process.env.T_COOKIE, domain: '127.0.0.1', path: '/' }]);
@@ -92,8 +92,8 @@ const FNS = ['settingsScreen', 'sizeSetScreen', 'nightSetScreen', 'aboutScreen',
   await press('Enter'); out.armed = await val(); out.p1 = power;
   await press('Enter'); out.p2 = power;
   await press('Escape');
-  await p.evaluate(() => padScreen()); await p.clock.runFor(600);
-  out.padRow = await p.evaluate(() => { const r = document.querySelector('.js-padsleep .opt-row'); return r ? [r.offsetHeight, r.querySelector('.ov em').textContent] : null; });
+  await p.evaluate(() => padEditScreen({ name: 'يد تجربة' })); await p.clock.runFor(600);   // البند 73: المدة صارت في «تعديل» القبضة
+  out.padRow = await p.evaluate(() => { const r = [...document.querySelectorAll('.js-opts .opt-row')].find((x) => x.textContent.includes('تنطفئ بلا لعب بعد')); return r ? [r.offsetHeight, r.querySelector('.ov em').textContent] : null; });
   await press('Escape');
   await p.evaluate(() => nightSetScreen()); await p.clock.runFor(600);
   await press('ArrowDown', 2); await press('ArrowLeft');          // مؤقّت النوم: بعد 15 دقيقة
@@ -117,7 +117,7 @@ const FNS = ['settingsScreen', 'sizeSetScreen', 'nightSetScreen', 'aboutScreen',
                   f"«حجم الصورة»: ← تزيد و→ تنقص، وتُحفظ فوراً، والزوايا الأربع ظاهرة ← {r.get('zoom')}, {r.get('zoom2')}, {setting('tv_zoom')} {r.get('error', '')}"))
     res.append(ok(r.get("row") == "أعد تشغيل التلفاز" and r.get("armed") == "اضغط مرة ثانية للتأكيد" and r.get("p1") == 0 and r.get("p2") == 1,
                   f"إعادة التشغيل تحتاج ضغطتين (الأولى تطلب التأكيد ولا ترسل شيئاً) ← {r.get('armed')}, {r.get('p1')}→{r.get('p2')}"))
-    res.append(ok(r.get("padRow") and r["padRow"][0] >= 40 and r["padRow"][1] == "30 دقيقة", f"«يد التحكم»: صف مدة إطفاء القبضات ظاهر بقيمته ← {r.get('padRow')}"))
+    res.append(ok(r.get("padRow") and r["padRow"][0] >= 40 and r["padRow"][1] == "30 دقيقة", f"«تعديل القبضة»: صف مدة إطفاء القبضات ظاهر بقيمته ← {r.get('padRow')}"))
     res.append(ok(r.get("sleep") == "بعد 15 دقيقة" and r.get("before") is False and r.get("after") is True and r.get("woke") is True,
                   f"مؤقّت النوم: بعد 15 دقيقة تنطفئ الشاشة (لا قبلها)، وأي زر يعيدها ← {r.get('sleep')}, {r.get('before')}, {r.get('after')}, {r.get('woke')}"))
     res.append(ok("errs" in r and not r["errs"], f"اكتملت التجربة بلا أخطاء في الصفحة ← {r.get('errs', r.get('error'))}"))

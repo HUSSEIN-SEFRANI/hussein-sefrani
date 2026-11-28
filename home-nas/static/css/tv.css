@@ -813,3 +813,63 @@ svg.face { vertical-align: middle; display: inline-block; }
 .bgmusic.paused .eq i { animation: none; height: 5px; background: #fcd34d; }
 @keyframes bgeq { from { height: 4px; } to { height: 18px; } }
 >>>>>>> origin/claude/eager-wright-ytkzo1
+
+/* البند 73: «يد التحكم»: قائمة القبضات (أعمدة ثابتة فتتساوى الأزرار)، و«إضافة قبضة»، وصفحة «تعديل» برسم القبضة، ورسالة التأكيد */
+.btn.red { background: #dc2626; color: #fff; }
+.pad-list { display: flex; flex-direction: column; gap: 12px; padding: 6px; overflow-y: auto; scrollbar-width: none; min-height: 0; }
+.pad-row { flex: none; display: grid; grid-template-columns: 64px minmax(0, 1fr) 190px 480px; align-items: center; gap: 18px; min-height: 92px;
+  padding: 10px 22px; border-radius: 22px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12); }
+.pad-row.off { opacity: .72; }
+.pad-row .pr-ic { width: 64px; height: 64px; border-radius: 18px; display: flex; align-items: center; justify-content: center; font-size: 34px;
+  background: linear-gradient(135deg, #a855f7, #ec4899); }
+.pad-row.off .pr-ic { background: rgba(255,255,255,.12); }
+.pad-row .pr-tx { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pad-row .pr-tx b { font-size: 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pad-row .pr-tx span { font-size: 17px; color: #cbd5e1; }
+.pad-row .pr-bat { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; }
+.pad-row .pr-acts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.pad-row .pr-acts .btn { padding: 12px 10px; font-size: 18px; white-space: nowrap; justify-content: center; text-align: center; }
+.pad-row .pr-acts .btn[data-a="edit"] { grid-column: 1; }
+.pad-row .pr-acts .btn[data-a="disc"] { grid-column: 2; }
+.pad-row .pr-acts .btn[data-a="unpair"] { grid-column: 3; }
+.pad-row .pr-bat em { font-style: normal; }
+.pad-edit .pe-name { font-size: 22px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bat { position: relative; width: 92px; height: 22px; border-radius: 6px; border: 2px solid rgba(255,255,255,.55); }
+.bat::after { content: ""; position: absolute; top: 5px; left: -6px; width: 4px; height: 8px; border-radius: 2px 0 0 2px; background: rgba(255,255,255,.55); }
+.bat i { position: absolute; top: 2px; bottom: 2px; right: 2px; max-width: calc(100% - 4px); border-radius: 3px; background: #4ade80; }
+.bat.low i { background: #f87171; }
+.bat.chg i { background: #facc15; }
+.pad-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px; border-radius: 22px; background: rgba(255,255,255,.05); text-align: center; }
+.pad-empty .pe-ic { font-size: 60px; }
+.pad-empty b { font-size: 26px; }
+.pad-empty span { font-size: 18px; color: #cbd5e1; }
+.pad-foot { flex: none; display: flex; justify-content: center; padding: 6px; }
+.pad-foot .btn { min-width: 320px; padding: 16px 30px; font-size: 22px; }
+.pad-edit { display: grid; grid-template-columns: minmax(0, 1fr) 520px; gap: 30px; min-height: 0; height: 100%; }
+.pad-edit .pe-opts { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.pad-edit .pe-btns { flex: none; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 4px; }
+.pad-edit .pe-btns .btn { padding: 14px; font-size: 21px; }
+.pad-edit .pe-draw { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 18px; border-radius: 24px; background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.1); align-self: start; }
+.pe-svg { width: 100%; transition: opacity .2s; }
+.pe-svg.off { opacity: .35; }
+.pad-svg { width: 100%; height: auto; display: block; filter: drop-shadow(0 14px 22px rgba(0,0,0,.5)); }
+.pad-svg .pb { fill: #334155; }
+.pad-svg [data-p] { fill: #64748b; transition: fill .06s; }
+.pad-svg [data-p].on { fill: #facc15; }
+.pad-svg .knob { fill: #1e293b; pointer-events: none; }
+.pe-cap { font-size: 18px; color: #cbd5e1; text-align: center; }
+.pad-edit .pad-legend { justify-content: center; gap: 18px; margin: 0; }
+.pad-edit .pad-legend span { font-size: 18px; }
+.opt-row.changed .ov { box-shadow: inset 0 0 0 2px #facc15; }
+.opt-row.changed .ov em::after { content: " ✎"; font-size: .8em; }
+.tv-modal { position: absolute; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(5,10,25,.7); backdrop-filter: blur(3px); }
+.tv-modal .tm-card { min-width: 560px; max-width: 760px; padding: 30px 40px 26px; border-radius: 28px; background: #1e293b; text-align: center;
+  box-shadow: 0 24px 60px rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.12); }
+.tv-modal .tm-ic { font-size: 50px; line-height: 1; }
+.tv-modal .tm-card > b { display: block; margin: 12px 0 8px; font-size: 30px; }
+.tv-modal .tm-body { font-size: 20px; color: #cbd5e1; line-height: 1.7; }
+.tv-modal .tm-body ul { margin: 6px 0 0; padding: 0; list-style: none; }
+.tv-modal .tm-body li::before { content: "• "; color: #facc15; }
+.tv-modal .tm-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 22px; }
+.tv-modal .tm-row .btn { padding: 15px; font-size: 22px; }

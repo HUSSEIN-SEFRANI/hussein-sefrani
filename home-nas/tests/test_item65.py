@@ -24,7 +24,7 @@ s1 = c.get("/api/admin/tv").get_json()["settings"]["pad_sleep"]
 res.append(ok(s0 == 15 and s1 == 240, f"الإعداد: افتراضياً 15 دقيقة، وحده الأعلى 240 ({s0}، {s1})"))
 res.append(ok(app.test_client().post("/api/tv/pads/off", json={}).status_code in (401, 403), "الإطفاء من التلفاز فقط (لا يُطلب من خارج جلسة التلفاز)"))
 js = (APP / "static/js/tv.js").read_text(encoding="utf-8")
-res.append(ok("padSeen" in js and "settings?.pad_sleep" in js and "padSlept = true" in js and 'class="btn f js-off"' in js, "التلفاز يعدّ الدقائق بلا لعب في كل الأيادي، مرة واحدة، وزر «أطفئ القبضات الآن»"))
+res.append(ok("padSeen" in js and "settings?.pad_sleep" in js and "padSlept = true" in js and 'data-a="disc"' in js and "/api/tv/admin/bt/${disc ? \"disconnect\" : \"remove\"}" in js, "التلفاز يعدّ الدقائق بلا لعب في كل الأيادي، مرة واحدة، و«فصل» لكل قبضة (البند 73)"))
 adm = (APP / "static/js/apps/tvadmin.js").read_text(encoding="utf-8")
 res.append(ok('name="pad_sleep"' in adm and "pad_sleep: +f('pad_sleep').value" in adm, "المدة في لوحة التحكم ← وضع التلفاز ← المظهر"))
 print(f"\n{sum(res)}/{len(res)} نجح"); sys.exit(0 if all(res) else 1)
