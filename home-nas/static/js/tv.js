@@ -146,7 +146,7 @@ function ensureVisible(el) {
     else if (r.right > c.right - p) hs.scrollBy({ left: (r.right - c.right + p) / scale, behavior: "smooth" });
     return;
   }
-  const sc = el.closest(".grid-wrap, .list");
+  const sc = el.closest(".grid-wrap, .list, .opt-list");
   if (!sc) return;
   const r = el.getBoundingClientRect(), c = sc.getBoundingClientRect(), p = 34 * scale;
   if (r.top < c.top + p) sc.scrollBy({ top: (r.top - c.top - p) / scale, behavior: "smooth" });
@@ -211,6 +211,8 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Home" && me && !(t && t.isGame)) { homeScreen(); e.preventDefault(); return; }
   if (t?.key && t.key(e) === true) { e.preventDefault(); return; }
   const k = e.key;
+  // البند 72: في صفوف الإعدادات ← → تغيّر القيمة (التالي حسب اتجاه القراءة)
+  if ((k === "ArrowLeft" || k === "ArrowRight") && cur?._step && top()?.el.contains(cur)) { cur._step(k === NEXT_KEY ? 1 : -1); e.preventDefault(); return; }
   if (k === "ArrowLeft") move("left");
   else if (k === "ArrowRight") move("right");
   else if (k === "ArrowUp") move("up");
@@ -1873,6 +1875,15 @@ const SAVERS = [["prayer", "مواقيت الصلاة", "🕌"], ["calendar", "�
   ["moon", "القمر الليلة", "🌕"], ["clock", "ساعة كبيرة", "🕰️"], ["mix", "تنويع", "🔀"]];
 let lastAct = Date.now();
 let saverEl = null, saverTimer = 0, saverStop = null;
+// البند 72: مؤقّت النوم (من «الليل»): عند انتهائه يتوقف الفيديو والصوت وتُطفأ الشاشة حتى يُضغط زر
+let sleepAt = 0, sleepMins = 0, sleeping = false;
+function goSleep() {
+  try { stopBg(); } catch { /* */ }
+  stage.querySelectorAll("video, audio").forEach((m) => { try { m.pause(); } catch { /* */ } });
+  if (me) { try { homeScreen(); } catch { /* */ } }
+  showSaver(true);   // يخفي أي شاشة توقف ظاهرة أولاً (وذلك يمسح «sleeping»)، فنضعها بعده
+  sleeping = true;
+}
 function activity() { lastAct = Date.now(); }
 function inNight() {
   const m = /^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/.exec(settings.night_off || "");
@@ -1925,11 +1936,13 @@ function hideSaver() {
   saverStop = null;
   saverEl?.remove();
   saverEl = null;
+  sleeping = false;
   activity();
 }
 setInterval(() => {
+  if (sleepAt && Date.now() >= sleepAt) { sleepAt = 0; sleepMins = 0; goSleep(); return; }   // البند 72
   if (saverEl) {
-    if (saverEl.classList.contains("night") && !inNight()) hideSaver();
+    if (saverEl.classList.contains("night") && !inNight() && !sleeping) hideSaver();
     return;
   }
   const t = top();
@@ -2794,21 +2807,25 @@ function oskScreen(opt, done) {
 
 // ============================================================== إعدادات التلفاز (للمدير فقط)
 // البند 12: إعدادات التلفاز في مجموعات مثل لوحة التحكم
+// البند 72: 12 بطاقة في 3 صفوف × 4، كلها بحجم واحد
 const SET_GROUPS = [
-  ["التلفاز", [["screen", "الشاشة", "أي شاشة، والدقة", "#10b981,#0ea5e9"], ["audio", "الصوت", "مخرج الصوت وتجربته", "#f59e0b,#ea580c"],
-    ["saver", "التوقف", "مواقيت، نار، نجوم…", "#0ea5e9,#6366f1"]]],
-  ["الألعاب", [["pad", "يد التحكم", "اللاعبون، البطارية، الأزرار", "#a855f7,#ec4899"], ["bt", "البلوتوث", "ربط يد جديدة، وسماعات", "#8b5cf6,#06b6d4"]]],
-  ["الشبكة", [["wifi", "الوايفاي", "الاتصال بشبكة لاسلكية", "#06b6d4,#2563eb"]]],
+  ["الشاشة والصوت", [["screen", "الشاشة", "أي شاشة، والدقة", "#10b981,#0ea5e9"], ["size", "حجم الصورة", "الحجم والهوامش", "#14b8a6,#0e7490"],
+    ["audio", "الصوت", "مخرج الصوت وتجربته", "#f59e0b,#ea580c"], ["night", "الليل", "الإضاءة، والإطفاء، ومؤقّت النوم", "#6366f1,#1e3a8a"]]],
+  ["ما يظهر على التلفاز", [["home", "الصفحة الرئيسية", "البطاقات والطقس", "#f97316,#db2777"], ["look", "المظهر", "الخلفيات واللغة", "#ec4899,#8b5cf6"],
+    ["prayer", "الصلاة والأذان", "المواقيت وصوت الأذان", "#059669,#065f46"], ["saver", "شاشة التوقف", "النوع والمدة", "#0ea5e9,#6366f1"]]],
+  ["الأجهزة والشبكة", [["pad", "يد التحكم", "اللاعبون، البطارية، الأزرار", "#a855f7,#ec4899"], ["bt", "البلوتوث", "ربط يد جديدة، وسماعات", "#8b5cf6,#06b6d4"],
+    ["wifi", "الوايفاي", "الاتصال بشبكة لاسلكية", "#06b6d4,#2563eb"], ["about", "عن الجهاز", "الإصدار، والتحديث، وإعادة التشغيل", "#64748b,#334155"]]],
 ];
 function settingsScreen() {
   const card = ([k, t, s, c]) => `<button class="set-card f" data-k="${k}"><div class="ic" style="background:${A.gradient(c)}">${SET_ICON[k]}</div>
-      <b>${t}</b><span>${s}</span></button>`;
+      <div class="tx"><b>${t}</b><span>${s}</span></div></button>`;
   const el = h(`<div class="bg-dark"><div class="bhead"><button class="back f js-back">${A.CHEVRON}<span>الرئيسية</span></button>
     <div class="ti" style="background:linear-gradient(135deg,#64748b,#1e293b)">${GEAR}</div><h1>الإعدادات</h1></div>
     <div class="set-groups">${SET_GROUPS.map(([g, items]) => `<div class="set-group" style="--n:${items.length}"><h2 class="set-gh">${g}</h2><div class="set-grid">${items.map(card).join("")}</div></div>`).join("")}</div>
     ${hints([["موافق", "فتح"], ["رجوع", "الرئيسية"]])}</div>`);
   el.querySelector(".js-back").addEventListener("click", pop);
-  el.querySelectorAll(".set-card").forEach((b) => b.addEventListener("click", () => ({ wifi: wifiScreen, bt: btScreen, pad: padScreen, audio: soundSetScreen, saver: saverSetScreen, screen: screenSetScreen })[b.dataset.k]()));
+  el.querySelectorAll(".set-card").forEach((b) => b.addEventListener("click", () => ({ wifi: wifiScreen, bt: btScreen, pad: padScreen, audio: soundSetScreen, saver: saverSetScreen, screen: screenSetScreen,
+    size: sizeSetScreen, night: nightSetScreen, home: homeSetScreen, look: lookSetScreen, prayer: prayerSetScreen, about: aboutScreen })[b.dataset.k]()));
   push({ el, initial: () => el.querySelector(".set-card") });
 }
 const GEAR = `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>`;
@@ -2819,9 +2836,208 @@ const SET_ICON = {
   bt: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7l10 10-5 5V2l5 5L7 17"/></svg>`,
   pad: A.icon("games"),
   audio: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>`,
+  size: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8V3h5M21 8V3h-5M3 16v5h5M21 16v5h-5"/><rect x="8" y="8" width="8" height="8" rx="1.5"/></svg>`,
+  night: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 15.5A8 8 0 1 1 8.5 4a6.5 6.5 0 0 0 11.5 11.5z"/><path d="M15 3h4l-4 4h4"/></svg>`,
+  home: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>`,
+  look: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.6-.8 1.6-1.6 0-1.4-1.3-1.6-1.3-2.9 0-1 .8-1.6 1.8-1.6H17a4 4 0 0 0 4-4c0-4.4-4-7.9-9-7.9z"/><circle cx="7.5" cy="11" r="1.3" fill="#fff"/><circle cx="10.5" cy="7" r="1.3" fill="#fff"/><circle cx="15.5" cy="7.8" r="1.3" fill="#fff"/></svg>`,
+  prayer: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5c-1.2 1.6-4.5 3-4.5 6.5h9c0-3.5-3.3-4.9-4.5-6.5z"/><path d="M5.5 21V12h13v9M3 21h18M10 21v-3.5a2 2 0 0 1 4 0V21M19.5 12V6.5M4.5 12V6.5"/></svg>`,
+  about: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.2"/></svg>`,
 };
 
+// ============================================================== البند 72: صفوف الإعدادات
+// كل صف: رمز، وعنوان، وقيمة بين ‹ ›. الأسهم ← → تغيّر القيمة، و«موافق» تنتقل إلى التالية. تُحفظ فوراً وتُطبَّق على الشاشة.
+// الأنواع: values (اختيارات تدور)، أو min/max/step (أرقام)، أو action (زر، ومع confirm يحتاج ضغطة ثانية)، أو pick (قائمة في صفحة).
+const ONOFF = [[true, "مفعّل"], [false, "متوقف"]];
+let optQ = Promise.resolve();
+const sameV = (a, b) => String(a) === String(b);
+function optValues(o) {
+  if (o.values) return typeof o.values === "function" ? o.values() : o.values;
+  const out = [];
+  for (let v = o.min; v <= o.max; v += o.step) out.push([v, o.fmt ? o.fmt(v) : String(v)]);
+  return out;
+}
+async function saveTV(patch) {
+  const r = await api("/api/tv/admin/settings", { json: patch });
+  const langChanged = patch.lang && patch.lang !== (settings.lang || "ar");
+  settings = r.settings;
+  applyPrefs();   // الحجم والهامش والإضاءة تظهر فوراً؛ والشاشة الرئيسية تُرسم من جديد خلال دقيقة
+  if (langChanged) { toast("تتغير لغة الواجهة الآن…", 2500); setTimeout(() => location.reload(), 1200); }
+  return r;
+}
+function optList(box, rows) {
+  const draw = (focusI) => {
+    box.innerHTML = rows.map((o, i) => {
+      if (o.hidden?.()) return "";
+      const hint = o.hint ? `<small>${typeof o.hint === "function" ? o.hint() : o.hint}</small>` : "";
+      if (o.action || o.pick) {
+        const val = o._armed ? "اضغط مرة ثانية للتأكيد" : o.value ? o.value() : "اضغط «موافق»";
+        return `<button class="opt-row f act${o._armed ? " armed" : ""}" data-i="${i}"><span class="oi">${o.icon}</span><b>${o.label}${hint}</b><span class="ov">${esc(val)}</span></button>`;
+      }
+      const vals = optValues(o), cv = o._pend !== undefined ? o._pend : o.get(), it = vals.find(([v]) => sameV(v, cv)) || [cv, String(cv ?? "—")];
+      return `<button class="opt-row f" data-i="${i}"><span class="oi">${o.icon}</span><b>${o.label}${hint}</b><span class="ov"><i>‹</i><em>${esc(it[1])}</em><i>›</i></span></button>`;
+    }).join("");
+    box.querySelectorAll(".opt-row").forEach((b) => {
+      const i = +b.dataset.i;
+      b.addEventListener("click", () => step(i, 1, true));
+      if (!rows[i].action) b._step = (d) => step(i, d, false);
+    });
+    if (focusI != null) { const f = box.querySelector(`.opt-row[data-i="${focusI}"]`); if (f) setFocus(f, false); }
+  };
+  const step = async (i, dir, wrap) => {
+    const o = rows[i];
+    if (o.pick) { o.pick(); return; }
+    if (o.action) {
+      if (o.confirm && !(o._armed && Date.now() - o._armed < 6000)) {
+        o._armed = Date.now(); draw(i);
+        setTimeout(() => { if (o._armed && Date.now() - o._armed >= 6000) { o._armed = 0; if (box.isConnected) draw(cur?.dataset?.i != null ? +cur.dataset.i : null); } }, 6100);
+        return;
+      }
+      o._armed = 0;
+      try { await o.action(); } catch (e) { toast(e.message, 5000); }
+      if (box.isConnected) draw(i);
+      return;
+    }
+    const vals = optValues(o), now = o._pend !== undefined ? o._pend : o.get();
+    let k = vals.findIndex(([v]) => sameV(v, now));
+    if (o.values || wrap) k = (k + dir + vals.length) % vals.length;   // الاختيارات تدور، والأرقام تقف عند الحدّين (و«موافق» تدور)
+    else k = Math.max(0, Math.min(vals.length - 1, (k < 0 ? 0 : k) + dir));
+    const v = vals[k][0];
+    if (sameV(v, now)) return;
+    if (o.set) { o.set(v); o.after?.(v); if (box.isConnected) draw(i); return; }
+    // القيمة تظهر فوراً، والحفظ بالترتيب (ضغطات سريعة متتالية لا تضيع ولا يسبق بعضها بعضاً)
+    o._pend = v;
+    if (box.isConnected) draw(i);
+    optQ = optQ.then(() => saveTV(o.patch(v))).then(() => {   // طابور واحد لكل الصفوف: صفوف الأذان مثلاً تحفظ في الإعداد نفسه
+      if (sameV(o._pend, v)) o._pend = undefined;
+      o.after?.(v);
+    }, (e) => { o._pend = undefined; toast(e.message, 5000); if (box.isConnected) draw(cur?.dataset?.i != null ? +cur.dataset.i : i); });
+  };
+  draw();
+  return draw;
+}
+function optScreen(title, iconKey, rows, note) {
+  const el = subScreen(title, iconKey), body = el.querySelector(".set-body");
+  body.innerHTML = `<div class="opt-list"></div>${note ? `<p class="set-msg">${note}</p>` : ""}`;
+  const draw = optList(body.querySelector(".opt-list"), rows);
+  push({ el, initial: () => body.querySelector(".opt-row") });
+  return { el, body, draw };
+}
+// اختيار من قائمة في صفحة (للغة: تغييرها يعيد تحميل الواجهة، فلا تتغير بمجرد المرور بالأسهم)
+function pickScreen(title, iconKey, opts, curV, onPick) {
+  const el = subScreen(title, iconKey), body = el.querySelector(".set-body");
+  body.innerHTML = `<div class="opt-list">${opts.map(([v, n], i) => `<button class="opt-row f pick" data-i="${i}" translate="no"><span class="oi">${sameV(v, curV) ? "✓" : ""}</span><b>${esc(n)}</b></button>`).join("")}</div>`;
+  body.querySelectorAll(".opt-row").forEach((b) => b.addEventListener("click", async () => {
+    const v = opts[+b.dataset.i][0];
+    pop();
+    if (!sameV(v, curV)) { try { await onPick(v); } catch (e) { toast(e.message, 5000); } }
+  }));
+  push({ el, initial: () => body.querySelector(".opt-row .oi:not(:empty)")?.closest(".opt-row") || body.querySelector(".opt-row") });
+}
+
+// حجم الصورة: الحجم والهامش، والنتيجة تظهر فوراً مع زوايا صفراء على أطراف الواجهة (إن ظهرت الزوايا كلها فلا شيء مقصوص)
+function sizeSetScreen() {
+  const { el } = optScreen("حجم الصورة", "size", [
+    { icon: "🔍", label: "حجم الواجهة", min: 70, max: 130, step: 5, fmt: (v) => `${v}%`, get: () => +settings.zoom || 100, patch: (v) => ({ zoom: v }) },
+    { icon: "🖼️", label: "الهامش حول الأطراف", hint: "زِده إن كانت أطراف الصورة مقصوصة في التلفاز", min: 0, max: 8, step: 1, fmt: (v) => `${v}%`,
+      get: () => +settings.margin || 0, patch: (v) => ({ margin: v }) },
+    { icon: "↺", label: "الرجوع إلى الأصل", value: () => "100% بلا هامش", action: async () => { await saveTV({ zoom: 100, margin: 0 }); } },
+  ], "الأسهم ← → تغيّر القيمة وترى النتيجة فوراً. يجب أن تظهر الزوايا الصفراء الأربع كاملة على أطراف التلفاز.");
+  el.insertAdjacentHTML("beforeend", `<div class="size-guide"><i></i><i></i><i></i><i></i></div>`);
+}
+
+// الليل: الإضاءة الخفيفة، وإطفاء الشاشة ليلاً، ومؤقّت النوم
+const NIGHT_OFF = [["", "أبداً"], ["22:00-06:00", "من 22:00 إلى 6:00"], ["23:00-06:00", "من 23:00 إلى 6:00"], ["00:00-06:00", "من 0:00 إلى 6:00"], ["23:00-07:00", "من 23:00 إلى 7:00"]];
+const SLEEP_MINS = [[0, "متوقف"], [15, "بعد 15 دقيقة"], [30, "بعد 30 دقيقة"], [45, "بعد 45 دقيقة"], [60, "بعد ساعة"], [90, "بعد ساعة ونصف"], [120, "بعد ساعتين"]];
+function nightSetScreen() {
+  optScreen("الليل", "night", [
+    { icon: "🌙", label: "إضاءة خفيفة في الليل", hint: "من العشاء حتى الشروق", values: [["auto", "تلقائي"], ["off", "متوقفة"]],
+      get: () => settings.night_dim || "auto", patch: (v) => ({ night_dim: v }) },
+    { icon: "📴", label: "إطفاء الشاشة ليلاً", hint: "تبقى ساعة صغيرة خافتة، وأي زر يعيدها",
+      values: () => { const v = settings.night_off || ""; return NIGHT_OFF.some(([x]) => x === v) ? NIGHT_OFF : [...NIGHT_OFF, [v, v.replace("-", " – ")]]; },
+      get: () => settings.night_off || "", patch: (v) => ({ night_off: v }) },
+    { icon: "⏲️", label: "مؤقّت النوم", hint: () => (sleepAt ? `تنطفئ الشاشة الساعة ${new Date(sleepAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : "يوقف الفيديو والصوت ويطفئ الشاشة"),
+      values: SLEEP_MINS, get: () => sleepMins,
+      set: (v) => { sleepMins = v; sleepAt = v ? Date.now() + v * 60000 : 0; toast(v ? `🌙 مؤقّت النوم: ${SLEEP_MINS.find(([m]) => m === v)[1]}` : "أُلغي مؤقّت النوم", 3000); } },
+  ]);
+}
+
+// الصفحة الرئيسية: البطاقات (للجميع، يختارها المدير) والطقس
+const HOME_CARD_LIST = [["prayer", "🕌", "مواقيت الصلاة"], ["text", "📖", "نص اليوم"], ["word", "🔤", "كلمة اليوم"], ["calendar", "📅", "التقويم والمناسبات"],
+  ["family", "👨‍👩‍👧", "العائلة: أعياد الميلاد والنجوم"], ["memory", "📸", "ذكرى من هذا اليوم"]];
+function homeSetScreen() {
+  const cards = () => settings.home_cards || ["prayer", "text", "word"];
+  optScreen("الصفحة الرئيسية", "home", [
+    ...HOME_CARD_LIST.map(([k, ic, n]) => ({ icon: ic, label: n, values: ONOFF, get: () => cards().includes(k),
+      patch: (v) => ({ home_cards: HOME_CARD_LIST.map(([x]) => x).filter((x) => (x === k ? v : cards().includes(x))) }) })),
+    { icon: "🌤️", label: "الطقس تحت الساعة", hint: "يتصل بالإنترنت كل نصف ساعة", values: ONOFF, get: () => !!settings.weather, patch: (v) => ({ weather: v }) },
+  ], "البطاقات تظهر في الشاشة الرئيسية للبالغين، وتتغير خلال دقيقة.");
+}
+
+// المظهر: الخلفيات، ولغة الواجهة، والوضع الخفيف
+const WALLS = [["animated", "سماء متحركة"], ["photos", "صوري المفضلة"], ["dark", "ليلي هادئ"], ["cars", "🚗 سيارات"], ["islamic", "🕌 إسلامية"]];
+const KID_WALLS = [["garden", "🌳 حديقة وسماء"], ["cars", "🚗 سيارات"], ["islamic", "🕌 إسلامية"]];
+const TV_LANG_NAMES = [["ar", "العربية"], ["en", "English"], ["fr", "Français"], ["tr", "Türkçe"], ["nl", "Nederlands"]];
+const withCustom = (list, v) => (v === "custom" ? [...list, ["custom", "🖼️ صورة من اختياري"]] : list);
+function lookSetScreen() {
+  optScreen("المظهر", "look", [
+    { icon: "🖼️", label: "خلفية شاشة البالغين", values: () => withCustom(WALLS, settings.wallpaper), get: () => settings.wallpaper || "animated", patch: (v) => ({ wallpaper: v }) },
+    { icon: "🌳", label: "خلفية شاشة الأطفال", values: () => withCustom(KID_WALLS, settings.kids_wallpaper), get: () => settings.kids_wallpaper || "garden", patch: (v) => ({ kids_wallpaper: v }) },
+    { icon: "🌐", label: "لغة الواجهة", value: () => (TV_LANG_NAMES.find(([k]) => k === (settings.lang || "ar")) || [, "العربية"])[1],
+      pick: () => pickScreen("لغة الواجهة", "look", TV_LANG_NAMES, settings.lang || "ar", (v) => saveTV({ lang: v })) },
+    { icon: "🪶", label: "الوضع الخفيف", hint: "للجهاز أو التلفاز البطيء", values: [["auto", "تلقائي"], ["on", "مفعّل"], ["off", "متوقف"]],
+      get: () => settings.lite || "auto", patch: (v) => ({ lite: v }) },
+  ], "صور الخلفية المفضلة أو الخاصة تُختار من لوحة التحكم على الكمبيوتر.");
+}
+
+// الصلاة والأذان
+const ADHAN_PRAYERS = [["fajr", "الفجر"], ["dhuhr", "الظهر"], ["asr", "العصر"], ["maghrib", "المغرب"], ["isha", "العشاء"]];
+function prayerSetScreen() {
+  const ad = () => ({ on: false, prayers: ADHAN_PRAYERS.map(([k]) => k), volume: 80, remind: 0, pause: true, ...(settings.adhan || {}) });
+  const setAd = (patch) => ({ adhan: { ...ad(), ...patch } });
+  optScreen("الصلاة والأذان", "prayer", [
+    { icon: "🕌", label: "مواقيت الصلاة على الشاشة", values: ONOFF, get: () => !!settings.prayer, patch: (v) => ({ prayer: v }) },
+    { icon: "📢", label: "الأذان", values: ONOFF, get: () => !!ad().on, patch: (v) => setAd({ on: v }) },
+    { icon: "🔊", label: "صوت الأذان", min: 10, max: 100, step: 10, fmt: (v) => `${v}%`, get: () => +ad().volume || 80, patch: (v) => setAd({ volume: v }) },
+    ...ADHAN_PRAYERS.map(([k, n]) => ({ icon: "🕰️", label: `أذان ${n}`, values: ONOFF, get: () => ad().prayers.includes(k),
+      patch: (v) => setAd({ prayers: ADHAN_PRAYERS.map(([x]) => x).filter((x) => (x === k ? v : ad().prayers.includes(x))) }) })),
+    { icon: "⏰", label: "تذكير قبل الأذان", values: [[0, "بلا تذكير"], [5, "5 دقائق"], [10, "10 دقائق"], [15, "15 دقيقة"], [30, "30 دقيقة"]],
+      get: () => +ad().remind || 0, patch: (v) => setAd({ remind: v }) },
+    { icon: "⏸️", label: "إيقاف الفيديو والصوت عند الأذان", values: ONOFF, get: () => ad().pause !== false, patch: (v) => setAd({ pause: v }) },
+  ], "المدينة وطريقة الحساب وملفات الأذان من لوحة التحكم على الكمبيوتر.");
+}
+
+// عن الجهاز: الإصدار والعنوان والمساحة، والبحث عن تحديث (يتصل بالإنترنت عند الضغط فقط)، وإعادة التشغيل
+const GB = (b) => `${(b / 1e9).toFixed(b < 1e10 ? 1 : 0)} GB`;
+async function aboutScreen() {
+  const upd = { state: "", text: "" };
+  const rows = [
+    { icon: "🔄", label: "ابحث عن تحديث", hint: "يتصل الآن فقط بالإنترنت (GitHub)", value: () => upd.text || "ابحث", action: async () => {
+      upd.text = "جارٍ البحث…"; draw();
+      const r = await api("/api/tv/admin/update");
+      upd.state = r.available ? "new" : "";
+      upd.latest = r.latest;
+      upd.text = r.status?.running ? "التحديث يعمل الآن…" : r.offline ? "وضع «بدون إنترنت» مفعّل" : r.error ? "تعذر الاتصال" : r.available ? `يوجد إصدار جديد: ${r.latest}` : `لديك آخر إصدار (${r.current})`;
+    } },
+    { icon: "⬇️", label: "حدّث الآن", hint: "يعيد تشغيل التلفاز وحده بعد التحديث", hidden: () => upd.state !== "new", confirm: true,
+      value: () => upd.latest || "", action: async () => { await api("/api/tv/admin/update", { json: {} }); upd.state = ""; upd.text = "جارٍ التحديث… لا تطفئ الجهاز"; } },
+    { icon: "📺", label: "أعد تشغيل التلفاز", hint: "إن تجمّدت الصورة أو الصوت", value: () => "أعد التشغيل", confirm: true, action: () => api("/api/tv/admin/power", { json: { action: "tv" } }) },
+    { icon: "🔁", label: "أعد تشغيل الجهاز", hint: "يعود خلال دقيقة أو دقيقتين", value: () => "أعد التشغيل", confirm: true,
+      action: async () => { await api("/api/tv/admin/power", { json: { action: "reboot" } }); toast("يُعاد تشغيل الجهاز…", 8000); } },
+  ];
+  const { body, draw } = optScreen("عن الجهاز", "about", rows);
+  body.insertAdjacentHTML("afterbegin", `<div class="set-status js-info">…</div>`);
+  try {
+    const a = await api("/api/tv/admin/about");
+    const up = a.uptime == null ? "—" : a.uptime >= 86400 ? `${Math.floor(a.uptime / 86400)} يوم` : a.uptime >= 3600 ? `${Math.floor(a.uptime / 3600)} ساعة` : "أقل من ساعة";
+    body.querySelector(".js-info").innerHTML = `<div>الإصدار: <b class="ltr">HOME ANAB ${esc(a.version)}</b> · يعمل منذ: <b>${up}</b></div>
+      <div>العنوان في الشبكة: <b class="ltr">${esc(a.name)}.local${a.addresses?.length ? " · " + a.addresses.map(esc).join(" · ") : ""}</b></div>
+      ${a.disk ? `<div>المساحة الفارغة: <b class="ltr">${GB(a.disk.free)}</b> من <b class="ltr">${GB(a.disk.total)}</b></div>` : ""}`;
+  } catch (e) { body.querySelector(".js-info").textContent = e.message; }
+}
+
 // اختيار شاشة التوقف من التلفاز: تظهر فوراً للتجربة
+const SAVER_MIN_ROW = { icon: "⏱️", label: "تظهر بعد", values: () => { const L = [[0, "أبداً"], [5, "5 دقائق"], [10, "10 دقائق"], [15, "15 دقيقة"], [30, "30 دقيقة"], [60, "ساعة"]];
+  const v = +settings.saver_min || 0; return L.some(([m]) => m === v) ? L : [...L, [v, `${v} دقيقة`]]; }, get: () => +settings.saver_min || 0, patch: (v) => ({ saver_min: v }) };
 function saverSetScreen() {
   // البند 61: الأسماء في قائمة فوق بعضها، وعلى الطرف معاينة كبيرة متحركة للشاشة التي عليها التركيز
   const el = subScreen("شاشة التوقف", "saver"), body = el.querySelector(".set-body");
@@ -2829,7 +3045,8 @@ function saverSetScreen() {
     const cur = settings.saver_kind || "prayer";
     body.innerHTML = `<div class="sv-split"><div class="sv-list">${SAVERS.map(([k, n, ic]) => `<button class="sv-row f${k === cur ? " on" : ""}" data-k="${k}"><span class="emo">${ic}</span><b>${n}</b>${k === cur ? "<i>✓</i>" : ""}</button>`).join("")}</div>
       <div class="sv-side"><div class="sv-big"><span class="emo"></span></div><div class="sv-name"></div>
-        <p class="set-msg">«موافق» = اختيارها وتجربتها بكامل الشاشة، وأي زر للرجوع.<br>تظهر بعد ${+settings.saver_min || 0} دقيقة بلا استعمال (المدة من لوحة تحكم السيرفر ← وضع التلفاز).</p></div></div>`;
+        <div class="opt-list sv-opt"></div><p class="set-msg">اضغط موافق على أي شاشة لاختيارها وتجربتها بكامل الشاشة، وأي زر للرجوع.</p></div></div>`;
+    optList(body.querySelector(".sv-opt"), [SAVER_MIN_ROW]);   // البند 72
     body.querySelectorAll(".sv-row").forEach((b) => b.addEventListener("click", async () => {
       const k = b.dataset.k;
       try { await api("/api/tv/admin/saver", { json: { kind: k } }); } catch (e) { toast(e.message); return; }
@@ -3233,14 +3450,16 @@ function padScreen() {
     <div class="set-status"><div>آخر يد ضُغط فيها زر: <b class="ltr js-pn">اضغط أي زر في اليد…</b></div></div>
     <div class="pad-test ltr">${BTN.map(([k, t]) => `<span data-b="${k}">${t}</span>`).join("")}</div>
     <div class="set-row"><button class="btn f js-swap"></button><button class="btn f js-rum"></button><button class="btn gold f js-diag">🩺 تشخيص اليد</button></div>
-    <div class="set-row"><button class="btn f js-off">🔌 أطفئ القبضات الآن</button></div>
-    <p class="set-msg">لحفظ الشحن: تنطفئ القبضات وحدها بعد ${settings.pad_sleep ? `${settings.pad_sleep} دقيقة` : "— (مُعطّل)"} بلا لعب (المدة من لوحة تحكم السيرفر ← وضع التلفاز). زر PS يعيد وصلها.</p>
+    <div class="set-row pad-sleep"><button class="btn f js-off">🔌 أطفئ القبضات الآن</button><div class="opt-list js-padsleep"></div></div>
     <div class="set-row"><button class="btn gold f js-setup">🎮 إعداد يد جديدة</button>${Object.keys(PADMAPS).length ? `<button class="btn f js-reset">مسح إعدادات الأيادي (${Object.keys(PADMAPS).length})</button>` : ""}</div>
     <p class="set-msg">«إعداد يد جديدة»: لأي يد لا تعمل أزرارها صحيحة (يد عامة بلا ماركة): تضغط كل زر مرة عند السؤال، فتُحفظ لهذه اليد.</p>
     <div class="pad-legend js-legend"></div>
     <p class="set-msg">الأسهم أو العصا اليسرى للتوجيه دائماً · L1/R1 السابق/التالي · L2/R2 الصوت · Options تشغيل/إيقاف · PS الرئيسية (وفي الألعاب: الخروج)</p>`;
   el.querySelector(".js-diag").addEventListener("click", () => padDiagScreen());
   el.querySelector(".js-off").addEventListener("click", () => padsOff(true));
+  // البند 72: مدة إطفاء القبضات بلا لعب (لحفظ الشحن)
+  optList(el.querySelector(".js-padsleep"), [{ icon: "🔋", label: "تنطفئ القبضات بلا لعب بعد", hint: "لحفظ الشحن، وتعود بالضغط على زر PS",
+    values: [[5, "5 دقائق"], [10, "10 دقائق"], [15, "15 دقيقة"], [30, "30 دقيقة"], [60, "ساعة"], [0, "أبداً"]], get: () => +(settings.pad_sleep ?? 15), patch: (v) => ({ pad_sleep: v }) }]);
   el.querySelector(".js-pair").addEventListener("click", () => { pop(); padPairScreen(() => padScreen()); });
   // تصحيح نوع اليد يدوياً: تلقائي ← بلايستيشن ← إكس بوكس ← نينتندو ← عامة ← تلقائي
   el.querySelector(".js-players").addEventListener("click", (e) => {
