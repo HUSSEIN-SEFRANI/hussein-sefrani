@@ -115,7 +115,8 @@ function hsefStore(name, localKey, def) {
 
   // نطق الحرف: ملف sounds/<الحرف>.m4a أو .mp3 إن وُجد، وإلا صوت عربي من النظام إن توفر
   let voice = null, audio = null;
-  const pickVoice = () => { try { voice = speechSynthesis.getVoices().find((v) => /^ar/i.test(v.lang)) || null; } catch {} };
+  // البند 70: لا قراءة عربية آلية (صاحب المشروع: «احذفه نهائياً»)؛ تبقى ملفات sounds/ المسجّلة إن وُجدت
+  const pickVoice = () => { voice = null; };
   if ("speechSynthesis" in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
   function tts(text) {
     if (!voice || !text) return;
