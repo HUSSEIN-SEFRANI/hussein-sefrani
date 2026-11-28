@@ -1,12 +1,13 @@
-"""البند 71: صفحة «الإعدادات» في التلفاز: كل البطاقات بعرض واحد وارتفاع واحد، وعنوان كل مجموعة فوق بطاقاتها، والأسهم تتنقل كما كانت."""
+"""البند 71: صفحة «الإعدادات» في التلفاز متناسقة: كل البطاقات بعرض واحد وارتفاع واحد (منذ البند 72: 12 بطاقة في 3 صفوف × 4)،
+وعنوان كل صف فوقه، ولا عنوان مقصوص، والأسهم تتنقل كما كانت."""
 import json, os, shutil, subprocess, sys, tempfile, threading
 from pathlib import Path
 APP = Path(sys.argv[1]).resolve(); sys.path.insert(0, str(APP))
 ok = lambda c, m: print(("✅ " if c else "❌ ") + m) or bool(c)
 res = []
 css = (APP / "static/css/tv.css").read_text(encoding="utf-8")
-res.append(ok("repeat(var(--cols), minmax(0, 1fr))" in css and ".set-group, .set-groups .set-grid { display: contents; }" in css,
-              "شبكة واحدة بأعمدة متساوية لكل البطاقات"))
+res.append(ok("grid-template-columns: repeat(4, minmax(0, 1fr))" in css and ".set-group, .set-groups .set-grid { display: contents; }" in css
+              and "height: 112px" in css, "شبكة واحدة بأعمدة متساوية وارتفاع ثابت لكل البطاقات"))
 node = shutil.which("node")
 if not (node and subprocess.run([node, "-e", "require('playwright')"], capture_output=True).returncode == 0):
     res.append(ok(True, "(لا يوجد Playwright هنا: فُحص الكود فقط)"))
@@ -29,16 +30,15 @@ const { chromium } = require('playwright');
   });
   await p.goto(process.env.T_URL); await p.waitForTimeout(1200);
   await p.evaluate(() => settingsScreen()); await p.waitForTimeout(600);
-  const size = () => p.evaluate(() => ({
-    cards: [...document.querySelectorAll('.set-card')].map((c) => [c.dataset.k, c.offsetWidth, c.offsetHeight, c.offsetTop]),
+  const snap = () => p.evaluate(() => ({
+    cards: [...document.querySelectorAll('.set-card')].map((c) => [c.dataset.k, c.offsetWidth, c.offsetHeight, c.offsetTop, c.querySelector('b').scrollWidth > c.querySelector('b').clientWidth + 1]),
     heads: [...document.querySelectorAll('.set-gh')].map((g) => [g.textContent, g.offsetWidth]),
+    grid: document.querySelector('.set-groups').offsetWidth,
     focus: document.querySelector('.set-card.focus')?.dataset.k }));
-  const a = await size();
-  await p.keyboard.press('ArrowLeft'); await p.waitForTimeout(250);
-  const b1 = (await size()).focus;
-  await p.keyboard.press('ArrowLeft'); await p.keyboard.press('ArrowLeft'); await p.waitForTimeout(250);
-  const b3 = (await size()).focus;
-  console.log(JSON.stringify({ a, b1, b3, errs })); await b.close();
+  const a = await snap();
+  await p.keyboard.press('ArrowLeft'); await p.waitForTimeout(200); const l1 = (await snap()).focus;
+  await p.keyboard.press('ArrowDown'); await p.waitForTimeout(200); const d1 = (await snap()).focus;
+  console.log(JSON.stringify({ a, l1, d1, errs })); await b.close();
 })();
 """
     out = subprocess.run([node, "-e", js], capture_output=True, text=True, timeout=120,
@@ -47,15 +47,17 @@ const { chromium } = require('playwright');
     try:
         r = json.loads(out.stdout.strip().splitlines()[-1])
     except Exception:
-        r = {"a": {"cards": [], "heads": []}, "error": (out.stderr or out.stdout)[-300:]}
+        r = {"a": {"cards": [], "heads": [], "grid": 0}, "error": (out.stderr or out.stdout)[-300:]}
     cards = r["a"]["cards"]
-    ws, hs, tops = {c[1] for c in cards}, {c[2] for c in cards}, {round(c[3]) for c in cards}
-    res.append(ok(len(cards) == 6 and len(ws) == 1 and len(hs) == 1, f"البطاقات الست بعرض واحد وارتفاع واحد ← {sorted(ws)}×{sorted(hs)}"))
-    res.append(ok(len(tops) == 1, f"كلها على السطر نفسه ← {sorted(tops)}"))
-    w = next(iter(ws)) if len(ws) == 1 else 0
-    heads = dict(r["a"]["heads"])
-    res.append(ok(w and abs(heads.get("التلفاز", 0) - (3 * w + 2 * 18 - 12)) <= 2 and abs(heads.get("الألعاب", 0) - (2 * w + 18 - 12)) <= 2
-                  and abs(heads.get("الشبكة", 0) - (w - 12)) <= 2, f"عنوان كل مجموعة فوق بطاقاتها تماماً ← {heads}"))
-    res.append(ok(r["a"].get("focus") == "screen" and r.get("b1") == "audio" and r.get("b3") == "pad" and not r.get("errs"),
-                  f"الأسهم تتنقل بين البطاقات كما كانت (الشاشة ← الصوت ← … ← يد التحكم) ← {r.get('a', {}).get('focus')}, {r.get('b1')}, {r.get('b3')} {r.get('error', '')}"))
+    ws, hs = {c[1] for c in cards}, {c[2] for c in cards}
+    rows = {}
+    for c in cards:
+        rows.setdefault(c[3], []).append(c[0])
+    res.append(ok(len(cards) == 12 and len(ws) == 1 and len(hs) == 1, f"البطاقات الـ12 بعرض واحد وارتفاع واحد ← {sorted(ws)}×{sorted(hs)}"))
+    res.append(ok(sorted(len(v) for v in rows.values()) == [4, 4, 4], f"3 صفوف × 4 ← {list(rows.values())}"))
+    res.append(ok(not any(c[4] for c in cards), f"لا عنوان مقصوص ← {[c[0] for c in cards if c[4]] or 'لا شيء'}"))
+    heads = r["a"]["heads"]
+    res.append(ok(len(heads) == 3 and all(abs(w - (r["a"]["grid"] - 12)) <= 2 for _, w in heads), f"عنوان كل صف فوقه بعرض الصف ← {heads}"))
+    res.append(ok(r["a"].get("focus") == "screen" and r.get("l1") == "size" and r.get("d1") == "look" and not r.get("errs"),
+                  f"الأسهم تتنقل (الشاشة ← حجم الصورة ↓ المظهر) ← {r['a'].get('focus')}, {r.get('l1')}, {r.get('d1')} {r.get('error', '')}"))
 print(f"\n{sum(res)}/{len(res)} نجح"); sys.exit(0 if all(res) else 1)

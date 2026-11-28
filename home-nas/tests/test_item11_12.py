@@ -31,6 +31,7 @@ res.append(ok(baba.post("/api/tv/admin/display", json={"mode": "1920x1080; rm"})
 res.append(ok(sara.get("/api/tv/admin/display").status_code == 403 and sara.post("/api/tv/admin/screen", json={"name": "auto"}).status_code == 403, "الأطفال لا يغيّرون الشاشة"))
 js = (APP / "static/js/tv.js").read_text(encoding="utf-8")
 res.append(ok("async function screenSetScreen" in js and "/api/tv/admin/display" in js and "js-keep" in js, "شاشة «الشاشة» في إعدادات التلفاز (مع «حفظ» بعد التجربة)"))
-res.append(ok("const SET_GROUPS" in js and all(g in js for g in ('["التلفاز"', '["الألعاب"', '["الشبكة"')) and "set-group" in js, "الإعدادات في ثلاث مجموعات: التلفاز، الألعاب، الشبكة"))
+res.append(ok("const SET_GROUPS" in js and all(g in js for g in ('["الشاشة والصوت"', '["ما يظهر على التلفاز"', '["الأجهزة والشبكة"')) and "set-group" in js,
+              "الإعدادات في ثلاث مجموعات (منذ البند 72): الشاشة والصوت، ما يظهر على التلفاز، الأجهزة والشبكة"))
 res.append(ok(".set-groups" in (APP / "static/css/tv.css").read_text(encoding="utf-8") and subprocess.run(["node", "--check", str(APP / "static/js/tv.js")]).returncode == 0, "التنسيق وملف JS سليم"))
 print(f"\n{sum(res)}/{len(res)} نجح"); shutil.rmtree(T, ignore_errors=True); sys.exit(0 if all(res) else 1)
