@@ -26,7 +26,7 @@ r = bundled.seed(db, P, root=B)
 res.append(ok(sorted(r["added"]) == sorted(["الأفعى", "كرة القدم", "جدول الضرب"]), f"أول تشغيل: 3 تطبيقات وُضعت ← {r['added']}"))
 res.append(ok((G / "الأفعى/index.html").is_file() and (G / "كرة القدم").is_dir() and (E / "جدول الضرب/index.html").is_file() and not (G / "_kit").exists(),
               "الألعاب في «الألعاب» والتعليم في «التعليم» حسب app.json (و_kit لا يُنسخ)"))
-res.append(ok(bundled.seed(db, P, root=B) == {"added": [], "updated": [], "kept": [], "skipped": []}, "التشغيل التالي بلا تغيير: لا شيء يُعمل"))
+res.append(ok(not any(bundled.seed(db, P, root=B).values()), "التشغيل التالي بلا تغيير: لا شيء يُعمل"))
 # المدير يحذف لعبة ويعدّل أخرى، ثم يأتي تحديث بنسخ جديدة
 shutil.rmtree(G / "كرة القدم")
 (G / "الأفعى/game.js").write_text("// عدّلها المدير", encoding="utf-8")
