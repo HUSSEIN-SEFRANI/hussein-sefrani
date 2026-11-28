@@ -2129,7 +2129,7 @@ def api_tv_admin_bt_action(action):
         r = helper("bt-pair-pad", timeout=150, as_json=True) or {}
         log_action("بلوتوث من التلفاز", f"ربط يد {r.get('name', '')} {r.get('mac', '')}", u["username"])
         return jsonify(available=True, paired=r, **helper("bt-status", as_json=True))
-    elif action in ("pair", "remove"):
+    elif action in ("pair", "remove", "disconnect"):   # البند 73: disconnect = فصل يد واحدة
         if not re.fullmatch(r"[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}", mac):
             abort(400)
         helper(f"bt-{action}", mac, timeout=150)
