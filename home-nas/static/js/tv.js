@@ -2805,7 +2805,7 @@ function settingsScreen() {
       <b>${t}</b><span>${s}</span></button>`;
   const el = h(`<div class="bg-dark"><div class="bhead"><button class="back f js-back">${A.CHEVRON}<span>الرئيسية</span></button>
     <div class="ti" style="background:linear-gradient(135deg,#64748b,#1e293b)">${GEAR}</div><h1>الإعدادات</h1></div>
-    <div class="set-groups">${SET_GROUPS.map(([g, items]) => `<div class="set-group" style="--n:${items.length}"><h2 class="set-gh">${g}</h2><div class="set-grid">${items.map(card).join("")}</div></div>`).join("")}</div>
+    <div class="set-groups" style="--cols:${SET_GROUPS.reduce((a, [, it]) => a + it.length, 0)}">${SET_GROUPS.map(([g, items]) => `<div class="set-group" style="--n:${items.length}"><h2 class="set-gh">${g}</h2><div class="set-grid">${items.map(card).join("")}</div></div>`).join("")}</div>
     ${hints([["موافق", "فتح"], ["رجوع", "الرئيسية"]])}</div>`);
   el.querySelector(".js-back").addEventListener("click", pop);
   el.querySelectorAll(".set-card").forEach((b) => b.addEventListener("click", () => ({ wifi: wifiScreen, bt: btScreen, pad: padScreen, audio: soundSetScreen, saver: saverSetScreen, screen: screenSetScreen })[b.dataset.k]()));
