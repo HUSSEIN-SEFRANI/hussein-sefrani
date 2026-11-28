@@ -122,7 +122,8 @@ function reset(scr) {
 }
 function focusables() {
   const t = top();
-  return t ? [...t.el.querySelectorAll(".f")].filter((e) => e.offsetParent !== null) : [];
+  const root = t && (t.el.querySelector(".tv-modal") || t.el);   // البند 73: رسالة التأكيد مفتوحة = أزرارها فقط
+  return root ? [...root.querySelectorAll(".f")].filter((e) => e.offsetParent !== null) : [];
 }
 function focusInitial(scr) {
   const el = scr.initial?.() || focusables()[0];
@@ -2690,6 +2691,7 @@ function padFire(name, gp) {
   const t = top();
   if (t && t.isGame && t.asking) { if (name === "ps") { t.closeAsk(true); return; } }   // البند 51: PS مرة ثانية = خروج
   else if (t && t.isGame) { if (name === "ps") { if (t.askExit) t.askExit(); else padKey("Escape"); } return; }  // داخل اللعبة: اليد للعبة، وزر PS للخروج
+  if (t && t.padTest && ["l1", "r1", "l2", "r2", "options", "create", "triangle", "square"].includes(name)) return;   // البند 73: صفحة «تعديل» تجربة فقط
   // البند 52: «موافق» الزر السفلي و«رجوع» الأيمن في كل الأيادي (بلايستيشن ونينتندو وغير الأصلية)، إلا إن بدّلهما المستعمل
   const swap = !!padPrefs.swap;
   const okB = swap ? "circle" : "cross", backB = swap ? "cross" : "circle";
@@ -2874,7 +2876,7 @@ function optList(box, rows) {
         return `<button class="opt-row f act${o._armed ? " armed" : ""}" data-i="${i}"><span class="oi">${o.icon}</span><b>${o.label}${hint}</b><span class="ov">${esc(val)}</span></button>`;
       }
       const vals = optValues(o), cv = o._pend !== undefined ? o._pend : o.get(), it = vals.find(([v]) => sameV(v, cv)) || [cv, String(cv ?? "—")];
-      return `<button class="opt-row f" data-i="${i}"><span class="oi">${o.icon}</span><b>${o.label}${hint}</b><span class="ov"><i>‹</i><em>${esc(it[1])}</em><i>›</i></span></button>`;
+      return `<button class="opt-row f${o.changed?.() ? " changed" : ""}" data-i="${i}"><span class="oi">${o.icon}</span><b>${o.label}${hint}</b><span class="ov"><i>‹</i><em>${esc(it[1])}</em><i>›</i></span></button>`;
     }).join("");
     box.querySelectorAll(".opt-row").forEach((b) => {
       const i = +b.dataset.i;
@@ -3169,34 +3171,6 @@ function padPairScreen(done) {
   });
 }
 
-// البند 49: اختيار اليد الأساسية: من يضغط الزر السفلي تصير يده اللاعب 1 (في الواجهة وكل الألعاب)
-function padMainScreen(done) {
-  const el = subScreen("اختيار اليد الأساسية", "pad"), body = el.querySelector(".set-body");
-  body.innerHTML = `<p class="set-msg" style="font-size:30px;font-weight:800;color:#fde68a">اضغط ${faceIcon("down", 34)} الزر السفلي في اليد التي تريدها أساسية</p>
-    <p class="set-msg">هذه اليد تصير «اللاعب 1»: تتحكم بقوائم الألعاب، وتبقى الأساسية كلما اتصلت.</p>
-    <div class="set-list js-pl"></div>`;
-  const prev = {};
-  let raf = 0;
-  const tick = () => {
-    raf = requestAnimationFrame(tick);
-    for (const g of livePads()) {
-      const n = padNorm(g, PADMAPS), on = !!(n.buttons[0] && n.buttons[0].pressed);
-      if (on && !prev[g.index]) {
-        setMainPad(g.index, true);
-        if (!PADSEEN.includes(g.index)) PADSEEN.push(g.index);
-        const r0 = padPrefs.rumble; padPrefs.rumble = true; rumble(g, 400); padPrefs.rumble = r0;
-        toast(`⭐ ${g.id.replace(/\(.*\)/, "").trim() || "اليد"}: صارت الأساسية (اللاعب 1)`, 4000);
-        padCapture = false; cancelAnimationFrame(raf); pop(); if (done) done(); return;
-      }
-      prev[g.index] = on;
-    }
-  };
-  padCapture = true;
-  push({ el, destroy() { padCapture = false; cancelAnimationFrame(raf); } });
-  tick();
-}
-
-// قائمة الأيادي الموصولة الآن بأرقام اللاعبين
 // البند 4: بطارية الأيادي (من السيرفر كل دقيقة)، وتنبيه عند ضعفها
 let PADBAT = [], batWarned = {};
 async function pollBattery() {
@@ -3237,21 +3211,12 @@ function batFor(g, used) {
   if (b) used.add(b.id);
   return b;
 }
-function batHTML(b) {
-  if (!b) return "";
-  const pct = b.capacity != null ? `${b.capacity}%` : ({ Full: "ممتلئة", High: "جيدة", Normal: "متوسطة", Low: "ضعيفة", Critical: "فارغة" })[b.level] || "";
-  const ch = b.status === "Charging", full = b.status === "Full";
-  const low = !ch && ((b.capacity != null && b.capacity <= 15) || /low|critical/i.test(b.level || ""));
-  return `<span class="${low ? "bad" : "muted"}">${ch ? "⚡ يشحن" : full ? "🔋 مشحونة" : low ? "🪫" : "🔋"} ${pct}</span>`;
-}
-function playersHTML() {
-  const order = window.hsefPadOrder(), pads = livePads(), used = new Set();
-  const rest = pads.filter((g) => !order.includes(g.index));
-  const row = (g, n) => `<div class="set-item"><span>${n === 1 ? "⭐" : "🎮"}</span><b>${n ? `اللاعب ${n}` : "لم تُستعمل بعد"}${n === 1 ? " (الأساسية)" : ""}</b>
-    <span class="ltr muted">${esc(g.id.replace(/\(.*\)/, "").trim() || "يد تحكم")}</span> ${batHTML(batFor(g, used))}
-    <button class="btn f js-kind" data-i="${g.index}">النوع: ${PAD_KINDS[padKind(g)]}${PADKINDS[g.id] ? " ✎" : ""}</button></div>`;
-  return pads.length ? order.map((i, k) => row(pads.find((g) => g.index === i), k + 1)).join("") + rest.map((g) => row(g, 0)).join("")
-    : `<p class="set-msg">لا توجد يد متصلة الآن. اضغط زر PS (أو Home) في اليد لتتصل.</p>`;
+// البند 73: البطارية شريط ونسبة (أو المستوى إن لم تُعرف النسبة)
+function batBar(b) {
+  if (!b) return `<span class="muted">—</span>`;
+  const pct = b.capacity != null ? b.capacity : { Full: 100, High: 75, Normal: 50, Low: 20, Critical: 5 }[b.level] ?? null;
+  const ch = b.status === "Charging", low = !ch && pct != null && pct <= 15;
+  return `<span class="bat${low ? " low" : ""}${ch ? " chg" : ""}"><i style="width:${pct ?? 0}%"></i></span><em class="ltr">${ch ? "⚡" : ""}${pct != null ? `${pct}%` : ""}</em>`;
 }
 
 async function btScreen() {
@@ -3441,63 +3406,184 @@ function padSetupScreen() {
   loop = requestAnimationFrame(tick);
 }
 
+// البند 73: رسالة تأكيد فوق الشاشة الحالية؛ «رجوع» = إلغاء
+function tvConfirm(title, html, okLabel = "نعم، احفظ", danger = false) {
+  return new Promise((resolve) => {
+    const t = top();
+    if (!t) { resolve(false); return; }
+    const before = cur, prevBack = t.back;
+    const m = h(`<div class="tv-modal"><div class="tm-card"><div class="tm-ic">${danger ? "⚠️" : "✏️"}</div><b>${title}</b>${html ? `<div class="tm-body">${html}</div>` : ""}
+      <div class="tm-row"><button class="btn ${danger ? "red" : "gold"} f js-yes">${okLabel}</button><button class="btn f js-no">إلغاء</button></div></div></div>`);
+    const close = (v) => {
+      m.remove(); t.back = prevBack;
+      setFocus(before && t.el.contains(before) ? before : focusables()[0]);
+      resolve(v);
+    };
+    m.querySelector(".js-yes").addEventListener("click", () => close(true));
+    m.querySelector(".js-no").addEventListener("click", () => close(false));
+    t.back = () => close(false);
+    t.el.appendChild(m);
+    setFocus(m.querySelector(danger ? ".js-no" : ".js-yes"));
+  });
+}
+
+// القبضات: المقترنة بالبلوتوث (من السيرفر) والموصولة الآن (من المتصفح، ومنها السلكية)
+const padClean = (id) => (id || "").replace(/\(.*\)/, "").trim() || "يد تحكم";
+function padItems(bt) {
+  const live = livePads(), order = window.hsefPadOrder(), used = new Set(), out = [];
+  const player = (g) => (g ? order.indexOf(g.index) + 1 : 0);
+  for (const d of (bt?.devices || []).filter((x) => (x.pad ?? x.icon === "input-gaming") && x.paired)) {
+    const g = d.connected ? live.find((x) => !used.has(x.index) && (padClean(x.id) === d.name || x.id.startsWith(d.name))) : null;
+    if (g) used.add(g.index);
+    out.push({ key: d.mac, name: d.name || padClean(g?.id), mac: d.mac, connected: !!d.connected, gp: g || null, player: player(g),
+      bat: PADBAT.find((b) => b.mac && b.mac === d.mac) || (g ? batFor(g, new Set()) : null) });
+  }
+  for (const g of live.filter((x) => !used.has(x.index))) {
+    out.push({ key: `g${g.index}`, name: padClean(g.id), mac: "", connected: true, gp: g, player: player(g), bat: batFor(g, new Set()), wired: true });
+  }
+  return out.sort((a, b) => (a.player || 99) - (b.player || 99));
+}
 function padScreen() {
   const el = subScreen("يد التحكم", "pad"), body = el.querySelector(".set-body");
-  const BTN = [["cross", faceIcon("down", 30)], ["circle", faceIcon("right", 30)], ["square", faceIcon("left", 30)], ["triangle", faceIcon("up", 30)], ["up", "↑"], ["down", "↓"], ["left", "←"], ["right", "→"],
-    ["l1", "L1"], ["r1", "R1"], ["l2", "L2"], ["r2", "R2"], ["options", "Options"], ["create", "Create"], ["ps", "PS"]];
-  body.innerHTML = `<div class="set-row"><button class="btn gold f js-pair">🎮 ربط يد جديدة</button><button class="btn gold f js-main">⭐ اختيار اليد الأساسية</button></div>
-    <div class="set-list js-players">${playersHTML()}</div>
-    <div class="set-status"><div>آخر يد ضُغط فيها زر: <b class="ltr js-pn">اضغط أي زر في اليد…</b></div></div>
-    <div class="pad-test ltr">${BTN.map(([k, t]) => `<span data-b="${k}">${t}</span>`).join("")}</div>
-    <div class="set-row"><button class="btn f js-swap"></button><button class="btn f js-rum"></button><button class="btn gold f js-diag">🩺 تشخيص اليد</button></div>
-    <div class="set-row pad-sleep"><button class="btn f js-off">🔌 أطفئ القبضات الآن</button><div class="opt-list js-padsleep"></div></div>
-    <div class="set-row"><button class="btn gold f js-setup">🎮 إعداد يد جديدة</button>${Object.keys(PADMAPS).length ? `<button class="btn f js-reset">مسح إعدادات الأيادي (${Object.keys(PADMAPS).length})</button>` : ""}</div>
-    <p class="set-msg">«إعداد يد جديدة»: لأي يد لا تعمل أزرارها صحيحة (يد عامة بلا ماركة): تضغط كل زر مرة عند السؤال، فتُحفظ لهذه اليد.</p>
-    <div class="pad-legend js-legend"></div>
-    <p class="set-msg">الأسهم أو العصا اليسرى للتوجيه دائماً · L1/R1 السابق/التالي · L2/R2 الصوت · Options تشغيل/إيقاف · PS الرئيسية (وفي الألعاب: الخروج)</p>`;
-  el.querySelector(".js-diag").addEventListener("click", () => padDiagScreen());
-  el.querySelector(".js-off").addEventListener("click", () => padsOff(true));
-  // البند 72: مدة إطفاء القبضات بلا لعب (لحفظ الشحن)
-  optList(el.querySelector(".js-padsleep"), [{ icon: "🔋", label: "تنطفئ القبضات بلا لعب بعد", hint: "لحفظ الشحن، وتعود بالضغط على زر PS",
-    values: [[5, "5 دقائق"], [10, "10 دقائق"], [15, "15 دقيقة"], [30, "30 دقيقة"], [60, "ساعة"], [0, "أبداً"]], get: () => +(settings.pad_sleep ?? 15), patch: (v) => ({ pad_sleep: v }) }]);
-  el.querySelector(".js-pair").addEventListener("click", () => { pop(); padPairScreen(() => padScreen()); });
-  // تصحيح نوع اليد يدوياً: تلقائي ← بلايستيشن ← إكس بوكس ← نينتندو ← عامة ← تلقائي
-  el.querySelector(".js-players").addEventListener("click", (e) => {
-    const b = e.target.closest(".js-kind");
-    if (!b) return;
-    const g = livePads().find((x) => x.index === +b.dataset.i);
-    if (!g) return;
-    const seq = [null, "ps", "xbox", "nintendo", "generic"], cur = PADKINDS[g.id] || null;
-    setPadKind(g, seq[(seq.indexOf(cur) + 1) % seq.length]);
-    toast(`🎮 النوع: ${PAD_KINDS[padKind(g)]}${PADKINDS[g.id] ? "" : " (تلقائي)"}`, 2500);
-    const pl = el.querySelector(".js-players"); pl.dataset.h = ""; 
-  });
-  pollBattery();
-  el.querySelector(".js-main").addEventListener("click", () => { pop(); padMainScreen(() => padScreen()); });
-  el.querySelector(".js-setup").addEventListener("click", () => { pop(); padSetupScreen(); });
-  el.querySelector(".js-reset")?.addEventListener("click", async () => {
-    for (const id of Object.keys(PADMAPS)) { try { PADMAPS = (await api("/api/tv/padmaps", { json: { id, map: null } })).maps || {}; } catch { /* */ } }
-    localStorage.setItem("hsef-padmaps", JSON.stringify(PADMAPS)); toast("مُسحت إعدادات الأيادي", 3000); pop(); padScreen();
-  });
-  const lab = () => {
-    el.querySelector(".js-swap").textContent = padPrefs.swap ? "الموافقة بالزر الأيمن (اضغط للتبديل)" : "الموافقة بالزر السفلي (اضغط للتبديل)";
-    el.querySelector(".js-legend").innerHTML = [[okPos(), "موافق"], [backPos(), "رجوع"], ["left", "فعل إضافي"], ["up", "فعل إضافي"]]
-      .map(([pos, t]) => `<span>${faceIcon(pos, 34)}<b>${FACE_NAME[pos]}</b><i>${t}</i></span>`).join("");
-    el.querySelector(".js-rum").textContent = padPrefs.rumble ? "الاهتزاز: يعمل" : "الاهتزاز: متوقف";
+  body.innerHTML = `<div class="pad-list js-pads"></div><div class="pad-foot"><button class="btn gold f js-add">➕ إضافة قبضة</button></div>`;
+  const list = body.querySelector(".js-pads");
+  let bt = null, sig = "";
+  let first = true;
+  const draw = () => {
+    const items = padItems(bt);
+    const s2 = JSON.stringify(items.map((x) => [x.key, x.connected, x.player, x.bat?.capacity, x.bat?.level, x.bat?.status]));
+    if (s2 === sig) return;
+    sig = s2;
+    const keep = cur && list.contains(cur) ? [cur.closest(".pad-row")?.dataset.key, cur.dataset.a] : null;
+    list.innerHTML = items.length ? items.map((x) => {
+      const st = x.connected ? `${x.wired ? "سلكية" : "متصلة"}${x.player ? ` · اللاعب ${x.player}` : ""}${x.player === 1 ? " · الأساسية" : ""}` : "غير متصلة · اضغط زر PS في اليد لتتصل";
+      return `<div class="pad-row${x.connected ? "" : " off"}" data-key="${esc(x.key)}"><div class="pr-ic">${x.player === 1 ? "⭐" : "🎮"}</div>
+        <div class="pr-tx"><b><bdi>${esc(x.name)}</bdi></b><span>${st}</span></div><div class="pr-bat">${x.connected ? batBar(x.bat) : ""}</div>
+        <div class="pr-acts"><button class="btn f" data-a="edit">✏️ تعديل</button>${x.mac && x.connected ? `<button class="btn f" data-a="disc">فصل</button>` : ""}${x.mac ? `<button class="btn f" data-a="unpair">إلغاء الاقتران</button>` : ""}</div></div>`;
+    }).join("") : `<div class="pad-empty"><div class="pe-ic">🎮</div><b>لا توجد قبضة مقترنة</b><span>اضغط «إضافة قبضة» بالأسفل، أو صِلها بالسلك.</span></div>`;
+    list.querySelectorAll(".pad-row [data-a]").forEach((b) => b.addEventListener("click", () => act(items.find((x) => x.key === b.closest(".pad-row").dataset.key), b.dataset.a)));
+    if (keep) setFocus(list.querySelector(`.pad-row[data-key="${CSS.escape(keep[0] || "")}"] [data-a="${keep[1]}"]`) || list.querySelector(".f") || body.querySelector(".js-add"), false);
+    else if (first && items.length && cur === body.querySelector(".js-add")) setFocus(list.querySelector(".f"), false);
+    if (items.length) first = false;
   };
-  el.querySelector(".js-swap").addEventListener("click", () => { padPrefs.swap = !padPrefs.swap; savePad(); lab(); });
-  el.querySelector(".js-rum").addEventListener("click", () => { padPrefs.rumble = !padPrefs.rumble; savePad(); lab(); });
-  lab();
-  let raf = 0;
-  const live = () => {
-    el.querySelectorAll("[data-b]").forEach((s) => s.classList.toggle("on", !!padState[s.dataset.b]));
-    if (padName) el.querySelector(".js-pn").textContent = padName;
-    const pl = el.querySelector(".js-players"), ph = playersHTML();
-    if (pl && pl.dataset.h !== ph) { pl.innerHTML = ph; pl.dataset.h = ph; }
-    raf = requestAnimationFrame(live);
+  const load = async () => {
+    try { const r = await api("/api/tv/admin/bt"); bt = r.available && r.installed !== false ? r : null; } catch { bt = null; }
+    await pollBattery(); sig = ""; draw();
   };
-  live();
-  push({ el, initial: () => el.querySelector(".js-pair"), destroy() { cancelAnimationFrame(raf); } });
+  const act = async (x, a) => {
+    if (!x) return;
+    if (a === "edit") { padEditScreen(x); return; }
+    const disc = a === "disc";
+    const ok = await tvConfirm(disc ? `فصل «${esc(x.name)}»؟` : `إلغاء اقتران «${esc(x.name)}»؟`,
+      disc ? "تنطفئ القبضة وتبقى مقترنة، وتعود بالضغط على زر PS." : "لن تتصل بعدها حتى تُضاف من جديد بـ«إضافة قبضة».",
+      disc ? "فصل" : "إلغاء الاقتران", !disc);
+    if (!ok) return;
+    try {
+      await api(`/api/tv/admin/bt/${disc ? "disconnect" : "remove"}`, { json: { mac: x.mac } });
+      toast(disc ? `🔌 فُصلت: ${x.name}` : `أُلغي اقتران: ${x.name}`, 3500);
+    } catch (e) { toast(e.message, 5000); }
+    load();
+  };
+  body.querySelector(".js-add").addEventListener("click", () => { pop(); padPairScreen(() => padScreen()); });
+  const tm = setInterval(draw, 1000), tb = setInterval(load, 8000);
+  push({ el, initial: () => list.querySelector(".f") || body.querySelector(".js-add"), onShow: () => { sig = ""; load(); },
+    destroy() { clearInterval(tm); clearInterval(tb); } });
+  draw(); load();
+}
+
+// رسم قبضة عام (ليس لماركة): الأزرار بالموقع، وكل زر يُضغط في اليد يضيء
+const PAD_SVG = `<svg class="pad-svg" viewBox="0 0 420 250" aria-hidden="true">
+  <rect class="pb" x="70" y="58" width="280" height="118" rx="56"/><ellipse class="pb" cx="104" cy="168" rx="58" ry="70" transform="rotate(18 104 168)"/>
+  <ellipse class="pb" cx="316" cy="168" rx="58" ry="70" transform="rotate(-18 316 168)"/>
+  <rect data-p="l2" x="84" y="10" width="70" height="26" rx="10"/><rect data-p="r2" x="266" y="10" width="70" height="26" rx="10"/>
+  <rect data-p="l1" x="78" y="40" width="82" height="15" rx="7"/><rect data-p="r1" x="260" y="40" width="82" height="15" rx="7"/>
+  <rect data-p="up" x="108" y="80" width="22" height="26" rx="4"/><rect data-p="down" x="108" y="122" width="22" height="26" rx="4"/>
+  <rect data-p="left" x="84" y="103" width="26" height="22" rx="4"/><rect data-p="right" x="128" y="103" width="26" height="22" rx="4"/>
+  <circle data-p="b3" cx="304" cy="86" r="14"/><circle data-p="b2" cx="278" cy="114" r="14"/><circle data-p="b1" cx="330" cy="114" r="14"/><circle data-p="b0" cx="304" cy="142" r="14"/>
+  <rect data-p="create" x="166" y="80" width="24" height="13" rx="6"/><rect data-p="options" x="230" y="80" width="24" height="13" rx="6"/>
+  <circle data-p="ps" cx="210" cy="124" r="12"/>
+  <circle data-p="ls" cx="166" cy="164" r="25"/><circle class="knob js-lk" cx="166" cy="164" r="13"/>
+  <circle data-p="rs" cx="254" cy="164" r="25"/><circle class="knob js-rk" cx="254" cy="164" r="13"/></svg>`;
+
+// صفحة «تعديل»: رسم القبضة، والخيارات تبقى معلّقة حتى «حفظ التعديل» ثم رسالة التأكيد
+const PAD_KIND_LIST = [[null, "تلقائي"], ["ps", "بلايستيشن"], ["xbox", "إكس بوكس"], ["nintendo", "نينتندو"], ["8bitdo", "8BitDo"], ["generic", "عامة (بلا ماركة)"]];
+const PAD_SLEEP_LIST = [[5, "5 دقائق"], [10, "10 دقائق"], [15, "15 دقيقة"], [30, "30 دقيقة"], [60, "ساعة"], [0, "أبداً"]];
+function padEditScreen(item) {
+  const el = subScreen("تعديل القبضة", "pad"), body = el.querySelector(".set-body");
+  const gpNow = () => livePads().find((g) => item.gp && g.index === item.gp.index && padClean(g.id) === padClean(item.gp.id))
+    || livePads().find((g) => padClean(g.id) === item.name || g.id.startsWith(item.name)) || null;
+  const p = {};   // التعديلات المعلّقة
+  const has = (k) => Object.prototype.hasOwnProperty.call(p, k);
+  const isMain = () => { const g = gpNow(); return !!g && window.hsefPadOrder()[0] === g.index; };
+  const rows = [
+    { icon: "⭐", label: "اجعلها اليد الأساسية (اللاعب 1)", hint: "تتحكم بقوائم الألعاب", values: [[false, "لا"], [true, "نعم"]], hidden: () => !gpNow() || isMain(),
+      get: () => (has("main") ? p.main : false), set: (v) => { if (v) p.main = true; else delete p.main; }, changed: () => has("main") },
+    { icon: "🎮", label: "نوع اليد", hint: "يُعرف وحده؛ غيّره إن كانت الأزرار خطأ", values: PAD_KIND_LIST, hidden: () => !gpNow(),
+      get: () => (has("kind") ? p.kind : PADKINDS[gpNow()?.id] || null), set: (v) => { if (sameV(v, PADKINDS[gpNow()?.id] || null)) delete p.kind; else p.kind = v; }, changed: () => has("kind") },
+    { icon: "✅", label: "زر الموافقة", hint: "لكل القبضات", values: [[false, "الزر السفلي"], [true, "الزر الأيمن"]],
+      get: () => (has("swap") ? p.swap : !!padPrefs.swap), set: (v) => { if (v === !!padPrefs.swap) delete p.swap; else p.swap = v; }, changed: () => has("swap") },
+    { icon: "📳", label: "الاهتزاز", hint: "لكل القبضات", values: ONOFF,
+      get: () => (has("rumble") ? p.rumble : !!padPrefs.rumble), set: (v) => { if (v === !!padPrefs.rumble) delete p.rumble; else p.rumble = v; }, changed: () => has("rumble") },
+    { icon: "🔋", label: "تنطفئ بلا لعب بعد", hint: "لكل القبضات، لحفظ الشحن", values: PAD_SLEEP_LIST,
+      get: () => (has("sleep") ? p.sleep : +(settings.pad_sleep ?? 15)), set: (v) => { if (v === +(settings.pad_sleep ?? 15)) delete p.sleep; else p.sleep = v; }, changed: () => has("sleep") },
+    { icon: "🛠️", label: "إعداد الأزرار من جديد", hint: "لليد التي لا تعمل أزرارها صحيحة", hidden: () => !gpNow(), value: () => "ابدأ", action: () => padSetupScreen() },
+    { icon: "🩺", label: "تشخيص اليد", value: () => "افتح", action: () => padDiagScreen() },
+  ];
+  body.innerHTML = `<div class="pad-edit"><div class="pe-opts"><div class="opt-list js-opts"></div>
+      <div class="pe-btns"><button class="btn gold f js-save">💾 حفظ التعديل</button><button class="btn f js-cancel">إلغاء</button></div></div>
+    <div class="pe-draw"><b class="pe-name ltr">${esc(item.name)}</b><div class="pe-svg" dir="ltr">${PAD_SVG}</div><div class="pe-cap js-cap"></div>
+      <div class="pad-legend js-legend"></div></div></div>`;
+  const draw = optList(body.querySelector(".js-opts"), rows);
+  const legend = () => {
+    const sw = has("swap") ? p.swap : !!padPrefs.swap;
+    body.querySelector(".js-legend").innerHTML = [[sw ? "right" : "down", "موافق"], [sw ? "down" : "right", "رجوع"], ["left", "إضافي"], ["up", "إضافي"]]
+      .map(([pos, t]) => `<span>${faceIcon(pos, 30)}<i>${t}</i></span>`).join("");
+  };
+  rows.forEach((o) => { if (o.set) { const s0 = o.set; o.set = (v) => { s0(v); legend(); }; } });
+  legend();
+  const save = async () => {
+    const lines = [];
+    if (has("main")) lines.push("تصير اليد الأساسية (اللاعب 1)");
+    if (has("kind")) lines.push(`النوع: ${PAD_KIND_LIST.find(([k]) => sameV(k, p.kind))[1]}`);
+    if (has("swap")) lines.push(`زر الموافقة: ${p.swap ? "الأيمن" : "السفلي"}`);
+    if (has("rumble")) lines.push(`الاهتزاز: ${p.rumble ? "مفعّل" : "متوقف"}`);
+    if (has("sleep")) lines.push(`تنطفئ بلا لعب بعد: ${PAD_SLEEP_LIST.find(([m]) => m === p.sleep)[1]}`);
+    if (!lines.length) { toast("لا تعديل للحفظ", 2500); return; }
+    if (!(await tvConfirm("تأكيد التعديل", `<ul>${lines.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>`))) return;
+    const g = gpNow();
+    try {
+      if (has("sleep")) await saveTV({ pad_sleep: p.sleep });
+      if (has("main") && g) setMainPad(g.index, true);
+      if (has("kind") && g) setPadKind(g, p.kind);
+      if (has("swap")) padPrefs.swap = p.swap;
+      if (has("rumble")) { padPrefs.rumble = p.rumble; if (p.rumble && g) rumble(g, 250); }
+      if (has("swap") || has("rumble")) savePad();
+    } catch (e) { toast(e.message, 5000); return; }
+    toast("✓ تم حفظ التعديل", 3000);
+    pop();
+  };
+  body.querySelector(".js-save").addEventListener("click", save);
+  body.querySelector(".js-cancel").addEventListener("click", pop);
+  const parts = [...body.querySelectorAll(".pad-svg [data-p]")], lk = body.querySelector(".js-lk"), rk = body.querySelector(".js-rk");
+  let raf = 0, wasOn = null;
+  const loop = () => {
+    const g = gpNow(), n = g ? padNorm(g, PADMAPS) : null;
+    const b = (i) => !!(n && n.buttons[i] && n.buttons[i].pressed), ax = (i) => (n && n.axes[i]) || 0;
+    const on = { l2: b(6), r2: b(7), l1: b(4), r1: b(5), up: b(12), down: b(13), left: b(14), right: b(15), b0: b(0), b1: b(1), b2: b(2), b3: b(3),
+      create: b(8), options: b(9), ps: b(16), ls: b(10) || Math.hypot(ax(0), ax(1)) > 0.4, rs: b(11) || Math.hypot(ax(2), ax(3)) > 0.4 };
+    for (const e of parts) e.classList.toggle("on", !!on[e.dataset.p]);
+    lk.setAttribute("transform", `translate(${ax(0) * 9} ${ax(1) * 9})`); rk.setAttribute("transform", `translate(${ax(2) * 9} ${ax(3) * 9})`);
+    if (wasOn !== !!g) {
+      wasOn = !!g;
+      body.querySelector(".pe-svg").classList.toggle("off", !g);
+      body.querySelector(".js-cap").textContent = g ? "اضغط أي زر في القبضة فيضيء مكانه في الرسم" : "القبضة غير متصلة، وتتصل بالضغط على زر PS";
+      draw(cur?.dataset?.i != null && body.contains(cur) ? +cur.dataset.i : null);
+    }
+    raf = requestAnimationFrame(loop);
+  };
+  loop();
+  // padTest: تجربة الأزرار لا تغيّر الصوت ولا تشغّل شيئاً (الأسهم وموافق ورجوع وPS تعمل كالعادة)
+  push({ el, padTest: true, initial: () => body.querySelector(".js-opts .opt-row"), destroy() { cancelAnimationFrame(raf); } });
 }
 
 // تقرير يد التحكم: صوّره وأرسله إن لم تعمل اليد
